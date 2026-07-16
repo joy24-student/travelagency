@@ -1,0 +1,80 @@
+{
+  "expo": {
+    "name": "ShopnoJatra Agency",
+    "slug": "shopnojatra-agency",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "shopnojatra",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTabletMode": true,
+      "bundleIdentifier": "com.shopnojatra.agency"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "googleServicesFile": "./google-services.json",
+      "package": "com.shopnojatra.agency",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow ShopnoJatra to access your camera."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow ShopnoJatra to access your photos.",
+          "cameraPermission": "Allow ShopnoJatra to access your camera."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#4F46E5"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "expo-localization"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "shopnojatra-agency"
+      },
+      "supabase": {
+        "url": "https://your-supabase-url.supabase.co",
+        "anonKey": "your-anon-key"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/your-project-id",
+      "fallbackToCacheTimeout": 0,
+      "checkOnLaunch": "warning-if-native-build-exists"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}

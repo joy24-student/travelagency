@@ -1,0 +1,559 @@
+<!doctype html>
+
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>ShopnoJatra Ultra - Bank Accounts</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .glass-card {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(40px);
+        -webkit-backdrop-filter: blur(40px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+      }
+      .deep-sea-gradient {
+        background: linear-gradient(135deg, #4338ca 0%, #1e1b4b 100%);
+        box-shadow:
+          0 8px 20px -4px rgba(67, 56, 202, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      }
+      .glow-cyan {
+        filter: drop-shadow(0 0 12px rgba(76, 215, 246, 0.4));
+      }
+      body {
+        background-color: #0b1326;
+        background-image:
+          radial-gradient(
+            at 0% 0%,
+            rgba(67, 56, 202, 0.12) 0px,
+            transparent 50%
+          ),
+          radial-gradient(
+            at 100% 100%,
+            rgba(3, 181, 211, 0.08) 0px,
+            transparent 50%
+          );
+        min-height: 100vh;
+      }
+      .active-account-border {
+        border: 1px solid rgba(76, 215, 246, 0.3);
+        background: linear-gradient(
+          180deg,
+          rgba(76, 215, 246, 0.05) 0%,
+          transparent 100%
+        );
+      }
+    </style>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-lowest": "#060e20",
+              surface: "#0b1326",
+              "primary-fixed": "#e3dfff",
+              "on-background": "#dae2fd",
+              "on-tertiary-fixed": "#23005c",
+              "on-error-container": "#ffdad6",
+              "surface-container": "#171f33",
+              "surface-bright": "#31394d",
+              "on-surface": "#dae2fd",
+              "primary-fixed-dim": "#c3c0ff",
+              tertiary: "#d0bcff",
+              primary: "#c3c0ff",
+              "on-primary-container": "#c1beff",
+              error: "#ffb4ab",
+              "surface-dim": "#0b1326",
+              "tertiary-fixed-dim": "#d0bcff",
+              "primary-container": "#4338ca",
+              "on-tertiary-fixed-variant": "#5516be",
+              "surface-container-high": "#222a3d",
+              "on-primary-fixed-variant": "#372abf",
+              "surface-variant": "#2d3449",
+              "on-surface-variant": "#c7c4d7",
+              "secondary-fixed": "#acedff",
+              "surface-tint": "#c3c0ff",
+              "secondary-fixed-dim": "#4cd7f6",
+              "secondary-container": "#03b5d3",
+              "on-secondary-fixed": "#001f26",
+              "on-error": "#690005",
+              background: "#0b1326",
+              outline: "#918fa0",
+              secondary: "#4cd7f6",
+              "outline-variant": "#464554",
+              "on-secondary-container": "#00424e",
+              "on-primary-fixed": "#100069",
+              "on-primary": "#1f00a4",
+              "tertiary-container": "#6029c9",
+              "tertiary-fixed": "#e9ddff",
+              "surface-container-low": "#131b2e",
+              "surface-container-highest": "#2d3449",
+              "on-tertiary": "#3c0091",
+              "inverse-primary": "#5148d7",
+              "on-secondary-fixed-variant": "#004e5c",
+              "on-secondary": "#003640",
+              "inverse-surface": "#dae2fd",
+              "inverse-on-surface": "#283044",
+              "error-container": "#93000a",
+              "on-tertiary-container": "#cfbaff",
+            },
+            borderRadius: {
+              DEFAULT: "1rem",
+              lg: "2rem",
+              xl: "3rem",
+              full: "9999px",
+            },
+            spacing: {
+              "margin-desktop": "48px",
+              "container-max": "1440px",
+              "margin-mobile": "20px",
+              gutter: "24px",
+              unit: "8px",
+            },
+            fontFamily: {
+              "body-md": ["Inter"],
+              "headline-md": ["Plus Jakarta Sans"],
+              "headline-lg-mobile": ["Plus Jakarta Sans"],
+              "headline-lg": ["Plus Jakarta Sans"],
+              "label-sm": ["Inter"],
+              "body-lg": ["Inter"],
+              "label-md": ["Inter"],
+              "display-xl": ["Plus Jakarta Sans"],
+            },
+            fontSize: {
+              "body-md": [
+                "16px",
+                { lineHeight: "1.5", letterSpacing: "0", fontWeight: "400" },
+              ],
+              "headline-md": [
+                "24px",
+                {
+                  lineHeight: "1.3",
+                  letterSpacing: "-0.01em",
+                  fontWeight: "600",
+                },
+              ],
+              "headline-lg-mobile": [
+                "32px",
+                {
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "headline-lg": [
+                "40px",
+                {
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "label-sm": [
+                "12px",
+                { lineHeight: "1", letterSpacing: "0.05em", fontWeight: "600" },
+              ],
+              "body-lg": [
+                "18px",
+                {
+                  lineHeight: "1.6",
+                  letterSpacing: "-0.01em",
+                  fontWeight: "400",
+                },
+              ],
+              "label-md": [
+                "14px",
+                { lineHeight: "1", letterSpacing: "0.02em", fontWeight: "500" },
+              ],
+              "display-xl": [
+                "64px",
+                {
+                  lineHeight: "1.1",
+                  letterSpacing: "-0.04em",
+                  fontWeight: "700",
+                },
+              ],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+  </head>
+  <body class="text-on-background font-body-md overflow-x-hidden">
+    <!-- TopAppBar -->
+    <header
+      class="bg-surface/80 dark:bg-surface/80 backdrop-blur-xl w-full sticky top-0 z-40 border-b border-white/10 shadow-xl"
+    >
+      <div
+        class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 w-full"
+      >
+        <div class="flex items-center gap-4">
+          <button
+            class="material-symbols-outlined text-primary hover:bg-white/5 transition-colors p-2 rounded-full active:scale-95 duration-200"
+            data-icon="arrow_back"
+          >
+            arrow_back
+          </button>
+          <h1
+            class="font-headline-md text-headline-md font-bold text-primary tracking-tight"
+          >
+            ShopnoJatra Ultra
+          </h1>
+        </div>
+        <button
+          class="material-symbols-outlined text-primary hover:bg-white/5 transition-colors p-2 rounded-full active:scale-95 duration-200"
+          data-icon="settings"
+        >
+          settings
+        </button>
+      </div>
+    </header>
+    <main
+      class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop py-10 pb-32"
+    >
+      <!-- Section Header -->
+      <div class="mb-10">
+        <div class="flex flex-col gap-2">
+          <span
+            class="text-secondary font-label-md uppercase tracking-[0.2em] mb-1 block opacity-80"
+            >Security Center</span
+          >
+          <h2
+            class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface"
+          >
+            Bank Accounts
+          </h2>
+          <p
+            class="text-on-surface-variant max-w-2xl font-body-md leading-relaxed"
+          >
+            Securely manage your financial nodes and settlement destinations.
+            Multi-signature verification active.
+          </p>
+        </div>
+        <div class="mt-8">
+          <button
+            class="deep-sea-gradient w-full md:w-auto px-10 py-4 rounded-full flex items-center justify-center gap-3 text-white font-label-md active:scale-[0.98] transition-all hover:brightness-110 shadow-lg group"
+          >
+            <span
+              class="material-symbols-outlined text-[20px]"
+              data-icon="add_circle"
+              >add_circle</span
+            >
+            Connect New Bank Account
+          </button>
+        </div>
+      </div>
+      <!-- Accounts List/Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Account Card 1: Active -->
+        <div
+          class="glass-card active-account-border p-6 rounded-lg relative overflow-hidden group hover:bg-white/[0.05] transition-all duration-300"
+        >
+          <div class="flex justify-between items-start mb-10">
+            <div class="flex items-center gap-4">
+              <div
+                class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center border border-secondary/20 shadow-[0_0_15px_rgba(76,215,246,0.1)]"
+              >
+                <span
+                  class="material-symbols-outlined text-secondary text-2xl"
+                  data-icon="account_balance"
+                  >account_balance</span
+                >
+              </div>
+              <div>
+                <h3 class="text-on-surface font-headline-md text-[18px]">
+                  Global Trust Bank
+                </h3>
+                <p
+                  class="text-on-surface-variant font-body-md text-sm opacity-70"
+                >
+                  Settlement Account
+                </p>
+              </div>
+            </div>
+            <span
+              class="bg-secondary/10 text-secondary px-3 py-1 rounded-full text-[11px] font-bold tracking-wider flex items-center gap-1.5 border border-secondary/20 uppercase"
+            >
+              <span
+                class="w-1.5 h-1.5 rounded-full bg-secondary shadow-[0_0_8px_#4cd7f6]"
+              ></span>
+              Active
+            </span>
+          </div>
+          <div
+            class="bg-white/[0.03] p-4 rounded-md mb-6 border border-white/5"
+          >
+            <div class="flex justify-between items-center mb-1">
+              <span
+                class="text-on-surface-variant text-[11px] font-bold uppercase tracking-widest opacity-60"
+                >Account Number</span
+              >
+            </div>
+            <p class="text-on-surface font-mono text-[16px] tracking-widest">
+              •••• •••• •••• 8821
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button
+              class="flex-1 bg-white/10 hover:bg-white/20 text-on-surface py-2.5 rounded-full font-label-md text-sm transition-colors border border-white/5 active:scale-95"
+            >
+              Manage
+            </button>
+            <button
+              class="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full transition-colors border border-white/5"
+            >
+              <span
+                class="material-symbols-outlined text-[18px]"
+                data-icon="more_vert"
+                >more_vert</span
+              >
+            </button>
+          </div>
+        </div>
+        <!-- Account Card 2: Standby -->
+        <div
+          class="glass-card p-6 rounded-lg relative overflow-hidden group hover:bg-white/[0.05] transition-all duration-300"
+        >
+          <div class="flex justify-between items-start mb-10">
+            <div class="flex items-center gap-4">
+              <div
+                class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10"
+              >
+                <span
+                  class="material-symbols-outlined text-on-surface-variant text-2xl opacity-60"
+                  data-icon="account_balance"
+                  >account_balance</span
+                >
+              </div>
+              <div>
+                <h3 class="text-on-surface font-headline-md text-[18px]">
+                  Horizon Capital
+                </h3>
+                <p
+                  class="text-on-surface-variant font-body-md text-sm opacity-70"
+                >
+                  Secondary Reserve
+                </p>
+              </div>
+            </div>
+            <span
+              class="bg-surface-variant/50 text-on-surface-variant px-3 py-1 rounded-full text-[11px] font-bold tracking-wider border border-white/5 uppercase"
+            >
+              Standby
+            </span>
+          </div>
+          <div
+            class="bg-white/[0.02] p-4 rounded-md mb-6 border border-white/5"
+          >
+            <div class="flex justify-between items-center mb-1">
+              <span
+                class="text-on-surface-variant text-[11px] font-bold uppercase tracking-widest opacity-60"
+                >Account Number</span
+              >
+            </div>
+            <p
+              class="text-on-surface font-mono text-[16px] tracking-widest opacity-80"
+            >
+              •••• •••• •••• 4492
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button
+              class="flex-1 bg-white/10 hover:bg-white/20 text-on-surface py-2.5 rounded-full font-label-md text-sm transition-colors border border-white/5 active:scale-95"
+            >
+              Manage
+            </button>
+            <button
+              class="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full transition-colors border border-white/5"
+            >
+              <span
+                class="material-symbols-outlined text-[18px]"
+                data-icon="more_vert"
+                >more_vert</span
+              >
+            </button>
+          </div>
+        </div>
+        <!-- Account Card 3: Pending -->
+        <div
+          class="glass-card p-6 rounded-lg relative overflow-hidden group border-error/20 bg-error/[0.02]"
+        >
+          <div class="flex justify-between items-start mb-10">
+            <div class="flex items-center gap-4">
+              <div
+                class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center border border-error/20"
+              >
+                <span
+                  class="material-symbols-outlined text-error text-2xl"
+                  data-icon="warning"
+                  >warning</span
+                >
+              </div>
+              <div>
+                <h3 class="text-on-surface font-headline-md text-[18px]">
+                  Apex Merchant
+                </h3>
+                <p class="text-error font-body-md text-sm opacity-90">
+                  Verify Ownership
+                </p>
+              </div>
+            </div>
+            <span
+              class="bg-error/20 text-error px-3 py-1 rounded-full text-[11px] font-bold tracking-wider border border-error/20 uppercase"
+            >
+              Action Required
+            </span>
+          </div>
+          <div
+            class="bg-error/[0.05] p-4 rounded-md mb-6 border border-error/10"
+          >
+            <p
+              class="text-on-surface font-mono text-[16px] tracking-widest opacity-40"
+            >
+              •••• •••• •••• 1003
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button
+              class="flex-1 bg-error/20 hover:bg-error/30 text-error py-2.5 rounded-full font-label-md text-sm transition-colors border border-error/20 active:scale-95"
+            >
+              Complete Setup
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Security Badge Section -->
+      <div
+        class="mt-16 bg-surface-container-high/40 rounded-xl p-8 border border-white/5 flex flex-col md:flex-row items-center gap-8"
+      >
+        <div
+          class="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center shrink-0 border border-primary/20"
+        >
+          <span
+            class="material-symbols-outlined text-primary text-4xl"
+            data-icon="verified_user"
+            style="font-variation-settings: &quot;FILL&quot; 1"
+            >verified_user</span
+          >
+        </div>
+        <div class="flex-grow text-center md:text-left">
+          <h4 class="text-on-surface font-headline-md text-[20px] mb-2">
+            Vault-Grade Security Protocol
+          </h4>
+          <p
+            class="text-on-surface-variant font-body-md leading-relaxed text-sm"
+          >
+            Every account connection is isolated within a hardened secure
+            enclave. We utilize zero-knowledge proofs and AES-256-GCM encryption
+            to ensure your financial credentials remain private and untraceable.
+          </p>
+        </div>
+        <div class="flex flex-col gap-3 shrink-0">
+          <button
+            class="border border-white/15 px-8 py-3 rounded-full text-on-surface font-label-md hover:bg-white/5 transition-colors text-sm"
+          >
+            Review Security Log
+          </button>
+        </div>
+      </div>
+    </main>
+    <!-- BottomNavBar -->
+    <nav
+      class="fixed bottom-6 left-0 right-0 z-50 flex justify-around items-center h-20 px-6 mx-auto bg-surface-container/30 dark:bg-surface-container/30 backdrop-blur-[30px] w-[calc(100%-40px)] max-w-md rounded-full border border-white/15 shadow-2xl shadow-[0_20px_40px_rgba(0,0,0,0.4)] left-1/2 -translate-x-1/2"
+    >
+      <a
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 font-label-sm text-label-sm hover:text-secondary/80 active:scale-90 transition-transform duration-200"
+        href="#"
+      >
+        <span class="material-symbols-outlined" data-icon="dashboard"
+          >dashboard</span
+        >
+        Dashboard
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-secondary drop-shadow-[0_0_8px_rgba(76,215,246,0.5)] font-label-sm text-label-sm hover:text-secondary/80 active:scale-90 transition-transform duration-200"
+        href="#"
+      >
+        <span
+          class="material-symbols-outlined"
+          data-icon="settings_suggest"
+          style="font-variation-settings: &quot;FILL&quot; 1"
+          >settings_suggest</span
+        >
+        Operations
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 font-label-sm text-label-sm hover:text-secondary/80 active:scale-90 transition-transform duration-200"
+        href="#"
+      >
+        <span class="material-symbols-outlined" data-icon="event_available"
+          >event_available</span
+        >
+        Bookings
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 font-label-sm text-label-sm hover:text-secondary/80 active:scale-90 transition-transform duration-200 relative"
+        href="#"
+      >
+        <span class="material-symbols-outlined" data-icon="chat_bubble"
+          >chat_bubble</span
+        >
+        <span
+          class="absolute top-0 right-1 w-2 h-2 bg-secondary rounded-full"
+        ></span>
+        Messages
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 font-label-sm text-label-sm hover:text-secondary/80 active:scale-90 transition-transform duration-200"
+        href="#"
+      >
+        <span class="material-symbols-outlined" data-icon="account_circle"
+          >account_circle</span
+        >
+        Profile
+      </a>
+    </nav>
+    <!-- Background Decorative Elements -->
+    <div class="fixed top-0 right-0 -z-10 opacity-10 pointer-events-none">
+      <svg
+        fill="none"
+        height="600"
+        viewbox="0 0 600 600"
+        width="600"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <circle cx="300" cy="300" fill="url(#paint0_radial)" r="300"></circle>
+        <defs>
+          <radialgradient
+            cx="0"
+            cy="0"
+            gradienttransform="translate(300 300) rotate(90) scale(300)"
+            gradientunits="userSpaceOnUse"
+            id="paint0_radial"
+            r="1"
+          >
+            <stop stop-color="#4338ca"></stop>
+            <stop offset="1" stop-color="#4338ca" stop-opacity="0"></stop>
+          </radialgradient>
+        </defs>
+      </svg>
+    </div>
+  </body>
+</html>

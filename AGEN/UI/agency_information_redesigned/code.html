@@ -1,0 +1,548 @@
+<!doctype html>
+
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Agency Info - ShopnoJatra Ultra</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-highest": "#2d3449",
+              "on-secondary-fixed": "#001f26",
+              "surface-tint": "#c3c0ff",
+              "tertiary-container": "#6029c9",
+              "secondary-fixed": "#acedff",
+              "inverse-primary": "#5148d7",
+              primary: "#c3c0ff",
+              "surface-container-low": "#131b2e",
+              "outline-variant": "#464554",
+              outline: "#918fa0",
+              "on-primary-fixed": "#100069",
+              "primary-fixed-dim": "#c3c0ff",
+              "on-tertiary": "#3c0091",
+              "on-secondary-fixed-variant": "#004e5c",
+              surface: "#0b1326",
+              "on-background": "#dae2fd",
+              "surface-bright": "#31394d",
+              "surface-dim": "#0b1326",
+              "tertiary-fixed": "#e9ddff",
+              "secondary-fixed-dim": "#4cd7f6",
+              "on-tertiary-container": "#cfbaff",
+              "on-primary-container": "#c1beff",
+              "on-surface": "#dae2fd",
+              background: "#0b1326",
+              "surface-container-high": "#222a3d",
+              "inverse-surface": "#dae2fd",
+              "on-tertiary-fixed-variant": "#5516be",
+              secondary: "#4cd7f6",
+              "error-container": "#93000a",
+              error: "#ffb4ab",
+              "on-secondary-container": "#00424e",
+              "on-primary-fixed-variant": "#372abf",
+              "inverse-on-surface": "#283044",
+              "on-secondary": "#003640",
+              "surface-container-lowest": "#060e20",
+              "on-error-container": "#ffdad6",
+              "on-surface-variant": "#c7c4d7",
+              "primary-fixed": "#e3dfff",
+              "surface-container": "#171f33",
+              "tertiary-fixed-dim": "#d0bcff",
+              "primary-container": "#4338ca",
+              "on-primary": "#1f00a4",
+              "surface-variant": "#2d3449",
+              "secondary-container": "#03b5d3",
+              "on-tertiary-fixed": "#23005c",
+              tertiary: "#d0bcff",
+              "on-error": "#690005",
+            },
+            borderRadius: {
+              DEFAULT: "1rem",
+              lg: "2rem",
+              xl: "3rem",
+              full: "9999px",
+            },
+            spacing: {
+              "container-max": "1440px",
+              gutter: "24px",
+              unit: "8px",
+              "margin-mobile": "20px",
+              "margin-desktop": "48px",
+            },
+            fontFamily: {
+              "label-md": ["Inter"],
+              "headline-md": ["Plus Jakarta Sans"],
+              "headline-lg-mobile": ["Plus Jakarta Sans"],
+              "headline-lg": ["Plus Jakarta Sans"],
+              "display-xl": ["Plus Jakarta Sans"],
+              "body-lg": ["Inter"],
+              "body-md": ["Inter"],
+              "label-sm": ["Inter"],
+            },
+            fontSize: {
+              "label-md": [
+                "14px",
+                { lineHeight: "1", letterSpacing: "0.02em", fontWeight: "500" },
+              ],
+              "headline-md": [
+                "24px",
+                {
+                  lineHeight: "1.3",
+                  letterSpacing: "-0.01em",
+                  fontWeight: "600",
+                },
+              ],
+              "headline-lg-mobile": [
+                "32px",
+                {
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "headline-lg": [
+                "40px",
+                {
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "display-xl": [
+                "64px",
+                {
+                  lineHeight: "1.1",
+                  letterSpacing: "-0.04em",
+                  fontWeight: "700",
+                },
+              ],
+              "body-lg": [
+                "18px",
+                {
+                  lineHeight: "1.6",
+                  letterSpacing: "-0.01em",
+                  fontWeight: "400",
+                },
+              ],
+              "body-md": [
+                "16px",
+                { lineHeight: "1.5", letterSpacing: "0", fontWeight: "400" },
+              ],
+              "label-sm": [
+                "12px",
+                { lineHeight: "1", letterSpacing: "0.05em", fontWeight: "600" },
+              ],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .glass-card {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .text-glow-cyan {
+        text-shadow: 0 0 12px rgba(76, 215, 246, 0.4);
+      }
+      body {
+        min-height: 100dvh;
+      }
+      .bento-inner-glow {
+        box-shadow: inset 0 0 20px rgba(195, 192, 255, 0.02);
+      }
+    </style>
+  </head>
+  <body
+    class="bg-surface-dim text-on-surface font-body-md selection:bg-primary/30 pb-32"
+  >
+    <!-- TopAppBar -->
+    <header
+      class="bg-surface/80 backdrop-blur-xl w-full sticky top-0 z-40 border-b border-white/5 shadow-2xl"
+    >
+      <div
+        class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 w-full max-w-container-max mx-auto"
+      >
+        <div class="flex items-center gap-3">
+          <button
+            class="hover:bg-white/5 transition-colors p-2 rounded-full active:scale-95 duration-200"
+          >
+            <span class="material-symbols-outlined text-on-surface"
+              >arrow_back</span
+            >
+          </button>
+          <h1
+            class="font-headline-md text-body-lg md:text-headline-md font-bold tracking-tight"
+          >
+            Agency Info
+          </h1>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            class="bg-primary text-on-primary-fixed flex items-center gap-2 px-4 py-1.5 rounded-full font-label-md hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary/20"
+          >
+            <span class="material-symbols-outlined text-[18px]">edit</span>
+            <span>Edit</span>
+          </button>
+          <button
+            class="hover:bg-white/5 transition-colors p-2 rounded-full active:scale-95 duration-200"
+          >
+            <span class="material-symbols-outlined text-on-surface-variant"
+              >more_vert</span
+            >
+          </button>
+        </div>
+      </div>
+    </header>
+    <main
+      class="max-w-4xl mx-auto px-margin-mobile md:px-margin-desktop mt-8 space-y-gutter"
+    >
+      <!-- Agency Hero Profile -->
+      <section
+        class="glass-card bento-inner-glow p-8 rounded-lg relative overflow-hidden flex flex-col items-center md:flex-row md:items-start gap-8"
+      >
+        <div
+          class="absolute -top-20 -right-20 w-80 h-80 bg-primary/5 rounded-full blur-[100px]"
+        ></div>
+        <div class="relative">
+          <div
+            class="w-28 h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden border border-white/10 shadow-2xl p-1 bg-surface-container"
+          >
+            <img
+              class="w-full h-full object-cover rounded-xl"
+              data-alt="Corporate agency logo"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfXU6-xFgaZKV2-zNb8w4A20KUzxszP15b-imohe9cU_kGvWe7OCEA0g-dGEF9UpAmYnEJ6qS0ajYR8lYi33-4cHf0a8M1_Zo8zbYPN3f4uhkmGZLORXuvUtMe7ETGFUKvH0rIi2AKZ7ajBx0-bITOYhcT-FWgxYiYME14uFmqO7neOo41wVykK00q1qGSXk5yWlaMlJqsB0wyep6ulzvyqpawfq5cAJx2aFsr0EQcLHxAoMxC3Zx9blgsDZgGI8YIiXGT2juWCyk"
+            />
+          </div>
+          <div
+            class="absolute -bottom-2 -right-2 bg-secondary text-on-secondary w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 border-surface"
+          >
+            <span
+              class="material-symbols-outlined text-[18px]"
+              style="font-variation-settings: &quot;FILL&quot; 1"
+              >verified</span
+            >
+          </div>
+        </div>
+        <div class="flex-1 text-center md:text-left space-y-4">
+          <div>
+            <h2
+              class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface tracking-tight"
+            >
+              ShopnoJatra Ultra Global
+            </h2>
+            <div
+              class="flex flex-wrap justify-center md:justify-start gap-2 mt-3"
+            >
+              <span
+                class="bg-surface-container-highest text-primary px-3 py-0.5 rounded-full font-label-sm text-[11px] uppercase tracking-wider border border-white/5"
+                >Verified Enterprise</span
+              >
+              <span
+                class="bg-surface-container-highest text-secondary px-3 py-0.5 rounded-full font-label-sm text-[11px] uppercase tracking-wider border border-white/5"
+                >Tier 1 Agency</span
+              >
+            </div>
+          </div>
+          <p
+            class="font-body-md text-on-surface-variant leading-relaxed max-w-xl"
+          >
+            The pinnacle of travel management. ShopnoJatra Ultra provides
+            seamless, AI-integrated logistics for elite travelers and corporate
+            enterprises worldwide.
+          </p>
+        </div>
+      </section>
+      <!-- Information Bento Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+        <!-- General Details -->
+        <section class="glass-card bento-inner-glow p-6 rounded-lg">
+          <div class="flex items-center gap-3 mb-6">
+            <div
+              class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"
+            >
+              <span class="material-symbols-outlined text-primary text-[20px]"
+                >info</span
+              >
+            </div>
+            <h3 class="font-headline-md text-headline-md text-on-surface">
+              General Details
+            </h3>
+          </div>
+          <div class="space-y-6">
+            <div
+              class="group border-b border-white/5 pb-4 last:border-0 last:pb-0"
+            >
+              <p
+                class="font-label-sm text-on-surface-variant mb-1 uppercase tracking-widest text-[10px]"
+              >
+                Legal Name
+              </p>
+              <p class="font-body-md text-on-surface font-medium">
+                ShopnoJatra Ultra Logistics Ltd.
+              </p>
+            </div>
+            <div
+              class="group border-b border-white/5 pb-4 last:border-0 last:pb-0"
+            >
+              <p
+                class="font-label-sm text-on-surface-variant mb-1 uppercase tracking-widest text-[10px]"
+              >
+                Registration No.
+              </p>
+              <p class="font-body-md text-on-surface font-medium">
+                SJ-8842-ULTRA-2024
+              </p>
+            </div>
+            <div
+              class="group border-b border-white/5 pb-4 last:border-0 last:pb-0"
+            >
+              <p
+                class="font-label-sm text-on-surface-variant mb-1 uppercase tracking-widest text-[10px]"
+              >
+                Founded
+              </p>
+              <p class="font-body-md text-on-surface font-medium">March 2018</p>
+            </div>
+          </div>
+        </section>
+        <!-- Contact Information -->
+        <section class="glass-card bento-inner-glow p-6 rounded-lg">
+          <div class="flex items-center gap-3 mb-6">
+            <div
+              class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center"
+            >
+              <span class="material-symbols-outlined text-secondary text-[20px]"
+                >contact_page</span
+              >
+            </div>
+            <h3 class="font-headline-md text-headline-md text-on-surface">
+              Contact Info
+            </h3>
+          </div>
+          <div class="space-y-3">
+            <a
+              class="flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-all group"
+              href="tel:+1800ULTRA"
+            >
+              <div
+                class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors"
+              >
+                <span class="material-symbols-outlined text-[20px]">call</span>
+              </div>
+              <div class="flex-1">
+                <p
+                  class="font-label-sm text-on-surface-variant text-[10px] uppercase"
+                >
+                  Phone
+                </p>
+                <p class="font-body-md text-on-surface font-medium">
+                  +1 (800) ULTRA-JATRA
+                </p>
+              </div>
+            </a>
+            <a
+              class="flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-all group"
+              href="mailto:concierge@shopnojatra.ultra"
+            >
+              <div
+                class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors"
+              >
+                <span class="material-symbols-outlined text-[20px]">mail</span>
+              </div>
+              <div class="flex-1">
+                <p
+                  class="font-label-sm text-on-surface-variant text-[10px] uppercase"
+                >
+                  Email
+                </p>
+                <p class="font-body-md text-on-surface font-medium truncate">
+                  concierge@shopnojatra.ultra
+                </p>
+              </div>
+            </a>
+            <a
+              class="flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-all group"
+              href="https://shopnojatra.ultra"
+            >
+              <div
+                class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors"
+              >
+                <span class="material-symbols-outlined text-[20px]"
+                  >language</span
+                >
+              </div>
+              <div class="flex-1">
+                <p
+                  class="font-label-sm text-on-surface-variant text-[10px] uppercase"
+                >
+                  Website
+                </p>
+                <p class="font-body-md text-on-surface font-medium">
+                  www.shopnojatra.ultra
+                </p>
+              </div>
+            </a>
+          </div>
+        </section>
+        <!-- Mission & Vision -->
+        <section
+          class="glass-card bento-inner-glow p-8 rounded-lg md:col-span-2 relative overflow-hidden"
+        >
+          <div class="flex items-center gap-3 mb-8">
+            <div
+              class="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center"
+            >
+              <span class="material-symbols-outlined text-tertiary text-[20px]"
+                >rocket_launch</span
+              >
+            </div>
+            <h3 class="font-headline-md text-headline-md text-on-surface">
+              Mission &amp; Vision
+            </h3>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div class="space-y-4">
+              <div class="flex items-center gap-3">
+                <div class="w-1.5 h-6 bg-primary rounded-full"></div>
+                <h4
+                  class="font-label-md text-primary font-bold tracking-widest uppercase text-[12px]"
+                >
+                  Our Mission
+                </h4>
+              </div>
+              <p class="font-body-md text-on-surface-variant leading-relaxed">
+                To redefine the boundaries of modern transit through intelligent
+                automation, offering unparalleled safety, speed, and luxury for
+                every journey undertaken across the globe.
+              </p>
+            </div>
+            <div class="space-y-4">
+              <div class="flex items-center gap-3">
+                <div class="w-1.5 h-6 bg-secondary rounded-full"></div>
+                <h4
+                  class="font-label-md text-secondary font-bold tracking-widest uppercase text-[12px]"
+                >
+                  Our Vision
+                </h4>
+              </div>
+              <p class="font-body-md text-on-surface-variant leading-relaxed">
+                A world where distance is irrelevant, and the travel experience
+                itself becomes a destination of seamless tranquility, powered by
+                the core of Ultra-intelligence.
+              </p>
+            </div>
+          </div>
+          <!-- Abstract visual bars -->
+          <div class="mt-10 pt-8 border-t border-white/5 opacity-20">
+            <div class="flex justify-around items-end h-12 gap-1 px-4">
+              <div
+                class="flex-1 bg-primary rounded-t-sm"
+                style="height: 40%"
+              ></div>
+              <div
+                class="flex-1 bg-secondary rounded-t-sm"
+                style="height: 70%"
+              ></div>
+              <div
+                class="flex-1 bg-tertiary rounded-t-sm"
+                style="height: 55%"
+              ></div>
+              <div
+                class="flex-1 bg-primary rounded-t-sm"
+                style="height: 90%"
+              ></div>
+              <div
+                class="flex-1 bg-secondary rounded-t-sm"
+                style="height: 30%"
+              ></div>
+              <div
+                class="flex-1 bg-tertiary rounded-t-sm"
+                style="height: 65%"
+              ></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <!-- BottomNavBar -->
+    <nav
+      class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-40px)] max-w-md z-50 flex justify-around items-center h-16 bg-surface-container/60 backdrop-blur-2xl rounded-full border border-white/10 shadow-2xl px-2"
+    >
+      <a
+        class="flex flex-col items-center justify-center text-on-surface-variant/70 hover:text-primary transition-all p-2 flex-1"
+        href="#"
+      >
+        <span class="material-symbols-outlined text-[22px]">dashboard</span>
+        <span class="font-label-sm text-[10px] mt-1">Dashboard</span>
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-on-surface-variant/70 hover:text-primary transition-all p-2 flex-1"
+        href="#"
+      >
+        <span class="material-symbols-outlined text-[22px]"
+          >settings_suggest</span
+        >
+        <span class="font-label-sm text-[10px] mt-1">Operations</span>
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-on-surface-variant/70 hover:text-primary transition-all p-2 flex-1"
+        href="#"
+      >
+        <span class="material-symbols-outlined text-[22px]"
+          >event_available</span
+        >
+        <span class="font-label-sm text-[10px] mt-1">Bookings</span>
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-on-surface-variant/70 hover:text-primary transition-all p-2 flex-1"
+        href="#"
+      >
+        <span class="material-symbols-outlined text-[22px]">chat_bubble</span>
+        <span class="font-label-sm text-[10px] mt-1">Messages</span>
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-secondary transition-all p-2 flex-1 relative"
+        href="#"
+      >
+        <span
+          class="material-symbols-outlined text-[22px]"
+          style="font-variation-settings: &quot;FILL&quot; 1"
+          >account_circle</span
+        >
+        <span class="font-label-sm text-[10px] mt-1">Profile</span>
+        <div
+          class="absolute -bottom-1 w-1 h-1 bg-secondary rounded-full shadow-[0_0_8px_rgba(76,215,246,0.8)]"
+        ></div>
+      </a>
+    </nav>
+    <script>
+      // Subtle mouse tracking for glass cards
+      const cards = document.querySelectorAll(".glass-card");
+      cards.forEach((card) => {
+        card.addEventListener("mousemove", (e) => {
+          const rect = card.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          card.style.background = `radial-gradient(circle at ${x}px ${y}px, rgba(195, 192, 255, 0.06) 0%, rgba(255, 255, 255, 0.03) 60%)`;
+        });
+        card.addEventListener("mouseleave", () => {
+          card.style.background = "rgba(255, 255, 255, 0.03)";
+        });
+      });
+    </script>
+  </body>
+</html>

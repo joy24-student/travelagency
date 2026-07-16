@@ -1,0 +1,647 @@
+<!doctype html>
+
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Branch Locations | ShopnoJatra Ultra</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #0b1326;
+        background-image:
+          radial-gradient(
+            circle at 0% 0%,
+            rgba(67, 56, 202, 0.15) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 100% 100%,
+            rgba(76, 215, 246, 0.1) 0%,
+            transparent 50%
+          );
+        min-height: 100vh;
+      }
+      .glass-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(24px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+      }
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 24;
+      }
+    </style>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-lowest": "#060e20",
+              surface: "#0b1326",
+              "primary-fixed": "#e3dfff",
+              "on-background": "#dae2fd",
+              "on-tertiary-fixed": "#23005c",
+              "on-error-container": "#ffdad6",
+              "surface-container": "#171f33",
+              "surface-bright": "#31394d",
+              "on-surface": "#dae2fd",
+              "primary-fixed-dim": "#c3c0ff",
+              tertiary: "#d0bcff",
+              primary: "#c3c0ff",
+              "on-primary-container": "#c1beff",
+              error: "#ffb4ab",
+              "surface-dim": "#0b1326",
+              "tertiary-fixed-dim": "#d0bcff",
+              "primary-container": "#4338ca",
+              "on-tertiary-fixed-variant": "#5516be",
+              "surface-container-high": "#222a3d",
+              "on-primary-fixed-variant": "#372abf",
+              "surface-variant": "#2d3449",
+              "on-surface-variant": "#c7c4d7",
+              "secondary-fixed": "#acedff",
+              "surface-tint": "#c3c0ff",
+              "secondary-fixed-dim": "#4cd7f6",
+              "secondary-container": "#03b5d3",
+              "on-secondary-fixed": "#001f26",
+              "on-error": "#690005",
+              background: "#0b1326",
+              outline: "#918fa0",
+              secondary: "#4cd7f6",
+              "outline-variant": "#464554",
+              "on-secondary-container": "#00424e",
+              "on-primary-fixed": "#100069",
+              "on-primary": "#1f00a4",
+              "tertiary-container": "#6029c9",
+              "tertiary-fixed": "#e9ddff",
+              "surface-container-low": "#131b2e",
+              "surface-container-highest": "#2d3449",
+              "on-tertiary": "#3c0091",
+              "inverse-primary": "#5148d7",
+              "on-secondary-fixed-variant": "#004e5c",
+              "on-secondary": "#003640",
+              "inverse-surface": "#dae2fd",
+              "inverse-on-surface": "#283044",
+              "error-container": "#93000a",
+              "on-tertiary-container": "#cfbaff",
+            },
+            borderRadius: {
+              DEFAULT: "1rem",
+              lg: "2rem",
+              xl: "3rem",
+              full: "9999px",
+            },
+            spacing: {
+              "margin-desktop": "48px",
+              "container-max": "1440px",
+              "margin-mobile": "20px",
+              gutter: "24px",
+              unit: "8px",
+            },
+            fontFamily: {
+              "body-md": ["Inter"],
+              "headline-md": ["Plus Jakarta Sans"],
+              "headline-lg-mobile": ["Plus Jakarta Sans"],
+              "headline-lg": ["Plus Jakarta Sans"],
+              "label-sm": ["Inter"],
+              "body-lg": ["Inter"],
+              "label-md": ["Inter"],
+              "display-xl": ["Plus Jakarta Sans"],
+            },
+            fontSize: {
+              "body-md": [
+                "16px",
+                { lineHeight: "1.5", letterSpacing: "0", fontWeight: "400" },
+              ],
+              "headline-md": [
+                "24px",
+                {
+                  lineHeight: "1.3",
+                  letterSpacing: "-0.01em",
+                  fontWeight: "600",
+                },
+              ],
+              "headline-lg-mobile": [
+                "32px",
+                {
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "headline-lg": [
+                "40px",
+                {
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "label-sm": [
+                "12px",
+                { lineHeight: "1", letterSpacing: "0.05em", fontWeight: "600" },
+              ],
+              "body-lg": [
+                "18px",
+                {
+                  lineHeight: "1.6",
+                  letterSpacing: "-0.01em",
+                  fontWeight: "400",
+                },
+              ],
+              "label-md": [
+                "14px",
+                { lineHeight: "1", letterSpacing: "0.02em", fontWeight: "500" },
+              ],
+              "display-xl": [
+                "64px",
+                {
+                  lineHeight: "1.1",
+                  letterSpacing: "-0.04em",
+                  fontWeight: "700",
+                },
+              ],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+  </head>
+  <body class="text-on-surface font-body-md">
+    <!-- TopAppBar -->
+    <header
+      class="bg-surface/80 backdrop-blur-xl w-full sticky top-0 z-40 border-b border-white/10 shadow-xl"
+    >
+      <div
+        class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 w-full"
+      >
+        <div class="flex items-center gap-4">
+          <button
+            class="hover:bg-white/5 transition-colors p-2 rounded-full active:scale-95 duration-200"
+          >
+            <span class="material-symbols-outlined text-primary"
+              >arrow_back</span
+            >
+          </button>
+          <h1
+            class="font-headline-md text-headline-md font-bold text-primary tracking-tight"
+          >
+            ShopnoJatra Ultra
+          </h1>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            class="bg-primary-container/20 text-primary px-4 py-2 rounded-full font-label-md flex items-center gap-2 hover:bg-primary-container/30 transition-all active:scale-95"
+          >
+            <span class="material-symbols-outlined text-[20px]">add</span>
+            <span class="hidden sm:inline">Add Branch</span>
+          </button>
+          <button
+            class="hover:bg-white/5 transition-colors p-2 rounded-full active:scale-95 duration-200"
+          >
+            <span class="material-symbols-outlined text-primary">settings</span>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main
+      class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 mb-32"
+    >
+      <div
+        class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4"
+      >
+        <div>
+          <h2
+            class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-2"
+          >
+            Branch Locations
+          </h2>
+          <p class="text-on-surface-variant font-body-lg">
+            Manage and monitor operations across your global network.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <div
+            class="glass-card flex items-center px-4 py-2 rounded-full border border-white/5"
+          >
+            <span class="material-symbols-outlined text-secondary mr-2"
+              >search</span
+            >
+            <input
+              class="bg-transparent border-none focus:ring-0 text-sm placeholder:text-on-surface-variant/50 w-40"
+              placeholder="Search branches..."
+              type="text"
+            />
+          </div>
+        </div>
+      </div>
+      <!-- Branch Cards List -->
+      <div class="space-y-6">
+        <!-- Branch Card 1 -->
+        <div
+          class="glass-card overflow-hidden group transition-all duration-300 rounded-lg"
+        >
+          <div class="p-6 md:p-8 flex flex-col md:flex-row gap-6 items-start">
+            <div class="shrink-0">
+              <div class="p-4 bg-primary-container/20 rounded-2xl">
+                <span
+                  class="material-symbols-outlined text-primary text-3xl"
+                  style="font-variation-settings: &quot;FILL&quot; 1"
+                  >hub</span
+                >
+              </div>
+            </div>
+            <div class="flex-1 w-full">
+              <div
+                class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2"
+              >
+                <div>
+                  <h3 class="font-headline-md text-headline-md text-primary">
+                    Head Office - Dhaka
+                  </h3>
+                  <span
+                    class="inline-block mt-1 px-3 py-0.5 bg-secondary text-on-secondary rounded-full font-label-sm text-[10px] uppercase tracking-wider"
+                    >Main Hub</span
+                  >
+                </div>
+                <div class="flex gap-3">
+                  <button
+                    class="flex items-center gap-2 px-4 py-2 border border-white/10 rounded-full hover:bg-white/5 transition-all text-label-md font-label-md active:scale-95"
+                  >
+                    <span class="material-symbols-outlined text-[20px]"
+                      >edit</span
+                    >
+                    Edit
+                  </button>
+                  <button
+                    class="flex items-center gap-2 px-6 py-2 bg-primary-container text-white rounded-full hover:brightness-110 transition-all text-label-md font-label-md active:scale-95"
+                  >
+                    <span class="material-symbols-outlined text-[20px]"
+                      >near_me</span
+                    >
+                    Directions
+                  </button>
+                </div>
+              </div>
+              <div
+                class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-white/5"
+              >
+                <div class="space-y-1">
+                  <span
+                    class="text-label-sm font-label-sm uppercase text-on-surface-variant/60 flex items-center gap-1"
+                  >
+                    <span
+                      class="material-symbols-outlined text-secondary text-[16px]"
+                      >location_on</span
+                    >
+                    Address
+                  </span>
+                  <p class="font-body-md text-on-surface leading-relaxed">
+                    Gulshan Avenue, Plot 12, Tower Alpha, Dhaka 1212
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <span
+                    class="text-label-sm font-label-sm uppercase text-on-surface-variant/60 flex items-center gap-1"
+                  >
+                    <span
+                      class="material-symbols-outlined text-secondary text-[16px]"
+                      >person</span
+                    >
+                    Manager
+                  </span>
+                  <p class="font-body-md text-on-surface">Ahmed Tanvir</p>
+                  <p class="text-xs text-on-surface-variant">
+                    Senior Operations Director
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <span
+                    class="text-label-sm font-label-sm uppercase text-on-surface-variant/60 flex items-center gap-1"
+                  >
+                    <span
+                      class="material-symbols-outlined text-secondary text-[16px]"
+                      >call</span
+                    >
+                    Contact
+                  </span>
+                  <p class="font-body-md text-on-surface">+880 171 223 4455</p>
+                  <p class="text-xs text-on-surface-variant">
+                    office@shopnojatra.com
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Branch Card 2 -->
+        <div
+          class="glass-card overflow-hidden group transition-all duration-300 rounded-lg"
+        >
+          <div class="p-6 md:p-8 flex flex-col md:flex-row gap-6 items-start">
+            <div class="shrink-0">
+              <div class="p-4 bg-secondary-container/20 rounded-2xl">
+                <span
+                  class="material-symbols-outlined text-secondary text-3xl"
+                  style="font-variation-settings: &quot;FILL&quot; 1"
+                  >apartment</span
+                >
+              </div>
+            </div>
+            <div class="flex-1 w-full">
+              <div
+                class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2"
+              >
+                <div>
+                  <h3 class="font-headline-md text-headline-md text-primary">
+                    Chittagong Port Office
+                  </h3>
+                  <span
+                    class="inline-block mt-1 px-3 py-0.5 bg-tertiary text-on-tertiary rounded-full font-label-sm text-[10px] uppercase tracking-wider"
+                    >Logistics Hub</span
+                  >
+                </div>
+                <div class="flex gap-3">
+                  <button
+                    class="flex items-center gap-2 px-4 py-2 border border-white/10 rounded-full hover:bg-white/5 transition-all text-label-md font-label-md active:scale-95"
+                  >
+                    <span class="material-symbols-outlined text-[20px]"
+                      >edit</span
+                    >
+                    Edit
+                  </button>
+                  <button
+                    class="flex items-center gap-2 px-6 py-2 bg-primary-container text-white rounded-full hover:brightness-110 transition-all text-label-md font-label-md active:scale-95"
+                  >
+                    <span class="material-symbols-outlined text-[20px]"
+                      >near_me</span
+                    >
+                    Directions
+                  </button>
+                </div>
+              </div>
+              <div
+                class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-white/5"
+              >
+                <div class="space-y-1">
+                  <span
+                    class="text-label-sm font-label-sm uppercase text-on-surface-variant/60 flex items-center gap-1"
+                  >
+                    <span
+                      class="material-symbols-outlined text-secondary text-[16px]"
+                      >location_on</span
+                    >
+                    Address
+                  </span>
+                  <p class="font-body-md text-on-surface leading-relaxed">
+                    Agrabad C/A, Ocean View Plaza, Level 4, Chattogram 4100
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <span
+                    class="text-label-sm font-label-sm uppercase text-on-surface-variant/60 flex items-center gap-1"
+                  >
+                    <span
+                      class="material-symbols-outlined text-secondary text-[16px]"
+                      >person</span
+                    >
+                    Manager
+                  </span>
+                  <p class="font-body-md text-on-surface">Sarah Rahman</p>
+                  <p class="text-xs text-on-surface-variant">
+                    Port Logistics Manager
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <span
+                    class="text-label-sm font-label-sm uppercase text-on-surface-variant/60 flex items-center gap-1"
+                  >
+                    <span
+                      class="material-symbols-outlined text-secondary text-[16px]"
+                      >call</span
+                    >
+                    Contact
+                  </span>
+                  <p class="font-body-md text-on-surface">+880 31 667788</p>
+                  <p class="text-xs text-on-surface-variant">
+                    ctg.port@shopnojatra.com
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Branch Card 3 -->
+        <div
+          class="glass-card overflow-hidden group transition-all duration-300 rounded-lg"
+        >
+          <div class="p-6 md:p-8 flex flex-col md:flex-row gap-6 items-start">
+            <div class="shrink-0">
+              <div class="p-4 bg-tertiary-container/20 rounded-2xl">
+                <span
+                  class="material-symbols-outlined text-tertiary text-3xl"
+                  style="font-variation-settings: &quot;FILL&quot; 1"
+                  >support_agent</span
+                >
+              </div>
+            </div>
+            <div class="flex-1 w-full">
+              <div
+                class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2"
+              >
+                <div>
+                  <h3 class="font-headline-md text-headline-md text-primary">
+                    Sylhet Service Center
+                  </h3>
+                  <span
+                    class="inline-block mt-1 px-3 py-0.5 bg-surface-variant text-on-surface-variant rounded-full font-label-sm text-[10px] uppercase tracking-wider"
+                    >Customer Support</span
+                  >
+                </div>
+                <div class="flex gap-3">
+                  <button
+                    class="flex items-center gap-2 px-4 py-2 border border-white/10 rounded-full hover:bg-white/5 transition-all text-label-md font-label-md active:scale-95"
+                  >
+                    <span class="material-symbols-outlined text-[20px]"
+                      >edit</span
+                    >
+                    Edit
+                  </button>
+                  <button
+                    class="flex items-center gap-2 px-6 py-2 bg-primary-container text-white rounded-full hover:brightness-110 transition-all text-label-md font-label-md active:scale-95"
+                  >
+                    <span class="material-symbols-outlined text-[20px]"
+                      >near_me</span
+                    >
+                    Directions
+                  </button>
+                </div>
+              </div>
+              <div
+                class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-white/5"
+              >
+                <div class="space-y-1">
+                  <span
+                    class="text-label-sm font-label-sm uppercase text-on-surface-variant/60 flex items-center gap-1"
+                  >
+                    <span
+                      class="material-symbols-outlined text-secondary text-[16px]"
+                      >location_on</span
+                    >
+                    Address
+                  </span>
+                  <p class="font-body-md text-on-surface leading-relaxed">
+                    Zindabazar, Metro Tower, 3rd Floor, Sylhet 3100
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <span
+                    class="text-label-sm font-label-sm uppercase text-on-surface-variant/60 flex items-center gap-1"
+                  >
+                    <span
+                      class="material-symbols-outlined text-secondary text-[16px]"
+                      >person</span
+                    >
+                    Manager
+                  </span>
+                  <p class="font-body-md text-on-surface">Kamal Uddin</p>
+                  <p class="text-xs text-on-surface-variant">
+                    Service Relations Lead
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <span
+                    class="text-label-sm font-label-sm uppercase text-on-surface-variant/60 flex items-center gap-1"
+                  >
+                    <span
+                      class="material-symbols-outlined text-secondary text-[16px]"
+                      >call</span
+                    >
+                    Contact
+                  </span>
+                  <p class="font-body-md text-on-surface">+880 821 990011</p>
+                  <p class="text-xs text-on-surface-variant">
+                    sylhet.svc@shopnojatra.com
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Map View (Cleaned Up) -->
+        <div class="glass-card overflow-hidden h-64 relative rounded-lg mt-10">
+          <div class="absolute inset-0 z-0">
+            <img
+              class="w-full h-full object-cover opacity-20 mix-blend-luminosity"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDFPh9U0AZ1BV9Ve6FaHeXfuv5L47yTpsDXdsXLmY6mIIrdHYpxfH-qhKATjz34xm9NaXSc0uNfUprYUybgZreERswx-yiJerIEcrOlGbfDYHIzPw0oTHu1SGngAZ13HDL-vSl-hJgFu33xJPlHApR1Zvmzr1obW1Cbmg8HbNJJAXjEw81-K2wOv3O_DgrP54uRDwDoYGEl6ugzT3a_Acb3xH1r2QzIca65i1u7vEmORDRYTCEqU7t5Z8ZGqYo-bxhEibdHwTQWDNY"
+            />
+            <div
+              class="absolute inset-0 bg-gradient-to-t from-surface to-transparent"
+            ></div>
+          </div>
+          <div class="relative z-10 p-8 h-full flex flex-col justify-end">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="font-headline-md text-white mb-1">
+                  Interactive Map
+                </h4>
+                <p class="text-on-surface-variant text-sm">
+                  3 Active Branches | 2 Expanding
+                </p>
+              </div>
+              <button
+                class="bg-white/10 backdrop-blur-md border border-white/20 text-white px-5 py-2.5 rounded-full font-label-md flex items-center gap-2 hover:bg-white/20 transition-all active:scale-95"
+              >
+                <span class="material-symbols-outlined text-[20px]">map</span>
+                View Full Map
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <!-- FAB - Primary Add Button -->
+    <button
+      class="fixed bottom-32 right-6 md:right-12 z-50 w-14 h-14 bg-gradient-to-br from-secondary to-primary-container text-white rounded-2xl shadow-[0_12px_24px_rgba(76,215,246,0.3)] flex items-center justify-center group active:scale-90 transition-all duration-300"
+    >
+      <span class="material-symbols-outlined text-3xl">add</span>
+      <span
+        class="absolute right-full mr-4 bg-surface-container-high px-4 py-2 rounded-lg text-white font-label-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-white/10"
+        >Add Branch</span
+      >
+    </button>
+    <!-- BottomNavBar -->
+    <nav
+      class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-40px)] max-w-md z-50 flex justify-around items-center h-16 px-6 bg-surface-container/40 backdrop-blur-3xl rounded-full border border-white/10 shadow-2xl"
+    >
+      <div
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 font-label-sm text-[10px] hover:text-secondary/80 active:scale-90 transition-all duration-200 cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-[22px]">dashboard</span>
+        <span>Dashboard</span>
+      </div>
+      <div
+        class="flex flex-col items-center justify-center text-secondary drop-shadow-[0_0_8px_rgba(76,215,246,0.3)] font-label-sm text-[10px] active:scale-90 transition-all duration-200 cursor-pointer"
+      >
+        <span
+          class="material-symbols-outlined text-[22px]"
+          style="font-variation-settings: &quot;FILL&quot; 1"
+          >hub</span
+        >
+        <span>Branches</span>
+      </div>
+      <div
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 font-label-sm text-[10px] hover:text-secondary/80 active:scale-90 transition-all duration-200 cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-[22px]"
+          >event_available</span
+        >
+        <span>Schedule</span>
+      </div>
+      <div
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 font-label-sm text-[10px] hover:text-secondary/80 active:scale-90 transition-all duration-200 cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-[22px]">chat_bubble</span>
+        <span>Inbox</span>
+      </div>
+      <div
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 font-label-sm text-[10px] hover:text-secondary/80 active:scale-90 transition-all duration-200 cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-[22px]"
+          >account_circle</span
+        >
+        <span>Profile</span>
+      </div>
+    </nav>
+    <script>
+      window.addEventListener("scroll", () => {
+        const header = document.querySelector("header");
+        if (window.scrollY > 10) {
+          header.classList.add("bg-surface/95");
+          header.classList.remove("bg-surface/80");
+        } else {
+          header.classList.add("bg-surface/80");
+          header.classList.remove("bg-surface/95");
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,661 @@
+<!doctype html>
+
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Support Center - ShopnoJatra Ultra</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .deep-sea-gradient {
+        background: linear-gradient(135deg, #4338ca 0%, #1f00a4 100%);
+        box-shadow: 0 4px 20px rgba(31, 0, 164, 0.3);
+      }
+      .ai-glow {
+        filter: drop-shadow(0 0 8px rgba(76, 215, 246, 0.4));
+      }
+      body {
+        background-color: #0b1326;
+        background-image:
+          radial-gradient(
+            circle at 0% 0%,
+            rgba(67, 56, 202, 0.15) 0%,
+            transparent 40%
+          ),
+          radial-gradient(
+            circle at 100% 100%,
+            rgba(76, 215, 246, 0.1) 0%,
+            transparent 40%
+          );
+        min-height: 100vh;
+      }
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+      }
+
+      .ticket-action-btn {
+        @apply opacity-0 group-hover:opacity-100 transition-opacity duration-200;
+      }
+    </style>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-lowest": "#060e20",
+              surface: "#0b1326",
+              "primary-fixed": "#e3dfff",
+              "on-background": "#dae2fd",
+              "on-tertiary-fixed": "#23005c",
+              "on-error-container": "#ffdad6",
+              "surface-container": "#171f33",
+              "surface-bright": "#31394d",
+              "on-surface": "#dae2fd",
+              "primary-fixed-dim": "#c3c0ff",
+              tertiary: "#d0bcff",
+              primary: "#c3c0ff",
+              "on-primary-container": "#c1beff",
+              error: "#ffb4ab",
+              "surface-dim": "#0b1326",
+              "tertiary-fixed-dim": "#d0bcff",
+              "primary-container": "#4338ca",
+              "on-tertiary-fixed-variant": "#5516be",
+              "surface-container-high": "#222a3d",
+              "on-primary-fixed-variant": "#372abf",
+              "surface-variant": "#2d3449",
+              "on-surface-variant": "#c7c4d7",
+              "secondary-fixed": "#acedff",
+              "surface-tint": "#c3c0ff",
+              "secondary-fixed-dim": "#4cd7f6",
+              "secondary-container": "#03b5d3",
+              "on-secondary-fixed": "#001f26",
+              "on-error": "#690005",
+              background: "#0b1326",
+              outline: "#918fa0",
+              secondary: "#4cd7f6",
+              "outline-variant": "#464554",
+              "on-secondary-container": "#00424e",
+              "on-primary-fixed": "#100069",
+              "on-primary": "#1f00a4",
+              "tertiary-container": "#6029c9",
+              "tertiary-fixed": "#e9ddff",
+              "surface-container-low": "#131b2e",
+              "surface-container-highest": "#2d3449",
+              "on-tertiary": "#3c0091",
+              "inverse-primary": "#5148d7",
+              "on-secondary-fixed-variant": "#004e5c",
+              "on-secondary": "#003640",
+              "inverse-surface": "#dae2fd",
+              "inverse-on-surface": "#283044",
+              "error-container": "#93000a",
+              "on-tertiary-container": "#cfbaff",
+            },
+            borderRadius: {
+              DEFAULT: "1rem",
+              lg: "2rem",
+              xl: "3rem",
+              full: "9999px",
+            },
+            spacing: {
+              "margin-desktop": "48px",
+              "container-max": "1440px",
+              "margin-mobile": "20px",
+              gutter: "24px",
+              unit: "8px",
+            },
+            fontFamily: {
+              "body-md": ["Inter"],
+              "headline-md": ["Plus Jakarta Sans"],
+              "headline-lg-mobile": ["Plus Jakarta Sans"],
+              "headline-lg": ["Plus Jakarta Sans"],
+              "label-sm": ["Inter"],
+              "body-lg": ["Inter"],
+              "label-md": ["Inter"],
+              "display-xl": ["Plus Jakarta Sans"],
+            },
+            fontSize: {
+              "body-md": [
+                "16px",
+                { lineHeight: "1.5", letterSpacing: "0", fontWeight: "400" },
+              ],
+              "headline-md": [
+                "24px",
+                {
+                  lineHeight: "1.3",
+                  letterSpacing: "-0.01em",
+                  fontWeight: "600",
+                },
+              ],
+              "headline-lg-mobile": [
+                "32px",
+                {
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "headline-lg": [
+                "40px",
+                {
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "label-sm": [
+                "12px",
+                { lineHeight: "1", letterSpacing: "0.05em", fontWeight: "600" },
+              ],
+              "body-lg": [
+                "18px",
+                {
+                  lineHeight: "1.6",
+                  letterSpacing: "-0.01em",
+                  fontWeight: "400",
+                },
+              ],
+              "label-md": [
+                "14px",
+                { lineHeight: "1", letterSpacing: "0.02em", fontWeight: "500" },
+              ],
+              "display-xl": [
+                "64px",
+                {
+                  lineHeight: "1.1",
+                  letterSpacing: "-0.04em",
+                  fontWeight: "700",
+                },
+              ],
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="text-on-surface font-body-md overflow-x-hidden">
+    <header
+      class="w-full sticky top-0 z-40 bg-surface/80 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16"
+    >
+      <div class="flex items-center gap-4">
+        <button
+          class="hover:bg-white/5 transition-colors active:scale-95 duration-200 p-2 rounded-full"
+        >
+          <span class="material-symbols-outlined text-primary">arrow_back</span>
+        </button>
+        <h1
+          class="font-headline-md text-headline-md font-bold text-primary tracking-tight"
+        >
+          Support Center
+        </h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button
+          class="hover:bg-white/5 transition-colors active:scale-95 duration-200 p-2 rounded-full"
+        >
+          <span class="material-symbols-outlined text-on-surface-variant"
+            >help_outline</span
+          >
+        </button>
+        <button
+          class="hover:bg-white/5 transition-colors active:scale-95 duration-200 p-2 rounded-full"
+        >
+          <span class="material-symbols-outlined text-on-surface-variant"
+            >settings</span
+          >
+        </button>
+      </div>
+    </header>
+    <main
+      class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 pb-32"
+    >
+      <!-- Hero & Cleaner Search -->
+      <section class="mb-12">
+        <div class="max-w-3xl mb-10">
+          <span
+            class="font-label-sm text-label-sm text-secondary uppercase tracking-widest mb-2 block"
+            >Ultra Premier Support</span
+          >
+          <h2
+            class="font-headline-lg text-headline-lg-mobile md:text-headline-lg mb-4"
+          >
+            How can we assist you?
+          </h2>
+          <p class="text-on-surface-variant font-body-lg text-body-lg">
+            Get specialized assistance, track tickets, or browse documentation.
+          </p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+          <div class="md:col-span-2">
+            <div
+              class="glass-panel p-1.5 rounded-2xl flex items-center shadow-lg border-white/10 group focus-within:ring-2 focus-within:ring-primary/30 transition-all"
+            >
+              <span class="material-symbols-outlined text-outline ml-4"
+                >search</span
+              >
+              <input
+                class="bg-transparent border-none focus:ring-0 w-full px-4 text-on-surface placeholder:text-outline-variant"
+                placeholder="Search knowledge base or ticket ID..."
+                type="text"
+              />
+              <button
+                class="bg-primary text-on-primary px-6 py-3 rounded-xl font-label-md text-label-md hover:brightness-110 transition-all active:scale-95"
+              >
+                Search
+              </button>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button
+              class="deep-sea-gradient flex-1 px-6 py-4 rounded-2xl font-label-md text-label-md text-white flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            >
+              <span
+                class="material-symbols-outlined text-[20px]"
+                style="font-variation-settings: &quot;FILL&quot; 1"
+                >add_circle</span
+              >
+              New Ticket
+            </button>
+            <button
+              class="glass-panel px-4 py-4 rounded-2xl text-secondary ai-glow flex items-center justify-center active:scale-95 transition-transform border-secondary/20"
+              title="Live Chat"
+            >
+              <span
+                class="material-symbols-outlined"
+                style="font-variation-settings: &quot;FILL&quot; 1"
+                >chat</span
+              >
+            </button>
+          </div>
+        </div>
+      </section>
+      <!-- Visual Hierarchy: Grouped Sections -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <!-- Primary Focus: Active Tickets -->
+        <div class="lg:col-span-8 flex flex-col gap-6">
+          <div
+            class="flex items-center justify-between border-b border-white/5 pb-4"
+          >
+            <h3
+              class="font-headline-md text-headline-md flex items-center gap-3"
+            >
+              <span class="material-symbols-outlined text-secondary"
+                >confirmation_number</span
+              >
+              Active Tickets
+            </h3>
+            <button
+              class="text-primary font-label-md text-label-md hover:underline flex items-center gap-1"
+            >
+              History
+              <span class="material-symbols-outlined text-[18px]">history</span>
+            </button>
+          </div>
+          <div class="space-y-4">
+            <!-- Ticket Card 1 -->
+            <div
+              class="glass-panel p-6 rounded-2xl relative overflow-hidden group hover:border-secondary/40 transition-all"
+            >
+              <div
+                class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4"
+              >
+                <div class="flex items-center gap-3">
+                  <span
+                    class="bg-secondary-container/20 text-secondary-fixed px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-secondary/20"
+                    >In Progress</span
+                  >
+                  <span class="text-outline-variant font-label-sm text-label-sm"
+                    >#SJ-92842</span
+                  >
+                </div>
+                <div class="flex items-center gap-2">
+                  <button
+                    class="text-on-surface-variant hover:text-primary p-2 rounded-lg bg-white/5 md:opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 text-sm font-label-md"
+                  >
+                    <span class="material-symbols-outlined text-[18px]"
+                      >edit</span
+                    >
+                    Manage
+                  </button>
+                </div>
+              </div>
+              <div class="mb-6">
+                <h4
+                  class="font-headline-md text-headline-md mb-2 group-hover:text-secondary transition-colors"
+                >
+                  System Latency in Southeast Hub
+                </h4>
+                <p
+                  class="text-on-surface-variant font-body-md text-body-md line-clamp-2"
+                >
+                  Investigating unusual API response times in the ultra-low
+                  latency routing module. Engineering team assigned.
+                </p>
+              </div>
+              <div
+                class="flex items-center justify-between mt-auto pt-4 border-t border-white/5"
+              >
+                <div class="flex items-center gap-3">
+                  <img
+                    alt="Support Agent"
+                    class="w-8 h-8 rounded-full border border-white/20"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXcsaPz139kkoLLAHD1mHqIzAPPd9UhWn70C_FcQC9OlQuDAl06Au1CR5vLwxuQwdmEUerZBI4w9m23qmPubOchmnba-_wzkcYNraOCcxnwyxLHhz12kgKPx-lYdZcZ9Lfq7o1S-xM6kGAPAZ0t9BxKgI51NoS5ArtcrHZLYcFaegKTInIBPwhYw_rluu1Hg1CKb3-PEw-8x4oCTdCLh7_1AzcT4RpaRo-E3b2VX-bFbnyapjnWhvsPpiUhsyqNCgbjg-kTFgPxqQ"
+                  />
+                  <div>
+                    <p class="font-label-md text-label-md">Alex Rivera</p>
+                    <p class="text-outline-variant text-[12px]">
+                      Updated 14 mins ago
+                    </p>
+                  </div>
+                </div>
+                <span class="material-symbols-outlined text-outline-variant"
+                  >chevron_right</span
+                >
+              </div>
+            </div>
+            <!-- Ticket Card 2 -->
+            <div
+              class="glass-panel p-6 rounded-2xl relative overflow-hidden group hover:border-tertiary/40 transition-all"
+            >
+              <div
+                class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4"
+              >
+                <div class="flex items-center gap-3">
+                  <span
+                    class="bg-tertiary-container/20 text-tertiary px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-tertiary/20"
+                    >Awaiting Input</span
+                  >
+                  <span class="text-outline-variant font-label-sm text-label-sm"
+                    >#SJ-92815</span
+                  >
+                </div>
+                <div class="flex items-center gap-2">
+                  <button
+                    class="text-on-surface-variant hover:text-tertiary p-2 rounded-lg bg-white/5 md:opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 text-sm font-label-md"
+                  >
+                    <span class="material-symbols-outlined text-[18px]"
+                      >edit</span
+                    >
+                    Manage
+                  </button>
+                </div>
+              </div>
+              <div class="mb-6">
+                <h4
+                  class="font-headline-md text-headline-md mb-2 group-hover:text-tertiary transition-colors"
+                >
+                  Fleet Integration Credentials
+                </h4>
+                <p class="text-on-surface-variant font-body-md text-body-md">
+                  Request for temporary OAuth tokens for the new regional
+                  contractor fleet onboarding process.
+                </p>
+              </div>
+              <div
+                class="flex items-center justify-between mt-auto pt-4 border-t border-white/5"
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-8 h-8 rounded-full border border-white/20 bg-surface-container-high flex items-center justify-center"
+                  >
+                    <span
+                      class="material-symbols-outlined text-outline text-[18px]"
+                      >smart_toy</span
+                    >
+                  </div>
+                  <div>
+                    <p class="font-label-md text-label-md">Support AI Bot</p>
+                    <p class="text-outline-variant text-[12px]">
+                      Updated 2 hours ago
+                    </p>
+                  </div>
+                </div>
+                <span class="material-symbols-outlined text-outline-variant"
+                  >chevron_right</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Sidebar: Knowledge Base & Specialized Help -->
+        <div class="lg:col-span-4 flex flex-col gap-10">
+          <!-- Knowledge Base Section -->
+          <section>
+            <h3
+              class="font-headline-md text-headline-md mb-6 flex items-center gap-2"
+            >
+              <span class="material-symbols-outlined text-primary"
+                >menu_book</span
+              >
+              Resources
+            </h3>
+            <div class="space-y-3">
+              <a
+                class="flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/10 group"
+                href="#"
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary"
+                  >
+                    <span class="material-symbols-outlined"
+                      >local_shipping</span
+                    >
+                  </div>
+                  <span class="font-label-md text-on-surface"
+                    >Fleet Scaling Guide</span
+                  >
+                </div>
+                <span
+                  class="material-symbols-outlined text-outline-variant group-hover:translate-x-1 transition-transform"
+                  >chevron_right</span
+                >
+              </a>
+              <a
+                class="flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/10 group"
+                href="#"
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary"
+                  >
+                    <span class="material-symbols-outlined">fingerprint</span>
+                  </div>
+                  <span class="font-label-md text-on-surface"
+                    >Security Protocols</span
+                  >
+                </div>
+                <span
+                  class="material-symbols-outlined text-outline-variant group-hover:translate-x-1 transition-transform"
+                  >chevron_right</span
+                >
+              </a>
+              <a
+                class="flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/10 group"
+                href="#"
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-10 h-10 rounded-lg bg-tertiary/10 flex items-center justify-center text-tertiary"
+                  >
+                    <span class="material-symbols-outlined">receipt_long</span>
+                  </div>
+                  <span class="font-label-md text-on-surface"
+                    >Rebate Automation</span
+                  >
+                </div>
+                <span
+                  class="material-symbols-outlined text-outline-variant group-hover:translate-x-1 transition-transform"
+                  >chevron_right</span
+                >
+              </a>
+            </div>
+            <!-- Documentation Quick Card -->
+            <div
+              class="mt-6 p-6 rounded-2xl bg-primary-container/20 border border-primary/20 relative overflow-hidden"
+            >
+              <div class="relative z-10">
+                <h5
+                  class="font-label-md text-primary mb-2 flex items-center gap-2"
+                >
+                  <span class="material-symbols-outlined text-[18px]"
+                    >terminal</span
+                  >
+                  API Reference
+                </h5>
+                <p class="text-on-primary-container text-[13px] mb-4">
+                  Deep dive into our technical logistics integration guides.
+                </p>
+                <button
+                  class="bg-primary text-on-primary w-full py-2.5 rounded-xl font-label-md text-[13px] hover:brightness-110 transition-all"
+                >
+                  Documentation
+                </button>
+              </div>
+              <span
+                class="material-symbols-outlined absolute -bottom-4 -right-4 text-[100px] opacity-[0.03] rotate-12"
+                >code</span
+              >
+            </div>
+          </section>
+          <!-- Specialized Assistance -->
+          <section>
+            <h3 class="font-headline-md text-headline-md mb-6">Assistance</h3>
+            <div class="grid grid-cols-1 gap-4">
+              <button
+                class="flex items-center gap-4 p-5 rounded-2xl glass-panel text-left hover:border-secondary/40 transition-all"
+              >
+                <div
+                  class="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary"
+                >
+                  <span class="material-symbols-outlined">headset_mic</span>
+                </div>
+                <div>
+                  <p class="font-label-md">VIP Concierge</p>
+                  <p class="text-[12px] text-on-surface-variant">
+                    Priority Line
+                  </p>
+                </div>
+              </button>
+              <button
+                class="flex items-center gap-4 p-5 rounded-2xl glass-panel text-left hover:border-primary/40 transition-all"
+              >
+                <div
+                  class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary"
+                >
+                  <span class="material-symbols-outlined">school</span>
+                </div>
+                <div>
+                  <p class="font-label-md">Live Workshops</p>
+                  <p class="text-[12px] text-on-surface-variant">
+                    Optimization Training
+                  </p>
+                </div>
+              </button>
+              <button
+                class="flex items-center gap-4 p-5 rounded-2xl glass-panel text-left hover:border-error/40 transition-all"
+              >
+                <div
+                  class="w-12 h-12 bg-error/10 rounded-xl flex items-center justify-center text-error"
+                >
+                  <span class="material-symbols-outlined">emergency</span>
+                </div>
+                <div>
+                  <p class="font-label-md">Critical Incident</p>
+                  <p class="text-[12px] text-on-surface-variant">
+                    Immediate Response
+                  </p>
+                </div>
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+    <nav
+      class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-40px)] max-w-md h-20 z-50 bg-surface-container/30 backdrop-blur-[30px] rounded-full border border-white/15 shadow-2xl flex justify-around items-center px-4"
+    >
+      <div
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 hover:text-secondary active:scale-90 transition-all cursor-pointer"
+      >
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="font-label-sm text-[10px] mt-1">Home</span>
+      </div>
+      <div
+        class="flex flex-col items-center justify-center text-secondary drop-shadow-[0_0_8px_rgba(76,215,246,0.5)] active:scale-90 transition-all cursor-pointer"
+      >
+        <span
+          class="material-symbols-outlined"
+          style="font-variation-settings: &quot;FILL&quot; 1"
+          >support_agent</span
+        >
+        <span class="font-label-sm text-[10px] mt-1">Support</span>
+      </div>
+      <div
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 hover:text-secondary active:scale-90 transition-all cursor-pointer"
+      >
+        <span class="material-symbols-outlined">event_available</span>
+        <span class="font-label-sm text-[10px] mt-1">Bookings</span>
+      </div>
+      <div
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 hover:text-secondary active:scale-90 transition-all cursor-pointer relative"
+      >
+        <span class="material-symbols-outlined">chat_bubble</span>
+        <span class="font-label-sm text-[10px] mt-1">Inbox</span>
+        <div
+          class="absolute top-0 right-0 w-2 h-2 bg-secondary rounded-full ring-2 ring-surface-container"
+        ></div>
+      </div>
+      <div
+        class="flex flex-col items-center justify-center text-on-surface-variant/60 hover:text-secondary active:scale-90 transition-all cursor-pointer"
+      >
+        <span class="material-symbols-outlined">account_circle</span>
+        <span class="font-label-sm text-[10px] mt-1">Profile</span>
+      </div>
+    </nav>
+    <script>
+      // Interaction for glass cards
+      document.querySelectorAll(".glass-panel").forEach((card) => {
+        card.addEventListener("mouseenter", () => {
+          card.style.transform = "translateY(-2px)";
+          card.style.background = "rgba(255, 255, 255, 0.08)";
+        });
+        card.addEventListener("mouseleave", () => {
+          card.style.transform = "translateY(0)";
+          card.style.background = "rgba(255, 255, 255, 0.05)";
+        });
+      });
+
+      // Search focus enhancement
+      const searchInput = document.querySelector("input");
+      const searchContainer = searchInput.parentElement;
+      searchInput.addEventListener("focus", () => {
+        searchContainer.classList.add("ai-glow", "bg-white/10");
+      });
+      searchInput.addEventListener("blur", () => {
+        searchContainer.classList.remove("ai-glow", "bg-white/10");
+      });
+    </script>
+  </body>
+</html>

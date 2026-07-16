@@ -1,0 +1,26 @@
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "production": {
+      "node": "20.11.0",
+      "npm": "10.2.4",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://your-supabase-url.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "your-anon-key"
+      }
+    },
+    "preview": {
+      "node": "20.11.0",
+      "npm": "10.2.4"
+    },
+    "development": {
+      "node": "20.11.0",
+      "npm": "10.2.4"
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
