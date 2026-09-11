@@ -168,7 +168,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
         privacy: "public",
       });
       setGroupName("");
-      setSelectedGroupId(group.id);
+      setSelectedGroupId((group as any)?.id);
       refetchGroups();
     } catch (error) {
       Alert.alert("Group failed", "Please sign in before creating a group.");

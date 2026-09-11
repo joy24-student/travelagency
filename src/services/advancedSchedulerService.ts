@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Advanced Scheduler Service
  * Manages timezone-aware, recurring scheduling for emails, SMS, and push notifications

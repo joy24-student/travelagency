@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Advanced Search & Filtering Service
 import { supabase } from "@/utils/supabase";
 

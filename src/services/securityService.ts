@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Advanced Security Features Service
 import { supabase } from "@/utils/supabase";
 

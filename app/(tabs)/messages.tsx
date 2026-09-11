@@ -139,10 +139,8 @@ export default function MessagesTab() {
           </Pressable>
         ))}
 
-        <View style={{ height: 120 }} />
+      <View style={{ height: 120 }} />
       </ScrollView>
-
-      <AiPill color={PRIMARY} />
     </SafeAreaView>
   );
 }

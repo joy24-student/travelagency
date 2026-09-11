@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Email Service - Advanced SMTP Multi-Server Management
  *

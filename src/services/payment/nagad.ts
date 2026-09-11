@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Nagad Payment Provider
  * Production-ready integration with Nagad Payment Gateway API

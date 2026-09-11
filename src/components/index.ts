@@ -7,3 +7,5 @@ export { SettingsScreen } from "./SettingsScreen";
 export { StoriesBar } from "./StoriesBar";
 export { SupabaseDebugPanel } from "./SupabaseDebugPanel";
 export { default as GoogleLoginButton } from "./GoogleLoginButton";
+export { PromoExclusiveModal } from "./PromoExclusiveModal";
+export { AddWidgetModal } from "./AddWidgetModal";

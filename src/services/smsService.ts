@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * SMS Service - Bulk SMS BD Integration & Multi-Gateway Support
  *

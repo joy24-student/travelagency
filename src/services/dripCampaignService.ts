@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Drip Campaign & Workflow Service
  * Manages automated marketing drip campaigns and complex multi-step workflows

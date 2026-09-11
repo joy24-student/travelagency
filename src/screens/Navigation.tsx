@@ -1,7 +1,4 @@
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import React, { useEffect, useRef, useMemo } from "react";
 import {
   Animated,
   Pressable,
@@ -10,38 +7,43 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { useEffect, useRef, useMemo } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ─── Tab config ────────────────────────────────────────────────────────────────
+// ─── Tab Config Matching Reference Screenshots & Clean Expo Router Paths ─────
 const TABS = [
-  { label: "Home", icon: "home-outline" as const, route: "/(tabs)/" },
-  {
-    label: "Explore",
-    icon: "map-outline" as const,
-    route: "/screens/explore",
-  },
+  { label: "Home", icon: "home-outline" as const, route: "/" },
   {
     label: "Messages",
-    icon: "chatbubble-ellipses-outline" as const,
-    route: "/(tabs)/messages",
+    icon: "mail-outline" as const,
+    route: "/messages",
   },
-  { label: "Post", icon: "add-circle-outline" as const, route: "/(tabs)/post" },
   {
-    label: "Account",
-    icon: "person-outline" as const,
-    route: "/(tabs)/account",
+    label: "Community",
+    icon: "people-outline" as const,
+    route: "/community",
+  },
+  {
+    label: "My Trips",
+    icon: "briefcase-outline" as const,
+    route: "/trips",
+  },
+  {
+    label: "Sign In",
+    icon: "person-circle-outline" as const,
+    route: "/account",
   },
 ] as const;
 
-// ─── AiPill ────────────────────────────────────────────────────────────────────
+// ─── Floating AI Assistant Pill ───────────────────────────────────────────────
 export function AiPill({ color }: { color: string }) {
   const insets = useSafeAreaInsets();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Staggered entrance animation
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: 1,
@@ -58,34 +60,47 @@ export function AiPill({ color }: { color: string }) {
   }, []);
 
   const aiPillBottom = useMemo(
-    () => insets.bottom + 80 + 6,
-    [insets.bottom],
+    () => insets.bottom + 68,
+    [insets.bottom]
   );
 
   return (
     <Animated.View
       style={[
         styles.aiWrap,
-        { bottom: aiPillBottom, transform: [{ scale: scaleAnim }], opacity: opacityAnim },
+        {
+          bottom: aiPillBottom,
+          transform: [{ scale: scaleAnim }],
+          opacity: opacityAnim,
+        },
       ]}
       pointerEvents="box-none"
     >
       <Pressable
         style={({ pressed }) => [
-          styles.aiPill,
+          styles.aiPillContainer,
           pressed && styles.aiPillPressed,
         ]}
         onPress={() => router.push("/(screens)/ai-assistant" as any)}
       >
-        <View style={[styles.aiDot, { backgroundColor: color }]} />
-        <Text style={styles.aiText}>Ask AI or hold to speak</Text>
-        <Ionicons name="mic-outline" size={16} color={color} />
+        <LinearGradient
+          colors={["#E0F2FE", "#FFFFFF", "#EFF6FF"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.aiGradientBg}
+        >
+          {/* Robot AI Icon */}
+          <View style={styles.aiRobotBadge}>
+            <Ionicons name="chatbox-ellipses-outline" size={14} color="#0055F2" />
+          </View>
+          <Text style={styles.aiText}>Ask AI or hold to speak</Text>
+        </LinearGradient>
       </Pressable>
     </Animated.View>
   );
 }
 
-// ─── BottomNav ─────────────────────────────────────────────────────────────────
+// ─── Bottom Navigation Bar ───────────────────────────────────────────────────
 export function BottomNav({
   active,
   color,
@@ -99,29 +114,8 @@ export function BottomNav({
 }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const tabWidth = (width - 40) / TABS.length;
+  const tabWidth = (width - 16) / TABS.length;
   const translateX = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Entrance animation
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        friction: 8,
-        tension: 40,
-        delay: 100,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-        delay: 100,
-      }),
-    ]).start();
-  }, []);
 
   useEffect(() => {
     const index = TABS.findIndex((tab) => tab.label === active);
@@ -136,59 +130,30 @@ export function BottomNav({
   }, [active, tabWidth]);
 
   return (
-    <Animated.View
-      style={[
-        styles.navContainer,
-        { transform: [{ scale: scaleAnim }], opacity: opacityAnim },
-      ]}
-    >
+    <View style={styles.navContainer}>
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 4 }]}>
         <View style={styles.tabWrapper}>
-          {/* Animated Indicator (Simplified for full-width) */}
-          <Animated.View
-            style={[
-              styles.indicator,
-              {
-                width: tabWidth,
-                transform: [{ translateX }],
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.indicatorInner,
-                { backgroundColor: color + "12", borderColor: color + "20" },
-              ]}
-            >
-            {/* The sliding yellow active indicator dot */}
-            <View style={styles.notificationDot} />
-              <View style={[styles.activeBar, { backgroundColor: color }]} />
-            </View>
-          </Animated.View>
-
-        {/* Tab Items */}
-        {TABS.map((tab) => {
-          const selected = tab.label === active;
-          return (
-            <TabItem
-              key={tab.label}
-              tab={tab}
-              selected={selected}
-              color={color}
-              isScrolled={isScrolled}
-              onScrollToTop={onScrollToTop}
-            />
-          );
-        })}
+          {TABS.map((tab) => {
+            const selected = tab.label === active;
+            return (
+              <TabItem
+                key={tab.label}
+                tab={tab}
+                selected={selected}
+                color={color}
+                isScrolled={isScrolled}
+                onScrollToTop={onScrollToTop}
+              />
+            );
+          })}
         </View>
-        {/* Home Indicator Simulator extracted from code.html */}
         <View style={styles.homeIndicator} />
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
-// ─── Tab Item Component ─────────────────────────────────────────────────────────
+// ─── Individual Tab Item with Morphing Back to Top Logic ─────────────────────
 interface TabItemProps {
   tab: (typeof TABS)[number];
   selected: boolean;
@@ -198,82 +163,53 @@ interface TabItemProps {
 }
 
 function TabItem({ tab, selected, color, isScrolled, onScrollToTop }: TabItemProps) {
-  const scaleAnim = useRef(new Animated.Value(selected ? 1.1 : 1)).current;
-  const colorAnim = useRef(new Animated.Value(selected ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: selected ? 1.1 : 1,
-        useNativeDriver: true,
-        friction: 8,
-        tension: 50,
-      }),
-      Animated.timing(colorAnim, {
-        toValue: selected ? 1 : 0,
-        duration: 200,
-        useNativeDriver: false,
-      }),
-    ]).start();
-  }, [selected]);
-
-  const animatedColor = colorAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#9ca3af", color],
-  });
-
-  // Morph logic for Home -> Top button
   const isHomeTab = tab.label === "Home";
-  const displayLabel = (isHomeTab && isScrolled) ? "Top" : tab.label;
-  const displayIcon = (isHomeTab && isScrolled) ? "arrow-up-circle-outline" : tab.icon;
+  const isScrolledActive = selected && isScrolled;
+
+  const displayLabel = isScrolledActive ? "Back to top" : tab.label;
 
   const handlePress = () => {
-    if (isHomeTab && isScrolled && onScrollToTop) {
+    if (isScrolledActive && onScrollToTop) {
       onScrollToTop();
     } else {
-      if (tab.route.startsWith("/screens")) {
-         router.push(tab.route as any);
-      } else {
-         router.replace(tab.route as any);
-      }
+      router.push(tab.route as any);
     }
   };
 
   return (
-    <Pressable
-      style={styles.bottomItem}
-      onPress={handlePress}
-      hitSlop={12}
-    >
-      <Animated.View
-        style={{
-          transform: [{ scale: scaleAnim }],
-          alignItems: "center",
-          gap: 2,
-        }}
-      >
-        <View style={{ position: 'relative' }}>
-          <Animated.Text style={{ color: animatedColor }}>
+    <Pressable style={styles.bottomItem} onPress={handlePress} hitSlop={8}>
+      <View style={styles.tabContentCenter}>
+        {isScrolledActive ? (
+          // Orange / Yellow circle arrow button for "Back to top" (Screenshot 2)
+          <View style={styles.backToTopCircle}>
+            <Ionicons name="arrow-up" size={16} color="#FFFFFF" />
+          </View>
+        ) : (
+          <View style={styles.iconContainer}>
             <Ionicons
-              name={displayIcon as any}
+              name={tab.icon}
               size={22}
-              color={selected ? color : "#9ca3af"}
+              color={selected ? color : "#64748B"}
             />
-          </Animated.Text>
-        </View>
+            {isHomeTab && selected && (
+              <View style={styles.homeYellowRoofDot} />
+            )}
+          </View>
+        )}
+
         <Text
           style={[
             styles.bottomLabel,
             {
-              color: selected ? color : "#6b7280",
-              fontWeight: selected ? "700" : "600",
-              fontSize: selected || (isHomeTab && isScrolled) ? 11 : 10,
+              color: isScrolledActive ? "#0055F2" : selected ? color : "#64748B",
+              fontWeight: selected || isScrolledActive ? "800" : "500",
             },
           ]}
+          numberOfLines={1}
         >
           {displayLabel}
         </Text>
-      </Animated.View>
+      </View>
     </Pressable>
   );
 }
@@ -286,41 +222,41 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1000,
   },
-  aiPill: {
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.98)",
-    borderColor: "rgba(40, 125, 250, 0.2)",
+  aiPillContainer: {
     borderRadius: 999,
-    borderWidth: 1.5,
-    elevation: 8,
-    flexDirection: "row",
-    gap: 9,
-    paddingHorizontal: 22,
-    paddingVertical: 13,
-    shadowColor: "#287dfa",
+    shadowColor: "#0055F2",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 1.5,
+    borderColor: "#93C5FD",
+    overflow: "hidden",
   },
   aiPillPressed: {
-    backgroundColor: "rgba(255,255,255,0.95)",
-    elevation: 6,
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
   },
-  aiDot: {
-    borderRadius: 999,
-    height: 8,
-    width: 8,
-    shadowColor: "#287dfa",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 2,
+  aiGradientBg: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  aiRobotBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
   },
   aiText: {
-    color: "#1f2937",
+    color: "#0F172A",
     fontSize: 13,
     fontWeight: "700",
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   navContainer: {
     left: 0,
@@ -328,90 +264,74 @@ const styles = StyleSheet.create({
     bottom: 0,
     position: "absolute",
     zIndex: 999,
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.05)",
+    borderTopColor: "#E2E8F0",
   },
   bottomNav: {
-    flex: 1,
-    backgroundColor: "#ffffff",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 8,
-    overflow: "hidden",
-    borderWidth: 1.2,
-    borderColor: "rgba(255, 255, 255, 0.6)",
-  },
-  bottomItem: {
-    alignItems: "center",
-    flex: 1,
-    gap: 3,
-    position: "relative",
-    paddingVertical: 8,
-    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
   },
   tabWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    height: 64,
+    justifyContent: "space-around",
+    height: 56,
+    width: "100%",
+    paddingHorizontal: 8,
   },
-  bottomLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  indicator: {
-    position: "absolute",
-    height: "100%",
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    left: 8,
-  },
-  indicatorInner: {
+  bottomItem: {
     flex: 1,
-    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 0.5,
-    borderColor: "rgba(40, 125, 250, 0.2)",
+    height: "100%",
   },
-  activeBar: {
-    height: 3,
-    width: 22,
-    borderRadius: 999,
-    position: 'absolute',
-    bottom: 6,
-    shadowColor: "#287dfa",
+  tabContentCenter: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  iconContainer: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  homeYellowRoofDot: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#FACC15",
+    borderWidth: 1,
+    borderColor: "#FFFFFF",
+  },
+  backToTopCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#EAB308",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#EAB308",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
-  notificationDot: {
-    position: "absolute",
-    top: 8,
-    left: "50%",
-    marginLeft: 8,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#FACC15", // Stylish Yellow-400
-    borderWidth: 1.5,
-    borderColor: "#FFFFFF",
-    zIndex: 10,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+  bottomLabel: {
+    fontSize: 10,
+    textAlign: "center",
   },
   homeIndicator: {
     height: 4,
-    backgroundColor: "#E5E7EB",
-    width: "33%",
+    backgroundColor: "#D1D5DB",
+    width: "36%",
     alignSelf: "center",
-    marginBottom: 8,
+    marginBottom: 4,
     borderRadius: 2,
   },
 });

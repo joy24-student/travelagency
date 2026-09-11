@@ -19,6 +19,8 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
+      "expo-router",
+      "expo-sharing",
       "@react-native-google-signin/google-signin",
       ["expo-facebook", { "userTrackingPermission": false }]
     ],

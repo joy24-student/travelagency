@@ -1,264 +1,139 @@
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   Easing,
   Image,
   PanResponder,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
 import { useAuth } from "../hooks/useAuth";
-import { useLoyaltyAccount } from "../hooks/useLoyaltySupport";
-import { destinationFinderService } from "../services/ai";
-import { supabase } from "../utils/supabase";
+import { PromoExclusiveModal } from "../components/PromoExclusiveModal";
 import { AiPill, BottomNav } from "./Navigation";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const TRIP_BLUE = "#0055F2";
 const TRIP_LIGHT_BLUE = "#EAF2FF";
-const TRIP_PINK = "#FFF0F3";
-const TRIP_TEXT_DARK = "#333333";
-const ACCENT_YELLOW = "#facc15";
-const PRIMARY = TRIP_BLUE;
-const ACCENT = ACCENT_YELLOW;
+const ACCENT_YELLOW = "#FACC15";
 
-const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
-
-const REFRESH_THRESHOLD = 110;
-const REFRESH_MAX_PULL = 170;
-const REFRESH_LOCK_HEIGHT = 112;
-const SEARCH_STICKY_TRIGGER = 20;
+const REFRESH_THRESHOLD = 80;
+const REFRESH_MAX_PULL = 135;
+const REFRESH_LOCK_HEIGHT = 95;
 
 const elasticPullDistance = (distance: number) =>
-  Math.min(REFRESH_MAX_PULL, distance / (1 + distance / 320));
-
-const TRENDING_DEFAULT = [
-  {
-    name: "North\nAmerica",
-    tag: "Explore",
-    img: "https://lh3.googleusercontent.com/aida-public/AB6AXuC1YgCqAM1GLl4LkclUwZanP81m-mBUnFyNdVYP8sCHCoJJZYfMRijq1jZGABa_cUTBf0axXLSu5Kic9daI9JoER0T87XxF8FVUDAfEsd3reSujt8C8kPGBSfViR1sd6rn09V4HEJb3kreVnwC1MFBS9cKJZgwnmbf5gCG9J3y3kIEnaWQyVUyq0oJgPHrlblXcr_wZHUXc9bT3GTwIduju8AVEPpH8xk-8-zMIQTVVi2DpSBkUm3av38YxeBjxFj2cuwnYeNxvkzE",
-    deal: "Travel deals up to 50% OFF",
-  },
-];
-
-const FLASH_DEALS_DEFAULT = [
-  {
-    id: "fd1",
-    title: "Cox's Bazar 3N/4D",
-    original: "৳8,000",
-    discounted: "৳5,500",
-    tag: "31% OFF",
-    durationMinutes: 150,
-  },
-  {
-    id: "fd2",
-    title: "Bangkok Package 5D",
-    original: "$650",
-    discounted: "$420",
-    tag: "35% OFF",
-    durationMinutes: 255,
-  },
-  {
-    id: "fd3",
-    title: "Sylhet Weekend",
-    original: "৳4,500",
-    discounted: "৳2,800",
-    tag: "38% OFF",
-    durationMinutes: 105,
-  },
-];
-
-const formatTimeLeft = (endTime: number, now: number) => {
-  const diff = Math.max(0, endTime - now);
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-  if (diff <= 0) return "Expired";
-
-  return `${hours}h ${minutes}m ${seconds}s`;
-};
-
-const AGENCIES_DEFAULT = [
-  { name: "Shopno Tours", rating: 4.8, packages: 42, verified: true },
-  { name: "Dhaka Travels", rating: 4.6, packages: 31, verified: true },
-  { name: "BD Explorer", rating: 4.5, packages: 28, verified: false },
-];
-
-const WEEKEND_DEFAULT = [
-  {
-    title: "Tea Garden Escape",
-    duration: "2D 1N",
-    price: "৳2,500",
-    img: "https://images.unsplash.com/photo-1559827291-72ee739d0d9a?w=300",
-  },
-  {
-    title: "Lakeside Weekend",
-    duration: "2D 1N",
-    price: "৳3,000",
-    img: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300",
-  },
-];
-
-const TAGS_DEFAULT = ["Beijing", "Shanghai", "Kuala Lumpur", "Seoul"];
-
-const QUICK_ACTIONS = [
-  { label: "Deals", icon: "pricetag-outline" },
-  { label: "Events", icon: "calendar-outline" },
-  { label: "Trip.Planner", icon: "flash-outline" },
-  { label: "Trending", icon: "trending-up-outline" },
-];
+  Math.min(REFRESH_MAX_PULL, distance / (1 + distance / 220));
 
 export function HomeScreen() {
   const { user } = useAuth();
-  const { account } = useLoyaltyAccount(user?.id);
-  const [search, setSearch] = useState("");
-  const [aiRecs, setAiRecs] = useState<string[]>([]);
-  const [loadingAI, setLoadingAI] = useState(false);
-
-  const [trending, setTrending] = useState(TRENDING_DEFAULT);
-  const [flashDeals, setFlashDeals] = useState(FLASH_DEALS_DEFAULT);
-  const [agencies, setAgencies] = useState(AGENCIES_DEFAULT);
-  const [weekend, setWeekend] = useState(WEEKEND_DEFAULT);
-  const [tags, setTags] = useState(TAGS_DEFAULT);
-  const [loadingData, setLoadingData] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("Bali");
+  const [activeFeedTab, setActiveFeedTab] = useState<"discover" | "nearby">("discover");
+  const [showPromoModal, setShowPromoModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-const [isScrolled, setIsScrolled] = useState(false);
+  const [isArmed, setIsArmed] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
-  // Monitor scroll position to toggle Home/Top button
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const pullDistance = useRef(new Animated.Value(0)).current;
+  const spinnerRotate = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  
+  const isAtTopRef = useRef(true);
+  const isArmedRef = useRef(false);
+  const isRefreshingRef = useRef(false);
+  const scrollRef = useRef<any>(null);
+
+  // Auto-show promo modal once on mount for demo
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowPromoModal(true);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Monitor scroll position for sticky header and Back-to-Top morphing tab button
   useEffect(() => {
     const listenerId = scrollY.addListener(({ value }) => {
-      if (value > 150) {
+      isAtTopRef.current = value <= 5;
+
+      // Over-scroll pull distance handling when scrolling past top (value < 0)
+      if (value < 0 && !isRefreshingRef.current) {
+        const overscroll = elasticPullDistance(Math.abs(value));
+        pullDistance.setValue(overscroll);
+
+        if (overscroll >= REFRESH_THRESHOLD && !isArmedRef.current) {
+          isArmedRef.current = true;
+          setIsArmed(true);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        } else if (overscroll < REFRESH_THRESHOLD && isArmedRef.current) {
+          isArmedRef.current = false;
+          setIsArmed(false);
+        }
+      }
+
+      if (value > 140) {
         if (!isScrolled) setIsScrolled(true);
       } else {
         if (isScrolled) setIsScrolled(false);
       }
     });
     return () => scrollY.removeListener(listenerId);
-  }, [isScrolled]);
-  const [isArmed, setIsArmed] = useState(false);
+  }, [isScrolled, pullDistance, scrollY]);
 
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const pullDistance = useRef(new Animated.Value(0)).current;
-  const spinnerRotate = useRef(new Animated.Value(0)).current;
-  const gradientPulse = useRef(new Animated.Value(0)).current;
-  const isAtTopRef = useRef(true);
-  const isArmedRef = useRef(false);
-  const isRefreshingRef = useRef(false);
-  const currentPullDistance = useRef(0); // To track pullDistance's actual value
-  const triggerRefreshRef = useRef<() => Promise<void>>(async () => undefined);
-  const scrollRef = useRef<Animated.ScrollView>(null);
-  const isWeb = Platform.OS === "web";
-
-  // Header Scroll Transitions
-  const headerBg = useMemo(() => scrollY.interpolate({
-    inputRange: [0, 20],
-    outputRange: [TRIP_BLUE, "#ffffff"],
-    extrapolate: "clamp",
-  }), [scrollY]);
-
-  const headerContentColor = useMemo(() => scrollY.interpolate({
-    inputRange: [0, 20],
-    outputRange: ["#ffffff", TRIP_BLUE],
-    extrapolate: "clamp",
-  }), [scrollY]);
-
-  const pillBg = useMemo(() => scrollY.interpolate({
-    inputRange: [0, 10],
-    outputRange: ["rgba(255,255,255,0.2)", "rgba(0,85,242,0.06)"],
-    extrapolate: "clamp",
-  }), [scrollY]);
-
-  const pillBorder = useMemo(() => scrollY.interpolate({
-    inputRange: [0, 10],
-    outputRange: ["rgba(255,255,255,0.3)", "rgba(0,85,242,0.12)"],
-    extrapolate: "clamp",
-  }), [scrollY]);
-
-  const loadHomeData = useCallback(async () => {
-    try {
-      setLoadingData(true);
-
-      // Fetch dynamic promotions
-      const { data: deals } = await supabase
-        .from("promotions")
-        .select("*")
-        .eq("status", "active")
-        .order("discount_percentage", { ascending: false })
-        .limit(3);
-
-      if (deals && deals.length > 0) {
-        setFlashDeals(deals.map((d: any) => ({
-          id: d.id,
-          title: d.title,
-          original: d.original_price ? `$${d.original_price}` : d.title,
-          discounted: d.discounted_price ? `$${d.discounted_price}` : d.title,
-          tag: `${d.discount_percentage || 0}% OFF`,
-          durationMinutes: d.duration_minutes || 150,
-        })));
-      }
-
-      // Fetch trending destinations
-      const { data: trendingDest } = await supabase
-        .from("destinations")
-        .select("*")
-        .eq("is_trending", true)
-        .limit(1);
-
-      if (trendingDest && trendingDest.length > 0) {
-        setTrending(trendingDest.map((d: any) => ({
-          name: d.name,
-          tag: "Trending",
-          img: d.image_url || TRENDING_DEFAULT[0].img,
-          deal: d.promotion_text || "Travel deals up to 50% OFF",
-        })));
-      }
-
-      // Fetch popular tags
-      const { data: destTags } = await supabase
-        .from("destinations")
-        .select("name")
-        .eq("is_popular", true)
-        .limit(6);
-
-      if (destTags && destTags.length > 0) {
-        setTags(destTags.map((d: any) => d.name));
-      }
-
-      // Fetch verified agencies
-      const { data: agenciesData } = await supabase
-        .from("agencies")
-        .select("*")
-        .eq("is_verified", true)
-        .order("rating", { ascending: false })
-        .limit(3);
-
-      if (agenciesData && agenciesData.length > 0) {
-        setAgencies(agenciesData.map((a: any) => ({
-          name: a.name,
-          rating: a.rating || 4.5,
-          packages: a.packages_count || 0,
-          verified: true,
-        })));
-      }
-    } catch (err) {
-      console.error("Error loading home data:", err);
-    } finally {
-      setLoadingData(false);
+  // Pulsing ring animation when refresh is armed or loading
+  useEffect(() => {
+    if (isArmed || isRefreshing) {
+      const pulseLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 700,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0,
+            duration: 700,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulseLoop.start();
+      return () => pulseLoop.stop();
+    } else {
+      pulseAnim.setValue(0);
     }
-  }, []);
+  }, [isArmed, isRefreshing, pulseAnim]);
 
+  // Clean animation completion helper
+  const snapBackToZero = useCallback(() => {
+    isArmedRef.current = false;
+    setIsArmed(false);
+    Animated.timing(pullDistance, {
+      toValue: 0,
+      duration: 220,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start(() => {
+      pullDistance.setValue(0);
+    });
+  }, [pullDistance]);
+
+  // Handle pull to refresh logic with guaranteed completion
   const triggerRefresh = useCallback(async () => {
     if (isRefreshingRef.current) return;
 
@@ -275,721 +150,1214 @@ const [isScrolled, setIsScrolled] = useState(false);
       friction: 12,
     }).start();
 
-    await loadHomeData();
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Simulate backend data sync delay
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     isRefreshingRef.current = false;
     setIsRefreshing(false);
 
-    Animated.spring(pullDistance, {
+    Animated.timing(pullDistance, {
       toValue: 0,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
-      tension: 140,
-      friction: 10,
-    }).start();
-  }, [loadHomeData]);
+    }).start(() => {
+      pullDistance.setValue(0);
+    });
+  }, [pullDistance]);
 
+  const triggerRefreshRef = useRef(triggerRefresh);
   useEffect(() => {
     triggerRefreshRef.current = triggerRefresh;
   }, [triggerRefresh]);
 
+  // Continuous Globe Rotation loop when refreshing
   useEffect(() => {
-    isArmedRef.current = isArmed;
-  }, [isArmed]);
-
-  useEffect(() => {
-    isRefreshingRef.current = isRefreshing;
-  }, [isRefreshing]);
-
-  useEffect(() => {
-    if (isWeb || !isRefreshing) {
+    if (!isRefreshing) {
       spinnerRotate.setValue(0);
       return;
     }
-
     const animation = Animated.loop(
       Animated.timing(spinnerRotate, {
         toValue: 1,
-        duration: 900,
+        duration: 850,
         easing: Easing.linear,
         useNativeDriver: true,
       })
     );
-
     animation.start();
     return () => animation.stop();
-  }, [isRefreshing]);
+  }, [isRefreshing, spinnerRotate]);
 
-  useEffect(() => {
-    if (isWeb || (!isArmed && !isRefreshing)) {
-      gradientPulse.setValue(0);
-      return;
+  // Handle scroll drag end to trigger refresh if armed or snap back cleanly
+  const handleScrollEndDrag = (e: any) => {
+    const offsetY = e.nativeEvent.contentOffset.y;
+    if (offsetY <= -REFRESH_THRESHOLD || isArmedRef.current) {
+      triggerRefreshRef.current();
+    } else if (!isRefreshingRef.current) {
+      snapBackToZero();
     }
+  };
 
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(gradientPulse, {
-          toValue: 1,
-          duration: 650,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(gradientPulse, {
-          toValue: 0,
-          duration: 650,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    animation.start();
-    return () => animation.stop();
-  }, [isArmed, isRefreshing]);
-
-  // Listener for pullDistance to update currentPullDistance ref
-  useEffect(() => {
-    const id = pullDistance.addListener(({ value }) => {
-      currentPullDistance.current = value;
-    });
-    return () => pullDistance.removeListener(id);
-  }, [pullDistance]);
-
-  // PanResponder for custom pull-to-refresh gesture handling
-  const panResponder = useRef(
+  // Dedicated Header PanResponder capturing downward drag gestures seamlessly
+  const headerPanResponder = useRef(
     PanResponder.create({
-      // We don't want to claim the responder on initial touch, only on move
       onStartShouldSetPanResponder: () => false,
       onStartShouldSetPanResponderCapture: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const { dx, dy } = gestureState;
-        // Enterprise-grade sensitivity: Capture only when at top, pulling down, and move is primarily vertical
-        const shouldSet = !isRefreshingRef.current && isAtTopRef.current && dy > 8 && Math.abs(dy) > Math.abs(dx);
-        if (shouldSet) console.log("[PullToRefresh] onMoveShouldSetPanResponder: Claiming gesture. dy:", dy, "dx:", dx);
-        return shouldSet;
+        return !isRefreshingRef.current && isAtTopRef.current && dy > 6 && dy > Math.abs(dx);
       },
-      // Crucial: Capture move events to prevent ScrollView from stealing the responder
       onMoveShouldSetPanResponderCapture: (_, gestureState) => {
         const { dx, dy } = gestureState;
-        const shouldCapture = !isRefreshingRef.current && isAtTopRef.current && dy > 8 && Math.abs(dy) > Math.abs(dx);
-        if (shouldCapture) console.log("[PullToRefresh] onMoveShouldSetPanResponderCapture: Capturing gesture. dy:", dy, "dx:", dx);
-        return shouldCapture;
+        return !isRefreshingRef.current && isAtTopRef.current && dy > 10 && dy > Math.abs(dx);
       },
       onPanResponderGrant: () => {
-        console.log("[PullToRefresh] Responder Granted");
         pullDistance.stopAnimation();
       },
       onPanResponderMove: (_, gestureState) => {
         if (isRefreshingRef.current || !isAtTopRef.current) return;
-
-        // Apply elastic effect to the pull distance
         const nextDistance = elasticPullDistance(Math.max(0, gestureState.dy));
         pullDistance.setValue(nextDistance);
 
-        // Trigger haptic feedback and arm the refresh state if threshold is met
         if (nextDistance >= REFRESH_THRESHOLD && !isArmedRef.current) {
           isArmedRef.current = true;
           setIsArmed(true);
-          console.log("[PullToRefresh] Refresh Armed!");
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); // The "Buzz" threshold
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         } else if (nextDistance < REFRESH_THRESHOLD && isArmedRef.current) {
           isArmedRef.current = false;
           setIsArmed(false);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        console.log("[PullToRefresh] Gesture Released. Final dy:", gestureState.dy);
         if (isRefreshingRef.current) return;
-        
-        // Calculate final pull distance after release
         const nextDistance = elasticPullDistance(Math.max(0, gestureState.dy));
-
         if (nextDistance >= REFRESH_THRESHOLD) {
-          console.log("[PullToRefresh] Threshold Met: Triggering Refresh");
-          // If threshold met, trigger the refresh
           triggerRefreshRef.current();
           return;
         }
-
-        isArmedRef.current = false;
-        setIsArmed(false);
-        Animated.spring(pullDistance, {
-          toValue: 0, // Bounce back to 0 if not refreshing
-          useNativeDriver: false,
-          tension: 260,
-          friction: 9,
-        }).start();
-        console.log("[PullToRefresh] Bouncing back to 0.");
+        snapBackToZero();
       },
       onPanResponderTerminate: () => {
-        console.log("[PullToRefresh] Gesture Terminated unexpectedly.");
-        // Handle cases where gesture is interrupted (e.g., app goes to background)
         if (!isRefreshingRef.current) {
-          isArmedRef.current = false;
-          setIsArmed(false);
-          Animated.spring(pullDistance, {
-            toValue: 0,
-            useNativeDriver: false,
-            tension: 150,
-            friction: 10,
-          }).start();
-          console.log("[PullToRefresh] Terminated: Bouncing back to 0.");
+          snapBackToZero();
         }
       },
     })
   ).current;
 
-  const pullProgress = useMemo(() => pullDistance.interpolate({
-    inputRange: [0, REFRESH_MAX_PULL],
-    outputRange: [0, 1],
-    extrapolate: "clamp",
-  }), [pullDistance]);
+  // Interpolated Animation Values
+  const pullProgress = useMemo(
+    () =>
+      pullDistance.interpolate({
+        inputRange: [0, REFRESH_MAX_PULL],
+        outputRange: [0, 1],
+        extrapolate: "clamp",
+      }),
+    [pullDistance]
+  );
 
-  const refreshOpacity = useMemo(() => pullProgress.interpolate({
-    inputRange: [0, 0.1, 1],
-    outputRange: [0, 0.65, 1],
-    extrapolate: "clamp",
-  }), [pullProgress]);
+  const containerOpacity = useMemo(
+    () =>
+      pullDistance.interpolate({
+        inputRange: [0, 4, 30],
+        outputRange: [0, 0.6, 1],
+        extrapolate: "clamp",
+      }),
+    [pullDistance]
+  );
 
-  const refreshScale = useMemo(() => pullProgress.interpolate({
-    inputRange: [0, 0.6, 0.9, 1],
-    outputRange: [0.8, 1.1, 1.05, 1.1],
-    extrapolate: "clamp",
-  }), [pullProgress]);
+  const globeScale = useMemo(
+    () =>
+      pullProgress.interpolate({
+        inputRange: [0, 0.4, 0.8, 1],
+        outputRange: [0.5, 0.85, 1.12, 1.0],
+        extrapolate: "clamp",
+      }),
+    [pullProgress]
+  );
 
-  const earthRotate = useMemo(() => pullProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "540deg"],
-  }), [pullProgress]);
+  const globeOpacity = useMemo(
+    () =>
+      pullProgress.interpolate({
+        inputRange: [0, 0.15, 1],
+        outputRange: [0, 0.8, 1],
+        extrapolate: "clamp",
+      }),
+    [pullProgress]
+  );
 
-  const busTranslateX = useMemo(() => pullProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-110, 110],
-    extrapolate: "clamp",
-  }), [pullProgress]);
+  const earthRotate = useMemo(
+    () =>
+      pullProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "360deg"],
+      }),
+    [pullProgress]
+  );
 
-  const planeTranslateY = useMemo(() => pullProgress.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [55, -35, 20],
-    extrapolate: "clamp",
-  }), [pullProgress]);
+  const spinnerRotateProgress = useMemo(
+    () =>
+      spinnerRotate.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "360deg"],
+      }),
+    [spinnerRotate]
+  );
 
-  const scholarshipTranslateY = useMemo(() => pullProgress.interpolate({
-    inputRange: [0, 0.45, 1],
-    outputRange: [55, -22, -8],
-    extrapolate: "clamp",
-  }), [pullProgress]);
+  const auraScale = useMemo(
+    () =>
+      pulseAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 1.35],
+      }),
+    [pulseAnim]
+  );
 
-  const scholarshipScale = useMemo(() => pullProgress.interpolate({
-    inputRange: [0, 0.75, 1],
-    outputRange: [0.75, 1.18, 1],
-    extrapolate: "clamp",
-  }), [pullProgress]);
-
-  const scholarshipOpacity = useMemo(() => pullProgress.interpolate({
-    inputRange: [0, 0.35, 1],
-    outputRange: [0, 0.7, 1],
-    extrapolate: "clamp",
-  }), [pullProgress]);
-
-  const gradientPulseOpacity = useMemo(() => gradientPulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.03, 0.22],
-    extrapolate: "clamp",
-  }), [gradientPulse]);
-
-  const spinnerRotateProgress = useMemo(() => spinnerRotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  }), [spinnerRotate]);
-
-  const spinnerTransform = useMemo(() => [
-    { rotate: spinnerRotateProgress },
-  ], [spinnerRotateProgress]);
-
-  const searchStickyProgress = useMemo(() => scrollY.interpolate({
-    inputRange: [0, SEARCH_STICKY_TRIGGER],
-    outputRange: [0, 1],
-    extrapolate: "clamp",
-  }), [scrollY]);
-
-  const searchBackground = useMemo(() => searchStickyProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#FFFFFF", "#FFFFFF"],
-    extrapolate: "clamp",
-  }), [searchStickyProgress]);
-
-  const searchBorderColor = useMemo(() => searchStickyProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#E5E7EB", "#E5E7EB"],
-    extrapolate: "clamp",
-  }), [searchStickyProgress]);
-
-  const searchIconColor = useMemo(() => searchStickyProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [TRIP_BLUE, TRIP_BLUE],
-    extrapolate: "clamp",
-  }), [searchStickyProgress]);
-
-  const searchPlaceholderColor = useMemo(() => searchStickyProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#94A3B8", "#94A3B8"],
-    extrapolate: "clamp",
-  }), [searchStickyProgress]);
-
-  const searchShadowOpacity = useMemo(() => searchStickyProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 0.1],
-    extrapolate: "clamp",
-  }), [searchStickyProgress]);
-
-  useEffect(() => {
-    loadHomeData();
-  }, [loadHomeData]);
-
-  // Countdown Timer Logic
-  const [now, setNow] = useState(Date.now());
+  const auraOpacity = useMemo(
+    () =>
+      pulseAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.4, 0],
+      }),
+    [pulseAnim]
+  );
 
   return (
-    <SafeAreaView style={s.shell}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView style={styles.shell} edges={["top"]}>
+      <StatusBar barStyle="light-content" backgroundColor={TRIP_BLUE} />
 
+      {/* Screenshot 4: Pull Down Refresh Header Overlay */}
       <Animated.View
         pointerEvents="none"
-        style={isWeb ? [s.refreshContainer, { height: 0, opacity: 0 }] : [s.refreshContainer, { height: pullDistance, opacity: refreshOpacity }]}
+        style={[
+          styles.refreshContainer,
+          {
+            height: pullDistance,
+            opacity: containerOpacity,
+          },
+        ]}
       >
         <LinearGradient
-          colors={isRefreshing ? ["#0f172a", "#0055F2", "#00C6FF"] : isArmed ? ["#00C6FF", "#0072FF"] : ["#F0F7FF", "#FFFFFF"]}
+          colors={
+            isRefreshing
+              ? ["#0038A8", "#0055F2"]
+              : isArmed
+              ? ["#0044C7", "#0055F2"]
+              : ["#002D88", "#0055F2"]
+          }
           style={StyleSheet.absoluteFill}
         />
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: TRIP_BLUE, opacity: isWeb ? 0 : gradientPulseOpacity }]} />
-        <Animated.View style={[s.refreshContent, { transform: isWeb ? undefined : [{ scale: refreshScale }] }]}>
-          {isRefreshing ? (
-            <>
-              <Animated.View style={{ transform: spinnerTransform, marginBottom: 12 }}>
-                <Ionicons name="earth-outline" size={34} color="#fff" />
-              </Animated.View>
-              <ActivityIndicator size="small" color="#fff" />
-              <Text style={[s.refreshText, { color: "#fff", marginTop: 8 }]}>Syncing your world...</Text>
-            </>
-          ) : (
-            <>
-              <Animated.View style={{ transform: [{ rotate: earthRotate }] }}>
-                <Ionicons name="earth-outline" size={34} color={isArmed ? "#fff" : TRIP_BLUE} />
-              </Animated.View>
 
-              <View style={s.animationTrack}>
-                <Animated.View style={{ transform: [{ translateX: busTranslateX }] }}>
-                  <Ionicons name="bus" size={20} color={isArmed ? "#fff" : "#6366f1"} />
-                </Animated.View>
-                <Animated.View style={{ transform: [{ translateY: planeTranslateY }, { rotate: "-45deg" }] }}>
-                  <Ionicons name="airplane-outline" size={22} color={isArmed ? "#fff" : "#0ea5e9"} />
-                </Animated.View>
-                <Animated.View
-                  style={[
-                    s.scholarshipBubble,
-                    {
-                      opacity: scholarshipOpacity,
-                      transform: [{ translateY: scholarshipTranslateY }, { scale: scholarshipScale }],
-                    },
-                  ]}
-                >
-                  <Ionicons name="school" size={18} color={isArmed ? "#fff" : "#f59e0b"} />
-                  <Text style={[s.scholarshipText, { color: isArmed ? "#fff" : TRIP_TEXT_DARK }]}>Scholarship</Text>
-                </Animated.View>
-              </View>
-
-              <Text style={[s.refreshText, { color: isArmed ? "#fff" : TRIP_BLUE }]}>
-                {isArmed ? "Release to refresh" : "Pull for your next journey"}
-              </Text>
-            </>
+        <Animated.View style={[styles.refreshContent, { opacity: globeOpacity }]}>
+          {/* Animated Pulsing Aura Ring */}
+          {(isArmed || isRefreshing) && (
+            <Animated.View
+              style={[
+                styles.pulseAuraRing,
+                {
+                  transform: [{ scale: auraScale }],
+                  opacity: auraOpacity,
+                },
+              ]}
+            />
           )}
+
+          {/* Globe Emblem Badge Circle with White Ring */}
+          <Animated.View
+            style={[
+              styles.globeEmblemBadge,
+              { transform: [{ scale: globeScale }] },
+            ]}
+          >
+            <Animated.View
+              style={{
+                transform: [
+                  { rotate: isRefreshing ? spinnerRotateProgress : earthRotate },
+                ],
+              }}
+            >
+              <Ionicons name="earth" size={28} color="#FFFFFF" />
+            </Animated.View>
+          </Animated.View>
+
+          <Text style={styles.refreshStatusText}>
+            {isRefreshing
+              ? "Updating Trip.com..."
+              : isArmed
+              ? "Release to refresh"
+              : "Pull down to refresh"}
+          </Text>
         </Animated.View>
       </Animated.View>
 
+      {/* Main Scrollable View */}
       <Animated.ScrollView
-        {...panResponder.panHandlers} // Attach PanResponder to the ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={isWeb ? s.scroll : [s.scroll, { paddingTop: pullDistance }]}
-        onScroll={(event) => {
-          scrollY.setValue(event.nativeEvent.contentOffset.y);
-        }}
-        scrollEnabled={!isRefreshing} // Lock scroll while refreshing
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: pullDistance as any },
+        ]}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        onScrollEndDrag={handleScrollEndDrag}
         scrollEventThrottle={16}
         stickyHeaderIndices={[1]}
-        stickyHeaderHiddenOnScroll={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={triggerRefresh}
+            tintColor="transparent"
+            colors={["#0055F2"]}
+            progressBackgroundColor="#FFFFFF"
+          />
+        }
       >
-        {/* Section 0: Header + Grids */}
-        <View>
-          <Animated.View style={isWeb ? s.header : [s.header, { backgroundColor: headerBg }]}>
-            <Text style={s.headerSpacer} />
-            <Animated.Text style={[s.headerLogo, { color: isWeb ? "#ffffff" : headerContentColor }]}>Trip.com</Animated.Text>
-            <View style={s.headerRight}>
-              <Pressable onPress={() => router.push("/screens/rewards")}>
-                <Animated.View style={[s.tierPill, isWeb ? null : { backgroundColor: pillBg, borderColor: pillBorder }]}>
-                  <View style={s.tierTIcon}><Text style={s.tierTText}>T</Text></View>
-                  <Animated.Text style={[s.tierText, { color: isWeb ? "#ffffff" : headerContentColor }]}>Silver</Animated.Text>
-                </Animated.View>
-              </Pressable>
-              <Pressable style={s.avatarCircle} onPress={() => router.push("/(tabs)/account")}>
-                <Text style={s.avatarT}>T</Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-
-          <View style={s.mainContainer}>
-          {/* Primary Service Grid */}
-          <View style={s.primaryGrid}>
-            {[
-              { label: "Hotels", icon: "bed-outline", route: "/screens/search-stays" },
-              { label: "Flights", icon: "airplane-outline", route: "/screens/flights" },
-              { label: "Flight + Hotel", icon: "business-outline", route: "/screens/packages" },
-              { label: "Trains", icon: "train-outline", route: "/screens/trains" },
-            ].map((item) => (
-              <Pressable 
-                key={item.label} 
-                style={s.primaryItem} 
-                onPress={() => item.route && router.push(item.route as any)}
+        {/* Section 0: Blue Header Bar & Category Grids */}
+        <View style={styles.topSectionWrapper} {...headerPanResponder.panHandlers}>
+          {/* Screenshot 2 & 4 Header Bar */}
+          <View style={styles.blueHeaderBar}>
+            <View style={styles.logoRow}>
+              <Pressable
+                onPress={() => triggerRefresh()}
+                style={styles.logoPressArea}
               >
-                <View style={s.primaryIconCircle}>
-                  <Ionicons name={item.icon as any} size={30} color={TRIP_BLUE} />
-                </View>
-                <Text style={s.primaryLabel} numberOfLines={2}>
-                  {item.label}<Text style={{ color: ACCENT_YELLOW }}>.</Text>
+                <Text style={styles.tripLogoText}>
+                  Trip.com
                 </Text>
               </Pressable>
-            ))}
+
+              {/* Yellow Coin Tier Badge */}
+              <Pressable
+                style={styles.goldCoinBadge}
+                onPress={() => setShowPromoModal(true)}
+              >
+                <Text style={styles.goldCoinText}>T</Text>
+              </Pressable>
+            </View>
           </View>
 
-          {/* Secondary Small Grid */}
-          <View style={s.secondaryGrid}>
-            {[
-              { label: "Vacation\nRentals", icon: "home", route: "/screens/search-stays" },
-              { label: "Attractions\n& Tours", icon: "people", route: "/screens/recommended-tours" },
-              { label: "Car Rentals", icon: "car", route: "/screens/search" },
-              { label: "Package\nTours", icon: "earth", route: "/screens/packages" },
-              { label: "+7 more", icon: "grid", isMore: true, route: "/screens/search" },
-            ].map((item, i) => (
-              <Pressable
-                key={i}
-                style={s.secondaryItem}
-                onPress={() => item.route && router.push(item.route as any)}
-              >
-                <View style={s.secondaryIconWrapper}>
-                  <View style={item.isMore ? s.moreIconBg : null}>
-                    <Ionicons 
-                      name={item.icon as any} 
-                      size={item.isMore ? 14 : 22} 
-                      color={item.isMore ? "#fff" : TRIP_BLUE} 
-                    />
+          {/* Curved Body Sheet */}
+          <View style={styles.curvedBodySheet}>
+            {/* Primary Categories Grid (Row 1) */}
+            <View style={styles.primaryGrid}>
+              {[
+                { label: "Hotels", icon: "bed-outline" as const, route: "/screens/search-stays" },
+                { label: "Flights", icon: "airplane-outline" as const, route: "/screens/flights" },
+                { label: "Flight + Hotel", icon: "business-outline" as const, route: "/screens/packages" },
+                { label: "Trains", icon: "train-outline" as const, route: "/screens/trains" },
+              ].map((item) => (
+                <Pressable
+                  key={item.label}
+                  style={styles.primaryItem}
+                  onPress={() => item.route && router.push(item.route as any)}
+                >
+                  <View style={styles.primaryIconCircle}>
+                    <Ionicons name={item.icon} size={28} color={TRIP_BLUE} />
                   </View>
+                  <Text style={styles.primaryLabel}>
+                    {item.label}
+                    <Text style={{ color: ACCENT_YELLOW }}>.</Text>
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Secondary Categories Grid (Row 2) */}
+            <View style={styles.secondaryGrid}>
+              {[
+                { label: "Vacation\nRentals", icon: "home-outline" as const, route: "/screens/search-stays" },
+                { label: "Attractions\n& Tours", icon: "people-outline" as const, route: "/screens/recommended-tours" },
+                { label: "Car Rentals", icon: "car-outline" as const, route: "/screens/search" },
+                { label: "Package\nTours", icon: "earth-outline" as const, route: "/screens/packages" },
+                { label: "+7 more", icon: "grid-outline" as const, isMore: true, route: "/screens/search" },
+              ].map((item, i) => (
+                <Pressable
+                  key={i}
+                  style={styles.secondaryItem}
+                  onPress={() => item.route && router.push(item.route as any)}
+                >
+                  <View style={styles.secondaryIconWrapper}>
+                    <View style={item.isMore ? styles.moreIconBg : null}>
+                      <Ionicons
+                        name={item.icon}
+                        size={item.isMore ? 14 : 22}
+                        color={item.isMore ? "#FFFFFF" : TRIP_BLUE}
+                      />
+                    </View>
+                  </View>
+                  <Text style={styles.secondaryLabel} numberOfLines={2}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Section 1: Sticky Search Bar & Location Pills */}
+        <Animated.View style={styles.stickySearchContainer}>
+          {/* Main Search Input */}
+          <View style={styles.searchBarPill}>
+            <View style={styles.robotBadge}>
+              <Ionicons name="chatbox-ellipses" size={14} color="#0055F2" />
+            </View>
+
+            <Text style={styles.searchInputText}>{searchQuery}</Text>
+
+            <Pressable
+              style={styles.searchCircleBtn}
+              onPress={() => router.push("/screens/search" as any)}
+            >
+              <Ionicons name="search" size={18} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
+          {/* Location Tags Row */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.locationTagsRow}
+          >
+            {["Lalmonirhat", "Beijing", "Shanghai", "Singapore", "Dubai"].map((tag) => (
+              <Pressable
+                key={tag}
+                style={styles.locationTagPill}
+                onPress={() => setSearchQuery(tag)}
+              >
+                <Text style={styles.locationTagText}>{tag}</Text>
+              </Pressable>
+            ))}
+            <Pressable
+              style={styles.mapBtn}
+              onPress={() => router.push("/screens/explore" as any)}
+            >
+              <Ionicons name="map-outline" size={15} color={TRIP_BLUE} />
+              <Text style={styles.mapBtnText}>Map</Text>
+            </Pressable>
+          </ScrollView>
+
+          {/* Sub-Category Circular Quick Actions */}
+          <View style={styles.subCategoryRow}>
+            {[
+              { label: "Deals", icon: "pricetag-outline" as const },
+              { label: "Events", icon: "calendar-outline" as const },
+              { label: "Trip.Planner", icon: "flash-outline" as const },
+              { label: "Trending", icon: "trending-up-outline" as const },
+            ].map((action) => (
+              <Pressable
+                key={action.label}
+                style={styles.subCategoryItem}
+                onPress={() => {
+                  if (action.label === "Trip.Planner") {
+                    router.push("/screens/trip-planner" as any);
+                  } else if (action.label === "Events") {
+                    router.push("/screens/events" as any);
+                  } else {
+                    setShowPromoModal(true);
+                  }
+                }}
+              >
+                <View style={styles.subCategoryCircle}>
+                  <Ionicons name={action.icon} size={20} color={TRIP_BLUE} />
                 </View>
-                <Text style={s.secondaryLabel} numberOfLines={2}>{item.label}</Text>
+                <Text style={styles.subCategoryLabel}>{action.label}</Text>
               </Pressable>
             ))}
           </View>
-        </View>
-      </View>
 
-      {/* Section 1: Sticky SearchBar */}
-        <Animated.View
-          style={
-            isWeb
-              ? [s.stickySearchWrapper, { backgroundColor: '#fff' }]
-              : [
-                  s.stickySearchWrapper,
-                  {
-                    backgroundColor: searchBackground as any,
-                    shadowOpacity: searchShadowOpacity,
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#f3f4f6',
-                  },
-                ]
-          }
-        >
-          <Animated.View style={[s.searchContainer, !isWeb && { borderColor: searchBorderColor as any }]}>
-            <View style={s.searchInner}>
-              <AnimatedIonicons name="location" size={18} color={searchIconColor as any} />
-              <Animated.Text style={[s.searchPlaceholder, { color: searchPlaceholderColor as any }]}>Rome</Animated.Text>
-            </View>
-            <Pressable style={s.searchCircleBtn}>
-              <Ionicons name="search" size={18} color="#fff" />
+          {/* Section Feed Tabs (Discover🟡 / Nearby) */}
+          <View style={styles.feedTabsHeader}>
+            <Pressable
+              style={styles.feedTabBtn}
+              onPress={() => setActiveFeedTab("discover")}
+            >
+              <Text
+                style={[
+                  styles.feedTabText,
+                  activeFeedTab === "discover" && styles.feedTabTextActive,
+                ]}
+              >
+                Discover
+              </Text>
+              <View style={styles.yellowTabDot} />
             </Pressable>
-          </Animated.View>
+
+            <Pressable
+              style={styles.feedTabBtn}
+              onPress={() => setActiveFeedTab("nearby")}
+            >
+              <Text
+                style={[
+                  styles.feedTabText,
+                  activeFeedTab === "nearby" && styles.feedTabTextActive,
+                ]}
+              >
+                Nearby
+              </Text>
+            </Pressable>
+          </View>
         </Animated.View>
 
-        {/* Section 2: Rest of Content */}
-        <View style={{ backgroundColor: '#fff' }}>
-          {/* TagScroll */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tagContainer}>
-            {tags.map(tag => (
-              <View key={tag} style={s.tagPill}>
-                <Text style={s.tagText}>{tag}</Text>
-              </View>
-            ))}
-            <View style={s.mapAction}>
-              <Ionicons name="map" size={16} color={TRIP_BLUE} />
-              <Text style={s.mapText}>Map</Text>
-            </View>
-          </ScrollView>
-
-          {/* QuickActions */}
-          <View style={s.quickActionsRow}>
-            {QUICK_ACTIONS.map(action => (
-              <View key={action.label} style={s.actionItem}>
-                <View style={s.actionIconBox}>
-                  <Ionicons name={action.icon as any} size={22} color={TRIP_BLUE} />
+        {/* Section 2: Dual Column Masonry Feed Cards Layout (Screenshots 2 & 3) */}
+        <View style={styles.masonryFeedGrid}>
+          {/* Left Column */}
+          <View style={styles.masonryColumn}>
+            {/* Card L1: Explore Asia Banner */}
+            <Pressable
+              style={styles.cardContainer}
+              onPress={() => setShowPromoModal(true)}
+            >
+              <View style={styles.heroCardImageWrapper}>
+                <Image
+                  source={{
+                    uri: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600",
+                  }}
+                  style={styles.heroCardImage}
+                />
+                <View style={styles.heroOverlayContent}>
+                  <Text style={styles.exploreSubTitle}>Explore</Text>
+                  <Text style={styles.exploreTitle}>Asia</Text>
                 </View>
-                <Text style={s.actionLabel}>{action.label}</Text>
-              </View>
-            ))}
-          </View>
 
-          {/* PromoBanner */}
-          <View style={s.promoSection}>
-            <View style={s.promoCardHeader}>
-              <View style={s.promoHeaderLeft}>
-                <Text style={s.giftIcon}>🎁</Text>
-                <Text style={s.promoTitle}>New User Discounts Available</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#ccc" />
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.promoList}>
-              <PromoCoupon discount="10% off" icon="bed" />
-              <PromoCoupon discount="5% off" icon="airplane" />
-            </ScrollView>
-          </View>
-
-          {/* Destination Grid */}
-          <View style={s.destGrid}>
-            {/* Card 1: Hero */}
-            <View style={s.destHeroCard}>
-              <Image source={{ uri: trending[0]?.img }} style={s.destHeroImg} />
-              <View style={s.destHeroOverlay}>
-                <Text style={s.destHeroTag}>{trending[0]?.tag}</Text>
-                <Text style={s.destHeroTitle}>{trending[0]?.name}</Text>
-              </View>
-              <View style={s.destHeroFooter}>
-                <View style={s.dealPill}>
-                  <Text style={s.dealPillText}>{trending[0]?.deal} <Text style={{ color: ACCENT_YELLOW }}></Text></Text>
+                <View style={styles.dealPillBanner}>
+                  <Text style={styles.dealPillText}>
+                    Travel deals up to <Text style={{ fontWeight: "900" }}>50% off</Text>
+                  </Text>
                 </View>
-                <Pressable style={s.viewDealsBtn}>
-                  <Text style={s.viewDealsText}>View Deals</Text>
+              </View>
+
+              <View style={styles.heroCardFooter}>
+                <Pressable
+                  style={styles.viewDealsBtn}
+                  onPress={() => setShowPromoModal(true)}
+                >
+                  <Text style={styles.viewDealsBtnText}>View Deals</Text>
                 </Pressable>
-                <Text style={s.tncText}>*T&Cs apply. Subject to availability.</Text>
+                <Text style={styles.disclaimerText}>
+                  *T&Cs apply. Subject to availability.
+                </Text>
               </View>
-              <View style={s.countBadge}><Text style={s.countText}>8/11</Text></View>
-            </View>
 
-            {/* Card 2: Dhaka AI */}
-            <View style={s.destSmallCard}>
-              <Image 
-                source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuCqqF0klhUwsxJFYPz4bLHT8GPTOJiI8rohWPgTLM2SeWzL8PFImvY7udmRDs7JdI4AsuPDTfUqsKjVKcdZA0AwrSfJSqEML0Lky0ieFA2MDHYmVKnNMWwyatZkMY5XA0xExPf7z13aqb92X73UVPOU7xuSb1DYKMau9v8XunwKe7mURYdW0cqUvfMR3NKcpEFwgqysMlcIaJiCOcsnRqICiYvMEJTGsgOlUGaZPdGNsoFNCIYMqS2k37Guc-rmZu5ESOt-UQKjyxg" }} 
-                style={s.destSmallImg} 
+              <View style={styles.pageCountBadge}>
+                <Text style={styles.pageCountText}>1/10</Text>
+              </View>
+            </Pressable>
+
+            {/* Card L2: Momo Inn Hangout Spot */}
+            <Pressable style={styles.cardContainer}>
+              <Image
+                source={{
+                  uri: "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=500",
+                }}
+                style={styles.momoCardImage}
               />
-              <View style={s.destSmallContent}>
-                <Text style={s.destSmallTitle}>3-day classic trip in Dhaka</Text>
-                <View style={s.plannerRow}>
-                  <Ionicons name="flash" size={12} color={TRIP_BLUE} />
-                  <Text style={s.plannerText}>Trip.Planner</Text>
+              <View style={styles.cardContentPadding}>
+                <Text style={styles.momoTitle} numberOfLines={2}>
+                  Momo Inn: Bogura's Must-Visit Hangout Sp...
+                </Text>
+
+                <View style={styles.authorRow}>
+                  <Image
+                    source={{ uri: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" }}
+                    style={styles.authorAvatar}
+                  />
+                  <Text style={styles.authorName}>Elvis.mittra</Text>
+                  <View style={styles.viewsRight}>
+                    <Ionicons name="eye-outline" size={12} color="#94A3B8" />
+                    <Text style={styles.viewsText}>761</Text>
+                  </View>
                 </View>
-                <Pressable style={s.aiBtn}>
-                  <Text style={s.aiBtnText}>Create itinerary with AI</Text>
-                </Pressable>
               </View>
-            </View>
+            </Pressable>
+
+            {/* Card L3: Sea Pearl Beach Resort */}
+            <Pressable style={styles.cardContainer}>
+              <View style={{ position: "relative" }}>
+                <Image
+                  source={{
+                    uri: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500",
+                  }}
+                  style={styles.seaPearlImage}
+                />
+                <View style={styles.locationBadgePill}>
+                  <Ionicons name="location-sharp" size={10} color="#FFFFFF" />
+                  <Text style={styles.locationBadgeText}>Ukhiya Upazila</Text>
+                </View>
+              </View>
+              <View style={styles.cardContentPadding}>
+                <Text style={styles.seaPearlTitle} numberOfLines={2}>
+                  Sea Pearl Beach Resort & Spa Coxs Bazar
+                </Text>
+                <View style={styles.starRow}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Ionicons key={i} name="star" size={12} color="#F59E0B" />
+                  ))}
+                </View>
+              </View>
+            </Pressable>
+          </View>
+
+          {/* Right Column */}
+          <View style={styles.masonryColumn}>
+            {/* Card R1: Trip.Tuesday $99 Flights to Canada */}
+            <Pressable
+              style={styles.cardContainer}
+              onPress={() => setShowPromoModal(true)}
+            >
+              <LinearGradient
+                colors={["#0284C7", "#0369A1"]}
+                style={styles.canadaPromoCard}
+              >
+                <View style={styles.canadaHeaderRow}>
+                  <Text style={styles.tripTuesdayTitle}>Trip.Tuesday</Text>
+                  <View style={styles.couponBadge}>
+                    <Text style={styles.couponBadgeText}>$40 COUPON</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.canadaPriceText}>$99</Text>
+                <Text style={styles.canadaSubTitle}>
+                  flights to Canada and more
+                </Text>
+
+                <View style={styles.dropDateTag}>
+                  <Text style={styles.dropDateText}>AUG. 25 DROP</Text>
+                </View>
+              </LinearGradient>
+            </Pressable>
+
+            {/* Card R2: Dhaka 4-Star Select Hotels */}
+            <Pressable style={styles.cardContainer}>
+              <View style={{ position: "relative" }}>
+                <Image
+                  source={{
+                    uri: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500",
+                  }}
+                  style={styles.dhakaHotelImage}
+                />
+                <View style={styles.dhakaOverlayTitleBox}>
+                  <Text style={styles.dhakaOverlayCity}>Dhaka</Text>
+                  <Text style={styles.dhakaOverlaySubtitle}>4-Star Select Hotels</Text>
+                </View>
+              </View>
+
+              <View style={styles.cardContentPadding}>
+                <Text style={styles.dhakaHotelTitle}>
+                  Top 10 4-Star Select Hotels in Dhaka
+                </Text>
+
+                <View style={styles.tripBestBadgeRow}>
+                  <Ionicons name="trophy" size={12} color="#D97706" />
+                  <Text style={styles.tripBestText}>Trip.Best</Text>
+                </View>
+
+                <Text style={styles.viewedCountText}>
+                  Viewed by nearly 1,000 people
+                </Text>
+              </View>
+            </Pressable>
+
+            {/* Card R3: Ratargul Swamp Forest */}
+            <Pressable style={styles.cardContainer}>
+              <Image
+                source={{
+                  uri: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=500",
+                }}
+                style={styles.ratargulImage}
+              />
+              <View style={styles.cardContentPadding}>
+                <Text style={styles.ratargulTitle} numberOfLines={2}>
+                  🌿 🛶 Ratargul Swamp Forest — Bangladesh's...
+                </Text>
+
+                <View style={styles.authorRow}>
+                  <Image
+                    source={{ uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100" }}
+                    style={styles.authorAvatar}
+                  />
+                  <Text style={styles.authorName}>RahatGaliv</Text>
+                  <View style={styles.viewsRight}>
+                    <Ionicons name="eye-outline" size={12} color="#94A3B8" />
+                    <Text style={styles.viewsText}>146</Text>
+                  </View>
+                </View>
+              </View>
+            </Pressable>
           </View>
         </View>
-        <View style={{ height: 100 }} />
+
+        {/* Bottom Scroll Padding for Floating Bar */}
+        <View style={{ height: 110, backgroundColor: "#F8FAFC" }} />
       </Animated.ScrollView>
 
-      <AiPill color={TRIP_BLUE} />
-      <BottomNav 
-        active="Home" 
-        color={TRIP_BLUE} 
-        isScrolled={isScrolled}
-        onScrollToTop={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+      {/* Screenshot 1: Promo Voucher Overlay Modal */}
+      <PromoExclusiveModal
+        visible={showPromoModal}
+        onClose={() => setShowPromoModal(false)}
+        onClaimAll={() => setShowPromoModal(false)}
       />
     </SafeAreaView>
   );
 }
 
-function PromoCoupon({ discount, icon }: { discount: string; icon: string }) {
-  return (
-    <View style={s.promoCard}>
-      <Ionicons name={icon as any} size={24} color="#f43f5e" style={s.promoIcon} />
-      <View>
-        <Text style={s.promoDiscount}>{discount}</Text>
-        <Text style={s.promoUse}>Use <Ionicons name="chevron-forward" size={10} /></Text>
-      </View>
-      <View style={s.perforated} />
-    </View>
-  );
-}
-
-const s = StyleSheet.create({
-  shell: { flex: 1, backgroundColor: "#f9fafb" },
-  scroll: { paddingBottom: 20, zIndex: 1 },
-  header: { 
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12, 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    zIndex: 3
+const styles = StyleSheet.create({
+  shell: {
+    flex: 1,
+    backgroundColor: TRIP_BLUE,
   },
-  headerLogo: { color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tierPill: { 
-    backgroundColor: 'rgba(255,255,255,0.2)', 
-    paddingHorizontal: 10, 
-    paddingVertical: 4, 
-    borderRadius: 20, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)'
+  scroll: {
+    backgroundColor: TRIP_BLUE,
   },
-  tierTIcon: { width: 16, height: 16, backgroundColor: '#fff', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  tierTText: { color: TRIP_BLUE, fontSize: 10, fontWeight: '900' },
-  tierText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  avatarCircle: { width: 24, height: 24, backgroundColor: ACCENT_YELLOW, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  avatarT: { color: '#fff', fontSize: 12, fontWeight: '900' },
-
   refreshContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
     zIndex: 2,
+    backgroundColor: TRIP_BLUE,
   },
-  refreshContent: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 20, gap: 4 }, // Push content to bottom
-  refreshText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  animationTrack: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 28, overflow: 'hidden' },
-  scholarshipBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  refreshContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 12,
+    gap: 6,
+    position: "relative",
+  },
+  pulseAuraRing: {
+    position: "absolute",
+    top: 10,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+  globeEmblemBadge: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: TRIP_BLUE,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  refreshStatusText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  topSectionWrapper: {
+    backgroundColor: TRIP_BLUE,
+  },
+  blueHeaderBar: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    backgroundColor: TRIP_BLUE,
+  },
+  logoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  logoPressArea: {
+    paddingVertical: 2,
+  },
+  tripLogoText: {
+    color: "#FFFFFF",
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+  goldCoinBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: ACCENT_YELLOW,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  goldCoinText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+    fontSize: 14,
+  },
+  curvedBodySheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+    marginTop: -1,
+  },
+  primaryGrid: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  primaryItem: {
+    width: "22%",
+    alignItems: "center",
+  },
+  primaryIconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: TRIP_LIGHT_BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  primaryLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: TRIP_BLUE,
+    textAlign: "center",
+  },
+  secondaryGrid: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  secondaryItem: {
+    width: "18%",
+    alignItems: "center",
+  },
+  secondaryIconWrapper: {
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#475569",
+    textAlign: "center",
+    marginTop: 4,
+    lineHeight: 12,
+  },
+  moreIconBg: {
+    backgroundColor: TRIP_BLUE,
+    borderRadius: 8,
+    padding: 4,
+  },
+  stickySearchContainer: {
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  searchBarPill: {
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1.5,
+    borderColor: "#3B82F6",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 10,
+  },
+  robotBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  searchInputText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  searchCircleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: TRIP_BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationTagsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingBottom: 12,
+  },
+  locationTagPill: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  locationTagText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#334155",
+  },
+  mapBtn: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.78)',
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.28)',
   },
-  scholarshipText: { fontSize: 10, fontWeight: '900' },
-
-  mainContainer: { 
-    marginTop: -16, 
-    backgroundColor: '#fff', 
-    borderTopLeftRadius: 28, 
-    borderTopRightRadius: 28,
-    paddingTop: 4
+  mapBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: TRIP_BLUE,
   },
-  primaryGrid: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 8 },
-  primaryItem: { width: '22%', alignItems: 'center' },
-  primaryIconCircle: { 
-    width: 52, 
-    height: 52, 
-    backgroundColor: '#E8F1FF', 
-    borderRadius: 26, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 8 
+  subCategoryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginVertical: 8,
+    paddingHorizontal: 4,
   },
-  primaryLabel: { fontSize: 11, fontWeight: '800', color: TRIP_BLUE, textAlign: 'center', lineHeight: 13 },
-
-  secondaryGrid: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 8 },
-  secondaryItem: { width: '18%', alignItems: 'center' },
-  secondaryIconWrapper: { height: 28, alignItems: 'center', justifyContent: 'center' },
-  secondaryLabel: { fontSize: 10, textAlign: 'center', fontWeight: '600', color: '#4b5563', marginTop: 6, lineHeight: 12, height: 24 },
-  moreIconBg: { backgroundColor: TRIP_BLUE, borderRadius: 8, padding: 4 },
-
-  stickySearchWrapper: {
-    height: 56,
-    width: '100%',
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 3,
-    zIndex: 4,
+  subCategoryItem: {
+    alignItems: "center",
+    width: "22%",
   },
-  searchContainer: { 
-    width: '100%',
-    height: 48, 
-    borderRadius: 12, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: 4,
-    borderWidth: 1,
-    backgroundColor: 'transparent'
+  subCategoryCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: TRIP_LIGHT_BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
   },
-  searchInner: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, gap: 8 },
-  searchPlaceholder: { fontSize: 15, fontWeight: '600' },
-  searchCircleBtn: { backgroundColor: TRIP_BLUE, width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-
-  tagContainer: { paddingHorizontal: 16, gap: 8, marginVertical: 16 },
-  tagPill: { backgroundColor: '#f3f4f6', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
-  tagText: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  mapAction: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8 },
-  mapText: { color: TRIP_BLUE, fontWeight: '700', fontSize: 14 },
-
-  headerSpacer: { position: 'absolute', top: -9999, left: -9999 },
-  quickActionsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 24 },
-  actionItem: { alignItems: 'center', width: '22%' },
-  actionIconBox: { width: 48, height: 48, backgroundColor: '#f0f7ff', borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  actionLabel: { fontSize: 11, fontWeight: '700' },
-
-  promoSection: { marginHorizontal: 16, marginBottom: 20 },
-  promoCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  promoHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  giftIcon: { fontSize: 18 },
-  promoTitle: { fontSize: 14, fontWeight: '800' },
-  promoList: { gap: 12 },
-  promoCard: { 
-    backgroundColor: TRIP_PINK, 
-    width: 180, 
-    padding: 12, 
-    borderRadius: 8, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  subCategoryLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  feedTabsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 20,
+    marginTop: 12,
+  },
+  feedTabBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
+  },
+  feedTabText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#94A3B8",
+  },
+  feedTabTextActive: {
+    color: "#0F172A",
+    fontWeight: "900",
+  },
+  yellowTabDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: ACCENT_YELLOW,
+    marginLeft: 2,
+    marginBottom: 8,
+  },
+  masonryFeedGrid: {
+    backgroundColor: "#F8FAFC",
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    gap: 10,
+  },
+  masonryColumn: {
+    flex: 1,
     gap: 12,
-    borderWidth: 1,
-    borderColor: '#fee2e2'
   },
-  promoIcon: { marginRight: 4 },
-  promoDiscount: { color: '#e11d48', fontWeight: '900', fontSize: 16 },
-  promoUse: { color: '#fb7185', fontSize: 12, fontWeight: '800' },
-  perforated: { position: 'absolute', right: -3, top: '50%', marginTop: -6, width: 6, height: 12, backgroundColor: '#fff', borderTopLeftRadius: 6, borderBottomLeftRadius: 6 },
-
-  destGrid: { paddingHorizontal: 16, flexDirection: 'row', gap: 12 },
-  destHeroCard: { flex: 1, height: 260, borderRadius: 16, overflow: 'hidden' },
-  destHeroImg: { width: '100%', height: '100%' },
-  destHeroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.1)', padding: 12 },
-  destHeroTag: { color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
-  destHeroTitle: { color: '#fff', fontSize: 24, fontWeight: '900' },
-  destHeroFooter: { position: 'absolute', bottom: 12, left: 0, right: 0 },
-  dealPill: { backgroundColor: 'rgba(37,99,235,0.9)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderTopRightRadius: 20, borderBottomRightRadius: 20, marginBottom: 8 },
-  dealPillText: { color: '#fff', fontSize: 10, fontWeight: '900' },
-  viewDealsBtn: { backgroundColor: '#fff', marginHorizontal: 12, borderRadius: 20, paddingVertical: 8, alignItems: 'center' },
-  viewDealsText: { color: TRIP_BLUE, fontSize: 12, fontWeight: '900' },
-  tncText: { color: 'rgba(255,255,255,0.6)', fontSize: 8, textAlign: 'center', marginTop: 4 },
-  countBadge: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  countText: { color: '#fff', fontSize: 10 },
-
-  destSmallCard: { flex: 1, height: 260, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', elevation: 2 },
-  destSmallImg: { width: '100%', height: 120 },
-  destSmallContent: { padding: 10, flex: 1, justifyContent: 'space-between' },
-  destSmallTitle: { fontSize: 13, fontWeight: '800' },
-  plannerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  plannerText: { color: TRIP_BLUE, fontWeight: '900', fontSize: 12 },
-  aiBtn: { backgroundColor: '#2563eb', borderRadius: 4, paddingVertical: 6, alignItems: 'center' },
-  aiBtnText: { color: '#fff', fontSize: 10, fontWeight: '900' },
+  cardContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  heroCardImageWrapper: {
+    height: 180,
+    position: "relative",
+  },
+  heroCardImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroOverlayContent: {
+    position: "absolute",
+    top: 10,
+    left: 12,
+  },
+  exploreSubTitle: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    opacity: 0.9,
+  },
+  exploreTitle: {
+    color: "#FFFFFF",
+    fontSize: 26,
+    fontWeight: "900",
+  },
+  dealPillBanner: {
+    position: "absolute",
+    bottom: 10,
+    left: 0,
+    backgroundColor: TRIP_BLUE,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  dealPillText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+  },
+  heroCardFooter: {
+    padding: 10,
+    alignItems: "center",
+  },
+  viewDealsBtn: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: TRIP_BLUE,
+    width: "100%",
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  viewDealsBtnText: {
+    color: TRIP_BLUE,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  disclaimerText: {
+    fontSize: 8,
+    color: "#94A3B8",
+    marginTop: 4,
+  },
+  pageCountBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  pageCountText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  momoCardImage: {
+    width: "100%",
+    height: 140,
+  },
+  momoTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 8,
+  },
+  cardContentPadding: {
+    padding: 10,
+  },
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  authorAvatar: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+  },
+  authorName: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "600",
+    flex: 1,
+  },
+  viewsRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  viewsText: {
+    fontSize: 11,
+    color: "#94A3B8",
+  },
+  seaPearlImage: {
+    width: "100%",
+    height: 130,
+  },
+  locationBadgePill: {
+    position: "absolute",
+    bottom: 8,
+    left: 8,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  locationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  seaPearlTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  starRow: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  canadaPromoCard: {
+    padding: 12,
+    minHeight: 150,
+    justifyContent: "space-between",
+  },
+  canadaHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  tripTuesdayTitle: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+    fontSize: 13,
+  },
+  couponBadge: {
+    backgroundColor: "#FACC15",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  couponBadgeText: {
+    color: "#0F172A",
+    fontWeight: "900",
+    fontSize: 9,
+  },
+  canadaPriceText: {
+    color: "#FACC15",
+    fontSize: 34,
+    fontWeight: "900",
+    marginVertical: 4,
+  },
+  canadaSubTitle: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  dropDateTag: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    marginTop: 6,
+  },
+  dropDateText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  dhakaHotelImage: {
+    width: "100%",
+    height: 120,
+  },
+  dhakaOverlayTitleBox: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  dhakaOverlayCity: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
+  dhakaOverlaySubtitle: {
+    fontSize: 9,
+    color: "#475569",
+  },
+  dhakaHotelTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 6,
+  },
+  tripBestBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    marginBottom: 4,
+  },
+  tripBestText: {
+    color: "#D97706",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  viewedCountText: {
+    fontSize: 10,
+    color: "#94A3B8",
+  },
+  ratargulImage: {
+    width: "100%",
+    height: 140,
+  },
+  ratargulTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 6,
+  },
 });

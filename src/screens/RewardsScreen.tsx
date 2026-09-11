@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import Svg, { Path, Defs, RadialGradient, Stop, LinearGradient } from 'react-native-svg';
+import Svg, { Path, Defs, RadialGradient, Stop, LinearGradient, Text as SvgText } from 'react-native-svg';
 import { router } from 'expo-router';
 
 const { width } = Dimensions.get('window');
@@ -72,7 +72,7 @@ export default function RewardsScreen() {
                     stroke="#e2e8f0"
                     strokeWidth="0.5"
                   />
-                  <Text
+                  <SvgText
                     x="50"
                     y="36"
                     fontSize="32"
@@ -81,7 +81,7 @@ export default function RewardsScreen() {
                     textAnchor="middle"
                   >
                     T
-                  </Text>
+                  </SvgText>
                 </Svg>
               </View>
             </View>

@@ -1306,6 +1306,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#f9fafb",
     width: '100%',
+    marginBottom: 16,
   },
   inputWrapper: {
     position: 'relative',
@@ -1328,7 +1329,8 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 12,
     color: "#ef4444",
-    marginTop: 4,
+    marginTop: -8,
+    marginBottom: 12,
   },
   modalBodyContent: {
     paddingTop: 10,

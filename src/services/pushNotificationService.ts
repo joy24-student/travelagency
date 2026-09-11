@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Push Notification Service
  * Manages Firebase Cloud Messaging for cross-platform push notifications

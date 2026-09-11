@@ -62,6 +62,13 @@ const RootLayoutContent = () => {
       />
 
       <Stack.Screen
+        name="admin"
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
         name="index"
         options={{
           headerShown: false,

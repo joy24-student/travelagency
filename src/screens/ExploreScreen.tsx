@@ -25,15 +25,20 @@ import type { UIScreen } from "../data/screens";
 
 const PRIMARY = "#287dfa";
 
-const DESTINATIONS_DEFAULT = [
+const DESTINATIONS_DEFAULT: any[] = [
   // ... existing defaults
 ];
 
 export function ExploreScreen({ screen }: { screen: UIScreen }) {
   const [destinations, setDestinations] = useState<any[]>([]);
   const [selectedDest, setSelectedDest] = useState<any | null>(null);
-  // ... existing states
   const [loadingDestinations, setLoadingDestinations] = useState(true);
+  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [weatherData, setWeatherData] = useState<any>(null);
+  const [budgetData, setBudgetData] = useState<any>(null);
+  const [reviewData, setReviewData] = useState<any>(null);
+  const [scamData, setScamData] = useState<any[]>([]);
 
   // Load destinations from Repository
   useEffect(() => {
@@ -202,17 +207,17 @@ const loadScams = async (dest: (typeof DESTINATIONS_DEFAULT)[0]) => {
                 💰 Avg budget: {selectedDest.avgBudget}
               </Text>
               <SectionBlock title="Top Attractions">
-                {selectedDest.attractions.map((a) => (
+                {selectedDest.attractions.map((a: string) => (
                   <Chip key={a} label={a} />
                 ))}
               </SectionBlock>
               <SectionBlock title="Activities">
-                {selectedDest.activities.map((a) => (
+                {selectedDest.activities.map((a: string) => (
                   <Chip key={a} label={a} color="#10b981" />
                 ))}
               </SectionBlock>
               <SectionBlock title="Recommended Restaurants">
-                {selectedDest.restaurants.map((r) => (
+                {selectedDest.restaurants.map((r: string) => (
                   <View key={r} style={s.listRow}>
                     <Ionicons
                       name="restaurant-outline"
@@ -228,7 +233,7 @@ const loadScams = async (dest: (typeof DESTINATIONS_DEFAULT)[0]) => {
 
           {!loading && activeTab === "gallery" && (
             <View style={s.galleryGrid}>
-              {selectedDest.gallery.map((img, i) => (
+              {selectedDest.gallery.map((img: string, i: number) => (
                 <Image key={i} source={{ uri: img }} style={s.galleryImg} />
               ))}
             </View>
@@ -358,7 +363,7 @@ const loadScams = async (dest: (typeof DESTINATIONS_DEFAULT)[0]) => {
               />
               <SectionBlock title="🚨 Common Scams to Avoid">
                 {scamData.length ? (
-                  scamData.map((sc, i) => (
+                  scamData.map((sc: string, i: number) => (
                     <Text key={i} style={s.bulletItem}>
                       ⚠ {sc}
                     </Text>

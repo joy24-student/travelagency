@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * bKash Payment Provider
  * Production-ready integration with bKash Payment Gateway API

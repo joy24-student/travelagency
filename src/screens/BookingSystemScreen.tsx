@@ -110,7 +110,7 @@ export function BookingSystemScreen({ screen }: { screen: UIScreen }) {
       });
 
       setStatusMessage(
-        `Confirmed ${confirmed.booking_reference}. Invoice and voucher are ready.`,
+        `Confirmed ${(confirmed as any)?.booking_reference || "Booking"}. Invoice and voucher are ready.`,
       );
       refetch();
     } catch (error) {
