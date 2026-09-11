@@ -121,17 +121,22 @@ app/assets/builds/*
 ehthumbs.db
 Thumbs.db
 
-# Exclude large or private app folders
-hotel/
-admin/
-admin-panel/
-**/admin/**
-**/ADMIN/**
-**/*admin*
-**/Admin*
-
-# Keep these project folders in the repository
+# Keep all real project folders in the repository
 !AGEN/
 !AGEN/**
 !supabase/
 !supabase/**
+!hotel/
+!hotel/**
+!app/
+!app/**
+!src/
+!src/**
+!assets/
+!assets/**
+!uifolder/
+!uifolder/**
+!user/
+!user/**
+!utils/
+!utils/**

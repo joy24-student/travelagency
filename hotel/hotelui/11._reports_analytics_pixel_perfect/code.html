@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Reports &amp; Analytics - ShopnoJatra Hotel Partner App</title>
+    <!-- Tailwind CSS CDN with Plugins -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Google Fonts for Inter -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style data-purpose="custom-styles">
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0b0e14;
+        color: #ffffff;
+      }
+      .status-bar-icon {
+        width: 18px;
+        height: 18px;
+      }
+      .glass-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+      }
+      .chart-line {
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 0;
+      }
+      .pulse-animation {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.5;
+          transform: scale(1.2);
+        }
+      }
+      /* Hide scrollbar */
+      ::-webkit-scrollbar {
+        display: none;
+      }
+    </style>
+  </head>
+  <body
+    class="flex flex-col min-h-screen max-w-md mx-auto relative overflow-hidden"
+  >
+    <!-- BEGIN: Status Bar -->
+    <header
+      class="px-6 py-3 flex justify-between items-center text-xs font-semibold"
+      data-purpose="status-bar"
+    >
+      <span class="">9:41</span>
+      <div class="flex gap-1.5 items-center">
+        <svg class="status-bar-icon" fill="currentColor" viewBox="0 0 24 24">
+          <path
+            d="M12 21c-4.411 0-8-3.589-8-8 0-3.35 2.072-6.221 5-7.411V7.05c-2.02.953-3.4 2.978-3.4 5.35 0 3.309 2.691 6 6 6s6-2.691 6-6c0-2.372-1.38-4.397-3.4-5.35V5.589c2.928 1.19 5 4.061 5 7.411 0 4.411-3.589 8-8 8z"
+          ></path>
+        </svg>
+        <svg class="status-bar-icon" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"></path>
+        </svg>
+        <svg class="status-bar-icon" fill="currentColor" viewBox="0 0 24 24">
+          <path
+            d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"
+          ></path>
+        </svg>
+      </div>
+    </header>
+    <!-- END: Status Bar -->
+    <!-- BEGIN: Navigation Header -->
+    <nav
+      class="px-6 py-2 flex justify-between items-center"
+      data-purpose="navigation-header"
+    >
+      <div class="flex items-center gap-4">
+        <button class="p-1">
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M15 19l-7-7 7-7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+        </button>
+        <h1 class="text-lg font-bold">Reports &amp; Analytics</h1>
+      </div>
+      <div class="relative">
+        <button class="p-1 glass-card border-none bg-opacity-20 bg-gray-600">
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M15 19l-7-7 7-7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+        </button>
+      </div>
+    </nav>
+    <!-- END: Navigation Header -->
+    <!-- BEGIN: Main Content -->
+    <main
+      class="flex-1 overflow-y-auto px-6 pt-4 pb-24"
+      data-purpose="main-content"
+    >
+      <!-- Time Selector -->
+      <div class="mb-6">
+        <div
+          class="inline-flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-lg border border-white/5"
+        >
+          <span class="text-sm font-medium text-gray-300">This Month</span>
+          <svg
+            class="h-4 w-4 text-gray-400"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+              fill-rule="evenodd"
+            ></path>
+          </svg>
+        </div>
+      </div>
+      <!-- BEGIN: Key Performance Indicators -->
+      <section class="grid grid-cols-3 gap-3 mb-6" data-purpose="kpi-grid">
+        <!-- Revenue -->
+        <div class="glass-card p-3">
+          <span class="text-[10px] text-gray-400 block mb-1">Revenue</span>
+          <div class="text-lg font-bold">$24,850</div>
+          <div class="flex items-center text-[10px] text-emerald-400 mt-1">
+            <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                clip-rule="evenodd"
+                d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
+                fill-rule="evenodd"
+              ></path>
+            </svg>
+            18.6%
+          </div>
+        </div>
+        <!-- Occupancy -->
+        <div class="glass-card p-3">
+          <span class="text-[10px] text-gray-400 block mb-1">Occupancy</span>
+          <div class="text-lg font-bold">72%</div>
+          <div class="flex items-center text-[10px] text-emerald-400 mt-1">
+            <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                clip-rule="evenodd"
+                d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
+                fill-rule="evenodd"
+              ></path>
+            </svg>
+            8.2%
+          </div>
+        </div>
+        <!-- ADR -->
+        <div class="glass-card p-3">
+          <span class="text-[10px] text-gray-400 block mb-1">ADR</span>
+          <div class="text-lg font-bold">$120</div>
+          <div class="flex items-center text-[10px] text-emerald-400 mt-1">
+            <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                clip-rule="evenodd"
+                d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
+                fill-rule="evenodd"
+              ></path>
+            </svg>
+            12.5%
+          </div>
+        </div>
+      </section>
+      <!-- RevPAR -->
+      <section class="mb-8" data-purpose="revpar-section">
+        <div class="glass-card p-4 w-1/3">
+          <span class="text-[10px] text-gray-400 block mb-1">RevPAR</span>
+          <div class="text-lg font-bold">$86</div>
+          <div class="flex items-center text-[10px] text-emerald-400 mt-1">
+            <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                clip-rule="evenodd"
+                d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
+                fill-rule="evenodd"
+              ></path>
+            </svg>
+            15.3%
+          </div>
+        </div>
+      </section>
+      <!-- END: KPI Section -->
+      <!-- BEGIN: Revenue Trend Chart -->
+      <section class="mb-10" data-purpose="revenue-chart">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-md font-semibold">Revenue Trend</h2>
+          <button class="text-blue-500 text-xs font-medium">
+            View Full Report
+          </button>
+        </div>
+        <div class="relative h-48 w-full mt-4">
+          <!-- SVG Chart -->
+          <svg class="w-full h-full overflow-visible" viewBox="0 0 400 150">
+            <!-- Grid Lines (Horizontal) -->
+            <line
+              stroke="rgba(255,255,255,0.05)"
+              stroke-width="1"
+              x1="0"
+              x2="400"
+              y1="120"
+              y2="120"
+            ></line>
+            <line
+              stroke="rgba(255,255,255,0.05)"
+              stroke-width="1"
+              x1="0"
+              x2="400"
+              y1="80"
+              y2="80"
+            ></line>
+            <line
+              stroke="rgba(255,255,255,0.05)"
+              stroke-width="1"
+              x1="0"
+              x2="400"
+              y1="40"
+              y2="40"
+            ></line>
+            <!-- Smooth Line Path -->
+            <path
+              class="chart-line"
+              d="M0,120 Q50,110 100,105 T200,90 T300,50 T400,60"
+              fill="none"
+              stroke="#a855f7"
+              stroke-width="2.5"
+            ></path>
+            <!-- Data Points -->
+            <circle cx="100" cy="105" fill="#a855f7" r="4"></circle>
+            <circle cx="200" cy="90" fill="#a855f7" r="4"></circle>
+            <circle cx="300" cy="50" fill="#a855f7" r="4"></circle>
+            <circle
+              cx="350"
+              cy="45"
+              fill="#a855f7"
+              r="5"
+              stroke="rgba(168, 85, 247, 0.4)"
+              stroke-width="10"
+            ></circle>
+            <!-- Tooltip Callout -->
+            <g transform="translate(325, 10)">
+              <rect fill="#ffffff" height="24" rx="4" width="60"></rect>
+              <text
+                fill="#000"
+                font-size="10"
+                font-weight="bold"
+                text-anchor="middle"
+                x="30"
+                y="16"
+              >
+                $24,850
+              </text>
+              <path d="M30,24 L30,35" stroke="#ffffff" stroke-width="1"></path>
+            </g>
+            <!-- X-Axis Labels -->
+            <g fill="#9ca3af" font-size="10" transform="translate(0, 145)">
+              <text x="10" y="0">1 May</text>
+              <text x="100" y="0">8 May</text>
+              <text x="190" y="0">15 May</text>
+              <text x="280" y="0">22 May</text>
+              <text x="360" y="0">29 May</text>
+            </g>
+            <!-- Y-Axis Labels -->
+            <g fill="#9ca3af" font-size="9">
+              <text x="0" y="125">$0</text>
+              <text x="0" y="85">$10k</text>
+              <text x="0" y="45">$20k</text>
+              <text x="0" y="5">$30k</text>
+            </g>
+          </svg>
+        </div>
+      </section>
+      <!-- END: Revenue Trend Chart -->
+      <!-- BEGIN: Top Revenue Sources -->
+      <section class="mb-8" data-purpose="revenue-sources">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-md font-semibold">Top Revenue Sources</h2>
+          <button class="text-blue-500 text-xs font-medium">View All</button>
+        </div>
+        <div class="space-y-5">
+          <!-- Source 1 -->
+          <div class="flex items-center gap-4">
+            <span class="text-xs text-gray-400 w-28 shrink-0"
+              >Direct Bookings</span
+            >
+            <div class="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-indigo-500 rounded-full"
+                style="width: 50%"
+              ></div>
+            </div>
+            <div class="flex gap-4 w-20 shrink-0 text-right">
+              <span class="text-xs font-medium">$12,450</span>
+              <span class="text-xs text-gray-500">50%</span>
+            </div>
+          </div>
+          <!-- Source 2 -->
+          <div class="flex items-center gap-4">
+            <span class="text-xs text-gray-400 w-28 shrink-0"
+              >OTA Bookings</span
+            >
+            <div class="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-purple-500 rounded-full"
+                style="width: 33%"
+              ></div>
+            </div>
+            <div class="flex gap-4 w-20 shrink-0 text-right">
+              <span class="text-xs font-medium">$8,250</span>
+              <span class="text-xs text-gray-500">33%</span>
+            </div>
+          </div>
+          <!-- Source 3 -->
+          <div class="flex items-center gap-4">
+            <span class="text-xs text-gray-400 w-28 shrink-0">Walk-in</span>
+            <div class="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-pink-500 rounded-full"
+                style="width: 11%"
+              ></div>
+            </div>
+            <div class="flex gap-4 w-20 shrink-0 text-right">
+              <span class="text-xs font-medium">$2,850</span>
+              <span class="text-xs text-gray-500">11%</span>
+            </div>
+          </div>
+          <!-- Source 4 -->
+          <div class="flex items-center gap-4">
+            <span class="text-xs text-gray-400 w-28 shrink-0">Corporate</span>
+            <div class="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-orange-500 rounded-full"
+                style="width: 6%"
+              ></div>
+            </div>
+            <div class="flex gap-4 w-20 shrink-0 text-right">
+              <span class="text-xs font-medium">$1,300</span>
+              <span class="text-xs text-gray-500">6%</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- END: Top Revenue Sources -->
+      <!-- BEGIN: System Performance Footer Widget -->
+      <div
+        class="fixed bottom-20 left-6 right-6 z-10"
+        data-purpose="performance-banner"
+      >
+        <div
+          class="glass-card bg-emerald-950/20 border-emerald-500/20 px-4 py-3 flex items-center justify-between"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-2 h-2 bg-emerald-400 rounded-full pulse-animation"
+            ></div>
+            <span class="text-xs font-medium text-emerald-400"
+              >System Performance: Optimal</span
+            >
+          </div>
+          <svg
+            class="h-4 w-4 text-emerald-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+        </div>
+      </div>
+      <!-- END: System Performance Footer Widget -->
+    </main>
+    <!-- END: Main Content -->
+    <!-- BEGIN: Floating Action Button -->
+    <button
+      class="fixed bottom-24 right-6 w-12 h-12 bg-indigo-600 rounded-full shadow-lg flex items-center justify-center z-20"
+      data-purpose="fab"
+    >
+      <svg
+        class="h-6 w-6 text-white"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M12 4v16m8-8H4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+        ></path>
+      </svg>
+    </button>
+    <!-- END: Floating Action Button -->
+    <!-- BEGIN: Bottom Navigation -->
+    <footer
+      class="fixed bottom-0 left-0 right-0 bg-[#0b0e14] border-t border-white/5 px-6 py-4 flex justify-between items-center z-30"
+      data-purpose="bottom-navigation"
+    >
+      <div class="flex flex-col items-center gap-1 opacity-50">
+        <svg
+          class="h-6 w-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+        <span class="text-[10px]">Dashboard</span>
+      </div>
+      <div class="flex flex-col items-center gap-1 opacity-50">
+        <svg
+          class="h-6 w-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+        <span class="text-[10px]">Reservations</span>
+      </div>
+      <div class="flex flex-col items-center gap-1 opacity-50">
+        <svg
+          class="h-6 w-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+        <span class="text-[10px]">Rooms</span>
+      </div>
+      <div class="flex flex-col items-center gap-1 relative text-blue-500">
+        <svg
+          class="h-6 w-6"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+          ></path>
+        </svg>
+        <span class="text-[10px] font-semibold">Analytics</span>
+        <div
+          class="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center border-2 border-[#0b0e14]"
+        >
+          5
+        </div>
+      </div>
+      <div class="flex flex-col items-center gap-1 opacity-50">
+        <svg
+          class="h-6 w-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M4 6h16M4 12h16M4 18h16"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+        <span class="text-[10px]">More</span>
+      </div>
+    </footer>
+    <!-- END: Bottom Navigation -->
+  </body>
+</html>

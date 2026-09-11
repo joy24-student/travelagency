@@ -1,0 +1,515 @@
+<!doctype html>
+
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Lumina Hotel Partner - Login Devices</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              tertiary: "#ffb95f",
+              "surface-tint": "#c0c1ff",
+              "surface-container-high": "#222a3d",
+              "on-secondary": "#003824",
+              "surface-variant": "#2d3449",
+              "surface-container": "#171f33",
+              surface: "#0b1326",
+              "on-error-container": "#ffdad6",
+              "on-surface": "#dae2fd",
+              "surface-container-low": "#131b2e",
+              "on-tertiary-fixed": "#2a1700",
+              "on-primary": "#1000a9",
+              "surface-dim": "#0b1326",
+              "primary-fixed-dim": "#c0c1ff",
+              "on-surface-variant": "#c7c4d7",
+              "inverse-primary": "#494bd6",
+              "on-primary-fixed-variant": "#2f2ebe",
+              primary: "#c0c1ff",
+              "on-tertiary-container": "#3e2400",
+              background: "#0b1326",
+              "primary-fixed": "#e1e0ff",
+              "on-background": "#dae2fd",
+              "error-container": "#93000a",
+              "secondary-fixed-dim": "#4edea3",
+              error: "#ffb4ab",
+              "tertiary-fixed": "#ffddb8",
+              "inverse-on-surface": "#283044",
+              "surface-container-lowest": "#060e20",
+              secondary: "#4edea3",
+              "secondary-container": "#00a572",
+              "secondary-fixed": "#6ffbbe",
+              "on-primary-fixed": "#07006c",
+              "on-tertiary-fixed-variant": "#653e00",
+              "on-error": "#690005",
+              "outline-variant": "#464554",
+              "on-secondary-fixed": "#002113",
+              "surface-container-highest": "#2d3449",
+              "surface-bright": "#31394d",
+              "primary-container": "#8083ff",
+              "on-primary-container": "#0d0096",
+              "inverse-surface": "#dae2fd",
+              "tertiary-container": "#ca8100",
+              "on-secondary-fixed-variant": "#005236",
+              "on-secondary-container": "#00311f",
+              "tertiary-fixed-dim": "#ffb95f",
+              outline: "#908fa0",
+              "on-tertiary": "#472a00",
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+            spacing: {
+              xl: "32px",
+              xs: "8px",
+              "container-padding": "16px",
+              sm: "12px",
+              "card-gap": "12px",
+              md: "16px",
+              lg: "24px",
+              base: "4px",
+            },
+            fontFamily: {
+              "label-md": ["Inter"],
+              "body-lg": ["Inter"],
+              "body-sm": ["Inter"],
+              "headline-sm": ["Inter"],
+              "headline-lg-mobile": ["Inter"],
+              "label-sm": ["Inter"],
+              "display-lg": ["Inter"],
+              "body-md": ["Inter"],
+              "headline-md": ["Inter"],
+              "headline-lg": ["Inter"],
+            },
+            fontSize: {
+              "label-md": [
+                "12px",
+                {
+                  lineHeight: "16px",
+                  letterSpacing: "0.02em",
+                  fontWeight: "500",
+                },
+              ],
+              "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+              "body-sm": ["12px", { lineHeight: "16px", fontWeight: "400" }],
+              "headline-sm": [
+                "16px",
+                { lineHeight: "24px", fontWeight: "600" },
+              ],
+              "headline-lg-mobile": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "700" },
+              ],
+              "label-sm": ["10px", { lineHeight: "12px", fontWeight: "600" }],
+              "display-lg": [
+                "32px",
+                {
+                  lineHeight: "40px",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+              "headline-md": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "600" },
+              ],
+              "headline-lg": [
+                "24px",
+                { lineHeight: "32px", fontWeight: "600" },
+              ],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        background-color: #0b0e14;
+        color: #dae2fd;
+        font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .glass-card {
+        background: rgba(30, 41, 59, 0.4);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .neon-glow-primary {
+        box-shadow: 0 0 15px rgba(192, 193, 255, 0.2);
+      }
+      .timeline-line::before {
+        content: "";
+        position: absolute;
+        left: 11px;
+        top: 24px;
+        bottom: 0;
+        width: 1px;
+        background: rgba(144, 143, 160, 0.2);
+      }
+    </style>
+    <style>
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+  </head>
+  <body class="min-h-screen pb-32">
+    <!-- Top App Bar -->
+    <header
+      class="fixed top-0 w-full z-50 bg-surface/70 backdrop-blur-lg border-b border-outline-variant/20 shadow-sm flex items-center justify-between px-md h-16"
+    >
+      <div class="flex items-center gap-4">
+        <button class="active:scale-95 transition-transform text-primary">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <h1 class="font-headline-md text-headline-md font-bold text-primary">
+          Login Devices
+        </h1>
+      </div>
+      <div
+        class="w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant/30 overflow-hidden"
+      >
+        <img
+          alt="Profile"
+          data-alt="A professional headshot of a hospitality executive in a sleek, dark-toned minimalist office. The lighting is moody and cinematic with indigo highlights, matching a high-end corporate modernism aesthetic. The person looks confident and calm, perfectly centered in the frame."
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWfwkPEA0YrmZo0dKl7GQq0OaNNqmzfa_nJlHEzhe2QgHlmkTyCUr5wGvaXQ9rQSm4yDFCytwN01CX9cyz6FwhlkTcN9i2lI_GpIptt3ET0nUqQiQSVSz3FeJQ6kBNJljHctXDW4m9CYc54XJ9_-nFETwtbmxxo_Y7tA2PeBmcogkxAkT5Rer9ZP_0drcr-eRpofyjGjI7G3qJkW-P7wIV8KDA8BK1QynvMmijX9s1_eoL0WU-X9kQAaeLYgR_MH9kLjPglKzE2LY"
+        />
+      </div>
+    </header>
+    <main class="mt-20 px-4 max-w-2xl mx-auto space-y-card-gap">
+      <!-- Active Devices Summary Card -->
+      <section
+        class="glass-card p-lg rounded-xl flex items-center justify-between neon-glow-primary overflow-hidden relative"
+      >
+        <div
+          class="absolute -right-10 -top-10 w-32 h-32 bg-primary/10 blur-3xl rounded-full"
+        ></div>
+        <div class="relative z-10">
+          <h2
+            class="font-label-md text-label-md text-primary tracking-wider uppercase mb-1"
+          >
+            Active Sessions
+          </h2>
+          <div class="flex items-baseline gap-2">
+            <span class="font-display-lg text-display-lg text-on-surface"
+              >03</span
+            >
+            <span class="font-body-md text-body-md text-on-surface-variant"
+              >Devices connected</span
+            >
+          </div>
+        </div>
+        <div class="relative z-10 flex flex-col items-end">
+          <span
+            class="font-label-sm text-label-sm px-2 py-1 bg-secondary/15 text-secondary rounded-full border border-secondary/30 flex items-center gap-1"
+          >
+            <span
+              class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"
+            ></span>
+            SECURE
+          </span>
+        </div>
+      </section>
+      <!-- Map Widget -->
+      <section class="glass-card rounded-xl overflow-hidden h-40 relative">
+        <div class="absolute inset-0 bg-surface-container-low">
+          <img
+            class="w-full h-full object-cover opacity-50 grayscale contrast-125"
+            data-alt="A sophisticated dark-mode digital map interface showing the Miami Florida coastline. The map features luminous neon indigo data points and glowing connection lines between locations. The aesthetic is technical and high-fidelity, using a deep midnight blue and slate color palette."
+            data-location="Miami"
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsqohM_1ejJzKe4WPYqgzQ4iXMCUvRYE7lXvbLSBRgEyEQO-6ZAHJrNOXjbv8sKtKeqY5bhdC3rlPV6JyhVx2uuKTBGBf45zBUtruQl7Bd6miSG8aKC5ec4Pzb9Gn_Vc8wv3RHI9RdSLlOzR0luOzXqkD03JmvDvxOD3VDdYrWZLLpium9mtumkNOaLGbkJZrA6_y-B7Pn6HNmibDBAyKofOPjw1FhTfDabmFqFCLVl6qjCUsXYUzwqtmjXFFzxnA_uUyORPGUaRA"
+          />
+        </div>
+        <div class="absolute bottom-3 left-3 flex gap-2">
+          <div
+            class="glass-card px-3 py-1 rounded-full text-label-sm font-label-sm text-on-surface flex items-center gap-1"
+          >
+            <span class="material-symbols-outlined text-xs text-primary"
+              >location_on</span
+            >
+            Miami, FL (Current)
+          </div>
+        </div>
+        <div class="absolute top-3 right-3">
+          <button
+            class="bg-surface/80 backdrop-blur-md p-2 rounded-lg border border-outline-variant/30 text-primary"
+          >
+            <span class="material-symbols-outlined text-[20px]"
+              >fullscreen</span
+            >
+          </button>
+        </div>
+      </section>
+      <!-- Device List -->
+      <section class="space-y-3">
+        <div class="flex justify-between items-center px-1">
+          <h3 class="font-headline-sm text-headline-sm text-on-surface">
+            Your Devices
+          </h3>
+          <button
+            class="font-label-md text-label-md text-primary hover:opacity-80 transition-opacity"
+          >
+            Manage All
+          </button>
+        </div>
+        <!-- Device: iPhone 15 Pro -->
+        <div
+          class="glass-card p-md rounded-xl flex items-center gap-4 group transition-all hover:bg-surface-variant/30"
+        >
+          <div
+            class="w-12 h-12 flex items-center justify-center bg-primary/10 rounded-xl border border-primary/20 text-primary transition-transform group-hover:scale-110"
+          >
+            <span class="material-symbols-outlined text-[28px]"
+              >smartphone</span
+            >
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <h4
+                class="font-headline-sm text-headline-sm text-on-surface truncate"
+              >
+                iPhone 15 Pro
+              </h4>
+              <span
+                class="text-[10px] font-bold bg-primary text-on-primary px-1.5 py-0.5 rounded uppercase"
+                >Current</span
+              >
+            </div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">
+              Miami, FL • 192.168.1.42
+            </p>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <span
+              class="font-label-sm text-label-sm px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-lg"
+              >Trusted</span
+            >
+            <span class="font-label-sm text-label-sm text-outline"
+              >Active Now</span
+            >
+          </div>
+        </div>
+        <!-- Device: MacBook Pro -->
+        <div
+          class="glass-card p-md rounded-xl flex items-center gap-4 group transition-all hover:bg-surface-variant/30"
+        >
+          <div
+            class="w-12 h-12 flex items-center justify-center bg-surface-variant/50 rounded-xl border border-outline-variant/30 text-on-surface-variant transition-transform group-hover:scale-110"
+          >
+            <span class="material-symbols-outlined text-[28px]"
+              >laptop_mac</span
+            >
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <h4
+                class="font-headline-sm text-headline-sm text-on-surface truncate"
+              >
+                MacBook Pro
+              </h4>
+            </div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">
+              Miami, FL • 192.168.1.15
+            </p>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <span
+              class="font-label-sm text-label-sm px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-lg"
+              >Trusted</span
+            >
+            <span class="font-label-sm text-label-sm text-outline"
+              >2 hours ago</span
+            >
+          </div>
+        </div>
+        <!-- Device: Windows Laptop -->
+        <div
+          class="glass-card p-md rounded-xl flex items-center gap-4 group transition-all hover:bg-surface-variant/30"
+        >
+          <div
+            class="w-12 h-12 flex items-center justify-center bg-surface-variant/50 rounded-xl border border-outline-variant/30 text-on-surface-variant transition-transform group-hover:scale-110"
+          >
+            <span class="material-symbols-outlined text-[28px]"
+              >laptop_windows</span
+            >
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <h4
+                class="font-headline-sm text-headline-sm text-on-surface truncate"
+              >
+                Windows Laptop
+              </h4>
+            </div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">
+              Orlando, FL • 172.24.12.8
+            </p>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <span
+              class="font-label-sm text-label-sm px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-lg"
+              >Trusted</span
+            >
+            <span class="font-label-sm text-label-sm text-outline"
+              >Yesterday</span
+            >
+          </div>
+        </div>
+      </section>
+      <!-- Actions -->
+      <section class="pt-4">
+        <button
+          class="w-full py-4 rounded-xl border border-error/30 text-error font-headline-sm text-headline-sm hover:bg-error/5 active:scale-95 transition-all flex items-center justify-center gap-2"
+        >
+          <span class="material-symbols-outlined">logout</span>
+          Logout All Other Devices
+        </button>
+      </section>
+      <!-- Device History Timeline -->
+      <section class="space-y-4 pt-6">
+        <h3 class="font-headline-sm text-headline-sm text-on-surface px-1">
+          Login Activity
+        </h3>
+        <div class="space-y-6 relative ml-1">
+          <!-- Timeline Item 1 -->
+          <div class="flex gap-4 relative timeline-line">
+            <div
+              class="z-10 w-6 h-6 rounded-full bg-primary flex items-center justify-center ring-4 ring-background"
+            >
+              <span
+                class="material-symbols-outlined text-[14px] text-on-primary"
+                >check</span
+              >
+            </div>
+            <div class="flex-1 -mt-1">
+              <p class="font-headline-sm text-headline-sm text-on-surface">
+                Successful Login
+              </p>
+              <p class="font-body-sm text-body-sm text-on-surface-variant">
+                iPhone 15 Pro • Miami, FL
+              </p>
+              <p
+                class="font-label-sm text-label-sm text-outline mt-1 uppercase"
+              >
+                Today, 08:24 AM
+              </p>
+            </div>
+          </div>
+          <!-- Timeline Item 2 -->
+          <div class="flex gap-4 relative timeline-line">
+            <div
+              class="z-10 w-6 h-6 rounded-full bg-surface-variant border border-outline-variant/30 flex items-center justify-center ring-4 ring-background"
+            >
+              <span
+                class="material-symbols-outlined text-[14px] text-on-surface-variant"
+                >key</span
+              >
+            </div>
+            <div class="flex-1 -mt-1">
+              <p class="font-headline-sm text-headline-sm text-on-surface">
+                Trusted Device Added
+              </p>
+              <p class="font-body-sm text-body-sm text-on-surface-variant">
+                MacBook Pro • M3 Chip
+              </p>
+              <p
+                class="font-label-sm text-label-sm text-outline mt-1 uppercase"
+              >
+                Oct 24, 02:15 PM
+              </p>
+            </div>
+          </div>
+          <!-- Timeline Item 3 -->
+          <div class="flex gap-4 relative">
+            <div
+              class="z-10 w-6 h-6 rounded-full bg-error/20 border border-error/50 flex items-center justify-center ring-4 ring-background"
+            >
+              <span class="material-symbols-outlined text-[14px] text-error"
+                >priority_high</span
+              >
+            </div>
+            <div class="flex-1 -mt-1">
+              <p class="font-headline-sm text-headline-sm text-error">
+                Unrecognized Attempt
+              </p>
+              <p class="font-body-sm text-body-sm text-on-surface-variant">
+                Chrome on Windows • Dublin, IE
+              </p>
+              <p
+                class="font-label-sm text-label-sm text-outline mt-1 uppercase"
+              >
+                Oct 22, 11:05 PM
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <!-- FAB: Add Trusted Device -->
+    <button
+      class="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-xl shadow-[0_0_20px_rgba(192,193,255,0.4)] flex items-center justify-center active:scale-90 transition-transform z-40"
+    >
+      <span class="material-symbols-outlined text-[32px]">add</span>
+    </button>
+    <!-- Bottom Navigation Bar -->
+    <nav
+      class="fixed bottom-0 left-0 w-full z-50 bg-surface-container/80 backdrop-blur-xl border-t border-outline-variant/10 shadow-[0_-4px_20px_rgba(0,0,0,0.3)] flex justify-around items-center px-4 py-2"
+    >
+      <button
+        class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-200"
+      >
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="font-label-md text-label-md">Dashboard</span>
+      </button>
+      <button
+        class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-200"
+      >
+        <span class="material-symbols-outlined">calendar_today</span>
+        <span class="font-label-md text-label-md">Bookings</span>
+      </button>
+      <button
+        class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-200"
+      >
+        <span class="material-symbols-outlined">analytics</span>
+        <span class="font-label-md text-label-md">Analytics</span>
+      </button>
+      <button
+        class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-xl px-4 py-1 active:scale-90 duration-200"
+      >
+        <span class="material-symbols-outlined">settings</span>
+        <span class="font-label-md text-label-md">Settings</span>
+      </button>
+    </nav>
+    <script>
+      // Micro-interaction for device cards
+      document.querySelectorAll(".glass-card").forEach((card) => {
+        card.addEventListener("touchstart", () => {
+          card.style.transform = "scale(0.98)";
+        });
+        card.addEventListener("touchend", () => {
+          card.style.transform = "scale(1)";
+        });
+      });
+    </script>
+  </body>
+</html>

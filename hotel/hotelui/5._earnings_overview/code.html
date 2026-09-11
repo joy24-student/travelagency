@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Earnings Overview - ShopnoJatra Hotel Partner</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <style data-purpose="custom-colors">
+      :root {
+        --bg-dark: #0f111a;
+        --card-bg: #1a1c2e;
+        --accent-purple: #7c3aed;
+        --text-gray: #94a3b8;
+        --success-green: #22c55e;
+      }
+      body {
+        background-color: var(--bg-dark);
+        color: white;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+      }
+    </style>
+    <style data-purpose="layout-tweaks">
+      .status-bar-height {
+        height: 44px;
+      }
+      .bottom-nav-height {
+        height: 80px;
+      }
+      .glass-effect {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+      }
+    </style>
+  </head>
+  <body
+    class="flex flex-col min-h-screen max-w-md mx-auto relative overflow-x-hidden"
+  >
+    <!-- BEGIN: Header -->
+    <header
+      class="p-4 flex items-center justify-between sticky top-0 bg-[#0f111a] z-10"
+      data-purpose="screen-header"
+    >
+      <div class="flex items-center gap-4">
+        <button class="p-2 hover:bg-white/10 rounded-full">
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+        </button>
+        <h1 class="text-xl font-semibold">Earnings Overview</h1>
+      </div>
+      <button class="p-2 hover:bg-white/10 rounded-full">
+        <svg
+          class="h-6 w-6 text-gray-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+      </button>
+    </header>
+    <!-- END: Header -->
+    <main class="flex-1 px-4 pb-24">
+      <!-- BEGIN: Time Selector -->
+      <div class="mb-6" data-purpose="timeframe-selector">
+        <div
+          class="flex items-center justify-between bg-[#1a1c2e] p-3 rounded-xl border border-white/5"
+        >
+          <span class="text-sm font-medium">This Month</span>
+          <svg
+            class="h-4 w-4 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M19 9l-7 7-7-7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+        </div>
+      </div>
+      <!-- END: Time Selector -->
+      <!-- BEGIN: Total Earnings Card -->
+      <section
+        class="bg-[#1a1c2e] p-5 rounded-3xl mb-6 relative overflow-hidden"
+        data-purpose="earnings-card"
+      >
+        <div class="flex justify-between items-start mb-2">
+          <div>
+            <p class="text-sm text-gray-400 mb-1">Total Earnings</p>
+            <h2 class="text-3xl font-bold">$24,850</h2>
+            <p class="text-xs text-green-500 mt-1 flex items-center gap-1">
+              <svg
+                class="h-3 w-3"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  clip-rule="evenodd"
+                  d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z"
+                  fill-rule="evenodd"
+                ></path>
+              </svg>
+              24.5% <span class="text-gray-500 font-normal">vs last month</span>
+            </p>
+          </div>
+          <button class="px-3 py-1 bg-white/10 rounded-lg text-xs font-medium">
+            Details
+          </button>
+        </div>
+        <!-- Simple SVG Chart Representation -->
+        <div
+          class="h-32 w-full mt-4 flex items-end justify-between relative"
+          data-purpose="earnings-chart"
+        >
+          <svg
+            class="absolute inset-0 h-full w-full"
+            preserveAspectRatio="none"
+            viewBox="0 0 400 120"
+          >
+            <path
+              d="M0,100 C50,90 100,110 150,80 C200,50 250,70 300,40 C350,10 400,20"
+              fill="none"
+              stroke="#7c3aed"
+              stroke-width="3"
+            ></path>
+            <circle cx="400" cy="20" fill="#7c3aed" r="4"></circle>
+          </svg>
+          <div
+            class="absolute right-0 top-0 bg-[#7c3aed] text-[10px] px-2 py-1 rounded shadow-lg transform translate-y-[-10px]"
+          >
+            $24,850
+          </div>
+        </div>
+        <div class="flex justify-between mt-2 px-1">
+          <span class="text-[10px] text-gray-500 font-medium">1 May</span>
+          <span class="text-[10px] text-gray-500 font-medium">8 May</span>
+          <span class="text-[10px] text-gray-500 font-medium">15 May</span>
+          <span class="text-[10px] text-gray-500 font-medium">22 May</span>
+          <span class="text-[10px] text-gray-500 font-medium">29 May</span>
+        </div>
+      </section>
+      <!-- END: Total Earnings Card -->
+      <!-- BEGIN: Earnings Breakdown -->
+      <section class="mb-8" data-purpose="breakdown-list">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-semibold">Earnings Breakdown</h3>
+          <button class="text-indigo-400 text-sm">View All</button>
+        </div>
+        <div class="space-y-4">
+          <!-- Item 1 -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400"
+              >
+                <svg
+                  class="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium">Room Revenue</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="text-sm font-bold">$18,250</p>
+              <p class="text-[10px] text-green-500">↑ 18.6%</p>
+            </div>
+          </div>
+          <!-- Item 2 -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400"
+              >
+                <svg
+                  class="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium">Restaurant Revenue</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="text-sm font-bold">$4,850</p>
+              <p class="text-[10px] text-green-500">↑ 12.4%</p>
+            </div>
+          </div>
+          <!-- Item 3 -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400"
+              >
+                <svg
+                  class="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium">Other Services</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="text-sm font-bold">$1,750</p>
+              <p class="text-[10px] text-green-500">↑ 8.7%</p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- END: Earnings Breakdown -->
+      <!-- BEGIN: Recent Transactions -->
+      <section class="mb-6" data-purpose="transactions-list">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-semibold">Recent Transactions</h3>
+          <button class="text-indigo-400 text-sm">View All</button>
+        </div>
+        <div class="space-y-4">
+          <!-- Transaction 1 -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400"
+              >
+                <svg
+                  class="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium">Booking #R-88211</p>
+                <p class="text-[10px] text-gray-500">26 May 2024, 10:30 AM</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="text-sm font-bold text-white">+ $240.00</p>
+              <span
+                class="text-[10px] px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full"
+                >Completed</span
+              >
+            </div>
+          </div>
+          <!-- Transaction 2 -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400"
+              >
+                <svg
+                  class="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium">Restaurant Bill</p>
+                <p class="text-[10px] text-gray-500">26 May 2024, 01:15 PM</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="text-sm font-bold text-white">+ $85.00</p>
+              <span
+                class="text-[10px] px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full"
+                >Completed</span
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- END: Recent Transactions -->
+    </main>
+    <!-- BEGIN: Bottom Navigation -->
+    <nav
+      class="fixed bottom-0 left-0 right-0 bg-[#161827] border-t border-white/5 bottom-nav-height flex items-center justify-around px-2 z-20"
+      data-purpose="main-navigation"
+    >
+      <a class="flex flex-col items-center gap-1 group" href="#">
+        <svg
+          class="h-6 w-6 text-gray-500 group-hover:text-indigo-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+        <span class="text-[10px] text-gray-500">Dashboard</span>
+      </a>
+      <a class="flex flex-col items-center gap-1 group" href="#">
+        <svg
+          class="h-6 w-6 text-gray-500 group-hover:text-indigo-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+        <span class="text-[10px] text-gray-500">Reservations</span>
+      </a>
+      <a class="flex flex-col items-center gap-1 group" href="#">
+        <svg
+          class="h-6 w-6 text-gray-500 group-hover:text-indigo-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+        <span class="text-[10px] text-gray-500">Rooms</span>
+      </a>
+      <a class="flex flex-col items-center gap-1 group relative" href="#">
+        <div
+          class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#161827] flex items-center justify-center text-[8px] font-bold"
+        >
+          5
+        </div>
+        <svg
+          class="h-6 w-6 text-gray-500 group-hover:text-indigo-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+        <span class="text-[10px] text-gray-500">Messages</span>
+      </a>
+      <a class="flex flex-col items-center gap-1 group" href="#">
+        <svg
+          class="h-6 w-6 text-indigo-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+        <span class="text-[10px] text-indigo-400">Earnings</span>
+      </a>
+    </nav>
+    <!-- END: Bottom Navigation -->
+  </body>
+</html>

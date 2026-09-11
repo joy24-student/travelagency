@@ -1,0 +1,571 @@
+<!doctype html>
+
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 24;
+      }
+      .glass-card {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .glow-border:focus-within {
+        border-color: #c0c1ff;
+        box-shadow: 0 0 15px rgba(192, 193, 255, 0.3);
+      }
+      body {
+        background-color: #0b1326;
+        color: #dae2fd;
+      }
+    </style>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              tertiary: "#ffb95f",
+              "surface-tint": "#c0c1ff",
+              "surface-container-high": "#222a3d",
+              "on-secondary": "#003824",
+              "surface-variant": "#2d3449",
+              "surface-container": "#171f33",
+              surface: "#0b1326",
+              "on-error-container": "#ffdad6",
+              "on-surface": "#dae2fd",
+              "surface-container-low": "#131b2e",
+              "on-tertiary-fixed": "#2a1700",
+              "on-primary": "#1000a9",
+              "surface-dim": "#0b1326",
+              "primary-fixed-dim": "#c0c1ff",
+              "on-surface-variant": "#c7c4d7",
+              "inverse-primary": "#494bd6",
+              "on-primary-fixed-variant": "#2f2ebe",
+              primary: "#c0c1ff",
+              "on-tertiary-container": "#3e2400",
+              background: "#0b1326",
+              "primary-fixed": "#e1e0ff",
+              "on-background": "#dae2fd",
+              "error-container": "#93000a",
+              "secondary-fixed-dim": "#4edea3",
+              error: "#ffb4ab",
+              "tertiary-fixed": "#ffddb8",
+              "inverse-on-surface": "#283044",
+              "surface-container-lowest": "#060e20",
+              secondary: "#4edea3",
+              "secondary-container": "#00a572",
+              "secondary-fixed": "#6ffbbe",
+              "on-primary-fixed": "#07006c",
+              "on-tertiary-fixed-variant": "#653e00",
+              "on-error": "#690005",
+              "outline-variant": "#464554",
+              "on-secondary-fixed": "#002113",
+              "surface-container-highest": "#2d3449",
+              "surface-bright": "#31394d",
+              "primary-container": "#8083ff",
+              "on-primary-container": "#0d0096",
+              "inverse-surface": "#dae2fd",
+              "tertiary-container": "#ca8100",
+              "on-secondary-fixed-variant": "#005236",
+              "on-secondary-container": "#00311f",
+              "tertiary-fixed-dim": "#ffb95f",
+              outline: "#908fa0",
+              "on-tertiary": "#472a00",
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+            spacing: {
+              xl: "32px",
+              xs: "8px",
+              "container-padding": "16px",
+              sm: "12px",
+              "card-gap": "12px",
+              md: "16px",
+              lg: "24px",
+              base: "4px",
+            },
+            fontFamily: {
+              "label-md": ["Inter"],
+              "body-lg": ["Inter"],
+              "body-sm": ["Inter"],
+              "headline-sm": ["Inter"],
+              "headline-lg-mobile": ["Inter"],
+              "label-sm": ["Inter"],
+              "display-lg": ["Inter"],
+              "body-md": ["Inter"],
+              "headline-md": ["Inter"],
+              "headline-lg": ["Inter"],
+            },
+            fontSize: {
+              "label-md": [
+                "12px",
+                {
+                  lineHeight: "16px",
+                  letterSpacing: "0.02em",
+                  fontWeight: "500",
+                },
+              ],
+              "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+              "body-sm": ["12px", { lineHeight: "16px", fontWeight: "400" }],
+              "headline-sm": [
+                "16px",
+                { lineHeight: "24px", fontWeight: "600" },
+              ],
+              "headline-lg-mobile": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "700" },
+              ],
+              "label-sm": ["10px", { lineHeight: "12px", fontWeight: "600" }],
+              "display-lg": [
+                "32px",
+                {
+                  lineHeight: "40px",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+              "headline-md": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "600" },
+              ],
+              "headline-lg": [
+                "24px",
+                { lineHeight: "32px", fontWeight: "600" },
+              ],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+  </head>
+  <body class="antialiased overflow-x-hidden pb-32">
+    <!-- Top AppBar (Back and Title) -->
+    <header
+      class="fixed top-0 w-full z-50 bg-surface/70 backdrop-blur-lg border-b border-outline-variant/20 shadow-sm flex items-center justify-between px-md h-16"
+    >
+      <div class="flex items-center gap-4">
+        <button
+          class="text-primary hover:opacity-80 transition-opacity active:scale-95 transition-transform"
+        >
+          <span class="material-symbols-outlined" data-icon="arrow_back"
+            >arrow_back</span
+          >
+        </button>
+        <h1
+          class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg font-bold text-primary"
+        >
+          Contact Support
+        </h1>
+      </div>
+      <div
+        class="w-10 h-10 rounded-full overflow-hidden border border-primary/20"
+      >
+        <img
+          alt="User Profile"
+          class="w-full h-full object-cover"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuDa8AcaKXDnrADKytQQz9HUfpPhYMjHv8BNnxx5c3_EN9Ws2iHnQYlmPPHEjCHbR791Y7tGwxKkfwmb6aoO54XXYxyEKNXIBedLlnJnFe0mutJmDgcGPz52E1oiUd6I_lIZTrflKN5gatC94ulnCEr3tgKenL9SSTXTfDRBuUb_Bxz4a8Y06nCLHHMcXSsMtvM76e4EE_MCqT60Rp_B09Pw3E2IFDqz8IeAkq__SxWKdWQFpNRLZGCyjCb8dp5CglYPZ9NNWXPa5ho"
+        />
+      </div>
+    </header>
+    <main class="mt-20 px-4 max-w-5xl mx-auto space-y-lg">
+      <!-- Hero Card: Enterprise Support -->
+      <section class="glass-card rounded-xl p-6 relative overflow-hidden group">
+        <div
+          class="absolute -right-12 -top-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-colors duration-500"
+        ></div>
+        <div
+          class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4"
+        >
+          <div>
+            <span
+              class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label-sm text-label-sm uppercase tracking-wider mb-2 inline-block"
+              >Enterprise Partner</span
+            >
+            <h2 class="font-display-lg text-display-lg text-primary mb-1">
+              24/7 Enterprise Support
+            </h2>
+            <p
+              class="font-body-md text-body-md text-on-surface-variant max-w-md"
+            >
+              Our dedicated hospitality specialists are available around the
+              clock to ensure your operations run smoothly.
+            </p>
+          </div>
+          <div
+            class="bg-surface-container-highest p-4 rounded-xl border border-outline-variant/30 flex flex-col items-center justify-center min-w-[140px]"
+          >
+            <span class="font-label-sm text-label-sm text-secondary uppercase"
+              >Response Time</span
+            >
+            <span class="font-display-lg text-display-lg text-secondary"
+              >&lt; 5m</span
+            >
+            <div class="flex gap-1 mt-1">
+              <span
+                class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"
+              ></span>
+              <span
+                class="w-1.5 h-1.5 bg-secondary/60 rounded-full animate-pulse"
+                style="animation-delay: 0.2s"
+              ></span>
+              <span
+                class="w-1.5 h-1.5 bg-secondary/30 rounded-full animate-pulse"
+                style="animation-delay: 0.4s"
+              ></span>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- Bento Grid for Tickets and Agents -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-card-gap">
+        <!-- Ticket Dashboard -->
+        <div class="md:col-span-8 grid grid-cols-3 gap-3">
+          <div
+            class="glass-card p-4 rounded-xl flex flex-col items-center justify-center text-center"
+          >
+            <span class="font-display-lg text-display-lg text-primary">2</span>
+            <p class="font-label-md text-label-md text-on-surface-variant">
+              Open Tickets
+            </p>
+          </div>
+          <div
+            class="glass-card p-4 rounded-xl flex flex-col items-center justify-center text-center opacity-60"
+          >
+            <span
+              class="font-display-lg text-display-lg text-on-surface-variant"
+              >0</span
+            >
+            <p class="font-label-md text-label-md text-on-surface-variant">
+              Pending
+            </p>
+          </div>
+          <div
+            class="glass-card p-4 rounded-xl flex flex-col items-center justify-center text-center"
+          >
+            <span class="font-display-lg text-display-lg text-secondary"
+              >15</span
+            >
+            <p class="font-label-md text-label-md text-on-surface-variant">
+              Resolved
+            </p>
+          </div>
+        </div>
+        <!-- Agent Profile Cards -->
+        <div class="md:col-span-4 glass-card p-4 rounded-xl">
+          <h3
+            class="font-label-md text-label-md text-on-surface-variant uppercase mb-3"
+          >
+            Talk to our team
+          </h3>
+          <div class="flex -space-x-3 items-center">
+            <img
+              alt="Agent 1"
+              class="w-10 h-10 rounded-full border-2 border-surface bg-surface-container"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDziiA4XkVenW4NFENxPxHhpTuLVYEFF66qosWivXsOzdvodPuUt1W-HpULgFVMYOd7zBSjkZ0OTz0ltti7Xr5Q9jIAMxXGezpJUweNLdXs6ancRnz7qMwOqr0mYIHt90BEpFfoDJvKagHh19QDg9WHJB-tlm0fm651kI00oThzgfCOeRS8iGuSXd1_JOYWpEgP-mu6wQkI3orayKcWBkeBkdNwzjWoIU5joHXAQ_H_UapX5JE20Y1LZpsljHbNhm7Qze5KO2I4Msk"
+            />
+            <img
+              alt="Agent 2"
+              class="w-10 h-10 rounded-full border-2 border-surface bg-surface-container"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1SSC1MJ1WwcfvBqyd7vZuxdphD7t0sfGvC4Ed8e4WWCHHgCdkMMqLEVpu-9TdREBhbuT4WAffUmmVGKWSf7C_CemYjNrr68KwdJeFP17-aT5C3mXVwVBZLHLl7IoVen2M8gi3ungl3RFwzgat7n5piy52k2fQszijbdRDlMYkX-malCCsyh_7yDCFEX7Z3nD6k367HwILwLxt9bd_czcs4A_bSg8eIpJJQkokADvdiHDUWeZlyMXAkIp4OjGzskO57hoJqgnf_ic"
+            />
+            <img
+              alt="Agent 3"
+              class="w-10 h-10 rounded-full border-2 border-surface bg-surface-container"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDX1az_UJATJk5CEIZnFxsfGP-bmLCM7sgvBJXYqgCNbCYonWWVyuXrUB470VE-oL8l1VM-WMYauNDcz3tZDuPdApSqaeAeP9rkrbcVBUm21NaMagjTrVqVK4lxN2g4fZmDz4IdkfgsIBgASq-o2WFSyHiEoO3fNNEVysT1sspLbzH0rAprWd96yDvUOgfEssSS5jrrh3Iv3eD2r4Bn5UDFoVMW6OPLfZMG6bEWV-hxJNMq1Wmj3jIneFX3DoibXwyqPN58r5c1yVE"
+            />
+            <div
+              class="w-10 h-10 rounded-full border-2 border-surface bg-surface-container-high flex items-center justify-center text-[10px] font-bold text-primary"
+            >
+              +4
+            </div>
+            <div class="ml-6 flex items-center gap-2">
+              <span class="w-2 h-2 bg-secondary rounded-full"></span>
+              <span class="font-label-sm text-label-sm text-secondary"
+                >8 Agents Live</span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Support Channels -->
+      <section class="space-y-sm">
+        <h3 class="font-headline-sm text-headline-sm text-on-surface ml-1">
+          Support Channels
+        </h3>
+        <div
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-card-gap"
+        >
+          <!-- Live Chat -->
+          <button
+            class="glass-card p-4 rounded-xl hover:bg-surface-variant/40 transition-all text-left flex items-start gap-4 group"
+          >
+            <div
+              class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform"
+            >
+              <span class="material-symbols-outlined" data-icon="forum"
+                >forum</span
+              >
+            </div>
+            <div>
+              <h4 class="font-headline-sm text-headline-sm text-on-surface">
+                Live Chat
+              </h4>
+              <p class="font-body-sm text-body-sm text-on-surface-variant">
+                Instant messaging
+              </p>
+            </div>
+          </button>
+          <!-- WhatsApp -->
+          <button
+            class="glass-card p-4 rounded-xl hover:bg-surface-variant/40 transition-all text-left flex items-start gap-4 group"
+          >
+            <div
+              class="w-12 h-12 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary group-hover:scale-110 transition-transform"
+            >
+              <span class="material-symbols-outlined" data-icon="chat"
+                >chat</span
+              >
+            </div>
+            <div>
+              <h4 class="font-headline-sm text-headline-sm text-on-surface">
+                WhatsApp
+              </h4>
+              <p class="font-body-sm text-body-sm text-on-surface-variant">
+                Text &amp; voice
+              </p>
+            </div>
+          </button>
+          <!-- Phone Call -->
+          <button
+            class="glass-card p-4 rounded-xl hover:bg-surface-variant/40 transition-all text-left flex items-start gap-4 group"
+          >
+            <div
+              class="w-12 h-12 rounded-lg bg-tertiary/10 flex items-center justify-center text-tertiary group-hover:scale-110 transition-transform"
+            >
+              <span class="material-symbols-outlined" data-icon="call"
+                >call</span
+              >
+            </div>
+            <div>
+              <h4 class="font-headline-sm text-headline-sm text-on-surface">
+                Phone Call
+              </h4>
+              <p class="font-body-sm text-body-sm text-on-surface-variant">
+                Priority hotline
+              </p>
+            </div>
+          </button>
+          <!-- Email -->
+          <button
+            class="glass-card p-4 rounded-xl hover:bg-surface-variant/40 transition-all text-left flex items-start gap-4 group"
+          >
+            <div
+              class="w-12 h-12 rounded-lg bg-primary-container/10 flex items-center justify-center text-primary-container group-hover:scale-110 transition-transform"
+            >
+              <span class="material-symbols-outlined" data-icon="mail"
+                >mail</span
+              >
+            </div>
+            <div>
+              <h4 class="font-headline-sm text-headline-sm text-on-surface">
+                Email
+              </h4>
+              <p class="font-body-sm text-body-sm text-on-surface-variant">
+                Detailed tickets
+              </p>
+            </div>
+          </button>
+        </div>
+      </section>
+      <!-- Ticket Timeline -->
+      <section class="space-y-sm">
+        <h3 class="font-headline-sm text-headline-sm text-on-surface ml-1">
+          Recent Activity
+        </h3>
+        <div
+          class="glass-card rounded-xl divide-y divide-outline-variant/10 overflow-hidden"
+        >
+          <div
+            class="p-4 flex items-center justify-between hover:bg-surface-variant/20 transition-colors cursor-pointer"
+          >
+            <div class="flex items-center gap-4">
+              <div class="w-1.5 h-12 bg-primary rounded-full"></div>
+              <div>
+                <p class="font-headline-sm text-headline-sm text-on-surface">
+                  Ticket #9021 - In Progress
+                </p>
+                <p class="font-body-sm text-body-sm text-on-surface-variant">
+                  API integration issues with POS
+                </p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-label-md text-label-md text-on-surface">Updated</p>
+              <p class="font-label-sm text-label-sm text-on-surface-variant">
+                12 mins ago
+              </p>
+            </div>
+          </div>
+          <div
+            class="p-4 flex items-center justify-between hover:bg-surface-variant/20 transition-colors cursor-pointer"
+          >
+            <div class="flex items-center gap-4">
+              <div class="w-1.5 h-12 bg-secondary rounded-full"></div>
+              <div>
+                <p class="font-headline-sm text-headline-sm text-on-surface">
+                  Ticket #8845 - Resolved
+                </p>
+                <p class="font-body-sm text-body-sm text-on-surface-variant">
+                  Bulk guest import successful
+                </p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-label-md text-label-md text-on-surface">
+                Resolved
+              </p>
+              <p class="font-label-sm text-label-sm text-on-surface-variant">
+                Yesterday
+              </p>
+            </div>
+          </div>
+          <div
+            class="p-4 flex items-center justify-between hover:bg-surface-variant/20 transition-colors cursor-pointer"
+          >
+            <div class="flex items-center gap-4">
+              <div class="w-1.5 h-12 bg-primary rounded-full"></div>
+              <div>
+                <p class="font-headline-sm text-headline-sm text-on-surface">
+                  Ticket #9003 - Open
+                </p>
+                <p class="font-body-sm text-body-sm text-on-surface-variant">
+                  Payment gateway verification
+                </p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-label-md text-label-md text-on-surface">Pending</p>
+              <p class="font-label-sm text-label-sm text-on-surface-variant">
+                3h ago
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- Informational Footer Placeholder Image -->
+      <section
+        class="w-full h-48 rounded-xl overflow-hidden relative border border-outline-variant/20"
+      >
+        <img
+          alt="Hospitality tech workspace"
+          class="w-full h-full object-cover opacity-30 grayscale hover:grayscale-0 transition-all duration-700"
+          data-alt="A futuristic, high-end hotel management operations center with multiple curved glass monitors displaying complex real-time data visualizations and performance analytics. The environment is bathed in a sophisticated midnight blue and glowing indigo light, with professional staff collaborating in a minimalist, ergonomic workspace. The aesthetic is ultra-modern, echoing high-performance corporate environments with sleek glass surfaces and vibrant neon data trails."
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuAshIHhUG8DWUHSlv2-J63Z0rv9QFwYBHqgqBGNz5cBZFrsZffErNnWqOMI4CECTrj0c1H54dzShvXLvLMesCNwPXLvbHOUzBB3Fvx_0P9fpGlHUtcbAW8FxM53yQillRvZcaEZi3gd17bcfRKy7Sa7hzTh9iZjUpvJ8v7F_0kCcjOFib05pNeMiZWLXP6Ak5SPrhcIINI1omIPpLnBlkSmSqPxp7y_MtBOoTkP08tfOjgsFXmk1DVz148twgTJd-WrX4PVjR61osU"
+        />
+        <div
+          class="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-surface via-transparent to-transparent"
+        >
+          <p class="font-label-md text-label-md text-on-surface-variant/80">
+            Documentation &amp; Knowledge Base available in Settings
+          </p>
+        </div>
+      </section>
+    </main>
+    <!-- Bottom Navigation Shell (Consistent with Shared Components) -->
+    <nav
+      class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container/80 backdrop-blur-xl border-t border-outline-variant/10 shadow-[0_-4px_20px_rgba(0,0,0,0.3)] rounded-t-xl"
+    >
+      <button
+        class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-200"
+      >
+        <span class="material-symbols-outlined" data-icon="dashboard"
+          >dashboard</span
+        >
+        <span class="font-label-md text-label-md">Dashboard</span>
+      </button>
+      <button
+        class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-200"
+      >
+        <span class="material-symbols-outlined" data-icon="calendar_today"
+          >calendar_today</span
+        >
+        <span class="font-label-md text-label-md">Bookings</span>
+      </button>
+      <button
+        class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-200"
+      >
+        <span class="material-symbols-outlined" data-icon="analytics"
+          >analytics</span
+        >
+        <span class="font-label-md text-label-md">Analytics</span>
+      </button>
+      <button
+        class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-xl px-4 py-1 active:scale-90 duration-200"
+      >
+        <span class="material-symbols-outlined" data-icon="support_agent"
+          >support_agent</span
+        >
+        <span class="font-label-md text-label-md">Support</span>
+      </button>
+    </nav>
+    <!-- Floating Action Button -->
+    <button
+      class="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-transform z-50 hover:shadow-primary/40 group"
+    >
+      <span
+        class="material-symbols-outlined text-2xl group-hover:rotate-90 transition-transform"
+        data-icon="add"
+        >add</span
+      >
+      <!-- Tooltip -->
+      <div
+        class="absolute right-16 bg-surface-container-high text-on-surface px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity font-label-md text-label-md whitespace-nowrap border border-outline-variant/30"
+      >
+        Create Support Ticket
+      </div>
+    </button>
+    <script>
+      // Simple micro-interaction for cards
+      document.querySelectorAll(".glass-card").forEach((card) => {
+        card.addEventListener("mouseenter", () => {
+          card.style.transform = "translateY(-2px)";
+          card.style.transition = "all 0.3s ease";
+        });
+        card.addEventListener("mouseleave", () => {
+          card.style.transform = "translateY(0px)";
+        });
+      });
+    </script>
+  </body>
+</html>

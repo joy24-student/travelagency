@@ -1,0 +1,419 @@
+<!doctype html>
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Guest Chat - Robert Fox</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0b1326;
+      }
+      .glass-card {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .message-glow {
+        box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+      }
+      .typing-dot {
+        animation: blink 1.4s infinite both;
+      }
+      .typing-dot:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .typing-dot:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes blink {
+        0% {
+          opacity: 0.2;
+        }
+        20% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0.2;
+        }
+      }
+    </style>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container": "#171f33",
+              background: "#0b1326",
+              "on-tertiary-fixed-variant": "#653e00",
+              "on-secondary": "#003824",
+              "on-error-container": "#ffdad6",
+              "surface-bright": "#31394d",
+              "on-error": "#690005",
+              "on-secondary-fixed": "#002113",
+              "tertiary-fixed": "#ffddb8",
+              "secondary-container": "#00a572",
+              error: "#ffb4ab",
+              "surface-container-high": "#222a3d",
+              "inverse-primary": "#494bd6",
+              tertiary: "#ffb95f",
+              "surface-tint": "#c0c1ff",
+              "on-surface": "#dae2fd",
+              "error-container": "#93000a",
+              "surface-container-low": "#131b2e",
+              "surface-container-highest": "#2d3449",
+              "outline-variant": "#464554",
+              "secondary-fixed-dim": "#4edea3",
+              surface: "#0b1326",
+              "inverse-surface": "#dae2fd",
+              "secondary-fixed": "#6ffbbe",
+              "on-primary-fixed": "#07006c",
+              "on-background": "#dae2fd",
+              "surface-variant": "#2d3449",
+              "on-tertiary": "#472a00",
+              "on-primary": "#1000a9",
+              "inverse-on-surface": "#283044",
+              secondary: "#4edea3",
+              "primary-fixed-dim": "#c0c1ff",
+              "on-secondary-fixed-variant": "#005236",
+              "tertiary-fixed-dim": "#ffb95f",
+              outline: "#908fa0",
+              "on-surface-variant": "#c7c4d7",
+              "on-secondary-container": "#00311f",
+              "on-primary-container": "#0d0096",
+              "surface-dim": "#0b1326",
+              "tertiary-container": "#ca8100",
+              "on-tertiary-container": "#3e2400",
+              "surface-container-lowest": "#060e20",
+              primary: "#c0c1ff",
+              "on-tertiary-fixed": "#2a1700",
+              "primary-fixed": "#e1e0ff",
+              "on-primary-fixed-variant": "#2f2ebe",
+              "primary-container": "#8083ff",
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+            spacing: {
+              xs: "8px",
+              xl: "32px",
+              sm: "12px",
+              md: "16px",
+              "container-padding": "16px",
+              "card-gap": "12px",
+              base: "4px",
+              lg: "24px",
+            },
+            fontFamily: {
+              "body-lg": ["Inter"],
+              "headline-md": ["Inter"],
+              "headline-lg-mobile": ["Inter"],
+              "body-sm": ["Inter"],
+              "body-md": ["Inter"],
+              "label-sm": ["Inter"],
+              "label-md": ["Inter"],
+              "headline-lg": ["Inter"],
+              "headline-sm": ["Inter"],
+              "display-lg": ["Inter"],
+            },
+            fontSize: {
+              "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+              "headline-md": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "600" },
+              ],
+              "headline-lg-mobile": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "700" },
+              ],
+              "body-sm": ["12px", { lineHeight: "16px", fontWeight: "400" }],
+              "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+              "label-sm": ["10px", { lineHeight: "12px", fontWeight: "600" }],
+              "label-md": [
+                "12px",
+                {
+                  lineHeight: "16px",
+                  letterSpacing: "0.02em",
+                  fontWeight: "500",
+                },
+              ],
+              "headline-lg": [
+                "24px",
+                { lineHeight: "32px", fontWeight: "600" },
+              ],
+              "headline-sm": [
+                "16px",
+                { lineHeight: "24px", fontWeight: "600" },
+              ],
+              "display-lg": [
+                "32px",
+                {
+                  lineHeight: "40px",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="flex flex-col h-screen overflow-hidden">
+    <!-- Top Navigation Bar (Shared Component Style) -->
+    <header
+      class="bg-surface dark:bg-surface fixed top-0 w-full z-50 flex justify-between items-center px-container-padding py-sm shadow-lg border-b border-white/5"
+    >
+      <div class="flex items-center gap-md">
+        <button
+          class="hover:bg-surface-variant/50 rounded-full p-2 transition-all active:scale-95"
+        >
+          <span class="material-symbols-outlined text-primary">arrow_back</span>
+        </button>
+        <div class="flex items-center gap-xs">
+          <div class="relative">
+            <img
+              alt="Robert Fox"
+              class="w-10 h-10 rounded-full border-2 border-secondary/30 object-cover"
+              data-alt="A professional headshot of a middle-aged man with a friendly and composed expression, photographed in soft, high-end studio lighting. The aesthetic is clean and modern, consistent with a premium hospitality brand. The background is a blurred corporate interior with deep midnight blue and slate grey tones, echoing a sophisticated dark-mode UI environment."
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOxtV3TZHgKLsjXbH84TNya8bSNy_eA4o2FJY-tKWIRdYWBgPsnLVeykP5zEigjnxshCK42DPy-rhCsKOPXuP1yLfA2PrzrtDoOB6RTUqwAALTxXhJm62SNiyH4Eu3anr2odUmQDPXWAh-1UI0GB9BNlWpov6l2cBKMJY6_g0b7Gvw-3qSJWzlz0IAU-Rz2OX_-yEPpJibNOR98gCqgsbFR4dIi7EbosqpXAfBp0VsAbaIgVwaajq5IqFZGTDIJGNUxP6SX0IOCm0"
+            />
+            <div
+              class="absolute bottom-0 right-0 w-3 h-3 bg-secondary rounded-full border-2 border-background"
+            ></div>
+          </div>
+          <div class="flex flex-col">
+            <div class="flex items-center gap-xs">
+              <span class="font-headline-sm text-headline-sm text-on-surface"
+                >Robert Fox</span
+              >
+              <span
+                class="bg-tertiary-container/20 text-tertiary px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border border-tertiary/30"
+                >VIP</span
+              >
+            </div>
+            <span class="font-label-sm text-label-sm text-outline"
+              >Room 302 • Check-out May 31</span
+            >
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-sm">
+        <button
+          class="hover:bg-surface-variant/50 text-on-surface p-2 rounded-full transition-all active:scale-95"
+        >
+          <span class="material-symbols-outlined" data-icon="search"
+            >search</span
+          >
+        </button>
+        <button
+          class="bg-primary-container text-on-primary-container p-2 rounded-full shadow-lg shadow-primary/20 transition-all active:scale-95"
+        >
+          <span
+            class="material-symbols-outlined"
+            data-icon="call"
+            data-weight="fill"
+            style="font-variation-settings: &quot;FILL&quot; 1"
+            >call</span
+          >
+        </button>
+      </div>
+    </header>
+    <!-- Main Chat Canvas -->
+    <main
+      class="flex-1 overflow-y-auto mt-[72px] mb-[180px] px-container-padding space-y-lg pt-lg"
+    >
+      <!-- Date Separator -->
+      <div class="flex items-center justify-center gap-md">
+        <div class="h-[1px] flex-1 bg-outline-variant/30"></div>
+        <span
+          class="font-label-md text-label-md text-outline px-md py-1 glass-card rounded-full border border-white/10 uppercase tracking-widest"
+          >Today, 30 May 2024</span
+        >
+        <div class="h-[1px] flex-1 bg-outline-variant/30"></div>
+      </div>
+      <!-- Guest Message (Left) -->
+      <div class="flex flex-col items-start max-w-[85%] group">
+        <div
+          class="glass-card p-md rounded-tr-xl rounded-br-xl rounded-bl-xl text-on-surface-variant border-l-2 border-l-outline/20"
+        >
+          <p class="font-body-md text-body-md">
+            Thank you for the quick check-in! Is it possible to get extra towels
+            sent to room 302?
+          </p>
+        </div>
+        <span class="mt-xs font-label-sm text-label-sm text-outline ml-1"
+          >10:24 AM • Sent</span
+        >
+      </div>
+      <!-- Staff Reply (Right) -->
+      <div class="flex flex-col items-end self-end max-w-[85%]">
+        <div
+          class="bg-primary-container text-on-primary-container p-md rounded-tl-xl rounded-bl-xl rounded-br-xl message-glow"
+        >
+          <p class="font-body-md text-body-md">
+            You're very welcome, Mr. Fox! I've sent a request to housekeeping.
+            They'll be at your door in 5 minutes.
+          </p>
+        </div>
+        <div class="flex items-center gap-xs mt-xs mr-1">
+          <span class="font-label-sm text-label-sm text-outline"
+            >10:26 AM • Read</span
+          >
+          <span class="material-symbols-outlined text-[14px] text-secondary"
+            >done_all</span
+          >
+        </div>
+      </div>
+      <!-- Guest Message (Left) -->
+      <div class="flex flex-col items-start max-w-[85%] group">
+        <div
+          class="glass-card p-md rounded-tr-xl rounded-br-xl rounded-bl-xl text-on-surface-variant border-l-2 border-l-outline/20"
+        >
+          <p class="font-body-md text-body-md">Perfect, thanks!</p>
+        </div>
+        <span class="mt-xs font-label-sm text-label-sm text-outline ml-1"
+          >10:27 AM</span
+        >
+      </div>
+      <!-- Typing Indicator -->
+      <div class="flex items-center gap-sm opacity-80">
+        <div
+          class="flex gap-1 items-center bg-surface-container-high px-3 py-2 rounded-full"
+        >
+          <div class="w-1.5 h-1.5 bg-outline rounded-full typing-dot"></div>
+          <div class="w-1.5 h-1.5 bg-outline rounded-full typing-dot"></div>
+          <div class="w-1.5 h-1.5 bg-outline rounded-full typing-dot"></div>
+        </div>
+        <span class="font-label-md text-label-md text-outline italic"
+          >Robert Fox is typing...</span
+        >
+      </div>
+    </main>
+    <!-- Fixed Bottom Section -->
+    <footer class="fixed bottom-0 left-0 w-full z-40">
+      <!-- Quick Action Chips -->
+      <div
+        class="px-container-padding pb-sm overflow-x-auto no-scrollbar flex gap-sm"
+      >
+        <button
+          class="whitespace-nowrap glass-card px-md py-2 rounded-full border border-primary/20 text-primary font-label-md text-label-md flex items-center gap-xs hover:bg-primary/10 transition-all"
+        >
+          <span class="material-symbols-outlined text-[16px]"
+            >dry_cleaning</span
+          >
+          Send Towels
+        </button>
+        <button
+          class="whitespace-nowrap glass-card px-md py-2 rounded-full border border-secondary/20 text-secondary font-label-md text-label-md flex items-center gap-xs hover:bg-secondary/10 transition-all"
+        >
+          <span class="material-symbols-outlined text-[16px]">restaurant</span>
+          Room Service
+        </button>
+        <button
+          class="whitespace-nowrap glass-card px-md py-2 rounded-full border border-outline/20 text-on-surface font-label-md text-label-md flex items-center gap-xs hover:bg-white/5 transition-all"
+        >
+          <span class="material-symbols-outlined text-[16px]"
+            >cleaning_services</span
+          >
+          Housekeeping
+        </button>
+        <button
+          class="whitespace-nowrap glass-card px-md py-2 rounded-full border border-tertiary/20 text-tertiary font-label-md text-label-md flex items-center gap-xs hover:bg-tertiary/10 transition-all"
+        >
+          <span class="material-symbols-outlined text-[16px]"
+            >event_repeat</span
+          >
+          Extend Stay
+        </button>
+      </div>
+      <!-- Input Area -->
+      <div
+        class="bg-surface-container/80 backdrop-blur-xl border-t border-white/5 p-md pb-xl"
+      >
+        <div class="flex items-end gap-sm">
+          <button
+            class="mb-1 w-10 h-10 flex items-center justify-center text-outline hover:text-primary transition-colors"
+          >
+            <span class="material-symbols-outlined" data-icon="add">add</span>
+          </button>
+          <div class="flex-1 relative">
+            <textarea
+              class="w-full bg-background border border-outline-variant/40 rounded-2xl py-3 px-md text-on-surface placeholder:text-outline focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none font-body-md text-body-md"
+              placeholder="Type a message..."
+              rows="1"
+            ></textarea>
+          </div>
+          <button
+            class="mb-1 w-10 h-10 flex items-center justify-center bg-primary text-on-primary rounded-full shadow-lg shadow-primary/30 transition-all hover:scale-105 active:scale-95"
+            id="sendBtn"
+          >
+            <span
+              class="material-symbols-outlined"
+              data-icon="mic"
+              id="sendIcon"
+              >mic</span
+            >
+          </button>
+        </div>
+      </div>
+    </footer>
+    <!-- Bottom Nav Bar (Shared Component - Inactive in Chat Subview as per filter rules, but template defined) -->
+    <!-- Suppressed for transactional focus -->
+    <script>
+      // Micro-interaction for the send button (switch icon when typing)
+      const textarea = document.querySelector("textarea");
+      const sendBtn = document.getElementById("sendBtn");
+      const sendIcon = document.getElementById("sendIcon");
+
+      textarea.addEventListener("input", () => {
+        if (textarea.value.trim().length > 0) {
+          sendIcon.innerText = "send";
+          sendBtn.classList.replace("bg-primary", "bg-primary-container");
+        } else {
+          sendIcon.innerText = "mic";
+          sendBtn.classList.replace("bg-primary-container", "bg-primary");
+        }
+
+        // Simple auto-resize for textarea
+        textarea.style.height = "auto";
+        textarea.style.height = textarea.scrollHeight + "px";
+        if (textarea.scrollHeight > 120) {
+          textarea.style.overflowY = "auto";
+          textarea.style.height = "120px";
+        } else {
+          textarea.style.overflowY = "hidden";
+        }
+      });
+
+      // Atmospheric parallax/glow effect for glass cards
+      document.addEventListener("mousemove", (e) => {
+        const cards = document.querySelectorAll(".glass-card");
+        cards.forEach((card) => {
+          const rect = card.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          card.style.setProperty("--mouse-x", `${x}px`);
+          card.style.setProperty("--mouse-y", `${y}px`);
+        });
+      });
+    </script>
+  </body>
+</html>

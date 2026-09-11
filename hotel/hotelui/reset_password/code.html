@@ -1,0 +1,440 @@
+<!doctype html>
+
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Lumina - Reset Password</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-highest": "#2d3449",
+              "on-surface-variant": "#c7c4d7",
+              "primary-fixed": "#e1e0ff",
+              "on-tertiary": "#472a00",
+              "surface-dim": "#0b1326",
+              "on-surface": "#dae2fd",
+              surface: "#0b1326",
+              "secondary-container": "#00a572",
+              "on-tertiary-fixed-variant": "#653e00",
+              "on-primary-container": "#0d0096",
+              "on-primary": "#1000a9",
+              "surface-container-low": "#131b2e",
+              "surface-tint": "#c0c1ff",
+              "on-secondary": "#003824",
+              "secondary-fixed": "#6ffbbe",
+              "on-secondary-container": "#00311f",
+              "on-primary-fixed": "#07006c",
+              "on-primary-fixed-variant": "#2f2ebe",
+              "surface-container-lowest": "#060e20",
+              "tertiary-container": "#ca8100",
+              "secondary-fixed-dim": "#4edea3",
+              secondary: "#4edea3",
+              outline: "#908fa0",
+              "outline-variant": "#464554",
+              "on-secondary-fixed": "#002113",
+              "surface-variant": "#2d3449",
+              "surface-container-high": "#222a3d",
+              "error-container": "#93000a",
+              "inverse-on-surface": "#283044",
+              "inverse-primary": "#494bd6",
+              primary: "#c0c1ff",
+              "on-error-container": "#ffdad6",
+              "inverse-surface": "#dae2fd",
+              tertiary: "#ffb95f",
+              "on-error": "#690005",
+              background: "#0b1326",
+              "surface-container": "#171f33",
+              "primary-fixed-dim": "#c0c1ff",
+              "primary-container": "#8083ff",
+              "tertiary-fixed-dim": "#ffb95f",
+              "tertiary-fixed": "#ffddb8",
+              "on-background": "#dae2fd",
+              "surface-bright": "#31394d",
+              "on-tertiary-fixed": "#2a1700",
+              "on-tertiary-container": "#3e2400",
+              "on-secondary-fixed-variant": "#005236",
+              error: "#ffb4ab",
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+            spacing: {
+              "card-gap": "12px",
+              xs: "8px",
+              "container-padding": "16px",
+              md: "16px",
+              xl: "32px",
+              sm: "12px",
+              lg: "24px",
+              base: "4px",
+            },
+            fontFamily: {
+              "headline-sm": ["Inter"],
+              "body-sm": ["Inter"],
+              "body-lg": ["Inter"],
+              "label-sm": ["Inter"],
+              "headline-md": ["Inter"],
+              "label-md": ["Inter"],
+              "headline-lg-mobile": ["Inter"],
+              "body-md": ["Inter"],
+              "headline-lg": ["Inter"],
+              "display-lg": ["Inter"],
+            },
+            fontSize: {
+              "headline-sm": [
+                "16px",
+                { lineHeight: "24px", fontWeight: "600" },
+              ],
+              "body-sm": ["12px", { lineHeight: "16px", fontWeight: "400" }],
+              "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+              "label-sm": ["10px", { lineHeight: "12px", fontWeight: "600" }],
+              "headline-md": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "600" },
+              ],
+              "label-md": [
+                "12px",
+                {
+                  lineHeight: "16px",
+                  letterSpacing: "0.02em",
+                  fontWeight: "500",
+                },
+              ],
+              "headline-lg-mobile": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "700" },
+              ],
+              "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+              "headline-lg": [
+                "24px",
+                { lineHeight: "32px", fontWeight: "600" },
+              ],
+              "display-lg": [
+                "32px",
+                {
+                  lineHeight: "40px",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        background-color: #0b1326;
+        background-image:
+          radial-gradient(
+            at 0% 0%,
+            rgba(128, 131, 255, 0.05) 0px,
+            transparent 50%
+          ),
+          radial-gradient(
+            at 100% 100%,
+            rgba(0, 165, 114, 0.03) 0px,
+            transparent 50%
+          );
+        min-height: 100vh;
+        color: #dae2fd;
+        font-family: "Inter", sans-serif;
+      }
+      .glass-card {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .strength-meter {
+        height: 4px;
+        border-radius: 2px;
+        transition: all 0.3s ease;
+      }
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 24;
+      }
+      .purple-gradient-btn {
+        background: linear-gradient(135deg, #8083ff 0%, #494bd6 100%);
+        box-shadow: 0 4px 15px rgba(128, 131, 255, 0.3);
+      }
+      .purple-gradient-btn:active {
+        transform: scale(0.98);
+      }
+    </style>
+    <style>
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+  </head>
+  <body class="flex flex-col items-center justify-center p-md">
+    <!-- Top Bar (Back Button) -->
+    <header class="fixed top-0 left-0 w-full flex items-center px-md h-16 z-50">
+      <button
+        class="p-2 rounded-full hover:bg-surface-variant/30 transition-colors flex items-center justify-center text-on-surface"
+        onclick="window.history.back()"
+      >
+        <span class="material-symbols-outlined" data-icon="arrow_back"
+          >arrow_back</span
+        >
+      </button>
+    </header>
+    <main
+      class="w-full max-w-md mt-16 animate-in fade-in slide-in-from-bottom-4 duration-700"
+    >
+      <!-- Header Section -->
+      <div class="mb-lg text-center md:text-left">
+        <h1
+          class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-xs"
+        >
+          Reset Password
+        </h1>
+        <p class="font-body-md text-body-md text-on-surface-variant">
+          Create a new strong password for your account
+        </p>
+      </div>
+      <!-- Main Content Card -->
+      <div
+        class="glass-card rounded-xl p-lg shadow-xl relative overflow-hidden"
+      >
+        <!-- Decorative Glow -->
+        <div
+          class="absolute -top-12 -right-12 w-24 h-24 bg-primary/10 blur-3xl rounded-full"
+        ></div>
+        <form class="space-y-lg" onsubmit="event.preventDefault()">
+          <!-- New Password Field -->
+          <div class="space-y-xs">
+            <label
+              class="font-label-md text-label-md text-on-surface-variant ml-1"
+              for="new-password"
+              >New Password</label
+            >
+            <div class="relative">
+              <input
+                class="w-full bg-surface-container-lowest border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary rounded-lg px-md py-3 text-on-surface placeholder:text-outline-variant font-body-md text-body-md transition-all outline-none"
+                id="new-password"
+                oninput="updateStrength(this.value)"
+                placeholder="Min. 8 characters"
+                type="password"
+              />
+              <button
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors"
+                onclick="toggleVisibility('new-password')"
+                type="button"
+              >
+                <span
+                  class="material-symbols-outlined"
+                  data-icon="visibility"
+                  id="eye-icon-new"
+                  >visibility</span
+                >
+              </button>
+            </div>
+            <!-- Password Strength Meter -->
+            <div class="pt-1">
+              <div class="flex justify-between items-center mb-1">
+                <span
+                  class="font-label-sm text-label-sm text-outline"
+                  id="strength-text"
+                  >Password strength</span
+                >
+                <span
+                  class="font-label-sm text-label-sm text-outline-variant"
+                  id="strength-label"
+                  >Enter password</span
+                >
+              </div>
+              <div class="flex gap-1 w-full">
+                <div
+                  class="strength-meter flex-1 bg-surface-container-highest"
+                  id="meter-1"
+                ></div>
+                <div
+                  class="strength-meter flex-1 bg-surface-container-highest"
+                  id="meter-2"
+                ></div>
+                <div
+                  class="strength-meter flex-1 bg-surface-container-highest"
+                  id="meter-3"
+                ></div>
+                <div
+                  class="strength-meter flex-1 bg-surface-container-highest"
+                  id="meter-4"
+                ></div>
+              </div>
+            </div>
+          </div>
+          <!-- Confirm Password Field -->
+          <div class="space-y-xs">
+            <label
+              class="font-label-md text-label-md text-on-surface-variant ml-1"
+              for="confirm-password"
+              >Confirm Password</label
+            >
+            <div class="relative">
+              <input
+                class="w-full bg-surface-container-lowest border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary rounded-lg px-md py-3 text-on-surface placeholder:text-outline-variant font-body-md text-body-md transition-all outline-none"
+                id="confirm-password"
+                placeholder="Repeat your new password"
+                type="password"
+              />
+              <button
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors"
+                onclick="toggleVisibility('confirm-password')"
+                type="button"
+              >
+                <span
+                  class="material-symbols-outlined"
+                  data-icon="visibility"
+                  id="eye-icon-confirm"
+                  >visibility</span
+                >
+              </button>
+            </div>
+          </div>
+          <!-- Submit Button -->
+          <button
+            class="w-full purple-gradient-btn text-on-primary py-4 rounded-xl font-headline-sm text-headline-sm flex items-center justify-center gap-2 transition-all hover:brightness-110"
+          >
+            Reset Password
+            <span class="material-symbols-outlined" data-icon="lock_reset"
+              >lock_reset</span
+            >
+          </button>
+        </form>
+      </div>
+      <!-- Security Tip Section -->
+      <div
+        class="mt-lg flex items-start gap-md p-md rounded-xl bg-surface-container-low/40 border border-outline-variant/10"
+      >
+        <span class="material-symbols-outlined text-tertiary" data-icon="info"
+          >info</span
+        >
+        <p
+          class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed"
+        >
+          Your new password must be at least 8 characters long and should
+          include a combination of letters, numbers, and special symbols for
+          maximum security.
+        </p>
+      </div>
+    </main>
+    <!-- Visual Background Accents -->
+    <div
+      class="fixed top-1/4 -left-20 w-64 h-64 bg-primary/5 rounded-full blur-[100px] pointer-events-none"
+    ></div>
+    <div
+      class="fixed bottom-1/4 -right-20 w-64 h-64 bg-secondary/5 rounded-full blur-[100px] pointer-events-none"
+    ></div>
+    <script>
+      function toggleVisibility(id) {
+        const input = document.getElementById(id);
+        const icon = document.getElementById("eye-icon-" + id.split("-")[0]);
+
+        if (input.type === "password") {
+          input.type = "text";
+          icon.textContent = "visibility_off";
+        } else {
+          input.type = "password";
+          icon.textContent = "visibility";
+        }
+      }
+
+      function updateStrength(value) {
+        const meters = [
+          document.getElementById("meter-1"),
+          document.getElementById("meter-2"),
+          document.getElementById("meter-3"),
+          document.getElementById("meter-4"),
+        ];
+        const label = document.getElementById("strength-label");
+
+        let strength = 0;
+        if (value.length > 0) strength = 1;
+        if (value.length > 5) strength = 2;
+        if (value.length > 8 && /[0-9]/.test(value)) strength = 3;
+        if (value.length > 10 && /[!@#$%^&*]/.test(value)) strength = 4;
+
+        // Reset meters
+        meters.forEach((m) => {
+          m.style.backgroundColor = "";
+          m.classList.remove(
+            "bg-error",
+            "bg-tertiary",
+            "bg-secondary",
+            "bg-primary",
+          );
+          m.classList.add("bg-surface-container-highest");
+        });
+
+        if (strength === 0) {
+          label.textContent = "Enter password";
+          label.className = "font-label-sm text-label-sm text-outline-variant";
+        } else if (strength === 1) {
+          label.textContent = "Weak";
+          label.className = "font-label-sm text-label-sm text-error";
+          meters[0].classList.replace(
+            "bg-surface-container-highest",
+            "bg-error",
+          );
+        } else if (strength === 2) {
+          label.textContent = "Fair";
+          label.className = "font-label-sm text-label-sm text-tertiary";
+          meters[0].classList.replace(
+            "bg-surface-container-highest",
+            "bg-tertiary",
+          );
+          meters[1].classList.replace(
+            "bg-surface-container-highest",
+            "bg-tertiary",
+          );
+        } else if (strength === 3) {
+          label.textContent = "Good";
+          label.className = "font-label-sm text-label-sm text-secondary";
+          meters[0].classList.replace(
+            "bg-surface-container-highest",
+            "bg-secondary",
+          );
+          meters[1].classList.replace(
+            "bg-surface-container-highest",
+            "bg-secondary",
+          );
+          meters[2].classList.replace(
+            "bg-surface-container-highest",
+            "bg-secondary",
+          );
+        } else if (strength === 4) {
+          label.textContent = "Strong";
+          label.className = "font-label-sm text-label-sm text-primary";
+          meters.forEach((m) =>
+            m.classList.replace("bg-surface-container-highest", "bg-primary"),
+          );
+        }
+      }
+    </script>
+  </body>
+</html>

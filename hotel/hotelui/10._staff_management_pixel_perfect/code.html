@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>ShopnoJatra Hotel Partner App - Staff Management</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Google Fonts for Inter-like font -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style data-purpose="custom-base">
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #01040d;
+        color: #ffffff;
+        -webkit-font-smoothing: antialiased;
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+    </style>
+    <style data-purpose="color-palette">
+      :root {
+        --bg-dark: #0a0f1d;
+        --card-bg: #141b2d;
+        --accent-purple: #6d28d9;
+        --status-active: #10b981;
+        --status-on-duty: #f59e0b;
+        --text-gray: #94a3b8;
+      }
+    </style>
+  </head>
+  <body class="flex justify-center items-center min-h-screen p-4">
+    <!-- BEGIN: MobileDeviceContainer -->
+    <div
+      class="relative w-[375px] h-[812px] bg-[#0A0F1D] rounded-[40px] shadow-2xl overflow-hidden border-[8px] border-[#1C1F26]"
+    >
+      <!-- BEGIN: StatusBar -->
+      <div
+        class="flex justify-between items-center px-8 pt-4 pb-2 text-[12px] font-semibold"
+      >
+        <span class="">9:41</span>
+        <div class="flex gap-1 items-center">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path
+              d="M12 21c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6z"
+            ></path>
+          </svg>
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path
+              d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.34V5.33C17 4.6 16.4 4 15.67 4z"
+            ></path>
+          </svg>
+        </div>
+      </div>
+      <!-- END: StatusBar -->
+      <!-- BEGIN: Header -->
+      <header class="px-6 pt-4 pb-2 flex justify-between items-center">
+        <div class="flex items-center gap-4">
+          <button class="p-1">
+            <span class="material-symbols-outlined text-white">arrow_back</span>
+          </button>
+          <h1 class="text-xl font-bold">Staff Management</h1>
+        </div>
+        <div class="relative">
+          <svg
+            class="w-6 h-6 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span
+            class="absolute -top-1 -right-1 bg-red-500 text-[10px] w-4 h-4 flex items-center justify-center rounded-full border border-dark"
+            >3</span
+          >
+        </div>
+      </header>
+      <!-- END: Header -->
+      <!-- BEGIN: MainContent -->
+      <main class="px-6 pt-4 overflow-y-auto h-[630px] custom-scrollbar">
+        <!-- BEGIN: OperationalOverviewCard -->
+        <section
+          class="bg-[#141B2D] rounded-2xl p-5 mb-6 flex justify-between items-center"
+          data-purpose="operational-overview"
+        >
+          <div class="space-y-4">
+            <div>
+              <p class="text-gray-400 text-sm">Total Staff</p>
+              <h2 class="text-3xl font-bold">45</h2>
+            </div>
+            <div class="flex gap-8">
+              <div>
+                <p class="text-gray-400 text-xs">Active Staff</p>
+                <p class="text-lg font-semibold">38</p>
+              </div>
+              <div>
+                <p class="text-gray-400 text-xs">On Leave</p>
+                <p class="text-lg font-semibold">7</p>
+              </div>
+            </div>
+          </div>
+          <!-- Circular Progress Chart -->
+          <div class="relative flex items-center justify-center w-24 h-24">
+            <svg class="w-full h-full transform -rotate-90">
+              <circle
+                cx="48"
+                cy="48"
+                fill="transparent"
+                r="40"
+                stroke="#1E293B"
+                stroke-width="8"
+              ></circle>
+              <circle
+                cx="48"
+                cy="48"
+                fill="transparent"
+                r="40"
+                stroke="#06B6D4"
+                stroke-dasharray="251.2"
+                stroke-dashoffset="40.2"
+                stroke-linecap="round"
+                stroke-width="8"
+              ></circle>
+            </svg>
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center"
+            >
+              <span class="text-lg font-bold">84%</span>
+              <span class="text-[10px] text-gray-400">Active</span>
+            </div>
+          </div>
+        </section>
+        <!-- END: OperationalOverviewCard -->
+        <!-- BEGIN: DepartmentsGrid -->
+        <section class="mb-6" data-purpose="departments">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-base">Departments</h3>
+            <button class="text-indigo-400 text-xs font-semibold">
+              View All
+            </button>
+          </div>
+          <div class="grid grid-cols-5 gap-3">
+            <!-- Front Desk -->
+            <div class="flex flex-col items-center">
+              <div
+                class="w-12 h-12 bg-[#6D28D9]/20 rounded-xl flex items-center justify-center text-purple-400 mb-1"
+              >
+                <svg
+                  class="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <span
+                class="text-[9px] text-gray-400 text-center whitespace-nowrap"
+                >Front Desk</span
+              >
+              <span class="text-xs font-bold">12</span>
+            </div>
+            <!-- Housekeeping -->
+            <div class="flex flex-col items-center">
+              <div
+                class="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center text-green-400 mb-1"
+              >
+                <svg
+                  class="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <span
+                class="text-[9px] text-gray-400 text-center whitespace-nowrap"
+                >Housekeep</span
+              >
+              <span class="text-xs font-bold">15</span>
+            </div>
+            <!-- Maintenance -->
+            <div class="flex flex-col items-center">
+              <div
+                class="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 mb-1"
+              >
+                <svg
+                  class="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <span
+                class="text-[9px] text-gray-400 text-center whitespace-nowrap"
+                >Mainten...</span
+              >
+              <span class="text-xs font-bold">6</span>
+            </div>
+            <!-- F&B Service -->
+            <div class="flex flex-col items-center">
+              <div
+                class="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-400 mb-1"
+              >
+                <svg
+                  class="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <span
+                class="text-[9px] text-gray-400 text-center whitespace-nowrap"
+                >F&amp;B Svc</span
+              >
+              <span class="text-xs font-bold">8</span>
+            </div>
+            <!-- Security -->
+            <div class="flex flex-col items-center">
+              <div
+                class="w-12 h-12 bg-cyan-500/20 rounded-xl flex items-center justify-center text-cyan-400 mb-1"
+              >
+                <svg
+                  class="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <span
+                class="text-[9px] text-gray-400 text-center whitespace-nowrap"
+                >Security</span
+              >
+              <span class="text-xs font-bold">4</span>
+            </div>
+          </div>
+        </section>
+        <!-- END: DepartmentsGrid -->
+        <!-- BEGIN: RecentStaffList -->
+        <section data-purpose="recent-staff">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-base">Recent Staff</h3>
+            <div class="flex gap-4">
+              <button class="text-gray-400 hover:text-white">
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </button>
+              <button class="text-indigo-400 text-xs font-semibold">
+                View All
+              </button>
+            </div>
+          </div>
+          <div class="space-y-4 pb-10">
+            <!-- Staff Item: John Doe -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <img
+                  alt="John Doe"
+                  class="w-10 h-10 rounded-full object-cover"
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAN4PBm5Rcr3rdZ4BdSnM8sXGXgRk0uqLYCAXqzrExSAhP6zvZ7nd7ufULV0Bc66H4sWUCtWUydTkuavlp7TjTTPUnE-nEOjKtfxPTP1agzxn29TyZK7baL4SmLOua5psRvLHwGxUNngsAuu2IlmB7LkMZVoXlekxubk3VUVlGHrRyYpW6x8Eqg1DoHb3OZySOK1rji-R8Sv9ciaJPRP7IEp_4E4tcguxRFZJx0zwGvXCPuPoNfF-7w1HzvGGhmEqEAIog4zYCMmNA"
+                />
+                <div>
+                  <p class="text-sm font-semibold">John Doe</p>
+                  <p class="text-[10px] text-gray-400">Front Desk Manager</p>
+                  <p class="text-[10px] text-gray-400">+880 1723 456789</p>
+                </div>
+              </div>
+              <span
+                class="px-2 py-0.5 bg-green-500/10 text-green-500 text-[10px] font-bold rounded"
+                >Active</span
+              >
+            </div>
+            <!-- Staff Item: Sarah Wilson -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <img
+                  alt="Sarah Wilson"
+                  class="w-10 h-10 rounded-full object-cover"
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBA8_tyqgU3upx9070FVylu7ikGZhcd4qyd_WoRMQLxCT0a390urdY1BhMRxXiS_hQi14C3f4ZCoouCk9zI-FRSXGkG9hL3ckKqQJSTm-Klwr1fxg1H7Z2DkVi4R_CflpasLERmSImxWS58XMf3dzJ6rVw6JMhGq0Rdld6GDbyfMm0BrJ0GNdhVfI151fXjveEe-bfCBnUt3S1TPlnULkoxygRGXHBZE5J7kZzkq6jsCyoKjvwslqEG1ZRwt5nNfmS8U9OxCs_YGjY"
+                />
+                <div>
+                  <p class="text-sm font-semibold">Sarah Wilson</p>
+                  <p class="text-[10px] text-gray-400">Housekeeping Staff</p>
+                  <p class="text-[10px] text-gray-400">+880 1823 456789</p>
+                </div>
+              </div>
+              <span
+                class="px-2 py-0.5 bg-green-500/10 text-green-500 text-[10px] font-bold rounded"
+                >Active</span
+              >
+            </div>
+            <!-- Staff Item: Michael Brown -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <img
+                  alt="Michael Brown"
+                  class="w-10 h-10 rounded-full object-cover"
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBEPXGgXJJDOFmxnYKE-7BWikjkhgRABH7ZOz7C3zBv9uQuXVFseU7bS09zCU-_KgCUMTQ8bizeT26UL1V9tHl6eToyRzKmb7RC0AkSBX3XK2TvF09PLQnFORfUgLk997OuMTxWypWtL4-C9X5XWJwtGKU2ITat1ewQWdL6UG5z0giVqolHsG-uXYpA71xNGWg4nPq7DebZ_qdS8YeY5F--cwFXiFvgGGWjmi6s0MFscWN1Rb6_oQN_9AGfwWXjMz5j_L5AQPiKhO4"
+                />
+                <div>
+                  <p class="text-sm font-semibold">Michael Brown</p>
+                  <p class="text-[10px] text-gray-400">Maintenance Staff</p>
+                  <p class="text-[10px] text-gray-400">+880 1912 456789</p>
+                </div>
+              </div>
+              <span
+                class="px-2 py-0.5 bg-yellow-500/10 text-yellow-500 text-[10px] font-bold rounded"
+                >On Duty</span
+              >
+            </div>
+            <!-- Staff Item: David Lee -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <img
+                  alt="David Lee"
+                  class="w-10 h-10 rounded-full object-cover"
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNPNA6gKx_MclHmE-92djXScodPR81gS1Ch1xJfT_Kbe-3tV0V7sLRDmPQGSzAJdJyGl5hUUV37uIasiZZJxbVr0O_Z94ZKnF97dg0X5I7ssaqhxzXpz60N-kJYNUwmGIX_xW1GAzGAsLp3FhPYb-El2NWt_5K6NMwnJAKeXZxNVVChnXk35CokzLaU5bSDn3aYu0VfFuDZDXnJg56iImCfx3IQB2HDy7zF_u6l17GwW6CJ33U5uY-YtLanMAKkQWv_ajzyfMAyuA"
+                />
+                <div>
+                  <p class="text-sm font-semibold">David Lee</p>
+                  <p class="text-[10px] text-gray-400">F&amp;B Manager</p>
+                  <p class="text-[10px] text-gray-400">+880 1634 567890</p>
+                </div>
+              </div>
+              <span
+                class="px-2 py-0.5 bg-green-500/10 text-green-500 text-[10px] font-bold rounded"
+                >Active</span
+              >
+            </div>
+          </div>
+        </section>
+        <!-- END: RecentStaffList -->
+      </main>
+      <!-- END: MainContent -->
+      <!-- BEGIN: FloatingActionButton -->
+      <button
+        class="absolute bottom-20 right-6 w-12 h-12 bg-indigo-600 rounded-full shadow-lg flex items-center justify-center text-white border-4 border-[#0A0F1D]"
+      >
+        <svg
+          class="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            d="M12 4v16m8-8H4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+      </button>
+      <!-- END: FloatingActionButton -->
+      <!-- BEGIN: BottomNav -->
+      <nav
+        class="absolute bottom-0 w-full h-16 bg-[#0A0F1D] border-t border-gray-800 flex items-center justify-around px-2"
+      >
+        <div class="flex flex-col items-center gap-0.5 opacity-60">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[9px]">Dashboard</span>
+        </div>
+        <div class="flex flex-col items-center gap-0.5 opacity-60">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[9px]">Reservations</span>
+        </div>
+        <div class="flex flex-col items-center gap-0.5 opacity-60">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[9px]">Rooms</span>
+        </div>
+        <div class="flex flex-col items-center gap-0.5 relative">
+          <svg
+            class="w-5 h-5 text-indigo-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[9px] text-indigo-500">Messages</span>
+          <span
+            class="absolute top-0 right-1 bg-red-500 w-3 h-3 rounded-full text-[7px] flex items-center justify-center font-bold"
+            >5</span
+          >
+        </div>
+        <div class="flex flex-col items-center gap-0.5 opacity-60">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M4 6h16M4 12h16m-7 6h7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[9px]">More</span>
+        </div>
+      </nav>
+      <!-- END: BottomNav -->
+    </div>
+    <!-- END: MobileDeviceContainer -->
+  </body>
+</html>

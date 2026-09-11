@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>ShopnoJatra Hotel Partner App - Maintenance</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Lucide Icons (Used for variety of UI icons) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style data-purpose="layout">
+      body {
+        background-color: #020617; /* Deep Navy Background */
+        color: #ffffff;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+      }
+      .status-bar-height {
+        height: 44px;
+      }
+      .safe-area-bottom {
+        padding-bottom: 34px;
+      }
+      .glass-card {
+        background: rgba(30, 41, 59, 0.5);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+    </style>
+    <style data-purpose="card-colors">
+      .card-total {
+        background: rgba(30, 41, 59, 0.4);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+      }
+      .card-completed {
+        background: rgba(20, 83, 45, 0.2);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+      }
+      .card-progress {
+        background: rgba(120, 53, 15, 0.2);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+      }
+      .card-pending {
+        background: rgba(127, 29, 29, 0.2);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+      }
+    </style>
+  </head>
+  <body class="flex justify-center items-center min-h-screen bg-slate-950 p-4">
+    <!-- BEGIN: Mobile Container (iOS Simulation) -->
+    <main
+      class="relative w-[375px] h-[812px] bg-[#020817] rounded-[40px] shadow-2xl overflow-hidden border-[8px] border-slate-800"
+    >
+      <!-- BEGIN: Header -->
+      <header class="pt-12 px-6 pb-4">
+        <div class="flex justify-between items-center mb-6">
+          <div class="flex items-center gap-3">
+            <i class="w-6 h-6 text-slate-400" data-lucide="menu"></i>
+            <h1 class="text-xl font-semibold">Maintenance</h1>
+          </div>
+          <div class="relative">
+            <i class="w-6 h-6 text-slate-400" data-lucide="bell"></i>
+            <span
+              class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full"
+              >2</span
+            >
+          </div>
+        </div>
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-medium">Overview</h2>
+          <div
+            class="flex items-center gap-1 text-slate-400 text-sm bg-slate-800/50 px-2 py-1 rounded-md"
+          >
+            <span>This Month</span>
+            <i class="w-4 h-4" data-lucide="chevron-down"></i>
+          </div>
+        </div>
+        <!-- Overview Grid -->
+        <div class="grid grid-cols-4 gap-2">
+          <div class="card-total p-3 rounded-xl flex flex-col items-center">
+            <span class="text-xs text-slate-400 mb-1">Total</span>
+            <span class="text-2xl font-bold">28</span>
+          </div>
+          <div class="card-completed p-3 rounded-xl flex flex-col items-center">
+            <span class="text-xs text-green-400 mb-1">Completed</span>
+            <span class="text-2xl font-bold text-green-400">16</span>
+          </div>
+          <div class="card-progress p-3 rounded-xl flex flex-col items-center">
+            <span class="text-xs text-orange-400 mb-1">Progress</span>
+            <span class="text-2xl font-bold text-orange-400">08</span>
+          </div>
+          <div class="card-pending p-3 rounded-xl flex flex-col items-center">
+            <span class="text-xs text-red-400 mb-1">Pending</span>
+            <span class="text-2xl font-bold text-red-400">04</span>
+          </div>
+        </div>
+      </header>
+      <!-- END: Header -->
+      <!-- BEGIN: Maintenance List Content -->
+      <section class="px-6 h-[500px] overflow-y-auto hide-scrollbar pb-24">
+        <div class="flex justify-between items-center mb-4 mt-2">
+          <h3 class="font-medium">Maintenance Requests</h3>
+          <button class="text-indigo-400 text-sm font-medium">View All</button>
+        </div>
+        <div class="space-y-4">
+          <!-- Request Item 1: AC -->
+          <div
+            class="glass-card p-4 rounded-2xl"
+            data-purpose="maintenance-item"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex gap-4">
+                <div
+                  class="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center"
+                >
+                  <i
+                    class="w-5 h-5 text-orange-400"
+                    data-lucide="snowflake"
+                  ></i>
+                </div>
+                <div>
+                  <h4 class="text-sm font-semibold">#MT-1024</h4>
+                  <p class="text-xs text-slate-400 mt-1">
+                    AC not cooling in Room 205
+                  </p>
+                  <p class="text-[10px] text-slate-500 mt-1">
+                    Room 205 • Guest Reported
+                  </p>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-2">
+                <span
+                  class="px-3 py-1 rounded-full text-[10px] bg-orange-500/20 text-orange-400 font-medium"
+                  >Pending</span
+                >
+                <span class="text-[10px] text-slate-500">10:30 AM</span>
+              </div>
+            </div>
+          </div>
+          <!-- Request Item 2: Water Leak -->
+          <div
+            class="glass-card p-4 rounded-2xl"
+            data-purpose="maintenance-item"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex gap-4">
+                <div
+                  class="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center"
+                >
+                  <i class="w-5 h-5 text-indigo-400" data-lucide="droplets"></i>
+                </div>
+                <div>
+                  <h4 class="text-sm font-semibold">#MT-1023</h4>
+                  <p class="text-xs text-slate-400 mt-1">
+                    Water leakage in bathroom
+                  </p>
+                  <p class="text-[10px] text-slate-500 mt-1">
+                    Room 301 • Housekeeping
+                  </p>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-2">
+                <span
+                  class="px-3 py-1 rounded-full text-[10px] bg-blue-500/20 text-blue-400 font-medium"
+                  >In Progress</span
+                >
+                <span class="text-[10px] text-slate-500">09:15 AM</span>
+              </div>
+            </div>
+          </div>
+          <!-- Request Item 3: TV -->
+          <div
+            class="glass-card p-4 rounded-2xl"
+            data-purpose="maintenance-item"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex gap-4">
+                <div
+                  class="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center"
+                >
+                  <i class="w-5 h-5 text-green-400" data-lucide="tv"></i>
+                </div>
+                <div>
+                  <h4 class="text-sm font-semibold">#MT-1022</h4>
+                  <p class="text-xs text-slate-400 mt-1">TV not working</p>
+                  <p class="text-[10px] text-slate-500 mt-1">
+                    Room 102 • Guest Reported
+                  </p>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-2">
+                <span
+                  class="px-3 py-1 rounded-full text-[10px] bg-green-500/20 text-green-400 font-medium"
+                  >Completed</span
+                >
+                <span class="text-[10px] text-slate-500">Yesterday</span>
+              </div>
+            </div>
+          </div>
+          <!-- Request Item 4: Light -->
+          <div
+            class="glass-card p-4 rounded-2xl"
+            data-purpose="maintenance-item"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex gap-4">
+                <div
+                  class="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center"
+                >
+                  <i class="w-5 h-5 text-green-400" data-lucide="lightbulb"></i>
+                </div>
+                <div>
+                  <h4 class="text-sm font-semibold">#MT-1021</h4>
+                  <p class="text-xs text-slate-400 mt-1">Light flickering</p>
+                  <p class="text-[10px] text-slate-500 mt-1">
+                    Corridor 2 • Staff Reported
+                  </p>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-2">
+                <span
+                  class="px-3 py-1 rounded-full text-[10px] bg-green-500/20 text-green-400 font-medium"
+                  >Completed</span
+                >
+                <span class="text-[10px] text-slate-500">2 Days Ago</span>
+              </div>
+            </div>
+          </div>
+          <!-- Request Item 5: Lock -->
+          <div
+            class="glass-card p-4 rounded-2xl"
+            data-purpose="maintenance-item"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex gap-4">
+                <div
+                  class="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center"
+                >
+                  <i class="w-5 h-5 text-orange-400" data-lucide="lock"></i>
+                </div>
+                <div>
+                  <h4 class="text-sm font-semibold">#MT-1020</h4>
+                  <p class="text-xs text-slate-400 mt-1">Door lock issue</p>
+                  <p class="text-[10px] text-slate-500 mt-1">
+                    Room 404 • Guest Reported
+                  </p>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-2">
+                <span
+                  class="px-3 py-1 rounded-full text-[10px] bg-orange-500/20 text-orange-400 font-medium"
+                  >Pending</span
+                >
+                <span class="text-[10px] text-slate-500">2 Days Ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- END: Maintenance List Content -->
+      <!-- BEGIN: Floating Action Button -->
+      <button
+        class="absolute bottom-24 right-6 w-14 h-14 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30 active:scale-95 transition-transform"
+      >
+        <i class="w-8 h-8 text-white" data-lucide="plus"></i>
+      </button>
+      <!-- END: Floating Action Button -->
+      <!-- BEGIN: Bottom Navigation Bar -->
+      <nav
+        class="absolute bottom-0 w-full bg-[#020817] border-t border-slate-800 px-6 py-4 safe-area-bottom"
+      >
+        <div class="flex justify-between items-center">
+          <div class="flex flex-col items-center gap-1 opacity-50">
+            <i class="w-5 h-5" data-lucide="layout-grid"></i>
+            <span class="text-[10px]">Dashboard</span>
+          </div>
+          <div class="flex flex-col items-center gap-1 opacity-50">
+            <i class="w-5 h-5" data-lucide="calendar"></i>
+            <span class="text-[10px]">Reservations</span>
+          </div>
+          <div class="flex flex-col items-center gap-1 opacity-50">
+            <i class="w-5 h-5" data-lucide="door-open"></i>
+            <span class="text-[10px]">Rooms</span>
+          </div>
+          <div class="flex flex-col items-center gap-1 relative opacity-50">
+            <i class="w-5 h-5" data-lucide="message-square"></i>
+            <span class="text-[10px]">Messages</span>
+            <span
+              class="absolute -top-1 -right-1 bg-red-500 w-3 h-3 border-2 border-[#020817] rounded-full"
+            ></span>
+          </div>
+          <div class="flex flex-col items-center gap-1">
+            <i class="w-5 h-5 text-indigo-400" data-lucide="align-justify"></i>
+            <span class="text-[10px] text-indigo-400">More</span>
+          </div>
+        </div>
+      </nav>
+      <!-- END: Bottom Navigation Bar -->
+    </main>
+    <!-- END: Mobile Container -->
+    <script data-purpose="lucide-initialization">
+      // Initialize Lucide icons
+      lucide.createIcons();
+    </script>
+  </body>
+</html>

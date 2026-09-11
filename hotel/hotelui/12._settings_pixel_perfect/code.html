@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Settings - ShopnoJatra Hotel Partner App</title>
+    <!-- BEGIN: Tailwind CSS & Configuration -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              "app-dark": "#0b1121",
+              "app-card": "#141c31",
+              "app-border": "#1e293b",
+              "brand-purple": "#7c3aed",
+              "brand-blue": "#3b82f6",
+              "text-dim": "#94a3b8",
+            },
+          },
+        },
+      };
+    </script>
+    <!-- END: Tailwind CSS & Configuration -->
+    <!-- BEGIN: Custom Styles -->
+    <style data-purpose="layout-adjustments">
+      body {
+        background-color: #0b1121;
+        color: white;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+      }
+      /* Custom scrollbar for a clean mobile look */
+      ::-webkit-scrollbar {
+        width: 0px;
+      }
+      .safe-area-bottom {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+    </style>
+    <!-- END: Custom Styles -->
+  </head>
+  <body class="flex justify-center items-center min-h-screen p-4">
+    <!-- BEGIN: Mobile App Container -->
+    <div
+      class="relative w-[375px] h-[812px] bg-app-dark rounded-[40px] shadow-2xl overflow-hidden flex flex-col border-[8px] border-slate-900"
+      data-purpose="app-shell"
+    >
+      <!-- BEGIN: StatusBar -->
+      <div
+        class="flex justify-between items-center px-8 pt-6 pb-2 text-xs font-semibold"
+        data-purpose="status-bar"
+      >
+        <span class="">9:41</span>
+        <div class="flex gap-1.5 items-center">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 21l-12-18h24z"></path>
+          </svg>
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+          </svg>
+          <div
+            class="w-6 h-3 border border-white rounded-sm relative after:content-[''] after:absolute after:top-0.5 after:right-[-3px] after:w-[2px] after:h-1.5 after:bg-white"
+          ></div>
+        </div>
+      </div>
+      <!-- END: StatusBar -->
+      <!-- BEGIN: Header -->
+      <header
+        class="px-5 py-4 flex items-center gap-4"
+        data-purpose="main-header"
+      >
+        <button class="p-1">
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M15 19l-7-7 7-7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+        </button>
+        <h1 class="text-xl font-bold">Settings</h1>
+      </header>
+      <!-- END: Header -->
+      <!-- BEGIN: Content Area -->
+      <main
+        class="flex-1 overflow-y-auto px-5 pb-24"
+        data-purpose="main-content"
+      >
+        <!-- BEGIN: Hotel Settings Section -->
+        <section class="mb-6">
+          <h2
+            class="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3"
+          >
+            Hotel Settings
+          </h2>
+          <div class="bg-app-card rounded-2xl overflow-hidden">
+            <!-- Item: Hotel Profile -->
+            <div
+              class="flex items-center p-4 border-b border-app-border active:bg-slate-800"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500 mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path>
+                  <circle cx="8.5" cy="7" r="4"></circle>
+                  <path d="M20 8v6M23 11h-6"></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm font-medium">Hotel Profile</div>
+                <div class="text-[10px] text-text-dim">
+                  Edit your hotel information
+                </div>
+              </div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+            <!-- Item: Policies & Rules -->
+            <div
+              class="flex items-center p-4 border-b border-app-border active:bg-slate-800"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-500 mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm font-medium">Policies &amp; Rules</div>
+                <div class="text-[10px] text-text-dim">
+                  Manage hotel policies
+                </div>
+              </div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+            <!-- Item: Amenities -->
+            <div
+              class="flex items-center p-4 border-b border-app-border active:bg-slate-800"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-500 mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-1.932 0l-2.387.477a2 2 0 00-1.022.547l-3.82 3.82a2 2 0 000 2.828l.707.707a2 2 0 002.828 0l3.82-3.82a2 2 0 011.022-.547l2.387-.477a6 6 0 011.932 0l2.387.477a2 2 0 011.022.547l3.82 3.82a2 2 0 010 2.828l-.707.707a2 2 0 01-2.828 0l-3.82-3.82z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm font-medium">
+                  Amenities &amp; Facilities
+                </div>
+                <div class="text-[10px] text-text-dim">Manage amenities</div>
+              </div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+            <!-- Item: Payment -->
+            <div
+              class="flex items-center p-4 border-b border-app-border active:bg-slate-800"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-blue-600/20 flex items-center justify-center text-blue-400 mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm font-medium">Payment Settings</div>
+                <div class="text-[10px] text-text-dim">
+                  Manage payment methods
+                </div>
+              </div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+            <!-- Item: Notifications -->
+            <div class="flex items-center p-4 active:bg-slate-800">
+              <div
+                class="w-10 h-10 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-500 mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm font-medium">Notification Settings</div>
+                <div class="text-[10px] text-text-dim">
+                  Manage notifications
+                </div>
+              </div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+          </div>
+        </section>
+        <!-- END: Hotel Settings Section -->
+        <!-- BEGIN: Account & Security Section -->
+        <section class="mb-6">
+          <h2
+            class="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3"
+          >
+            Account &amp; Security
+          </h2>
+          <div class="bg-app-card rounded-2xl overflow-hidden">
+            <!-- Item: Password -->
+            <div
+              class="flex items-center p-4 border-b border-app-border active:bg-slate-800"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-slate-700/50 flex items-center justify-center text-white mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1 text-sm font-medium">Change Password</div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+            <!-- Item: 2FA Toggle -->
+            <div class="flex items-center p-4 border-b border-app-border">
+              <div
+                class="w-10 h-10 rounded-xl bg-slate-700/50 flex items-center justify-center text-white mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1 text-sm font-medium">
+                Two-Factor Authentication
+              </div>
+              <!-- Toggle Switch -->
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input checked="" class="sr-only peer" type="checkbox" />
+                <div
+                  class="w-10 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-purple"
+                ></div>
+              </label>
+            </div>
+            <!-- Item: Devices -->
+            <div
+              class="flex items-center p-4 border-b border-app-border active:bg-slate-800"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-slate-700/50 flex items-center justify-center text-white mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1 text-sm font-medium">Login Devices</div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+            <!-- Item: Backup -->
+            <div class="flex items-center p-4 active:bg-slate-800">
+              <div
+                class="w-10 h-10 rounded-xl bg-slate-700/50 flex items-center justify-center text-white mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1 text-sm font-medium">Backup &amp; Restore</div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+          </div>
+        </section>
+        <!-- END: Account & Security Section -->
+        <!-- BEGIN: Support Section -->
+        <section class="mb-10">
+          <h2
+            class="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3"
+          >
+            Support
+          </h2>
+          <div class="bg-app-card rounded-2xl overflow-hidden">
+            <div
+              class="flex items-center p-4 border-b border-app-border active:bg-slate-800"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-slate-700/50 flex items-center justify-center text-white mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1 text-sm font-medium">Help Center</div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+            <div class="flex items-center p-4 active:bg-slate-800">
+              <div
+                class="w-10 h-10 rounded-xl bg-slate-700/50 flex items-center justify-center text-white mr-4"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1 text-sm font-medium">Contact Support</div>
+              <svg
+                class="w-4 h-4 text-text-dim"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+          </div>
+        </section>
+        <!-- END: Support Section -->
+        <!-- BEGIN: App Version -->
+        <div class="text-center py-6">
+          <p
+            class="text-[10px] text-text-dim uppercase tracking-widest font-semibold opacity-60"
+          >
+            LuxeStay Management System v2.4.0
+          </p>
+        </div>
+        <!-- END: App Version -->
+      </main>
+      <!-- END: Content Area -->
+      <!-- BEGIN: Floating Action Button -->
+      <div class="absolute right-6 bottom-24">
+        <button
+          class="w-14 h-14 bg-gradient-to-br from-brand-purple to-brand-blue rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+        ></button>
+      </div>
+      <!-- END: Floating Action Button -->
+      <!-- BEGIN: Navigation Bar -->
+      <nav
+        class="absolute bottom-0 left-0 right-0 bg-app-card border-t border-app-border flex justify-around items-center pt-3 pb-6 safe-area-bottom"
+        data-purpose="bottom-nav"
+      >
+        <!-- Nav Item: Dashboard -->
+        <div class="flex flex-col items-center gap-1 opacity-60">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            ></path>
+          </svg>
+          <span class="text-[10px]">Dashboard</span>
+        </div>
+        <!-- Nav Item: Reservations -->
+        <div class="flex flex-col items-center gap-1 opacity-60">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            ></path>
+          </svg>
+          <span class="text-[10px]">Reservations</span>
+        </div>
+        <!-- Nav Item: Rooms -->
+        <div class="flex flex-col items-center gap-1 opacity-60">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+            ></path>
+          </svg>
+          <span class="text-[10px]">Rooms</span>
+        </div>
+        <!-- Nav Item: Messages -->
+        <div class="flex flex-col items-center gap-1 opacity-60 relative">
+          <div
+            class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[8px] font-bold text-white border border-app-card"
+          >
+            5
+          </div>
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+            ></path>
+          </svg>
+          <span class="text-[10px]">Messages</span>
+        </div>
+        <!-- Nav Item: More (Active Settings) -->
+        <div class="flex flex-col items-center gap-1 text-brand-purple">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M4 6h16M4 12h16M4 18h16"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[10px] font-semibold">More</span>
+        </div>
+      </nav>
+      <!-- END: Navigation Bar -->
+    </div>
+    <!-- END: Mobile App Container -->
+  </body>
+</html>

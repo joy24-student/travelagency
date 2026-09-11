@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Reservations - ShopnoJatra Hotel Partner App</title>
+    <!-- Tailwind CSS v3 with plugins -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Google Fonts: Inter for UI -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style data-purpose="custom-typography">
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0b0e14;
+        color: #ffffff;
+      }
+      .text-xxs {
+        font-size: 0.65rem;
+      }
+    </style>
+    <style data-purpose="custom-layout">
+      /* Custom scrollbar for horizontal filter */
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+  </head>
+  <body class="flex justify-center items-start min-h-screen">
+    <!-- BEGIN: Mobile Container (iOS Simulation) -->
+    <main
+      class="w-[375px] h-[812px] bg-[#0d1117] relative flex flex-col overflow-hidden shadow-2xl border border-gray-800"
+    >
+      <!-- BEGIN: Status Bar -->
+      <div
+        class="flex justify-between items-center px-6 pt-3 pb-2 text-white w-full"
+      >
+        <span class="text-sm font-semibold">9:41</span>
+        <div class="flex space-x-1.5 items-center">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path
+              d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+              style="display: none"
+            ></path>
+            <path
+              d="M12.01 21.49l-1.42-1.29C5.5 15.54 2 12.51 2 8.7 2 5.71 4.41 3.3 7.4 3.3c1.7 0 3.33.79 4.39 2.04 1.06-1.25 2.69-2.04 4.39-2.04 2.99 0 5.4 2.41 5.4 5.4 0 3.81-3.5 6.84-8.59 11.5l-1.42 1.29z"
+              style="display: none"
+            ></path>
+            <rect
+              height="4"
+              rx="1"
+              style="display: none"
+              width="4"
+              x="18"
+              y="5"
+            ></rect>
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"></path>
+            </svg>
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path
+                d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"
+              ></path>
+            </svg>
+          </svg>
+        </div>
+      </div>
+      <!-- END: Status Bar -->
+      <!-- BEGIN: Header -->
+      <header
+        class="px-5 py-3 flex justify-between items-center"
+        data-purpose="app-header"
+      >
+        <div class="flex items-center gap-4">
+          <button class="text-white">
+            <svg
+              class="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M4 6h16M4 12h16M4 18h16"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+          </button>
+          <h1 class="text-lg font-semibold tracking-wide">Reservations</h1>
+        </div>
+        <div class="flex items-center gap-4">
+          <button class="text-gray-400">
+            <svg
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+          </button>
+          <button class="text-gray-400">
+            <svg
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+      <!-- END: Header -->
+      <!-- BEGIN: Content Area -->
+      <div class="flex-1 overflow-y-auto pb-20">
+        <!-- BEGIN: Filter Pills -->
+        <section
+          class="flex gap-2 px-5 py-4 overflow-x-auto hide-scrollbar"
+          data-purpose="status-filters"
+        >
+          <button
+            class="px-4 py-1.5 rounded-full bg-gray-800 text-xs font-medium text-gray-300 border border-gray-700 whitespace-nowrap"
+          >
+            All
+          </button>
+          <button
+            class="px-4 py-1.5 rounded-full bg-[#4f46e5] text-xs font-medium text-white whitespace-nowrap"
+          >
+            Upcoming
+          </button>
+          <button
+            class="px-4 py-1.5 rounded-full bg-gray-800 text-xs font-medium text-gray-300 border border-gray-700 whitespace-nowrap"
+          >
+            Checked In
+          </button>
+          <button
+            class="px-4 py-1.5 rounded-full bg-gray-800 text-xs font-medium text-gray-300 border border-gray-700 whitespace-nowrap"
+          >
+            Checked Out
+          </button>
+          <button
+            class="px-4 py-1.5 rounded-full bg-gray-800 text-xs font-medium text-gray-300 border border-gray-700 whitespace-nowrap"
+          >
+            Cancelled
+          </button>
+        </section>
+        <!-- END: Filter Pills -->
+        <!-- BEGIN: List Section - Today -->
+        <section class="px-5 mb-6">
+          <h2
+            class="text-xs font-semibold text-gray-500 mb-4 uppercase tracking-wider"
+          >
+            Today, 30 May 2024
+          </h2>
+          <div class="space-y-3">
+            <!-- Guest Card: Robert Fox -->
+            <div
+              class="bg-[#161b22] rounded-2xl p-4 border border-gray-800 shadow-sm"
+              data-purpose="reservation-card"
+            >
+              <div class="flex items-start justify-between">
+                <div class="flex gap-3">
+                  <img
+                    alt="Robert Fox"
+                    class="w-12 h-12 rounded-full border-2 border-indigo-500/30"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCiKeGZeqZjG6-WQw-37Fj3cl5AYgqQb4V_U0ZjifpLyzViEDj0pmCIlT78xh701Feo21ofnO7_ZRmlB2sIhGoae2u0Crm2VmCexQgCJEq5_suO9kVQxFpmqbFWMhhMh49XV__VeNHy99knsrKFnBv6lekerz5YY12v4JslLQN_4fzHVx8-FpffjFksIUg7dZ0A8nBZyVsLZalqrOCSywsn5SFDGObFppUwku7dW4DzSg6pMJEd9kgA2tGptBlAHwTDiGvHLIqnoFM"
+                  />
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <h3 class="font-bold text-[15px]">Robert Fox</h3>
+                      <span
+                        class="bg-yellow-500/20 text-yellow-500 text-[9px] px-1.5 py-0.5 rounded font-bold"
+                        >VIP</span
+                      >
+                    </div>
+                    <p class="text-gray-500 text-xs mt-0.5">
+                      Booking ID: #R-88211
+                    </p>
+                  </div>
+                </div>
+                <span
+                  class="bg-green-500/10 text-green-500 text-[10px] font-bold px-3 py-1 rounded-full border border-green-500/20"
+                  >Confirmed</span
+                >
+              </div>
+              <div class="mt-3 pl-[60px] flex justify-between items-end">
+                <div>
+                  <p class="text-[11px] text-gray-400">
+                    26 May – 28 May, 2 Nights
+                  </p>
+                  <p class="text-[13px] font-medium text-gray-200 mt-0.5">
+                    Deluxe Room
+                  </p>
+                  <p class="text-[11px] text-gray-500">2 Adults • 1 Child</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[15px] font-bold">$240</p>
+                  <p class="text-[10px] text-green-500 font-medium">Paid</p>
+                </div>
+              </div>
+            </div>
+            <!-- Guest Card: Jane Cooper -->
+            <div
+              class="bg-[#161b22] rounded-2xl p-4 border border-gray-800 shadow-sm"
+              data-purpose="reservation-card"
+            >
+              <div class="flex items-start justify-between">
+                <div class="flex gap-3">
+                  <img
+                    alt="Jane Cooper"
+                    class="w-12 h-12 rounded-full border-2 border-indigo-500/30"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyeJyBFVdSEv0nEIMsF_cIgC03ERCgtMP9ccIYvFBup5X5LcgplayAfBHFCdZhEuiANFpfbFfIaQrfme-zneGk0jKm9VJf9fYdjebFXg4OjWVf9Lw1G6BXwxONg132Vm4YruQxCkqvZa5-13U04_Bj6baqiT-63xSMqWirZATxN2BoZ8MkH2GtEZqyBXAus9mW21IgMHoLBmGWIKH6afX__mWJFndpV1_CiTsc7FUqot5cVumVBylBKa4BR6ISk4Va5Y9L2mUxro0"
+                  />
+                  <div>
+                    <h3 class="font-bold text-[15px]">Jane Cooper</h3>
+                    <p class="text-gray-500 text-xs mt-0.5">
+                      Booking ID: #R-88212
+                    </p>
+                  </div>
+                </div>
+                <span
+                  class="bg-indigo-500/10 text-indigo-400 text-[10px] font-bold px-3 py-1 rounded-full border border-indigo-500/20"
+                  >Upcoming</span
+                >
+              </div>
+              <div class="mt-3 pl-[60px] flex justify-between items-end">
+                <div>
+                  <p class="text-[11px] text-gray-400">
+                    30 May – 02 Jun, 3 Nights
+                  </p>
+                  <p class="text-[13px] font-medium text-gray-200 mt-0.5">
+                    Family Suite
+                  </p>
+                  <p class="text-[11px] text-gray-500">4 Adults • 2 Children</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[15px] font-bold">$560</p>
+                  <p class="text-[10px] text-gray-500 font-medium">
+                    Pay at Hotel
+                  </p>
+                </div>
+              </div>
+            </div>
+            <!-- Guest Card: Wade Warren -->
+            <div
+              class="bg-[#161b22] rounded-2xl p-4 border border-gray-800 shadow-sm"
+              data-purpose="reservation-card"
+            >
+              <div class="flex items-start justify-between">
+                <div class="flex gap-3">
+                  <img
+                    alt="Wade Warren"
+                    class="w-12 h-12 rounded-full border-2 border-indigo-500/30"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKerq_ZNpaKyPzLlRfN4CGGf-TXlwzA2VMlvrw90kz4K9xTbyrBlEmJK3yGfCAs3uxFtUAI1UBQMFZjw4csoYLC0bQRyTIKssUc4S749N4lBUz97iZub7EFOAN3ZRlmRxTeZAlUw4_b_iNDVRb0Ln-ZFh9MgZgGihw7Vp_u0cQIMODQM5tU8-iGTxD3M-qzifyBoPjFsKoL2qO2VXTfWqnGEmTqcwDogPMKRYBeikoE6NtfhbyYapNfdsIILavuRgt_a64FtCS864"
+                  />
+                  <div>
+                    <h3 class="font-bold text-[15px]">Wade Warren</h3>
+                    <p class="text-gray-500 text-xs mt-0.5">
+                      Booking ID: #R-88213
+                    </p>
+                  </div>
+                </div>
+                <span
+                  class="bg-orange-500/10 text-orange-400 text-[10px] font-bold px-3 py-1 rounded-full border border-orange-500/20"
+                  >Pending</span
+                >
+              </div>
+              <div class="mt-3 pl-[60px] flex justify-between items-end">
+                <div>
+                  <p class="text-[11px] text-gray-400">
+                    30 May – 31 May, 1 Night
+                  </p>
+                  <p class="text-[13px] font-medium text-gray-200 mt-0.5">
+                    Executive Room
+                  </p>
+                  <p class="text-[11px] text-gray-500">1 Adult • 0 Child</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[15px] font-bold">$160</p>
+                  <p class="text-[10px] text-gray-500 font-medium">
+                    Pay at Hotel
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <!-- END: List Section - Today -->
+        <!-- BEGIN: List Section - Tomorrow -->
+        <section class="px-5">
+          <h2
+            class="text-xs font-semibold text-gray-500 mb-4 uppercase tracking-wider"
+          >
+            Tomorrow, 31 May 2024
+          </h2>
+          <!-- Guest Card: Esther Howard -->
+          <div
+            class="bg-[#161b22] rounded-2xl p-4 border border-gray-800 shadow-sm"
+            data-purpose="reservation-card"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex gap-3">
+                <img
+                  alt="Esther Howard"
+                  class="w-12 h-12 rounded-full border-2 border-indigo-500/30"
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuCdPeh5be2kX1xZ3ZomFmSmZX8D-WRnyRgBZ4OqOiOOaVCC-IOeXX-oIyFGwOsNWyDpDl2idbXByBX7iqVz3rcyI7meEJy2srgZVBXpDfLx18c3VVvAE_StEKiILgvj0VggXfQoMXK1IjP_0D6RxAz8EGiFqPInhjh9m3M_SgPdIpKJWTlmdNUREoJM4m2xQsxvySw_CXxpupvuPM8QHZ71gphihi5gnciYkoo5wHtH5HV2TYdowOlvRTjbQdK_bJ09nHPhKBPnGio"
+                />
+                <div>
+                  <h3 class="font-bold text-[15px]">Esther Howard</h3>
+                  <p class="text-gray-500 text-xs mt-0.5">
+                    Booking ID: #R-88214
+                  </p>
+                </div>
+              </div>
+              <span
+                class="bg-green-500/10 text-green-500 text-[10px] font-bold px-3 py-1 rounded-full border border-green-500/20"
+                >Confirmed</span
+              >
+            </div>
+            <div class="mt-3 pl-[60px] flex justify-between items-end">
+              <div>
+                <p class="text-[11px] text-gray-400">
+                  31 May – 02 Jun, 2 Nights
+                </p>
+                <p class="text-[13px] font-medium text-gray-200 mt-0.5">
+                  Standard Room
+                </p>
+                <p class="text-[11px] text-gray-500">2 Adults</p>
+              </div>
+              <div class="text-right">
+                <p class="text-[15px] font-bold">$220</p>
+                <p class="text-[10px] text-green-500 font-medium">Paid</p>
+              </div>
+            </div>
+          </div>
+        </section>
+        <!-- END: List Section - Tomorrow -->
+      </div>
+      <!-- END: Content Area -->
+      <!-- BEGIN: Bottom Navigation -->
+      <nav
+        class="absolute bottom-0 left-0 right-0 bg-[#0d1117] border-t border-gray-800 px-4 py-3 flex justify-between items-center"
+        data-purpose="bottom-nav"
+      >
+        <div class="flex flex-col items-center gap-1 opacity-50">
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[10px]">Dashboard</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 text-indigo-500">
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[10px] font-semibold">Reservations</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 opacity-50">
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[10px]">Rooms</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 opacity-50 relative">
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span
+            class="absolute top-0 right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-[#0d1117] flex items-center justify-center text-[7px] text-white"
+            >5</span
+          >
+          <span class="text-[10px]">Messages</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 opacity-50">
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            ></path>
+          </svg>
+          <span class="text-[10px]">More</span>
+        </div>
+      </nav>
+      <!-- END: Bottom Navigation -->
+    </main>
+    <!-- END: Mobile Container -->
+  </body>
+</html>

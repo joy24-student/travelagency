@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Room Management - ShopnoJatra Hotel Partner</title>
+    <!-- Tailwind CSS CDN with plugins -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Google Fonts for Inter-like appearance -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style data-purpose="custom-styling">
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0d1117;
+        color: #ffffff;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .custom-gradient-bg {
+        background: linear-gradient(180deg, #161b22 0%, #0d1117 100%);
+      }
+      .card-dark {
+        background-color: #1c2128;
+        border: 1px solid #30363d;
+      }
+      /* Hide scrollbar for Chrome, Safari and Opera */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      /* Hide scrollbar for IE, Edge and Firefox */
+      .no-scrollbar {
+        -ms-overflow-style: none; /* IE and Edge */
+        scrollbar-width: none; /* Firefox */
+      }
+    </style>
+  </head>
+  <body class="flex justify-center items-start min-h-screen bg-black">
+    <!-- BEGIN: Mobile Container (iOS Simulation) -->
+    <main
+      class="relative w-full max-w-[390px] h-[844px] bg-[#0d1117] overflow-hidden flex flex-col shadow-2xl"
+    >
+      <!-- BEGIN: Status Bar -->
+      <header class="flex justify-between items-center px-6 pt-12 pb-2">
+        <span class="text-sm font-semibold">9:41</span>
+        <div class="flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              d="M2 11h2v3H2v-3zm3-3h2v6H5V8zm3-3h2v9H8V5zm3-3h2v12h-2V2z"
+            ></path>
+          </svg>
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              d="M17.94 11H13V9h4.94A8 8 0 0011 2.06V7H9V2.06A8 8 0 002.06 9H7v2H2.06A8 8 0 009 17.94V13h2v4.94A8 8 0 0017.94 11z"
+            ></path>
+          </svg>
+          <svg class="w-6 h-3" fill="currentColor" viewBox="0 0 24 12">
+            <rect
+              fill="none"
+              height="10"
+              rx="2"
+              stroke="currentColor"
+              stroke-width="1"
+              width="20"
+              x="2"
+              y="1"
+            ></rect>
+            <rect
+              fill="currentColor"
+              height="8"
+              rx="1"
+              width="18"
+              x="3"
+              y="2"
+            ></rect>
+            <path
+              d="M22 4v4"
+              stroke="currentColor"
+              stroke-linecap="round"
+            ></path>
+          </svg>
+        </div>
+      </header>
+      <!-- END: Status Bar -->
+      <!-- BEGIN: Top Navigation Bar -->
+      <nav
+        class="flex items-center justify-between px-4 py-4"
+        data-purpose="top-nav"
+      >
+        <div class="flex items-center gap-4">
+          <button class="p-1">
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M4 6h16M4 12h16M4 18h16"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+          </button>
+          <h1 class="text-xl font-bold">Rooms</h1>
+        </div>
+        <div class="flex items-center gap-4">
+          <button class="p-1">
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+          </button>
+          <button class="p-1 bg-indigo-600 rounded-lg">
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M12 4v16m8-8H4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </nav>
+      <!-- END: Top Navigation Bar -->
+      <!-- BEGIN: Scrollable Content -->
+      <div
+        class="flex-1 overflow-y-auto no-scrollbar px-4 pb-24"
+        data-purpose="main-content"
+      >
+        <!-- BEGIN: Stats Summary -->
+        <section
+          class="grid grid-cols-5 gap-2 mt-4"
+          data-purpose="stats-summary"
+        >
+          <div
+            class="bg-[#1c2128] p-2 rounded-xl text-center border border-[#30363d]"
+          >
+            <p class="text-[10px] text-gray-400 mb-1">Total Rooms</p>
+            <p class="text-lg font-bold">70</p>
+          </div>
+          <div
+            class="bg-[#1c2128] p-2 rounded-xl text-center border border-[#30363d]"
+          >
+            <p class="text-[10px] text-green-400 mb-1">Available</p>
+            <p class="text-lg font-bold text-green-500">18</p>
+          </div>
+          <div
+            class="bg-[#1c2128] p-2 rounded-xl text-center border border-[#30363d]"
+          >
+            <p class="text-[10px] text-orange-400 mb-1">Occupied</p>
+            <p class="text-lg font-bold text-orange-500">35</p>
+          </div>
+          <div
+            class="bg-[#1c2128] p-2 rounded-xl text-center border border-[#30363d]"
+          >
+            <p class="text-[10px] text-yellow-400 mb-1">Maintenance</p>
+            <p class="text-lg font-bold text-yellow-500">5</p>
+          </div>
+          <div
+            class="bg-[#1c2128] p-2 rounded-xl text-center border border-[#30363d]"
+          >
+            <p class="text-[10px] text-gray-400 mb-1">Out of Service</p>
+            <p class="text-lg font-bold">2</p>
+          </div>
+        </section>
+        <!-- END: Stats Summary -->
+        <!-- BEGIN: Room Categories -->
+        <section class="mt-8" data-purpose="room-categories">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-base font-semibold">Room Categories</h2>
+            <button class="text-sm text-indigo-400">View All</button>
+          </div>
+          <div class="grid grid-cols-4 gap-3">
+            <!-- Standard -->
+            <div class="flex flex-col items-center">
+              <div
+                class="w-full aspect-square bg-indigo-900/30 border border-indigo-500/30 rounded-2xl flex items-center justify-center mb-2"
+              >
+                <svg
+                  class="w-6 h-6 text-indigo-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <p class="text-[11px] font-medium">Standard</p>
+              <p class="text-[10px] text-gray-500">32 Rooms</p>
+            </div>
+            <!-- Deluxe -->
+            <div class="flex flex-col items-center">
+              <div
+                class="w-full aspect-square bg-blue-900/30 border border-blue-500/30 rounded-2xl flex items-center justify-center mb-2"
+              >
+                <svg
+                  class="w-6 h-6 text-blue-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <p class="text-[11px] font-medium">Deluxe</p>
+              <p class="text-[10px] text-gray-500">18 Rooms</p>
+            </div>
+            <!-- Suite -->
+            <div class="flex flex-col items-center">
+              <div
+                class="w-full aspect-square bg-orange-900/30 border border-orange-500/30 rounded-2xl flex items-center justify-center mb-2"
+              >
+                <svg
+                  class="w-6 h-6 text-orange-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <p class="text-[11px] font-medium">Suite</p>
+              <p class="text-[10px] text-gray-500">12 Rooms</p>
+            </div>
+            <!-- Executive -->
+            <div class="flex flex-col items-center">
+              <div
+                class="w-full aspect-square bg-green-900/30 border border-green-500/30 rounded-2xl flex items-center justify-center mb-2"
+              >
+                <svg
+                  class="w-6 h-6 text-green-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  ></path>
+                </svg>
+              </div>
+              <p class="text-[11px] font-medium">Executive</p>
+              <p class="text-[10px] text-gray-500">8 Rooms</p>
+            </div>
+          </div>
+        </section>
+        <!-- END: Room Categories -->
+        <!-- BEGIN: Room Status List -->
+        <section class="mt-8" data-purpose="room-status">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-base font-semibold">Room Status</h2>
+            <button class="text-sm text-indigo-400">View All</button>
+          </div>
+          <div class="space-y-4">
+            <!-- Available -->
+            <div class="flex items-center gap-3">
+              <div
+                class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center"
+              >
+                <svg
+                  class="w-4 h-4 text-green-500"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs text-gray-300">Available</span>
+                  <span class="text-xs text-gray-400"
+                    ><b class="text-white">18</b> (26%)</span
+                  >
+                </div>
+                <div
+                  class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden"
+                >
+                  <div class="bg-green-500 h-full w-[26%]"></div>
+                </div>
+              </div>
+            </div>
+            <!-- Occupied -->
+            <div class="flex items-center gap-3">
+              <div
+                class="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center"
+              >
+                <svg
+                  class="w-4 h-4 text-orange-500"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs text-gray-300">Occupied</span>
+                  <span class="text-xs text-gray-400"
+                    ><b class="text-white">35</b> (50%)</span
+                  >
+                </div>
+                <div
+                  class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden"
+                >
+                  <div class="bg-orange-500 h-full w-[50%]"></div>
+                </div>
+              </div>
+            </div>
+            <!-- Reserved -->
+            <div class="flex items-center gap-3">
+              <div
+                class="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center"
+              >
+                <svg
+                  class="w-4 h-4 text-yellow-500"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs text-gray-300">Reserved</span>
+                  <span class="text-xs text-gray-400"
+                    ><b class="text-white">10</b> (14%)</span
+                  >
+                </div>
+                <div
+                  class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden"
+                >
+                  <div class="bg-yellow-500 h-full w-[14%]"></div>
+                </div>
+              </div>
+            </div>
+            <!-- Maintenance -->
+            <div class="flex items-center gap-3">
+              <div
+                class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center"
+              >
+                <svg
+                  class="w-4 h-4 text-purple-500"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                    fill-rule="evenodd"
+                  ></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs text-gray-300">Maintenance</span>
+                  <span class="text-xs text-gray-400"
+                    ><b class="text-white">5</b> (7%)</span
+                  >
+                </div>
+                <div
+                  class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden"
+                >
+                  <div class="bg-purple-500 h-full w-[7%]"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <!-- END: Room Status List -->
+        <!-- BEGIN: Floor Overview -->
+        <section class="mt-8" data-purpose="floor-overview">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-base font-semibold">Floor Overview</h2>
+            <button class="text-sm text-indigo-400">View All</button>
+          </div>
+          <div class="space-y-4">
+            <!-- 1st Floor -->
+            <div class="flex items-center gap-3">
+              <div
+                class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-[10px] font-bold text-indigo-400"
+              >
+                2B
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs text-gray-300">1st Floor</span>
+                  <span class="text-[10px] text-gray-500"
+                    >12 / 16 Rooms <b class="ml-2 text-white">75%</b></span
+                  >
+                </div>
+                <div
+                  class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden"
+                >
+                  <div class="bg-green-500 h-full w-[75%]"></div>
+                </div>
+              </div>
+            </div>
+            <!-- 2nd Floor -->
+            <div class="flex items-center gap-3">
+              <div
+                class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-[10px] font-bold text-purple-400"
+              >
+                3B
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs text-gray-300">2nd Floor</span>
+                  <span class="text-[10px] text-gray-500"
+                    >14 / 16 Rooms <b class="ml-2 text-white">88%</b></span
+                  >
+                </div>
+                <div
+                  class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden"
+                >
+                  <div class="bg-green-500 h-full w-[88%]"></div>
+                </div>
+              </div>
+            </div>
+            <!-- 3rd Floor -->
+            <div class="flex items-center gap-3">
+              <div
+                class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-[10px] font-bold text-green-400"
+              >
+                3S
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs text-gray-300">3rd Floor</span>
+                  <span class="text-[10px] text-gray-500"
+                    >16 / 16 Rooms <b class="ml-2 text-white">100%</b></span
+                  >
+                </div>
+                <div
+                  class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden"
+                >
+                  <div class="bg-green-500 h-full w-[100%]"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <!-- END: Floor Overview -->
+      </div>
+      <!-- END: Scrollable Content -->
+      <!-- BEGIN: Bottom Navigation -->
+      <footer
+        class="absolute bottom-0 left-0 w-full bg-[#1c2128] border-t border-[#30363d] px-4 pt-3 pb-8"
+        data-purpose="bottom-nav"
+      >
+        <div class="flex justify-between items-center">
+          <!-- Dashboard -->
+          <div class="flex flex-col items-center gap-1 opacity-50">
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+            <span class="text-[10px]">Dashboard</span>
+          </div>
+          <!-- Reservations -->
+          <div class="flex flex-col items-center gap-1 opacity-50">
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+            <span class="text-[10px]">Reservations</span>
+          </div>
+          <!-- Rooms (Active) -->
+          <div class="flex flex-col items-center gap-1 text-indigo-500">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M19 13H5v-2h14v2zM19 5H5V3h14v2zm0 16H5v-2h14v2z"></path>
+            </svg>
+            <span class="text-[10px]">Rooms</span>
+          </div>
+          <!-- Messages -->
+          <div class="flex flex-col items-center gap-1 opacity-50 relative">
+            <span
+              class="absolute -top-1 -right-1 bg-red-500 text-[8px] text-white w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#1c2128]"
+              >5</span
+            >
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+            <span class="text-[10px]">Messages</span>
+          </div>
+          <!-- More -->
+          <div class="flex flex-col items-center gap-1 opacity-50">
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M4 6h16M4 12h16m-7 6h7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+            <span class="text-[10px]">More</span>
+          </div>
+        </div>
+        <!-- Home Indicator -->
+        <div class="w-32 h-1.5 bg-gray-600 rounded-full mx-auto mt-6"></div>
+      </footer>
+      <!-- END: Bottom Navigation -->
+    </main>
+    <!-- END: Mobile Container -->
+  </body>
+</html>

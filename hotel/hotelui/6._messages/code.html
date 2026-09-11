@@ -1,0 +1,448 @@
+<!doctype html>
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Messages - Hotel Partner App</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-high": "#222a3d",
+              "inverse-surface": "#dae2fd",
+              "outline-variant": "#464554",
+              "on-secondary-fixed-variant": "#005236",
+              "surface-container-highest": "#2d3449",
+              "on-tertiary": "#472a00",
+              "tertiary-fixed-dim": "#ffb95f",
+              "tertiary-container": "#ca8100",
+              "secondary-fixed-dim": "#4edea3",
+              "on-primary": "#1000a9",
+              "inverse-on-surface": "#283044",
+              outline: "#908fa0",
+              "on-tertiary-fixed": "#2a1700",
+              "on-primary-fixed": "#07006c",
+              "on-error": "#690005",
+              "tertiary-fixed": "#ffddb8",
+              "on-background": "#dae2fd",
+              background: "#0b1326",
+              "surface-container": "#171f33",
+              secondary: "#4edea3",
+              "on-secondary-container": "#00311f",
+              "secondary-container": "#00a572",
+              "primary-container": "#8083ff",
+              "surface-variant": "#2d3449",
+              "surface-tint": "#c0c1ff",
+              "surface-container-low": "#131b2e",
+              "on-secondary": "#003824",
+              "surface-dim": "#0b1326",
+              "inverse-primary": "#494bd6",
+              "on-surface-variant": "#c7c4d7",
+              error: "#ffb4ab",
+              "on-surface": "#dae2fd",
+              "on-primary-container": "#0d0096",
+              surface: "#0b1326",
+              "surface-container-lowest": "#060e20",
+              "primary-fixed": "#e1e0ff",
+              "on-tertiary-fixed-variant": "#653e00",
+              "on-error-container": "#ffdad6",
+              "error-container": "#93000a",
+              tertiary: "#ffb95f",
+              "primary-fixed-dim": "#c0c1ff",
+              "on-tertiary-container": "#3e2400",
+              "surface-bright": "#31394d",
+              "on-primary-fixed-variant": "#2f2ebe",
+              "on-secondary-fixed": "#002113",
+              "secondary-fixed": "#6ffbbe",
+              primary: "#c0c1ff",
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+            spacing: {
+              xl: "32px",
+              base: "4px",
+              xs: "8px",
+              sm: "12px",
+              lg: "24px",
+              md: "16px",
+              "container-padding": "16px",
+              "card-gap": "12px",
+            },
+            fontFamily: {
+              "label-md": ["Inter"],
+              "body-sm": ["Inter"],
+              "headline-md": ["Inter"],
+              "label-sm": ["Inter"],
+              "headline-sm": ["Inter"],
+              "display-lg": ["Inter"],
+              "body-md": ["Inter"],
+              "body-lg": ["Inter"],
+              "headline-lg": ["Inter"],
+              "headline-lg-mobile": ["Inter"],
+            },
+            fontSize: {
+              "label-md": [
+                "12px",
+                {
+                  lineHeight: "16px",
+                  letterSpacing: "0.02em",
+                  fontWeight: "500",
+                },
+              ],
+              "body-sm": ["12px", { lineHeight: "16px", fontWeight: "400" }],
+              "headline-md": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "600" },
+              ],
+              "label-sm": ["10px", { lineHeight: "12px", fontWeight: "600" }],
+              "headline-sm": [
+                "16px",
+                { lineHeight: "24px", fontWeight: "600" },
+              ],
+              "display-lg": [
+                "32px",
+                {
+                  lineHeight: "40px",
+                  letterSpacing: "-0.02em",
+                  fontWeight: "700",
+                },
+              ],
+              "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+              "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+              "headline-lg": [
+                "24px",
+                { lineHeight: "32px", fontWeight: "600" },
+              ],
+              "headline-lg-mobile": [
+                "20px",
+                { lineHeight: "28px", fontWeight: "700" },
+              ],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .glass-card {
+        background: rgba(30, 41, 59, 0.4);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+      }
+      .active-glow {
+        box-shadow: 0 0 15px rgba(192, 193, 255, 0.3);
+      }
+      .unread-dot {
+        box-shadow: 0 0 8px #c0c1ff;
+      }
+      body {
+        background-color: #0b1326;
+        color: #dae2fd;
+        font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen pb-24">
+    <!-- Top AppBar -->
+    <header
+      class="sticky top-0 z-50 bg-surface/80 backdrop-blur-md flex justify-between items-center w-full px-container-padding py-sm"
+    >
+      <button
+        class="material-symbols-outlined text-primary hover:bg-surface-variant/50 rounded-full p-2 active:scale-95 transition-transform duration-150"
+      >
+        menu
+      </button>
+      <h1
+        class="text-headline-lg-mobile font-headline-lg-mobile font-bold text-on-surface"
+      >
+        Messages
+      </h1>
+      <button
+        class="material-symbols-outlined text-primary hover:bg-surface-variant/50 rounded-full p-2 active:scale-95 transition-transform duration-150"
+      >
+        search
+      </button>
+    </header>
+    <main class="max-w-xl mx-auto px-container-padding pt-md space-y-md">
+      <!-- Search Bar Section -->
+      <div class="relative group">
+        <span
+          class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors"
+          >search</span
+        >
+        <input
+          class="w-full bg-surface-container-low border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container rounded-xl py-3 pl-12 pr-4 text-body-md transition-all"
+          placeholder="Search messages..."
+          type="text"
+        />
+      </div>
+      <!-- Filter Chips (Atmospheric UI) -->
+      <div class="flex gap-xs overflow-x-auto no-scrollbar pb-xs">
+        <button
+          class="bg-primary text-on-primary text-label-md font-label-md px-4 py-1.5 rounded-full active-glow"
+        >
+          All
+        </button>
+        <button
+          class="bg-surface-container-high text-on-surface-variant text-label-md font-label-md px-4 py-1.5 rounded-full border border-outline-variant/30"
+        >
+          Unread
+        </button>
+        <button
+          class="bg-surface-container-high text-on-surface-variant text-label-md font-label-md px-4 py-1.5 rounded-full border border-outline-variant/30"
+        >
+          VIP
+        </button>
+        <button
+          class="bg-surface-container-high text-on-surface-variant text-label-md font-label-md px-4 py-1.5 rounded-full border border-outline-variant/30"
+        >
+          Archive
+        </button>
+      </div>
+      <!-- Messages List -->
+      <div class="space-y-card-gap">
+        <!-- Robert Fox (Unread/VIP) -->
+        <div
+          class="glass-card rounded-xl p-md flex items-center gap-md relative overflow-hidden group cursor-pointer hover:bg-surface-container-highest/50 transition-colors"
+        >
+          <div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+          <div class="relative">
+            <img
+              alt="Robert Fox"
+              class="w-14 h-14 rounded-full object-cover border-2 border-primary/20"
+              data-alt="A professional close-up headshot of a middle-aged man with a friendly expression, groomed beard, and modern haircut. He is wearing a sharp charcoal suit against a soft-focus interior hotel lobby background. The lighting is warm and cinematic, consistent with a high-end luxury hospitality environment and dark mode aesthetic."
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFXcmcQ1W1CNhPZCLA-dpqnwTAf8O54mmzRJKEZcG6UYz_7FKWtQfdYpgmK32-QNUn7Yvj3eVKcFsB0hfBV1PPrakK0HxCi6vtcQXKlHY52xWlzRrk_2V35-Kfn-ujI7ywRYxh4KVOsikcPq8_aOxZDbVtPYTdXbO9wQW-eEYym_zJeNpXvTwxL6IwpUG5GrzNyKn5HabegjXuO-O7yh_WTpgb3OghjTGn5j0H68783TrJ5KP9c6v7nO-iGavew_0nIpzaAJdlXWA"
+            />
+            <div
+              class="absolute -bottom-1 -right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center border-2 border-surface unread-dot"
+            >
+              <span class="text-[8px] font-bold text-on-primary">5</span>
+            </div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between items-center mb-0.5">
+              <div class="flex items-center gap-xs">
+                <span
+                  class="text-headline-sm font-headline-sm text-on-surface truncate"
+                  >Robert Fox</span
+                >
+                <span
+                  class="bg-tertiary-container/20 text-tertiary text-label-sm font-label-sm px-1.5 py-0.5 rounded border border-tertiary/30"
+                  >VIP</span
+                >
+              </div>
+              <span class="text-label-sm font-label-sm text-primary"
+                >10:30 AM</span
+              >
+            </div>
+            <p class="text-body-md font-semibold text-on-surface truncate">
+              Thank you for the quick check-in!
+            </p>
+          </div>
+        </div>
+        <!-- Jane Cooper -->
+        <div
+          class="glass-card rounded-xl p-md flex items-center gap-md cursor-pointer hover:bg-surface-container-highest/50 transition-colors"
+        >
+          <div class="relative">
+            <img
+              alt="Jane Cooper"
+              class="w-14 h-14 rounded-full object-cover border-2 border-outline/10"
+              data-alt="A high-quality portrait of a young professional woman with a bright smile. She has styled dark hair and is wearing a sleek navy blazer. The background is a blurred high-end hotel balcony at twilight, showing city lights and palm trees. The image conveys a premium guest experience with cool blue and deep navy tones."
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBVdIffrxHKlEoFhCv_eLnbFRdUBhdDwVNm5a-HKpkQGBcB3clKypD3dE46fpvhukD68EP-WwOY9SaLevkoFkTYaFsf5c0_aB8YGnp-G9LH-iyoUulGefYUMA5Ggue9lTeiTTI5HuQQVOTtCn-QYT11oQpceNZ6E0UaPcaSLEkqeCkcbi_nSA9f3nvZiFaw1_AhjzhwqNsNzBYQuAW8MzqZ0IrhXuiiEh917ifhYaoSS8bAyqaVO7ldi7w5nNVr5tqvah9Li0j200"
+            />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between items-center mb-0.5">
+              <span
+                class="text-headline-sm font-headline-sm text-on-surface truncate"
+                >Jane Cooper</span
+              >
+              <span class="text-label-sm font-label-sm text-outline"
+                >09:15 AM</span
+              >
+            </div>
+            <p class="text-body-md text-on-surface-variant truncate">
+              Is breakfast included in my current suite package?
+            </p>
+          </div>
+        </div>
+        <!-- Wade Warren -->
+        <div
+          class="glass-card rounded-xl p-md flex items-center gap-md cursor-pointer hover:bg-surface-container-highest/50 transition-colors"
+        >
+          <div class="relative">
+            <img
+              alt="Wade Warren"
+              class="w-14 h-14 rounded-full object-cover border-2 border-outline/10"
+              data-alt="A professional headshot of a man in his late 30s with short hair and glasses, looking confident and approachable. He wears a neutral-toned cashmere sweater. The setting is a minimalist, modern office space with subtle bokeh light effects. The overall vibe is sophisticated and technical, matching a premium hospitality management tool."
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCgTuSmnG8XUMwHl4RAv0Mfvg71Vz3YJnww7AHAXFKVX2njlrQ0mfoMX6vB6iMuHFUvOzyGVE92sRsNnZDh8gyM5G8CrPR7rrKNl9R1sgv2dAGfG-PJB8Ap86f95zStmTSAn0I2sS0_2V-2cvQynfSVqJLsUi1ma94lPmGlWeCBcdu4fWH2cFDa1a2HlBXGLUKTJ3xYtLG3ntHrxYSapxC0TzF6ibJf3PkPN9quq3u2TKe-_CVPIH5cCwcJM55ZxM8Dylz7R_mWUsQ"
+            />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between items-center mb-0.5">
+              <span
+                class="text-headline-sm font-headline-sm text-on-surface truncate"
+                >Wade Warren</span
+              >
+              <span class="text-label-sm font-label-sm text-outline"
+                >Yesterday</span
+              >
+            </div>
+            <p class="text-body-md text-on-surface-variant truncate">
+              The conference room setup was perfect. Thanks!
+            </p>
+          </div>
+        </div>
+        <!-- Esther Howard -->
+        <div
+          class="glass-card rounded-xl p-md flex items-center gap-md cursor-pointer hover:bg-surface-container-highest/50 transition-colors"
+        >
+          <div class="relative">
+            <img
+              alt="Esther Howard"
+              class="w-14 h-14 rounded-full object-cover border-2 border-outline/10"
+              data-alt="A portrait of an elegant woman in her early 40s with a warm and sophisticated expression. She is captured in a soft, ambient indoor lighting of a luxury hotel suite. Deep midnight blues and indigo accents frame the composition, emphasizing a vigilant and controlled hospitality environment. The style is modern and high-performance."
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDF9X9UcD0HfC2sQO1hlGa588_DhDh6PhJFBrpu73NsTph6y2qyYVbc5z6vN9lmUUQbucbYEIeVTZ4P2hbYFk_TSX2BO2WTzqkccbJejVoWbER7xoPq9fyK8Rp18kBORAbfelKu0ud8IoQzNyg0dcqWvQrLNIlFZJItCMwFenJx_sYnS90rf3CCXDHRvpm9pk5yu7Md-R879cLAUjbZoX8X6DSvqH9Q6iCrrdShEYAbVylm4uXouffkI4MA_Z7AWxrSTK0DvLXg1KA"
+            />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between items-center mb-0.5">
+              <div class="flex items-center gap-xs">
+                <span
+                  class="text-headline-sm font-headline-sm text-on-surface truncate"
+                  >Esther Howard</span
+                >
+                <span
+                  class="bg-tertiary-container/20 text-tertiary text-label-sm font-label-sm px-1.5 py-0.5 rounded border border-tertiary/30"
+                  >VIP</span
+                >
+              </div>
+              <span class="text-label-sm font-label-sm text-outline"
+                >Yesterday</span
+              >
+            </div>
+            <p class="text-body-md text-on-surface-variant truncate">
+              I'll be arriving late for check-in around 11 PM.
+            </p>
+          </div>
+        </div>
+        <!-- Guy Hawkins -->
+        <div
+          class="glass-card rounded-xl p-md flex items-center gap-md cursor-pointer hover:bg-surface-container-highest/50 transition-colors"
+        >
+          <div class="relative">
+            <img
+              alt="Guy Hawkins"
+              class="w-14 h-14 rounded-full object-cover border-2 border-outline/10"
+              data-alt="Close up portrait of a young man with a casual but professional appearance, smiling gently. The lighting is dramatic with cool blue tones and a dark, tech-inspired background. The image fits perfectly into a sophisticated hospitality dashboard for elite hotel partners, using a midnight foundation and glassmorphism styling."
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDh8EaXSfDDnd_miZaXrJ0qBb7sh9mxDou4Fz6qK423o0VMKaCzREQkRcAuLL2kKzOIYI1ubOCCJDJHyNMZLiz1L2H8cQx6KJomDp5_0RduGgFl0rMJuSBYq_Xye-_glQX3CAD2jnMXLXDlTeOu-qJjIVxWBg376HQSrGb68Pg6T38de9UUYzQT2BlJxnL8MCFgOj3yh5d7WYwxwCO0Mx4Qos-ahW4wfkmeMP0BL3lVIKPg37r0X7__8-ICDZBqIrKCsSEThNltMdI"
+            />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between items-center mb-0.5">
+              <span
+                class="text-headline-sm font-headline-sm text-on-surface truncate"
+                >Guy Hawkins</span
+              >
+              <span class="text-label-sm font-label-sm text-outline"
+                >May 28</span
+              >
+            </div>
+            <p class="text-body-md text-on-surface-variant truncate">
+              Could you send extra towels to room 402?
+            </p>
+          </div>
+        </div>
+      </div>
+    </main>
+    <!-- FAB for New Message -->
+    <button
+      class="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg active-glow flex items-center justify-center active:scale-95 transition-all z-40"
+    >
+      <span class="material-symbols-outlined text-[28px]">edit_square</span>
+    </button>
+    <!-- Bottom Navigation Bar -->
+    <nav
+      class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-4 pt-2 bg-surface-container/70 dark:bg-surface-container/70 backdrop-blur-lg border-t border-white/10 shadow-lg z-50 rounded-t-xl"
+    >
+      <a
+        class="flex flex-col items-center justify-center text-outline dark:text-outline hover:text-on-surface transition-all duration-300"
+        href="#"
+      >
+        <span class="material-symbols-outlined">grid_view</span>
+        <span class="text-label-sm font-label-sm mt-1">Dashboard</span>
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-outline dark:text-outline hover:text-on-surface transition-all duration-300"
+        href="#"
+      >
+        <span class="material-symbols-outlined">calendar_month</span>
+        <span class="text-label-sm font-label-sm mt-1">Reservations</span>
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-outline dark:text-outline hover:text-on-surface transition-all duration-300"
+        href="#"
+      >
+        <span class="material-symbols-outlined">bed</span>
+        <span class="text-label-sm font-label-sm mt-1">Rooms</span>
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-secondary dark:text-secondary relative transition-all duration-300"
+        href="#"
+      >
+        <span
+          class="material-symbols-outlined"
+          style="font-variation-settings: &quot;FILL&quot; 1"
+          >chat</span
+        >
+        <span class="text-label-sm font-label-sm mt-1">Messages</span>
+        <span
+          class="absolute -top-1 -right-1 w-4 h-4 bg-error text-on-error-container text-[8px] font-bold rounded-full flex items-center justify-center"
+          >5</span
+        >
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-outline dark:text-outline hover:text-on-surface transition-all duration-300"
+        href="#"
+      >
+        <span class="material-symbols-outlined">more_horiz</span>
+        <span class="text-label-sm font-label-sm mt-1">More</span>
+      </a>
+    </nav>
+    <script>
+      // Micro-interaction for clicking threads
+      document.querySelectorAll(".glass-card").forEach((card) => {
+        card.addEventListener("mousedown", () => {
+          card.style.transform = "scale(0.98)";
+        });
+        card.addEventListener("mouseup", () => {
+          card.style.transform = "scale(1)";
+        });
+        card.addEventListener("mouseleave", () => {
+          card.style.transform = "scale(1)";
+        });
+      });
+    </script>
+  </body>
+</html>
