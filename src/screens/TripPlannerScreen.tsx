@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Modal,
   Pressable,
@@ -111,78 +112,19 @@ export function TripPlannerScreen() {
 
       if (response.data) {
         setGeneratedPlan(response.data);
+        setShowPlanModal(true);
       } else {
-        // Fallback robust mock plan if API mock returns empty
-        setGeneratedPlan({
-          title: `Seamless ${destination} Getaway`,
-          summary: `A curated itinerary tailored for 2 travelers departing from ${origin}.`,
-          days: [
-            {
-              day: 1,
-              date: "Day 1",
-              theme: "Arrival & Coastal Sunset",
-              activities: [
-                {
-                  time: "10:00 AM",
-                  activity: `Departure from ${origin}`,
-                  location: origin,
-                  notes: "Scenic highway drive or comfortable flight transfer.",
-                },
-                {
-                  time: "03:30 PM",
-                  activity: "Beachfront Hotel Check-in",
-                  location: destination,
-                  notes: "Refresh with welcome drinks and seaside ocean view.",
-                },
-                {
-                  time: "06:00 PM",
-                  activity: "Sunset Promenade & Seafood Feast",
-                  location: "Main Beach Drive",
-                  notes: "Enjoy freshly grilled prawns and local delights.",
-                },
-              ],
-              meals: [
-                { type: "lunch", suggestion: "Highway Highway Inn Special" },
-                { type: "dinner", suggestion: "Ocean View Seafood Grill" },
-              ],
-              accommodation: "Grand Beach Resort & Spa",
-            },
-            {
-              day: 2,
-              date: "Day 2",
-              theme: "Island Exploration & Local Heritage",
-              activities: [
-                {
-                  time: "08:30 AM",
-                  activity: "Morning Speedboat Ride to Inani",
-                  location: "Inani Beach",
-                  notes: "Explore golden sands and coral rock formations.",
-                },
-                {
-                  time: "01:00 PM",
-                  activity: "Hillside Temple & Panoramic Viewpoint",
-                  location: "Himchari National Park",
-                  notes: "Hike up the hillside steps for breathtaking views.",
-                },
-              ],
-              meals: [
-                { type: "breakfast", suggestion: "Resort Buffet Spread" },
-                { type: "lunch", suggestion: "Himchari Hilltop Cafe" },
-                { type: "dinner", suggestion: "Traditional Bengali Cuisine" },
-              ],
-              accommodation: "Grand Beach Resort & Spa",
-            },
-          ],
-          tips: [
-            "Pack light breathable cotton clothing and sunscreen.",
-            "Book speedboats in advance for morning slots to avoid afternoon swell.",
-          ],
-          estimatedCost: "$450 - $650 total",
-        });
+        Alert.alert(
+          "AI Trip Planner",
+          "Unable to generate an itinerary for the requested route. Please verify your selected dates and try again."
+        );
       }
-      setShowPlanModal(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      Alert.alert(
+        "AI Trip Planner",
+        err?.message || "Failed to generate itinerary. Please check your internet connection."
+      );
     } finally {
       setIsGenerating(false);
     }

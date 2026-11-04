@@ -193,6 +193,13 @@ export const BookingManagementScreen: React.FC = () => {
               </View>
             </TouchableOpacity>
           )}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
+              <MaterialCommunityIcons name="ticket-outline" size={48} color="#94a3b8" />
+              <Text style={{ marginTop: 12, fontSize: 16, color: "#334155", fontWeight: "600" }}>No Bookings Found</Text>
+              <Text style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>Customer bookings across hotels, flights, and tours will display here in real-time.</Text>
+            </View>
+          }
         />
       )}
 

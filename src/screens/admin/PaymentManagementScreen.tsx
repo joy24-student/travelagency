@@ -172,6 +172,13 @@ export const PaymentManagementScreen: React.FC = () => {
               </View>
             </TouchableOpacity>
           )}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
+              <MaterialCommunityIcons name="credit-card-off-outline" size={48} color="#94a3b8" />
+              <Text style={{ marginTop: 12, fontSize: 16, color: "#334155", fontWeight: "600" }}>No Transactions Recorded</Text>
+              <Text style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>Payment gateway and wallet transactions will appear here.</Text>
+            </View>
+          }
         />
       )}
 

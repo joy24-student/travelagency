@@ -19,7 +19,7 @@ import {
 import { supabase } from "../utils/supabase";
 import { BottomNav, AiPill } from "./Navigation";
 import { TopBar } from "./TopBar";
-import type { UIScreen } from "../data/screens";
+import { screens, type UIScreen } from "../data/screens";
 
 const PRIMARY = "#287dfa";
 
@@ -48,11 +48,16 @@ type FilterState = {
   travelType: string;
 };
 
-export function SearchScreen({ screen }: { screen: UIScreen }) {
+export function SearchScreen({ screen }: { screen?: UIScreen } = {}) {
+  const activeScreen = screen ?? screens.find((s) => s.slug === "search") ?? screens[0];
+  const initialType: "hotels" | "flights" | "tours" =
+    activeScreen?.slug === "flights" || (activeScreen as any)?.kind === "flight"
+      ? "flights"
+      : activeScreen?.slug === "packages" || activeScreen?.slug === "tours" || activeScreen?.slug === "private-tours-search"
+        ? "tours"
+        : "hotels";
   const [query, setQuery] = useState("");
-  const [activeType, setActiveType] = useState<"hotels" | "flights" | "tours">(
-    "hotels",
-  );
+  const [activeType, setActiveType] = useState<"hotels" | "flights" | "tours">(initialType);
   const [filters, setFilters] = useState<FilterState>({
     budget: "",
     minRating: "",
@@ -139,7 +144,7 @@ export function SearchScreen({ screen }: { screen: UIScreen }) {
 
   return (
     <SafeAreaView style={s.shell}>
-      <TopBar screen={screen} />
+      <TopBar screen={activeScreen} />
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={s.scroll}

@@ -14,26 +14,26 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Tab Config Matching Reference Screenshots & Clean Expo Router Paths ─────
 const TABS = [
-  { label: "Home", icon: "home-outline" as const, route: "/" },
+  { label: "Home", icon: "home-outline" as const, route: "/(tabs)" },
   {
     label: "Messages",
     icon: "mail-outline" as const,
-    route: "/messages",
+    route: "/(tabs)/messages",
   },
   {
     label: "Community",
     icon: "people-outline" as const,
-    route: "/community",
+    route: "/(tabs)/community",
   },
   {
     label: "My Trips",
     icon: "briefcase-outline" as const,
-    route: "/trips",
+    route: "/(tabs)/trips",
   },
   {
     label: "Sign In",
     icon: "person-circle-outline" as const,
-    route: "/account",
+    route: "/(tabs)/account",
   },
 ] as const;
 
@@ -81,7 +81,7 @@ export function AiPill({ color }: { color: string }) {
           styles.aiPillContainer,
           pressed && styles.aiPillPressed,
         ]}
-        onPress={() => router.push("/(screens)/ai-assistant" as any)}
+        onPress={() => router.push("/screens/trip-planner" as any)}
       >
         <LinearGradient
           colors={["#E0F2FE", "#FFFFFF", "#EFF6FF"]}

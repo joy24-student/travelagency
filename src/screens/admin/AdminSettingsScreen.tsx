@@ -22,6 +22,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { adminService } from "@/services/adminService";
 import { AdminUser } from "@/types/admin";
+import { supabase } from "@/utils/supabase";
 
 const { width } = Dimensions.get("window");
 
@@ -155,17 +156,50 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
   const [apiKeyModalVisible, setApiKeyModalVisible] = useState(false);
   const [newApiKey, setNewApiKey] = useState("");
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    // Settings are managed locally - no backend sync needed
-    setTimeout(() => setRefreshing(false), 500);
+  const loadSettingsFromDb = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("*");
+      if (data && data.length > 0) {
+        const map: any = {};
+        data.forEach((s: any) => {
+          if (s.setting_key) {
+            map[s.setting_key] = s.setting_value === "true" || s.setting_value === true;
+          }
+        });
+        setSettings((prev) => ({ ...prev, ...map }));
+      }
+    } catch (err) {
+      console.warn("Error loading system settings:", err);
+    }
   };
 
-  const handleToggleSetting = (key: keyof typeof settings) => {
+  useEffect(() => {
+    loadSettingsFromDb();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadSettingsFromDb();
+    setRefreshing(false);
+  };
+
+  const handleToggleSetting = async (key: keyof typeof settings) => {
+    const nextVal = !settings[key];
     setSettings((prev) => ({
       ...prev,
-      [key]: !prev[key],
+      [key]: nextVal,
     }));
+    try {
+      await supabase.from("system_settings").upsert({
+        setting_key: key,
+        setting_value: String(nextVal),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "setting_key" });
+    } catch (err) {
+      console.warn("Failed to persist system setting:", err);
+    }
   };
 
   const handleBackup = async () => {

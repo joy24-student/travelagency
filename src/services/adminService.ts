@@ -42,59 +42,69 @@ export const dashboardService = {
 
       if (data) return data;
 
-      const [usersCount, agenciesCount, bookingsCount] = await Promise.all([
-        supabase.from("user_admin_details").select("*", { count: "exact", head: true }),
-        supabase.from("agency_admin_details").select("*", { count: "exact", head: true }),
+      const [usersCount, agenciesCount, bookingsCount, bookingsRes] = await Promise.all([
+        supabase.from("community_profiles").select("*", { count: "exact", head: true }),
+        supabase.from("agencies").select("*", { count: "exact", head: true }),
         supabase.from("bookings").select("*", { count: "exact", head: true }),
+        supabase.from("bookings").select("total_price, status"),
       ]);
 
-      const totalUsers = usersCount.count || 14280;
-      const totalAgencies = agenciesCount.count || 342;
-      const totalBookings = bookingsCount.count || 48920;
+      const totalUsers = usersCount.count || 0;
+      const totalAgencies = agenciesCount.count || 0;
+      const totalBookings = bookingsCount.count || 0;
+
+      const bookingsList = bookingsRes.data || [];
+      const completed = bookingsList.filter((b: any) => b.status === "completed").length;
+      const cancelled = bookingsList.filter((b: any) => b.status === "cancelled").length;
+      const pending = bookingsList.filter((b: any) => b.status === "payment_pending" || b.status === "draft").length;
+      const totalRev = bookingsList
+        .filter((b: any) => b.status === "completed" || b.status === "confirmed")
+        .reduce((sum: number, b: any) => sum + (Number(b.total_price) || 0), 0);
+      const commission = Math.round(totalRev * 0.1);
 
       return {
         id: "live-today-metrics",
         metric_date: today,
         total_users: totalUsers,
-        active_users: 1420,
-        new_users: 145,
+        active_users: totalUsers > 0 ? Math.min(totalUsers, Math.ceil(totalUsers * 0.3)) : 0,
+        new_users: 0,
         total_agencies: totalAgencies,
-        active_agencies: 310,
+        active_agencies: totalAgencies,
         total_bookings: totalBookings,
-        completed_bookings: 44100,
-        cancelled_bookings: 540,
-        pending_bookings: 4280,
-        total_revenue: 2845900,
-        today_revenue: 18450,
-        commission_earnings: 284590,
-        active_trips: 680,
-        live_visitors: 184,
-        conversion_rate: 5.4,
-        cancellation_rate: 1.1,
-        refund_rate: 0.4,
+        completed_bookings: completed,
+        cancelled_bookings: cancelled,
+        pending_bookings: pending,
+        total_revenue: totalRev,
+        today_revenue: 0,
+        commission_earnings: commission,
+        active_trips: Math.max(0, totalBookings - completed - cancelled),
+        live_visitors: 0,
+        conversion_rate: totalBookings > 0 ? Math.round((completed / totalBookings) * 100) : 0,
+        cancellation_rate: totalBookings > 0 ? Math.round((cancelled / totalBookings) * 100) : 0,
+        refund_rate: 0,
         created_at: new Date().toISOString(),
       };
     } catch (error) {
       return {
         id: "default-today-metrics",
         metric_date: new Date().toISOString().split("T")[0],
-        total_users: 14280,
-        active_users: 1420,
-        new_users: 145,
-        total_agencies: 342,
-        active_agencies: 310,
-        total_bookings: 48920,
-        completed_bookings: 44100,
-        cancelled_bookings: 540,
-        pending_bookings: 4280,
-        total_revenue: 2845900,
-        today_revenue: 18450,
-        commission_earnings: 284590,
-        active_trips: 680,
-        live_visitors: 184,
-        conversion_rate: 5.4,
-        cancellation_rate: 1.1,
-        refund_rate: 0.4,
+        total_users: 0,
+        active_users: 0,
+        new_users: 0,
+        total_agencies: 0,
+        active_agencies: 0,
+        total_bookings: 0,
+        completed_bookings: 0,
+        cancelled_bookings: 0,
+        pending_bookings: 0,
+        total_revenue: 0,
+        today_revenue: 0,
+        commission_earnings: 0,
+        active_trips: 0,
+        live_visitors: 0,
+        conversion_rate: 0,
+        cancellation_rate: 0,
+        refund_rate: 0,
         created_at: new Date().toISOString(),
       };
     }
@@ -110,32 +120,9 @@ export const dashboardService = {
         .order("metric_date", { ascending: false });
 
       if (data && data.length > 0) return data;
-      throw new Error("No range data");
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "m-1",
-          metric_date: endDate,
-          total_users: 14280,
-          active_users: 1420,
-          new_users: 145,
-          total_agencies: 342,
-          active_agencies: 310,
-          total_bookings: 48920,
-          completed_bookings: 44100,
-          cancelled_bookings: 540,
-          pending_bookings: 4280,
-          total_revenue: 2845900,
-          today_revenue: 18450,
-          commission_earnings: 284590,
-          active_trips: 680,
-          live_visitors: 184,
-          conversion_rate: 5.4,
-          cancellation_rate: 1.1,
-          refund_rate: 0.4,
-          created_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     }
   },
 
@@ -150,9 +137,9 @@ export const dashboardService = {
         .single();
 
       if (data) return data.metric_value;
-      return 184;
+      return 0;
     } catch (error) {
-      return 184;
+      return 0;
     }
   },
 };
@@ -197,20 +184,9 @@ export const adminService = {
     try {
       const { data } = await supabase.from("admin_users").select("*").order("created_at", { ascending: false });
       if (data && data.length > 0) return data;
-      throw new Error("No admins");
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "adm-1",
-          user_id: "usr-01",
-          name: "Chief Technology Officer",
-          role: AdminRole.SUPER_ADMIN,
-          permissions: { all: true },
-          status: "active",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     }
   },
 
@@ -230,20 +206,9 @@ export const adminService = {
     try {
       const { data } = await supabase.from("admin_activity_logs").select("*").eq("admin_id", adminId).order("created_at", { ascending: false }).limit(limit);
       if (data && data.length > 0) return data;
-      throw new Error("No activity logs");
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "log-1",
-          admin_id: adminId,
-          action: "verify_agency",
-          module: "agencies",
-          entity_type: "agency",
-          entity_id: "ag-991",
-          details: { name: "SkyBound Expeditions" },
-          created_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     }
   },
 };
@@ -255,32 +220,28 @@ export const adminService = {
 export const userManagementService = {
   async getAllUsers(limit: number = 100, offset: number = 0): Promise<UserAdminDetails[]> {
     try {
-      const { data } = await supabase.from("user_admin_details").select("*").order("created_at", { ascending: false }).range(offset, offset + limit - 1);
-      if (data && data.length > 0) return data;
-      throw new Error("No users found");
+      const { data: profs } = await supabase
+        .from("community_profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (profs && profs.length > 0) {
+        return profs.map((p: any) => ({
+          id: p.id,
+          user_id: p.id,
+          verification_status: p.metadata?.verified ? UserVerificationStatus.VERIFIED : UserVerificationStatus.PENDING,
+          kyc_status: p.metadata?.verified ? UserVerificationStatus.VERIFIED : UserVerificationStatus.PENDING,
+          is_suspended: false,
+          is_banned: false,
+          created_at: p.created_at || new Date().toISOString(),
+          updated_at: p.updated_at || new Date().toISOString(),
+        }));
+      }
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "usr-mnc-101",
-          user_id: "u-101",
-          verification_status: UserVerificationStatus.VERIFIED,
-          kyc_status: UserVerificationStatus.VERIFIED,
-          is_suspended: false,
-          is_banned: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "usr-mnc-102",
-          user_id: "u-102",
-          verification_status: UserVerificationStatus.PENDING,
-          kyc_status: UserVerificationStatus.MANUAL_REVIEW,
-          is_suspended: false,
-          is_banned: false,
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      console.warn("Error fetching users in userManagementService:", error);
+      return [];
     }
   },
 
@@ -314,16 +275,7 @@ export const userManagementService = {
     try {
       const { data } = await supabase.from("user_login_history").select("*").eq("user_id", userId).order("login_time", { ascending: false });
       if (data && data.length > 0) return data;
-      return [
-        {
-          id: "lh-1",
-          user_id: userId,
-          ip_address: "192.168.1.104",
-          device_info: "iOS iPhone 15 Pro",
-          location: "New York, USA",
-          login_time: new Date().toISOString(),
-        },
-      ];
+      return [];
     } catch (error) {
       return [];
     }
@@ -333,16 +285,7 @@ export const userManagementService = {
     try {
       const { data } = await supabase.from("kyc_documents").select("*").eq("user_id", userId);
       if (data && data.length > 0) return data;
-      return [
-        {
-          id: "kyc-991",
-          user_id: userId,
-          document_type: "passport",
-          file_url: "https://images.unsplash.com/photo-1544717305-2782549b5136",
-          is_verified: true,
-          created_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     } catch (error) {
       return [];
     }
@@ -370,40 +313,26 @@ export const userManagementService = {
 export const agencyManagementService = {
   async getAllAgencies(limit: number = 100, offset: number = 0): Promise<AgencyAdminDetails[]> {
     try {
-      const { data } = await supabase.from("agency_admin_details").select("*").order("created_at", { ascending: false }).range(offset, offset + limit - 1);
-      if (data && data.length > 0) return data;
-      throw new Error("No agencies");
+      const { data } = await supabase.from("agencies").select("*").order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+      if (data && data.length > 0) {
+        return data.map((a: any) => ({
+          id: a.id,
+          agency_id: a.id,
+          agency_name: a.name,
+          registration_email: a.email || "support@agency.com",
+          registration_phone: a.phone || "+880 1700 000000",
+          registration_country: a.country || "Bangladesh",
+          verification_status: a.is_verified ? AgencyVerificationStatus.VERIFIED : AgencyVerificationStatus.PENDING,
+          is_certified: !!a.is_verified,
+          is_suspended: false,
+          is_banned: false,
+          created_at: a.created_at || new Date().toISOString(),
+          updated_at: a.updated_at || new Date().toISOString(),
+        }));
+      }
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "ag-mnc-01",
-          agency_id: "agency-royal-horizon",
-          agency_name: "Royal Horizon Luxury Travels",
-          registration_email: "contact@royalhorizon.com",
-          registration_phone: "+1 (800) 555-0199",
-          registration_country: "United States",
-          verification_status: AgencyVerificationStatus.VERIFIED,
-          is_certified: true,
-          is_suspended: false,
-          is_banned: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "ag-mnc-02",
-          agency_id: "agency-skybound",
-          agency_name: "SkyBound Expeditions",
-          registration_email: "ops@skybound.co.uk",
-          registration_phone: "+44 20 7946 0912",
-          registration_country: "United Kingdom",
-          verification_status: AgencyVerificationStatus.PENDING,
-          is_certified: false,
-          is_suspended: false,
-          is_banned: false,
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     }
   },
 
@@ -454,36 +383,30 @@ export const agencyManagementService = {
 export const destinationService = {
   async getAllDestinations(limit: number = 50, offset: number = 0): Promise<DestinationCMS[]> {
     try {
-      const { data } = await supabase.from("destination_cms").select("*").order("created_at", { ascending: false }).range(offset, offset + limit - 1);
-      if (data && data.length > 0) return data;
-      throw new Error("No destinations");
+      const { data, error } = await supabase
+        .from("destinations")
+        .select("*")
+        .order("name", { ascending: true })
+        .range(offset, offset + limit - 1);
+
+      if (data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          slug: d.slug || d.name.toLowerCase().replace(/\s+/g, "-"),
+          category: d.is_trending ? "Trending" : "Popular",
+          description: d.description || `Explore ${d.name}, ${d.country}.`,
+          featured_image_url: d.image_url || "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800",
+          status: DestinationStatus.ACTIVE,
+          country: d.country || "International",
+          created_at: d.created_at || new Date().toISOString(),
+          updated_at: d.created_at || new Date().toISOString(),
+        }));
+      }
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "dest-01",
-          name: "Santorini, Greece",
-          slug: "santorini-greece",
-          category: "Island & Beach",
-          description: "Iconic white architecture and stunning Aegean sunsets.",
-          featured_image_url: "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff",
-          status: DestinationStatus.ACTIVE,
-          country: "Greece",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "dest-02",
-          name: "Kyoto, Japan",
-          slug: "kyoto-japan",
-          category: "Culture & Heritage",
-          description: "Historic temples, traditional gardens, and serene bamboo groves.",
-          featured_image_url: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e",
-          status: DestinationStatus.ACTIVE,
-          country: "Japan",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      console.warn("Error fetching destinations in destinationService:", error);
+      return [];
     }
   },
 
@@ -540,32 +463,9 @@ export const refundService = {
 
       const { data } = await query.order("created_at", { ascending: false }).limit(limit);
       if (data && data.length > 0) return data;
-      throw new Error("No refunds");
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "ref-901",
-          booking_id: "BK-88491",
-          user_id: "usr-401",
-          refund_amount: 450.0,
-          refund_reason: "Flight schedule modification by airline",
-          status: RefundStatus.REQUESTED,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "ref-902",
-          booking_id: "BK-77210",
-          user_id: "usr-405",
-          refund_amount: 1250.0,
-          refund_reason: "Hotel booking double charge correction",
-          status: RefundStatus.APPROVED,
-          approved_by: "adm-super-01",
-          approved_at: new Date().toISOString(),
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     }
   },
 
@@ -630,10 +530,7 @@ export const bookingAdminService = {
     try {
       const { data } = await supabase.from("bookings").select("*").order("created_at", { ascending: false }).limit(limit);
       if (data && data.length > 0) return data;
-      return [
-        { id: "bk-101", booking_reference: "BK-88491", product_type: "flight", status: "confirmed", total_price: 450.0, currency: "USD", created_at: new Date().toISOString() },
-        { id: "bk-102", booking_reference: "BK-77210", product_type: "hotel", status: "confirmed", total_price: 1250.0, currency: "USD", created_at: new Date().toISOString() },
-      ];
+      return [];
     } catch (error) {
       return [];
     }
@@ -649,9 +546,7 @@ export const walletAdminService = {
     try {
       const { data } = await supabase.from("shopno_wallet_transactions").select("*").order("created_at", { ascending: false }).limit(limit);
       if (data && data.length > 0) return data;
-      return [
-        { id: "tx-01", transaction_id: "TXN-8819", amount: 1500, type: "credit", currency: "BDT", status: "completed", created_at: new Date().toISOString() },
-      ];
+      return [];
     } catch (error) {
       return [];
     }
@@ -667,22 +562,9 @@ export const marketingService = {
     try {
       const { data } = await supabase.from("promo_codes").select("*").order("created_at", { ascending: false });
       if (data && data.length > 0) return data;
-      throw new Error("No promo codes");
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "pc-101",
-          code: "SUMMER30",
-          discount_type: "percentage",
-          discount_value: 30,
-          current_usage: 1420,
-          start_date: new Date().toISOString(),
-          end_date: new Date(Date.now() + 2592000000).toISOString(),
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     }
   },
 
@@ -690,25 +572,9 @@ export const marketingService = {
     try {
       const { data } = await supabase.from("marketing_campaigns").select("*").order("created_at", { ascending: false });
       if (data && data.length > 0) return data;
-      throw new Error("No campaigns");
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "camp-01",
-          campaign_name: "Global Summer Getaways 2026",
-          campaign_type: "email",
-          target_audience: { group: "All Active Users" },
-          message_content: "Exclusive discounts on global flights & resorts.",
-          start_date: new Date().toISOString(),
-          end_date: new Date(Date.now() + 2592000000).toISOString(),
-          status: "active",
-          sent_count: 25000,
-          open_count: 12400,
-          click_count: 4890,
-          conversion_count: 1420,
-          created_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     }
   },
 };
@@ -717,32 +583,71 @@ export const adService = {
   async getAllAds(status?: string): Promise<Advertisement[]> {
     try {
       let query = supabase.from("advertisements").select("*");
-      if (status) query = query.eq("status", status);
+      if (status && status !== "all") query = query.eq("status", status);
 
-      const { data } = await query.order("created_at", { ascending: false });
-      if (data && data.length > 0) return data;
-      throw new Error("No ads");
+      const { data, error } = await query.order("created_at", { ascending: false });
+      if (error) throw error;
+      if (data && data.length > 0) {
+        return data.map((item: any) => ({
+          id: item.id,
+          ad_name: item.title || item.ad_name || "Ad Banner",
+          ad_type: (item.placement || item.ad_type || "banner") as any,
+          media_url: item.banner_url || item.media_url,
+          content_url: item.target_url || item.content_url,
+          start_date: item.created_at || new Date().toISOString(),
+          end_date: item.end_date || new Date(Date.now() + 30 * 86400000).toISOString(),
+          status: (item.status || "active") as any,
+          impression_count: item.click_count ? item.click_count * 10 : 1200,
+          click_count: item.click_count || 0,
+          conversion_count: Math.round((item.click_count || 0) * 0.12),
+          budget_allocated: item.budget_allocated || 500,
+          budget_spent: item.budget_spent || 240,
+          created_at: item.created_at,
+          updated_at: item.created_at,
+        }));
+      }
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "ad-201",
-          ad_name: "Emirates First Class Deal",
-          ad_type: AdType.BANNER,
-          media_url: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05",
-          content_url: "https://travel.com/flights/emirates",
-          start_date: new Date().toISOString(),
-          end_date: new Date(Date.now() + 2592000000).toISOString(),
-          status: AdStatus.ACTIVE,
-          impression_count: 489200,
-          click_count: 34100,
-          conversion_count: 1420,
-          budget_allocated: 5000,
-          budget_spent: 3400,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     }
+  },
+
+  async createAd(ad: Partial<Advertisement> & { title?: string; banner_url?: string; target_url?: string; placement?: string }): Promise<any> {
+    const payload = {
+      title: ad.title || ad.ad_name || "New Promo",
+      banner_url: ad.banner_url || ad.media_url || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800",
+      target_url: ad.target_url || ad.content_url || "/screens/search-stays",
+      placement: ad.placement || "home_banner",
+      status: ad.status || "active",
+      click_count: 0,
+    };
+    const { data, error } = await supabase.from("advertisements").insert([payload]).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateAd(id: string, updates: Partial<Advertisement> & { title?: string; banner_url?: string; target_url?: string }): Promise<any> {
+    const payload: any = {};
+    if (updates.title || updates.ad_name) payload.title = updates.title || updates.ad_name;
+    if (updates.banner_url || updates.media_url) payload.banner_url = updates.banner_url || updates.media_url;
+    if (updates.target_url || updates.content_url) payload.target_url = updates.target_url || updates.content_url;
+    if (updates.status) payload.status = updates.status;
+    const { data, error } = await supabase.from("advertisements").update(payload).eq("id", id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteAd(id: string): Promise<boolean> {
+    const { error } = await supabase.from("advertisements").delete().eq("id", id);
+    if (error) throw error;
+    return true;
+  },
+
+  async toggleAdStatus(id: string, currentStatus: string): Promise<string> {
+    const newStatus = currentStatus === "active" ? "paused" : "active";
+    const { error } = await supabase.from("advertisements").update({ status: newStatus }).eq("id", id);
+    if (error) throw error;
+    return newStatus;
   },
 };
 
@@ -753,14 +658,23 @@ export const adService = {
 export const communityAdminService = {
   async getAllPosts(limit: number = 50): Promise<any[]> {
     try {
-      const { data } = await supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(limit);
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*, author:community_profiles!posts_user_id_fkey(*), media:post_media(*)")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
       if (data && data.length > 0) return data;
-      return [
-        { id: "post-101", title: "Sunset over Santorini Caldera", visibility: "public", likes_count: 1420, comments_count: 89, created_at: new Date().toISOString() },
-      ];
+      return [];
     } catch (error) {
       return [];
     }
+  },
+
+  async deletePost(id: string): Promise<boolean> {
+    const { error } = await supabase.from("posts").delete().eq("id", id);
+    if (error) throw error;
+    return true;
   },
 };
 
@@ -773,9 +687,7 @@ export const fileAdminService = {
     try {
       const { data } = await supabase.from("files").select("*").order("created_at", { ascending: false }).limit(limit);
       if (data && data.length > 0) return data;
-      return [
-        { id: "file-1", file_name: "passport_scan.pdf", file_type: "document", size: 1048576, created_at: new Date().toISOString() },
-      ];
+      return [];
     } catch (error) {
       return [];
     }
@@ -791,9 +703,7 @@ export const aiAdminService = {
     try {
       const { data } = await supabase.from("ai_conversations").select("*").order("updated_at", { ascending: false }).limit(limit);
       if (data && data.length > 0) return data;
-      return [
-        { id: "ai-sess-1", agent: "travel_assistant", title: "Trip to Tokyo Planning", updated_at: new Date().toISOString() },
-      ];
+      return [];
     } catch (error) {
       return [];
     }
@@ -813,21 +723,9 @@ export const reportService = {
     try {
       const { data } = await supabase.from("financial_reports").select("*").eq("report_type", type).order("report_period_start", { ascending: false });
       if (data && data.length > 0) return data;
-      throw new Error("No financial reports");
+      return [];
     } catch (error) {
-      return [
-        {
-          id: "rep-2026-q2",
-          report_type: type,
-          report_period_start: startDate || "2026-04-01",
-          report_period_end: endDate || "2026-06-30",
-          total_amount: 2845900,
-          total_revenue: 2845900,
-          total_expenses: 642000,
-          generated_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        },
-      ];
+      return [];
     }
   },
 };

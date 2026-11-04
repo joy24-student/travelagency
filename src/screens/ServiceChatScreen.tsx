@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { chat } from "../services/ai/llm";
 
 // Chat Message Interface
 interface Message {
@@ -65,7 +66,7 @@ export function ServiceChatScreen() {
   const [showTransportModal, setShowTransportModal] = useState<boolean>(false);
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
 
-  const handleSendText = (customText?: string, autoAnswer?: string) => {
+  const handleSendText = async (customText?: string, autoAnswer?: string) => {
     const textToSend = customText || inputText;
     if (!textToSend.trim()) return;
 
@@ -78,28 +79,57 @@ export function ServiceChatScreen() {
       time: newTime,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
     if (!customText) setInputText("");
 
-    // Auto scroll down
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
 
-    // AI Response
-    setTimeout(() => {
-      const botMsgText =
-        autoAnswer ||
-        `Thank you for reaching out regarding "${textToSend}". I have logged your request with our Hotels & Homes support team. An instant update will be posted here!`;
+    if (autoAnswer) {
+      setTimeout(() => {
+        const botReply: Message = {
+          id: (Date.now() + 1).toString(),
+          sender: "bot",
+          text: autoAnswer,
+          time: newTime,
+        };
+        setMessages((prev) => [...prev, botReply]);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      }, 400);
+      return;
+    }
 
+    try {
+      const response = await chat([
+        {
+          role: "system",
+          content: "You are the AI Hotel & Stays concierge service assistant for Trip.com. Answer inquiries regarding hotel reservations, check-in policies, room amenities, and refunds concisely and politely.",
+        },
+        ...nextMessages.map((m) => ({
+          role: m.sender === "user" ? ("user" as const) : ("assistant" as const),
+          content: m.text,
+        })),
+      ]);
+
+      const botReplyText = response.data || `I have noted your inquiry regarding "${textToSend}". Our reservations desk is at your service.`;
       const botReply: Message = {
         id: (Date.now() + 1).toString(),
         sender: "bot",
-        text: botMsgText,
+        text: botReplyText,
         time: newTime,
       };
-
       setMessages((prev) => [...prev, botReply]);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-    }, 800);
+    } catch {
+      const botReply: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: "bot",
+        text: `Thank you for reaching out regarding "${textToSend}". I have logged your request with our Hotels & Homes support team.`,
+        time: newTime,
+      };
+      setMessages((prev) => [...prev, botReply]);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    }
   };
 
   const handleToggleBatch = () => {

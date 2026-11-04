@@ -87,7 +87,9 @@ const AdStatusBadge: React.FC<{ status: string }> = ({ status }) => {
 const AdCard: React.FC<{
   ad: Advertisement;
   onPress: (ad: Advertisement) => void;
-}> = ({ ad, onPress }) => {
+  onToggleStatus: (ad: Advertisement) => void;
+  onDelete: (ad: Advertisement) => void;
+}> = ({ ad, onPress, onToggleStatus, onDelete }) => {
   return (
     <TouchableOpacity onPress={() => onPress(ad)}>
       <LinearGradient
@@ -112,15 +114,15 @@ const AdCard: React.FC<{
               {ad.ad_name}
             </Text>
             <Text style={styles.advertiserName} numberOfLines={1}>
-              {ad.advertiser_id || "Advertiser"}
+              {ad.content_url || "Target URL"}
             </Text>
           </View>
         </View>
 
         <View style={styles.cardContent}>
-          {ad.content_url && (
-            <Text style={styles.adDescription} numberOfLines={2}>
-              {ad.content_url}
+          {ad.media_url && (
+            <Text style={styles.adDescription} numberOfLines={1}>
+              Image: {ad.media_url}
             </Text>
           )}
 
@@ -143,31 +145,6 @@ const AdCard: React.FC<{
               </Text>
             </View>
           </View>
-
-          <View style={styles.detailsRow}>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Budget</Text>
-              <Text style={styles.detailValue}>${ad.budget_allocated?.toFixed(2)}</Text>
-            </View>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Spent</Text>
-              <Text style={styles.detailValue}>${ad.budget_spent?.toFixed(2)}</Text>
-            </View>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Type</Text>
-              <Text style={styles.detailValue}>
-                {ad.ad_type?.toUpperCase()}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.dateRow}>
-            <MaterialCommunityIcons name="calendar" size={12} color="#6b7280" />
-            <Text style={styles.dateText}>
-              {new Date(ad.start_date).toLocaleDateString()} -{" "}
-              {new Date(ad.end_date).toLocaleDateString()}
-            </Text>
-          </View>
         </View>
 
         <View style={styles.statusRow}>
@@ -175,21 +152,25 @@ const AdCard: React.FC<{
         </View>
 
         <View style={styles.cardFooter}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Ionicons name="eye-outline" size={14} color="#667eea" />
-            <Text style={styles.actionButtonText}>View</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <MaterialCommunityIcons
-              name="chart-line"
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: ad.status === 'active' ? '#fef3c7' : '#dcfce7' }]}
+            onPress={() => onToggleStatus(ad)}
+          >
+            <Ionicons
+              name={ad.status === 'active' ? "pause-outline" : "play-outline"}
               size={14}
-              color="#667eea"
+              color={ad.status === 'active' ? "#d97706" : "#16a34a"}
             />
-            <Text style={styles.actionButtonText}>Analytics</Text>
+            <Text style={[styles.actionButtonText, { color: ad.status === 'active' ? "#d97706" : "#16a34a" }]}>
+              {ad.status === 'active' ? "Pause Ad" : "Activate"}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <MaterialCommunityIcons name="pencil" size={14} color="#667eea" />
-            <Text style={styles.actionButtonText}>Edit</Text>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#fee2e2' }]}
+            onPress={() => onDelete(ad)}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={14} color="#ef4444" />
+            <Text style={[styles.actionButtonText, { color: "#ef4444" }]}>Delete</Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -207,6 +188,10 @@ export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newBannerUrl, setNewBannerUrl] = useState("");
+  const [newTargetUrl, setNewTargetUrl] = useState("/screens/search-stays");
 
   useEffect(() => {
     loadAds();
@@ -230,8 +215,61 @@ export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
     setRefreshing(false);
   };
 
+  const handleToggleStatus = async (ad: Advertisement) => {
+    try {
+      const updatedStatus = await adService.toggleAdStatus(ad.id, ad.status);
+      setAds(prev => prev.map(a => a.id === ad.id ? { ...a, status: updatedStatus as any } : a));
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to update ad status");
+    }
+  };
+
+  const handleDelete = (ad: Advertisement) => {
+    Alert.alert(
+      "Confirm Delete",
+      `Delete ad "${ad.ad_name}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await adService.deleteAd(ad.id);
+              setAds(prev => prev.filter(a => a.id !== ad.id));
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Failed to delete ad");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCreateAd = async () => {
+    if (!newTitle.trim()) {
+      Alert.alert("Validation", "Please enter an ad title");
+      return;
+    }
+    try {
+      await adService.createAd({
+        title: newTitle.trim(),
+        banner_url: newBannerUrl.trim() || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800",
+        target_url: newTargetUrl.trim() || "/screens/search-stays",
+        placement: "home_banner",
+        status: "active" as any,
+      });
+      setShowCreateModal(false);
+      setNewTitle("");
+      setNewBannerUrl("");
+      await loadAds();
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to create ad");
+    }
+  };
+
   const handleAdPress = (ad: Advertisement) => {
-    Alert.alert("Ad Details", `${ad.ad_name}\n\nStatus: ${ad.status}`);
+    Alert.alert("Ad Details", `${ad.ad_name}\n\nStatus: ${ad.status}\nURL: ${ad.content_url}`);
   };
 
   const statuses = [
@@ -251,10 +289,21 @@ export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        <Text style={styles.headerTitle}>Advertisement Management</Text>
-        <Text style={styles.headerSubtitle}>
-          Manage ads and track performance
-        </Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View>
+            <Text style={styles.headerTitle}>Advertisement Management</Text>
+            <Text style={styles.headerSubtitle}>
+              Manage ads and track performance
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.createAdBtn}
+            onPress={() => setShowCreateModal(true)}
+          >
+            <Ionicons name="add" size={18} color="#f97316" />
+            <Text style={styles.createAdBtnText}>New Ad</Text>
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
 
       {/* Filter Tabs */}
@@ -293,7 +342,12 @@ export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
         <FlatList
           data={ads}
           renderItem={({ item }) => (
-            <AdCard ad={item} onPress={handleAdPress} />
+            <AdCard
+              ad={item}
+              onPress={handleAdPress}
+              onToggleStatus={handleToggleStatus}
+              onDelete={handleDelete}
+            />
           )}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
@@ -312,6 +366,58 @@ export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
           }
         />
       )}
+
+      {/* Create New Ad Modal */}
+      <Modal
+        visible={showCreateModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create New Advertisement</Text>
+              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Banner Title / Promo</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. Explore Asia — Deals Up to 50% Off"
+                value={newTitle}
+                onChangeText={setNewTitle}
+              />
+
+              <Text style={styles.inputLabel}>Banner Image URL (Unsplash or CDN)</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="https://images.unsplash.com/photo-..."
+                value={newBannerUrl}
+                onChangeText={setNewBannerUrl}
+              />
+
+              <Text style={styles.inputLabel}>Target Screen Route</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="/screens/search-stays or /screens/flights"
+                value={newTargetUrl}
+                onChangeText={setNewTargetUrl}
+              />
+
+              <TouchableOpacity
+                style={styles.submitModalBtn}
+                onPress={handleCreateAd}
+              >
+                <Text style={styles.submitModalBtnText}>Save & Publish Banner</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -516,6 +622,78 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#9ca3af",
     marginTop: 12,
+  },
+  createAdBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  createAdBtnText: {
+    color: "#f97316",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1e293b",
+  },
+  modalBody: {
+    gap: 12,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475569",
+    marginTop: 4,
+  },
+  modalInput: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#1e293b",
+  },
+  submitModalBtn: {
+    backgroundColor: "#f97316",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 12,
+  },
+  submitModalBtnText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
 

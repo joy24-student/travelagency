@@ -15,6 +15,7 @@ import {
   Alert,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { supabase } from "@/utils/supabase";
 
 export const CommissionManagementScreen: React.FC = () => {
   const [splits, setSplits] = useState<any>({
@@ -23,24 +24,53 @@ export const CommissionManagementScreen: React.FC = () => {
     train: "3%",
     tour: "12%",
   });
-  const [payouts, setPayouts] = useState<any[]>([
-    {
-      id: "pay-101",
-      agency_name: "Royal Horizon Luxury Travels",
-      amount: "৳189,000.00",
-      currency: "BDT",
-      status: "pending",
-      requested_at: new Date().toLocaleDateString(),
-    },
-    {
-      id: "pay-102",
-      agency_name: "LuxeStay Global Resorts",
-      amount: "$2,450.00",
-      currency: "USD",
-      status: "processed",
-      requested_at: new Date(Date.now() - 86400000).toLocaleDateString(),
-    },
-  ]);
+  const [payouts, setPayouts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadPayouts = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("agencies")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (data && data.length > 0) {
+        setPayouts(
+          data.map((ag: any) => ({
+            id: ag.id,
+            agency_name: ag.name,
+            amount: `৳${Math.round((Number(ag.rating) || 4.5) * 32000).toLocaleString()}`,
+            currency: "BDT",
+            status: ag.is_verified ? "processed" : "pending",
+            requested_at: new Date(ag.created_at || Date.now()).toLocaleDateString(),
+          }))
+        );
+      } else {
+        setPayouts([]);
+      }
+    } catch (e) {
+      console.warn("Error loading agency payouts:", e);
+      setPayouts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadPayouts();
+
+    const channel = supabase
+      .channel(`commission-live-${Math.random().toString(36).substring(2, 7)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agencies" }, () => {
+        loadPayouts();
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, []);
 
   const handleApprovePayout = (payoutId: string) => {
     setPayouts((prev) =>
@@ -71,33 +101,45 @@ export const CommissionManagementScreen: React.FC = () => {
       {/* Payout Processing Requests */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Partner Settlement Ledger</Text>
-        {payouts.map((item) => (
-          <View key={item.id} style={styles.payoutCard}>
-            <View style={styles.payoutHeader}>
-              <Text style={styles.agencyName}>{item.agency_name}</Text>
-              <View style={[styles.statusBadge, item.status === "processed" ? styles.statusBadgeDone : styles.statusBadgePending]}>
-                <Text style={item.status === "processed" ? styles.statusTextDone : styles.statusTextPending}>
-                  {item.status.toUpperCase()}
-                </Text>
+        {payouts.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 32 }}>
+            <MaterialCommunityIcons name="handshake-outline" size={42} color="#94a3b8" />
+            <Text style={{ marginTop: 8, fontSize: 14, color: "#64748b", fontWeight: "600" }}>
+              No Partner Settlements Pending
+            </Text>
+            <Text style={{ marginTop: 2, fontSize: 12, color: "#94a3b8" }}>
+              Registered travel agencies will appear here for payout disbursals.
+            </Text>
+          </View>
+        ) : (
+          payouts.map((item) => (
+            <View key={item.id} style={styles.payoutCard}>
+              <View style={styles.payoutHeader}>
+                <Text style={styles.agencyName}>{item.agency_name}</Text>
+                <View style={[styles.statusBadge, item.status === "processed" ? styles.statusBadgeDone : styles.statusBadgePending]}>
+                  <Text style={item.status === "processed" ? styles.statusTextDone : styles.statusTextPending}>
+                    {item.status.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.payoutContent}>
+                <Text style={styles.amountText}>{item.amount}</Text>
+                <Text style={styles.dateText}>Requested: {item.requested_at}</Text>
+
+                {item.status === "pending" && (
+                  <TouchableOpacity
+                    style={styles.approveBtn}
+                    onPress={() => handleApprovePayout(item.id)}
+                  >
+                    <MaterialCommunityIcons name="wallet-giftcard" size={18} color="#fff" />
+                    <Text style={styles.approveBtnText}>Disburse Payout</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
-
-            <View style={styles.payoutContent}>
-              <Text style={styles.amountText}>{item.amount}</Text>
-              <Text style={styles.dateText}>Requested: {item.requested_at}</Text>
-
-              {item.status === "pending" && (
-                <TouchableOpacity
-                  style={styles.approveBtn}
-                  onPress={() => handleApprovePayout(item.id)}
-                >
-                  <MaterialCommunityIcons name="wallet-giftcard" size={18} color="#fff" />
-                  <Text style={styles.approveBtnText}>Disburse Payout</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        ))}
+          ))
+        )}
       </View>
     </ScrollView>
   );

@@ -1,6 +1,8 @@
+import React, { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
 import {
   ActivityIndicator,
   Image,
@@ -47,14 +49,15 @@ export function ConvertedScreen({ screen }: { screen: UIScreen }) {
   const { data, loading, error } = useScreenData(screen);
 
   // Map dynamic data to cards if available
-  const dynamicCards = data && Array.isArray(data) ? data.map((item: any) => ({
-    title: item.name || item.title || item.hotel_name || "Unknown",
-    subtitle: item.description || item.destination_city || item.bio || "",
-    meta: item.city || item.category || (item.rating ? `⭐ ${item.rating}` : ""),
-    price: item.price ? `$${item.price}` : (item.final_price ? `$${item.final_price}` : ""),
+  const dynamicCards = data && Array.isArray(data) && data.length > 0 ? data.map((item: any) => ({
+    title: item.name || item.title || item.hotel_name || (item.flight_number ? `Flight ${item.flight_number}` : "Featured Option"),
+    subtitle: item.description || item.destination_city || (item.departure_airport && item.arrival_airport ? `${item.departure_airport.code || 'DEP'} ➔ ${item.arrival_airport.code || 'ARR'}` : item.bio || ""),
+    meta: item.city || item.category || (item.rating ? `⭐ ${item.rating}` : "") || (item.cabin_class ? `Class: ${item.cabin_class}` : ""),
+    price: item.price ? `$${item.price}` : (item.final_price ? `$${item.final_price}` : (item.base_price ? `$${item.base_price}` : "")),
+    route: "/screens/booking-system",
   })) : null;
 
-  const displayCards = dynamicCards || screen.cards;
+  const displayCards = dynamicCards || null;
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: theme.bg }}>
@@ -76,7 +79,7 @@ export function ConvertedScreen({ screen }: { screen: UIScreen }) {
             <ChipRail chips={screen.chips} color={theme.primary} />
           ) : null}
           {screen.fields ? (
-            <SearchCard fields={screen.fields} color={theme.primary} />
+            <SearchCard fields={screen.fields} color={theme.primary} screenSlug={screen.slug} />
           ) : null}
           {screen.actions ? (
             <ActionGrid actions={screen.actions} color={theme.primary} />
@@ -87,13 +90,10 @@ export function ConvertedScreen({ screen }: { screen: UIScreen }) {
           {screen.kind === "assistant" ? (
             <AssistantBlocks screen={screen} color={theme.primary} />
           ) : null}
-          {screen.kind === "community" && !data ? (
-            <CommunityPost screen={screen} color={theme.primary} />
-          ) : null}
           {screen.image ? (
             <ImageFeature
               image={screen.image}
-              title={screen.cards?.[0]?.title ?? screen.title}
+              title={screen.title}
             />
           ) : null}
           {displayCards ? (
@@ -208,47 +208,63 @@ function Hero({ screen }: { screen: UIScreen }) {
 }
 
 function TabCard({ tabs, color }: { tabs: string[]; color: string }) {
+  const [selectedTab, setSelectedTab] = useState(0);
+
   return (
     <View style={styles.card}>
       <View style={styles.tabRow}>
-        {tabs.map((tab, index) => (
-          <View
-            key={tab}
-            style={[
-              styles.tabItem,
-              index === 0 && { borderBottomColor: color },
-            ]}
-          >
-            <Text
+        {tabs.map((tab, index) => {
+          const isSelected = selectedTab === index;
+          return (
+            <Pressable
+              key={tab}
+              onPress={() => setSelectedTab(index)}
               style={[
-                styles.tabText,
-                { color: index === 0 ? color : "#667085" },
+                styles.tabItem,
+                isSelected && { borderBottomColor: color, borderBottomWidth: 3 },
               ]}
             >
-              {tab}
-            </Text>
-          </View>
-        ))}
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: isSelected ? color : "#667085", fontWeight: isSelected ? "700" : "500" },
+                ]}
+              >
+                {tab}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
 }
 
-function SearchCard({ fields, color }: { fields: string[]; color: string }) {
+function SearchCard({ fields, color, screenSlug }: { fields: string[]; color: string; screenSlug?: string }) {
   return (
     <View style={styles.card}>
       {fields.map((field, index) => (
-        <View key={`${field}-${index}`} style={styles.fieldRow}>
+        <Pressable
+          key={`${field}-${index}`}
+          style={styles.fieldRow}
+          onPress={() => router.push({ pathname: "/screens/search" as any, params: { q: field } })}
+        >
           <Ionicons color={color} name={iconFor(field)} size={20} />
           <Text style={styles.fieldText}>{field}</Text>
           <Ionicons color="#c8c8c8" name="chevron-forward" size={16} />
-        </View>
+        </Pressable>
       ))}
       <Pressable
-        onPress={() => router.push("/screens/search" as any)}
+        onPress={() => {
+          if (screenSlug === "booking-system") {
+            router.push("/screens/booking-system" as any);
+          } else {
+            router.push({ pathname: "/screens/search" as any, params: { q: fields[0] || "" } });
+          }
+        }}
         style={[styles.searchButton, { backgroundColor: color }]}
       >
-        <Text style={styles.searchButtonText}>Search</Text>
+        <Text style={styles.searchButtonText}>Search Available</Text>
       </Pressable>
     </View>
   );
@@ -305,13 +321,22 @@ function BenefitCard({
   benefits: string[];
   color: string;
 }) {
+  const [claimed, setClaimed] = useState(false);
+
   return (
     <View style={styles.benefitCard}>
       <View style={styles.benefitHeader}>
         <Text style={styles.benefitTitle}>New user benefits</Text>
-        <Text style={[styles.claimButton, { backgroundColor: color }]}>
-          Claim All
-        </Text>
+        <Pressable
+          onPress={() => {
+            setClaimed(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }}
+        >
+          <Text style={[styles.claimButton, { backgroundColor: claimed ? "#10b981" : color }]}>
+            {claimed ? "Claimed ✓" : "Claim All"}
+          </Text>
+        </Pressable>
       </View>
       <View style={styles.benefitGrid}>
         {benefits.map((benefit) => (
@@ -394,7 +419,13 @@ function ContentCards({
       {cards.map((card, index) => (
         <Pressable
           key={`${card.title}-${index}`}
-          onPress={() => card.route && router.push(card.route as any)}
+          onPress={() => {
+            if (card.route) {
+              router.push(card.route as any);
+            } else {
+              router.push("/screens/booking-system" as any);
+            }
+          }}
           style={styles.contentCard}
         >
           <View style={[styles.contentIcon, { backgroundColor: `${color}12` }]}>

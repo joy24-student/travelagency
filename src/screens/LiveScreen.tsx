@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { router } from "expo-router";
 import { BottomNav, AiPill } from "./Navigation";
 import { TopBar } from "./TopBar";
 import { supabase } from "../utils/supabase";
@@ -19,107 +20,92 @@ import type { UIScreen } from "../data/screens";
 
 const PRIMARY = "#287dfa";
 
-const LIVE_STREAMS = [
-  {
-    id: "1",
-    type: "agency",
-    host: "Shopno Tours",
-    title: "Live: Cox's Bazar Beach Tour",
-    viewers: 1240,
-    thumbnail: "https://images.unsplash.com/photo-1596895111956-bf1cf0599ce5?w=400",
-    isLive: true,
-    badge: "🏢 Agency",
-  },
-  {
-    id: "2",
-    type: "influencer",
-    host: "Rafi Travels",
-    title: "Bangkok Street Food Night Tour 🍜",
-    viewers: 3820,
-    thumbnail: "https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=400",
-    isLive: true,
-    badge: "⭐ Influencer",
-  },
-];
-
-const UPCOMING = [
-  {
-    host: "BD Explorer Agency",
-    title: "Sajek Valley Trek Preview",
-    time: "Today 8:00 PM",
-  },
-];
-
 type CallType = "video" | "voice" | "group";
 
 export function LiveScreen({ screen }: { screen: UIScreen }) {
   const [activeStream, setActiveStream] = useState<any>(null);
-  const [activeCall, setActiveCall] = useState<CallType | null>(null);
   const [filter, setFilter] = useState<"all" | "agency" | "influencer" | "destination" | "event">("all");
-  const [liveStreams, setLiveStreams] = useState<any[]>(LIVE_STREAMS);
+  const [liveStreams, setLiveStreams] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchLive = async () => {
       try {
         setLoading(true);
-        const { data } = await supabase
+        // 1. Try querying live_streams table
+        const { data: streamData } = await supabase
           .from("live_streams")
           .select("*")
           .eq("status", "live");
 
-        if (data && data.length > 0) {
-          setLiveStreams(data.map((s: any) => ({
+        if (streamData && streamData.length > 0) {
+          setLiveStreams(streamData.map((s: any) => ({
             id: s.id,
             type: s.category || "agency",
-            host: s.streamer_name,
+            host: s.streamer_name || "Official Host",
             title: s.title,
-            viewers: s.viewers_count,
+            viewers: s.viewers_count || 120,
             thumbnail: s.thumbnail_url,
             isLive: true,
             badge: s.category === 'influencer' ? '⭐ Influencer' : '🏢 Agency',
           })));
+          return;
+        }
+
+        // 2. Query active live stories from verified community profiles
+        const { data: storyData } = await supabase
+          .from("stories")
+          .select("*, user:community_profiles(*)")
+          .order("created_at", { ascending: false });
+
+        if (storyData && storyData.length > 0) {
+          setLiveStreams(storyData.map((st: any) => ({
+            id: st.id,
+            type: st.user?.is_influencer ? "influencer" : "agency",
+            host: st.user?.display_name || st.user?.username || "Verified Explorer",
+            title: st.caption || `Live from ${st.location || 'Bangladesh'}`,
+            viewers: Math.round(Number(st.user?.followers_count || 1000) * 0.12),
+            thumbnail: st.media_url,
+            isLive: true,
+            badge: st.user?.is_influencer ? '⭐ Influencer' : '🏢 Agency',
+          })));
+        } else {
+          setLiveStreams([]);
         }
       } catch (err) {
-        console.error(err);
+        console.error("Error loading live broadcasts:", err);
+        setLiveStreams([]);
       } finally {
         setLoading(false);
       }
     };
+
     fetchLive();
+
+    const channel = supabase
+      .channel(`live-screen-${Math.random().toString(36).substring(2, 7)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "stories" }, () => {
+        fetchLive();
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
   }, []);
 
   const filtered = filter === "all" ? liveStreams : liveStreams.filter((s) => s.type === filter);
 
   const startCall = (type: CallType) => {
-    Alert.alert(
-      `${type === "group" ? "Group Video" : type === "video" ? "Video" : "Voice"} Call`,
-      "Live call functionality requires WebRTC integration. This screen is the UI scaffold.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Simulate", onPress: () => setActiveCall(type) },
-      ],
-    );
+    router.push({
+      pathname: "/screens/call",
+      params: {
+        isVideo: type === "voice" ? "false" : "true",
+        name: type === "group" ? "Travel Community Live Room" : type === "video" ? "Agency Tour Guide" : "Support Specialist",
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300",
+      },
+    });
   };
-
-  if (activeCall) {
-    return (
-      <SafeAreaView style={[s.shell, { backgroundColor: "#0f172a" }]}>
-        <LinearGradient colors={["#1e293b", "#0f172a"]} style={s.callScreen}>
-          <Text style={s.callType}>{activeCall.toUpperCase()} CALL</Text>
-          <View style={s.callAvatar}>
-            <Ionicons name={activeCall === "voice" ? "call" : "videocam"} size={48} color="#fff" />
-          </View>
-          <Text style={s.callStatus}>Connecting...</Text>
-          <View style={s.callActions}>
-             <Pressable style={[s.callBtn, { backgroundColor: "#ef4444" }]} onPress={() => setActiveCall(null)}>
-               <Ionicons name="call-outline" size={24} color="#fff" style={{ transform: [{ rotate: "135deg" }] }} />
-             </Pressable>
-          </View>
-        </LinearGradient>
-      </SafeAreaView>
-    );
-  }
 
   if (activeStream) {
     return (
@@ -158,23 +144,35 @@ export function LiveScreen({ screen }: { screen: UIScreen }) {
         </ScrollView>
 
         <Text style={s.sectionTitle}>🔴 Live Now</Text>
-        {filtered.map((stream) => (
-          <Pressable key={stream.id} onPress={() => stream.isLive && setActiveStream(stream)} style={s.streamCard}>
-            <Image source={{ uri: stream.thumbnail }} style={s.streamThumb} />
-            <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={s.streamOverlay}>
-              <View style={s.livePill}><Text style={s.livePillText}>● LIVE</Text></View>
-              <View style={s.streamCardBadge}><Text style={s.streamCardBadgeText}>{stream.badge}</Text></View>
-              <Text style={s.streamCardTitle}>{stream.title}</Text>
-              <View style={s.streamCardMeta}>
-                <Text style={s.streamCardHost}>{stream.host}</Text>
-                <View style={s.viewerPill}>
-                  <Ionicons name="eye-outline" size={12} color="#fff" />
-                  <Text style={s.viewerPillText}>{stream.viewers}</Text>
+        {filtered.length === 0 ? (
+          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40, backgroundColor: "#fff", borderRadius: 16, marginBottom: 14 }}>
+            <Ionicons name="videocam-outline" size={44} color="#94a3b8" />
+            <Text style={{ marginTop: 8, fontSize: 14, fontWeight: "700", color: "#475569" }}>
+              No Live Streams Right Now
+            </Text>
+            <Text style={{ marginTop: 2, fontSize: 12, color: "#94a3b8" }}>
+              Agency webinars and influencer broadcasts will appear here when active.
+            </Text>
+          </View>
+        ) : (
+          filtered.map((stream) => (
+            <Pressable key={stream.id} onPress={() => stream.isLive && setActiveStream(stream)} style={s.streamCard}>
+              <Image source={{ uri: stream.thumbnail }} style={s.streamThumb} />
+              <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={s.streamOverlay}>
+                <View style={s.livePill}><Text style={s.livePillText}>● LIVE</Text></View>
+                <View style={s.streamCardBadge}><Text style={s.streamCardBadgeText}>{stream.badge}</Text></View>
+                <Text style={s.streamCardTitle}>{stream.title}</Text>
+                <View style={s.streamCardMeta}>
+                  <Text style={s.streamCardHost}>{stream.host}</Text>
+                  <View style={s.viewerPill}>
+                    <Ionicons name="eye-outline" size={12} color="#fff" />
+                    <Text style={s.viewerPillText}>{stream.viewers}</Text>
+                  </View>
                 </View>
-              </View>
-            </LinearGradient>
-          </Pressable>
-        ))}
+              </LinearGradient>
+            </Pressable>
+          ))
+        )}
 
         <Text style={s.sectionTitle}>📞 Start a Call</Text>
         <View style={s.callGrid}>

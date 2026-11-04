@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 
 import { useAuth } from "../../src/hooks/useAuth";
 import { userRepository } from "../../src/services/repositories/user";
+import { supabase } from "../../src/utils/supabase";
 import { BottomNav, AiPill } from "../../src/screens/Navigation";
 
 const PRIMARY = "#287dfa";
@@ -45,7 +46,10 @@ export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activePostTab, setActivePostTab] = useState("Moments");
+  const [loyaltyAccount, setLoyaltyAccount] = useState<{ tier: string; points_balance: number } | null>(null);
+  const [promoCount, setPromoCount] = useState<number>(0);
 
   // Settings state
   const [settings, setSettings] = useState<SettingsState>({
@@ -99,13 +103,31 @@ export default function ProfileScreen() {
         setLoading(true);
         setError(null);
         // Load profile data
-        const data = await userRepository.getProfile();
-        setProfile(data);
+        const data = await userRepository.getProfile().catch(() => null);
+        if (data) setProfile(data);
+
         // Load settings data
-        const userSettings = await userRepository.getSettings();
+        const userSettings = await userRepository.getSettings().catch(() => null);
         if (userSettings) {
           setSettings((prev) => ({ ...prev, ...userSettings }));
         }
+
+        // Load loyalty account
+        if (user?.id) {
+          const { data: loyalty } = await supabase
+            .from("loyalty_accounts")
+            .select("tier, points_balance")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (loyalty) setLoyaltyAccount(loyalty);
+        }
+
+        // Load active promo codes count
+        const { count: pcCount } = await supabase
+          .from("promo_codes")
+          .select("*", { count: "exact", head: true })
+          .eq("is_active", true);
+        setPromoCount(pcCount || 0);
       } catch (err) {
         console.log("Data load error:", err);
         setProfile(null);
@@ -202,12 +224,11 @@ export default function ProfileScreen() {
           </View>
         </View>
         <View style={styles.headerRight}>
-          <Pressable><Ionicons name="qr-code-outline" size={24} color="#475569" /></Pressable>
-          <Pressable onPress={() => router.push("/help")}><Ionicons name="help-buoy-outline" size={24} color="#475569" /></Pressable>
-          <View style={styles.settingBtnWrap}>
+          <Pressable onPress={() => router.push("/screens/customer-support")}><Ionicons name="help-buoy-outline" size={24} color="#475569" /></Pressable>
+          <Pressable onPress={() => router.push("/screens/settings")} style={styles.settingBtnWrap}>
             <Ionicons name="settings-outline" size={24} color="#475569" />
             <View style={styles.notificationDot} />
-          </View>
+          </Pressable>
         </View>
       </View>
       {/* END: TopHeader */}
@@ -215,51 +236,55 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* BEGIN: MembershipSection */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tierScroll}>
-          <LinearGradient
-            colors={["rgba(240, 244, 255, 0.8)", "rgba(224, 231, 255, 0.8)"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.silverCard}
-          >
-            <Ionicons name="shield-checkmark" size={100} color="rgba(40, 125, 250, 0.1)" style={styles.tierWatermark} />
-            <View style={styles.tierBadgeRow}>
-              <View style={styles.tierIconBox}>
-                <Ionicons name="shield-checkmark" size={16} color="#fff" />
+          <Pressable onPress={() => router.push("/screens/rewards")}>
+            <LinearGradient
+              colors={["rgba(240, 244, 255, 0.8)", "rgba(224, 231, 255, 0.8)"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.silverCard}
+            >
+              <Ionicons name="shield-checkmark" size={100} color="rgba(40, 125, 250, 0.1)" style={styles.tierWatermark} />
+              <View style={styles.tierBadgeRow}>
+                <View style={styles.tierIconBox}>
+                  <Ionicons name="shield-checkmark" size={16} color="#fff" />
+                </View>
+                <Text style={styles.tierTitle}>Silver</Text>
               </View>
-              <Text style={styles.tierTitle}>Silver</Text>
-            </View>
-            <Text style={styles.tierPromo}>Your exclusive new-user{"\n"}special discounts</Text>
-          </LinearGradient>
+              <Text style={styles.tierPromo}>Your exclusive new-user{"\n"}special discounts</Text>
+            </LinearGradient>
+          </Pressable>
 
-          <View style={styles.promoCard}>
-            <View style={styles.perforated} />
-            <View style={styles.promoIconBox}>
-              <Ionicons name="bed" size={24} color="#f43f5e" />
+          <Pressable onPress={() => router.push("/screens/rewards")}>
+            <View style={styles.promoCard}>
+              <View style={styles.perforated} />
+              <View style={styles.promoIconBox}>
+                <Ionicons name="bed" size={24} color="#f43f5e" />
+              </View>
+              <Text style={styles.promoValue}>10% off</Text>
+              <Text style={styles.promoLabel}>hotel bookings</Text>
             </View>
-            <Text style={styles.promoValue}>10% off</Text>
-            <Text style={styles.promoLabel}>hotel bookings</Text>
-          </View>
+          </Pressable>
         </ScrollView>
         {/* END: MembershipSection */}
 
         {/* BEGIN: RewardsSummary */}
-        <View style={styles.rewardsRow}>
+        <Pressable onPress={() => router.push("/screens/rewards")} style={styles.rewardsRow}>
           <View style={[styles.rewardBlock, { borderRightWidth: 1, borderRightColor: "#f1f5f9" }]}>
             <View style={styles.rewardTop}>
               <View style={styles.tripCoinIcon}><Text style={styles.tripCoinText}>T</Text></View>
-              <Text style={styles.rewardValue}>≈$0</Text>
-              <Text style={styles.rewardMeta}>(0 Trip Coins)</Text>
+              <Text style={styles.rewardValue}>≈${((loyaltyAccount?.points_balance || 0) * 0.01).toFixed(0)}</Text>
+              <Text style={styles.rewardMeta}>({loyaltyAccount?.points_balance || 0} Trip Coins)</Text>
             </View>
             <Text style={styles.rewardSub}>Use Trip Coins to save on bookings</Text>
           </View>
           <View style={styles.rewardBlockSmall}>
             <View style={styles.rewardTop}>
               <View style={styles.percentBadge}><Text style={styles.percentText}>%</Text></View>
-              <Text style={styles.rewardValue}>8</Text>
+              <Text style={styles.rewardValue}>{promoCount}</Text>
             </View>
             <Text style={styles.rewardSub}>Promo Codes</Text>
           </View>
-        </View>
+        </Pressable>
         {/* END: RewardsSummary */}
 
         {/* BEGIN: MainNavList */}
@@ -269,12 +294,14 @@ export default function ProfileScreen() {
             label="All bookings"
             color="#eff6ff"
             iconColor="#2563eb"
+            onPress={() => router.push("/(tabs)/trips" as any)}
           />
           <NavListItem
             icon="time"
             label="Upcoming"
             color="#eef2ff"
             iconColor="#4f46e5"
+            onPress={() => router.push("/(tabs)/trips" as any)}
           />
           <NavListItem
             icon="eye"
@@ -282,22 +309,26 @@ export default function ProfileScreen() {
             color="#f0f9ff"
             iconColor="#0ea5e9"
             badge="L"
+            onPress={() => router.push("/screens/search-stays")}
           />
           <View style={styles.navDivider} />
           <NavListItem
             icon="card-outline"
             label="My cards"
             isOutline
+            onPress={() => router.push("/screens/payments-enhanced" as any)}
           />
           <NavListItem
-            icon="person-circle-outline"
-            label="Frequent info"
+            icon="business-outline"
+            label="Partner Agencies & Hotels"
             isOutline
+            onPress={() => router.push("/screens/agencies")}
           />
           <NavListItem
             icon="heart-outline"
             label="Saved"
             isOutline
+            onPress={() => router.push("/screens/search-stays")}
           />
         </View>
         {/* END: MainNavList */}
@@ -309,16 +340,19 @@ export default function ProfileScreen() {
             icon="person-add-outline"
             label="Invite & Earn"
             isOutline
+            onPress={() => router.push("/screens/invite-earn")}
           />
           <NavListItem
             icon="refresh-outline"
             label="Redeem Trip Coins"
             isOutline
+            onPress={() => router.push("/screens/rewards")}
           />
           <NavListItem
             icon="gift-outline"
-            label="Gift Cards"
+            label="Rewards Tier & Perks"
             isOutline
+            onPress={() => router.push("/screens/rewards")}
           />
         </View>
         {/* END: PerksSection */}
@@ -364,6 +398,7 @@ export default function ProfileScreen() {
             icon="pencil-outline"
             label="Creator center"
             isOutline
+            onPress={() => router.push("/screens/community" as any)}
           />
         </View>
         {/* END: MyPostsSection */}
@@ -375,16 +410,19 @@ export default function ProfileScreen() {
             icon="information-circle-outline"
             label="About Trip.com"
             isOutline
+            onPress={() => router.push("/screens/settings")}
           />
           <NavListItem
             icon="star-outline"
             label="Rate This App"
             isOutline
+            onPress={() => Alert.alert("App Review", "Thank you for rating our Travel platform 5 stars!")}
           />
           <NavListItem
             icon="document-text-outline"
             label="Terms & conditions"
             isOutline
+            onPress={() => router.push("/screens/settings")}
           />
         </View>
         {/* END: AboutTermsSection */}
@@ -439,9 +477,9 @@ export default function ProfileScreen() {
   );
 }
 
-function NavListItem({ icon, label, color, iconColor, badge, isOutline }: any) {
+function NavListItem({ icon, label, color, iconColor, badge, isOutline, onPress }: any) {
   return (
-    <Pressable style={styles.navItem}>
+    <Pressable style={styles.navItem} onPress={onPress}>
       <View style={[styles.navIconBox, { backgroundColor: color || "transparent" }]}>
         <Ionicons name={icon} size={isOutline ? 28 : 24} color={iconColor || "#475569"} />
         {badge && (

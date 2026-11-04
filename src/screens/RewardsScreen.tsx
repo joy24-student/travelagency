@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,63 @@ import {
   Pressable,
   Dimensions,
   Image,
-  StatusBar
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path, Defs, RadialGradient, Stop, LinearGradient, Text as SvgText } from 'react-native-svg';
 import { router } from 'expo-router';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../utils/supabase';
 
 const { width } = Dimensions.get('window');
 const TRIP_BLUE = "#0077f5";
 const SILVER_TEXT = "#4A6B9E";
 
 export default function RewardsScreen() {
+  const { user } = useAuth();
+  const [loyaltyAccount, setLoyaltyAccount] = useState<{
+    tier: string;
+    points_balance: number;
+    tier_progress_percentage: number;
+    next_tier_threshold: number;
+  } | null>(null);
+  const [promoCodes, setPromoCodes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadRewards() {
+      setLoading(true);
+      try {
+        if (user?.id) {
+          const { data: loyalty } = await supabase
+            .from('loyalty_accounts')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          if (loyalty) setLoyaltyAccount(loyalty);
+        }
+
+        const { data: promos } = await supabase
+          .from('promo_codes')
+          .select('*')
+          .eq('is_active', true)
+          .limit(4);
+        if (promos) setPromoCodes(promos);
+      } catch (err) {
+        console.log('Error loading rewards:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadRewards();
+  }, [user?.id]);
+
+  const tier = loyaltyAccount?.tier || 'bronze';
+  const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
+  const progressPercent = loyaltyAccount?.tier_progress_percentage || 0;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -42,7 +87,7 @@ export default function RewardsScreen() {
                   <Text style={styles.rewardsBadgeText}>REWARDS</Text>
                 </View>
               </View>
-              <Text style={styles.tierTitle}>Silver</Text>
+              <Text style={styles.tierTitle}>{tierName}</Text>
               <Text style={styles.tierSubtitle}>Your current tier</Text>
             </View>
 
@@ -105,13 +150,13 @@ export default function RewardsScreen() {
         <View style={styles.mainContent}>
           <View style={styles.progressCard}>
             <Text style={styles.progressText}>
-              Complete <Text style={{ color: TRIP_BLUE }}>1 booking</Text> to unlock Gold
+              Complete your bookings to unlock the next VIP tier
             </Text>
             <View style={styles.progressBarContainer}>
               <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: '0%' }]} />
+                <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
               </View>
-              <Text style={styles.progressCount}>0/1 Booking</Text>
+              <Text style={styles.progressCount}>{progressPercent}% Progress</Text>
             </View>
           </View>
 
@@ -126,23 +171,39 @@ export default function RewardsScreen() {
             </Text>
           </Pressable>
 
-          {/* New User Package */}
-          <Text style={styles.sectionTitle}>New user package</Text>
-          <View style={styles.couponContainer}>
-            <CouponCard discount="10% off" label="Enjoy" showInfo />
-            <CouponCard discount="20% off" label="Up to" />
-          </View>
+          {/* Active Promo Codes & Discounts */}
+          <Text style={styles.sectionTitle}>Exclusive promo vouchers</Text>
+          {promoCodes.length === 0 ? (
+            <View style={styles.emptyCouponBox}>
+              <Ionicons name="pricetag-outline" size={32} color="#94A3B8" />
+              <Text style={styles.emptyCouponTitle}>No active vouchers</Text>
+              <Text style={styles.emptyCouponSub}>Check back during promotional campaigns.</Text>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.couponContainer}>
+              {promoCodes.map((promo) => (
+                <CouponCard
+                  key={promo.id}
+                  discount={promo.discount_type === "percentage" ? `${promo.discount_amount}% off` : `$${promo.discount_amount} off`}
+                  label={promo.code}
+                  title={promo.title}
+                  category={promo.applicable_category?.toUpperCase() || "PROMO"}
+                  showInfo
+                />
+              ))}
+            </ScrollView>
+          )}
 
-          {/* Silver Tier Rewards */}
+          {/* Tier Rewards */}
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Silver tier rewards</Text>
+            <Text style={styles.sectionTitle}>{tierName} tier rewards</Text>
             <View style={styles.multiplierBadge}>
-              <Text style={styles.multiplierText}>x3</Text>
+              <Text style={styles.multiplierText}>{loyaltyAccount?.points_balance || 0} Coins</Text>
             </View>
           </View>
 
           <View style={styles.rewardCard}>
-            <Text style={styles.rewardCardTitle}>Earn Trip Coins</Text>
+            <Text style={styles.rewardCardTitle}>Trip Coins Balance</Text>
             <View style={styles.coinVisual}>
               <View style={styles.coinGlow} />
               <View style={styles.coinCircle}>
@@ -168,17 +229,18 @@ function TimelineDot({ label, active, color, borderColor, textColor }: any) {
   );
 }
 
-function CouponCard({ discount, label, showInfo }: any) {
+function CouponCard({ discount, label, title, category, showInfo }: any) {
   return (
     <View style={styles.couponCard}>
       <View style={styles.couponHeader}>
-        <MaterialCommunityIcons name="home" size={16} color="#ec4899" />
-        <Text style={styles.couponTypeText}>HOTELS & HOMES</Text>
+        <MaterialCommunityIcons name="tag-outline" size={16} color="#ec4899" />
+        <Text style={styles.couponTypeText}>{category || "PROMO"}</Text>
         {showInfo && <Ionicons name="information-circle-outline" size={14} color="#cbd5e1" style={{ marginLeft: 4 }} />}
       </View>
       <View style={styles.couponBody}>
         <Text style={styles.couponLabel}>{label}</Text>
         <Text style={styles.couponDiscount}>{discount}</Text>
+        {title && <Text style={styles.couponTitle} numberOfLines={1}>{title}</Text>}
         <Pressable style={styles.useNowBtn}>
           <Text style={styles.useNowText}>Use Now</Text>
         </Pressable>
@@ -387,7 +449,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   couponCard: {
-    flex: 1,
+    width: 175,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#f1f5f9',
@@ -398,11 +460,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 2,
+    marginRight: 12,
   },
   couponHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   couponTypeText: {
     fontSize: 10,
@@ -414,15 +477,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   couponLabel: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '700',
     color: '#64748b',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   couponDiscount: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#0f172a',
-    marginBottom: 16,
+    marginBottom: 6,
+  },
+  couponTitle: {
+    fontSize: 11,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  emptyCouponBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 32,
+  },
+  emptyCouponTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  emptyCouponSub: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
   },
   useNowBtn: {
     width: '100%',

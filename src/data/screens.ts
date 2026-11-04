@@ -33,7 +33,7 @@ export type UIScreen = {
   tabs?: string[];
   fields?: string[];
   chips?: string[];
-  actions?: Array<{ label: string; route?: string; icon?: string }>;
+  actions?: Array<string | { label: string; route?: string; icon?: string }>;
   benefits?: string[];
   cards?: Array<{
     title: string;
@@ -56,6 +56,10 @@ const luxeHero =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuC0IOIEbK_8Ik65WK9Cs3tSYR1CDsYtGgMy3bzWD7dxBCWdGHIqDxwa3up3fygyQ6_jz8Qym8XvqN4riPXlyuoiyG_s874WeTkiMRBjHN-FtYgmav5BCmRuunN9uRikFHj5hrvuEbB2A2PpNQEstLEBkQPlq0RVs2ySeGzles0qXUY7YicPhKBeQpJW7X6nnrKBpBHbiSZJVAF2NRiSeZvKbKRiRfs21AW2OizwISk82Gfdob-b4IqZoOBmGICpwnyyRgr8slTOGIw";
 const communityHero =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuBl0iWhRKgwp1vOz1VwEthPCmIbts-xjwFDoFR960YggifC2bxX3UCnh6GqtIG-EeBZOTLhqbkevh-tJw_iWryFwztTtMT6kGL-dXlElwapIRFwnIazmtqv6RM63bTpUvfPP5r7OApHatnA7CZ8lQQ0QHhJqizklIeEX992wqxoQoDVNgbnQu7E6SCzbsuU__dVlzs2_FSSKUio6DIblX9BxW6v2KfgDqtQidRQIT2VgFg9ZYYyqenUHX8IEg9YQlylDFC43ZL2c-k";
+const trainHero =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuASaSaMI_5VlFnTP8K_LAfgTjP1SJJaxAK6W3jaAJn9d1Sv6TIi13rOUaMn7IwnEuCIriHYLbLCL5aGpKt5eesP5eUQp7uBSq64D6Ve8RLZRzeiNPM2teNKXe0BF47OaJ3K8-HsYSWDAp2XUIlqJPZRbJo5xsRFVx8b40fDvhlBG5TOJY6B179cll5ShqHykdahYD6PTp-CWONca53Uxr8wvidON1A9WwHcR0Lieb2LiRC83wUIHnGz15gD91XJl6qMkZfGdck2KP8";
+const tourHero =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuDtDVekIcLmtgCV-sfgIV-cZBtZJuRPRNAWgmgdWUcuoh_XbdvdDYOeEbi2AECOCmmBnWYmB9DoCeB-TCyTHxDwg0j2QJNvjBD98GYAvlf5qUqRCqWJPv0lRgcFzCyp1DtInvqCcelXiukqEg63AwPfke3bFyzFZj7-A7ftnVjZeW_u8WiuwK1eb3HioZLyW_Q2JZZGMD_epEPj3Y4v9gAInON92AmoVOfY8yfHKQ-uXsMxMugTR7ljoJ7jbyH3Q5Ez9xpj8dDOIVk";
 
 export const screens: UIScreen[] = [
   {
@@ -182,18 +186,35 @@ export const screens: UIScreen[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuBhfmYBlSwa3vWf-fBQv5t9kAF3yYbl0X6ANdLt3eUwbHWXGkAZgkHmwRPpOI9TiCfX9VSdiZ_rYFHMe-PFZjedswG0-kaF4xwWoN8wyvxHrK5h4ZsTS5r72zfU72t8ZrFJBVelBIupJEqBJfV5WwPpcPrOZWxlVVQdKW-jY2KXk0ogqAWSir8V8KmM-_vTALJg8AJUTW1Qg6Vijv4Tihq3V7ed59EWLkYGsuNZp46WENNF8R0nQAR5WylcGoOrBjpoAxfPEe7hdDI",
     tabs: ["One-way", "Round-trip", "Multi-city"],
     fields: [
-      "Tokyo",
-      "Los Angeles",
-      "Tue, Jun 2",
-      "1 passenger",
-      "Economy/premium ecc",
+      "Tokyo (HND/NRT) - Departure",
+      "Los Angeles (LAX) - Arrival",
+      "Tue, Jun 2 · Departure date",
+      "1 passenger · Economy/premium",
     ],
-    actions: ["Search anywhere", "Price alerts", "More"],
+    actions: ["Search anywhere", "Price alerts", "Flight + Hotel", "More"],
+    benefits: [
+      "FREE flight within China with China Eastern",
+      "Save 6% on avg. when bundling Flight + Hotel",
+      "Price match guarantee · Instant e-ticket",
+    ],
     cards: [
       {
-        title: "Travel inspiration",
-        subtitle: "Explore the world",
-        meta: "Tokyo",
+        title: "Tokyo (NRT) ➔ Los Angeles (LAX)",
+        subtitle: "Japan Airlines · Nonstop · 10h 15m",
+        meta: "Economy · Tue, Jun 2 · Direct",
+        price: "$480",
+      },
+      {
+        title: "Singapore (SIN) ➔ London Heathrow (LHR)",
+        subtitle: "Singapore Airlines · World's top-rated service",
+        meta: "13h 25m · Meal & Wi-Fi included",
+        price: "$620",
+      },
+      {
+        title: "Dhaka (DAC) ➔ Bangkok (BKK)",
+        subtitle: "Biman Bangladesh Airlines · 2h 30m Direct",
+        meta: "30kg checked baggage included",
+        price: "$210",
       },
     ],
     activeTab: "Home",
@@ -206,21 +227,33 @@ export const screens: UIScreen[] = [
     kind: "hotel",
     theme: "trip",
     hero: hotelHero,
+    fields: [
+      "Enter a destination or property",
+      "Check-in: Tomorrow · 2 nights",
+      "1 room · 2 adults · 0 children",
+    ],
     actions: ["Saved", "Bookings", "My offers", "Price Alerts"],
     benefits: [
-      "Up to $15 off",
-      "3-night discount",
-      "Up to $12 off",
-      "New user promo code",
+      "Up to $15 off · 3-night discount",
+      "Up to $12 off · New user promo code",
+      "Up to $10 off · First booking discount",
     ],
     cards: [
       {
-        title: "Emperor Qinshihuang's Mausoleum",
+        title: "Emperor Qinshihuang's Mausoleum Site Museum",
         subtitle: "Walk through the ranks of a buried army",
-        meta: "200+ stays",
+        meta: "China · 200+ stays",
       },
-      { title: "The Metropolitan Museum of Art", meta: "700+ stays" },
-      { title: "Badaling Great Wall", meta: "300+ stays" },
+      {
+        title: "The Metropolitan Museum of Art",
+        subtitle: "World-class art collections and exhibits",
+        meta: "United States · 700+ stays",
+      },
+      {
+        title: "Badaling Great Wall",
+        subtitle: "Iconic historical monument and panoramic views",
+        meta: "China · 300+ stays",
+      },
     ],
     activeTab: "Home",
   },
@@ -231,20 +264,37 @@ export const screens: UIScreen[] = [
     subtitle: "Destination, dates, rooms, adults, children, and hotel offers.",
     kind: "hotel",
     theme: "trip",
+    hero: hotelHero,
     fields: [
       "Enter a destination or property",
-      "Mon, Jun 1 - Tue, Jun 2",
-      "1 night",
-      "1 room",
-      "2 adults",
-      "0 children",
+      "Mon, Jun 1 - Tue, Jun 2 (1 night)",
+      "1 room · 2 adults · 0 children",
     ],
     actions: ["Saved", "Bookings", "My offers", "Price Alerts"],
     benefits: [
-      "Up to $15 off",
-      "3-night discount",
-      "Up to $12 off",
-      "New user promo code",
+      "Up to $15 off · 3-night discount",
+      "Up to $12 off · New user promo code",
+      "Exclusive member rates on homes",
+    ],
+    cards: [
+      {
+        title: "Sea Pearl Beach Resort & Spa",
+        subtitle: "Luxury beachfront stay with 5-star private pool villas",
+        meta: "Cox's Bazar · ⭐ 4.9",
+        price: "$120/night",
+      },
+      {
+        title: "Pan Pacific Sonargaon Dhaka",
+        subtitle: "Centrally located premium hospitality & wellness oasis",
+        meta: "Dhaka · ⭐ 4.8",
+        price: "$145/night",
+      },
+      {
+        title: "Grand Sultan Tea Resort & Golf",
+        subtitle: "Scenic rainforest resort with world-class golf amenities",
+        meta: "Sreemangal · ⭐ 4.9",
+        price: "$130/night",
+      },
     ],
     activeTab: "Home",
   },
@@ -395,12 +445,40 @@ export const screens: UIScreen[] = [
     subtitle: "Trains, buses, passes, date, return trip, and passenger search.",
     kind: "search",
     theme: "trip",
+    hero: trainHero,
     tabs: ["Trains", "Buses", "Passes"],
-    fields: ["Tue, Jun 2", "Add return trip", "1 passenger"],
+    fields: [
+      "Departure station (e.g. Tokyo / Beijing)",
+      "Arrival station (e.g. Kyoto / Shanghai)",
+      "Tue, Jun 2 · One-way",
+      "1 passenger",
+    ],
+    actions: ["High Speed Rail", "Overnight Sleeper", "Eurail Pass", "JR Rail Pass"],
     benefits: [
-      "Official partnerships",
-      "Multiple currencies accepted",
-      "E-tickets available",
+      "Official rail operator partnerships",
+      "Instant e-ticket delivery to phone",
+      "Multiple currencies accepted · No foreign fees",
+      "24/7 Multi-language customer support",
+    ],
+    cards: [
+      {
+        title: "Tokaido Shinkansen (Bullet Train)",
+        subtitle: "Tokyo ➔ Shin-Osaka · High frequency express",
+        meta: "2h 15m · High Speed Rail",
+        price: "$98",
+      },
+      {
+        title: "Beijing-Shanghai High Speed Railway",
+        subtitle: "Beijing South ➔ Shanghai Hongqiao · Fuxing Hao 350 km/h",
+        meta: "4h 18m · Direct Bullet Train",
+        price: "$82",
+      },
+      {
+        title: "Eurostar International Train",
+        subtitle: "London St Pancras ➔ Paris Gare du Nord",
+        meta: "2h 17m · Cross-border rail",
+        price: "$65",
+      },
     ],
     activeTab: "Home",
   },
@@ -425,21 +503,88 @@ export const screens: UIScreen[] = [
   {
     slug: "recommended-tours",
     source: "trip.com_recommended_tours_replicated/code.html",
-    title: "Recommended Tours",
+    title: "Private Tours",
     subtitle: "Filterable private tours list with prices and promos.",
     kind: "list",
     theme: "trip",
-    chips: ["Sort by", "Filter", "Duration/dates", "Budget", "Service"],
+    hero: tourHero,
+    tabs: ["Recommended", "Best Rated", "Custom Tours"],
+    chips: ["Sort by", "Filter", "Duration/dates", "Budget", "Service", "Departure city"],
+    actions: ["Private Tours", "Day Trips", "Attraction Tickets", "Customized Tours"],
+    benefits: [
+      "Private vehicle & dedicated guide",
+      "Flexible cancellation policy",
+      "Customizable daily itineraries",
+    ],
     cards: [
       {
-        title: "3D2N Hong Kong",
-        subtitle: "Explore a different side of the city",
+        title: "3D2N Hong Kong Skyline & Heritage Tour",
+        subtitle: "Explore Victoria Peak, Star Ferry, and local delicacies",
+        meta: "Private Tour · Verified English Guide",
         price: "$359",
       },
       {
-        title: "2D1N Hong Kong Disneyland",
-        subtitle: "Airport/station pick-up & drop-off",
-        price: "$16 off",
+        title: "2D1N Hong Kong Disneyland Magic Escape",
+        subtitle: "VIP entry tickets, hotel stay, and station transfer",
+        meta: "Instant Confirmation · Mobile Voucher",
+        price: "$299 ($16 off)",
+      },
+      {
+        title: "1-Day Bangkok Temple & Grand Palace Explorer",
+        subtitle: "Wat Arun, Wat Phra Kaew, and Chao Phraya cruise",
+        meta: "Small Group · Hotel Pick-up",
+        price: "$85",
+      },
+    ],
+    activeTab: "Home",
+  },
+  {
+    slug: "car-rentals",
+    source: "trip.com_car_rentals_replicated/code.html",
+    title: "Car Rentals",
+    subtitle: "Compare top car rental companies worldwide with no hidden fees.",
+    kind: "list",
+    theme: "trip",
+    hero: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200",
+    tabs: ["Same Drop-off", "Different Drop-off"],
+    fields: [
+      "Pick-up location (Airport or City)",
+      "Pick-up date: Tomorrow 10:00 AM",
+      "Drop-off date: 3 days later 10:00 AM",
+      "Driver age: 25 - 70 years",
+    ],
+    chips: ["SUV", "Economy", "Electric / EV", "Luxury", "7-Seater Van", "Zero Deductible"],
+    actions: ["Airport Rentals", "Self-Drive", "Chauffeur", "Price Match"],
+    benefits: [
+      "Free cancellation up to 48 hours",
+      "No credit card fees",
+      "Zero deposit available",
+      "24/7 Roadside emergency assistance",
+    ],
+    cards: [
+      {
+        title: "Toyota RAV4 or similar (SUV)",
+        subtitle: "5 seats · Automatic · AC · 2 large bags",
+        meta: "Free cancellation · Unlimited mileage",
+        price: "$45/day",
+      },
+      {
+        title: "Tesla Model 3 (Electric)",
+        subtitle: "5 seats · Long Range · Autopilot included",
+        meta: "Zero emissions · Free supercharging credits",
+        price: "$59/day",
+      },
+      {
+        title: "Hyundai Elantra (Economy)",
+        subtitle: "5 seats · Great fuel economy · Automatic",
+        meta: "Instant confirmation · Full protection available",
+        price: "$29/day",
+      },
+      {
+        title: "Mercedes-Benz E-Class (Executive)",
+        subtitle: "5 seats · Premium interior · Luxury comfort",
+        meta: "VIP pick-up service · Full insurance",
+        price: "$89/day",
       },
     ],
     activeTab: "Home",

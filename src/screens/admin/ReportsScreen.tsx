@@ -286,15 +286,13 @@ export const ReportsScreen: React.FC<{ admin: AdminUser | null }> = ({
     setRefreshing(false);
   };
 
-  // Mock data for charts
-  const revenueData = [
-    { label: "Jan", value: 40 },
-    { label: "Feb", value: 65 },
-    { label: "Mar", value: 50 },
-    { label: "Apr", value: 75 },
-    { label: "May", value: 85 },
-    { label: "Jun", value: 100 },
-  ];
+  // Dynamic data for charts computed from real loaded reports
+  const revenueData = reports.length > 0
+    ? reports.slice(0, 6).map((r) => ({
+        label: r.report_period_start ? new Date(r.report_period_start).toLocaleDateString("en-US", { month: "short" }) : "Period",
+        value: Math.round(Number(r.total_revenue) / 1000) || 10,
+      }))
+    : [];
 
   return (
     <View style={styles.container}>

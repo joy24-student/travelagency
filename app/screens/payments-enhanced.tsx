@@ -5,7 +5,7 @@
  */
 
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -43,17 +43,64 @@ interface PaymentMethod {
 
 export default function EnhancedPaymentScreen() {
   const { user } = useAuth();
+  const params = useLocalSearchParams<{
+    amount?: string;
+    reference?: string;
+    hotelName?: string;
+    roomType?: string;
+    tourTitle?: string;
+    passId?: string;
+    timeSlot?: string;
+    groupSize?: string;
+    guideName?: string;
+    flightNumber?: string;
+    airline?: string;
+    origin?: string;
+    originCity?: string;
+    destination?: string;
+    destinationCity?: string;
+    cabinClass?: string;
+    passengers?: string;
+    vehicleName?: string;
+    provider?: string;
+    category?: string;
+    pickupCity?: string;
+    dropoffCity?: string;
+    rentalDays?: string;
+    productType?: string;
+    bookingId?: string;
+    packageTitle?: string;
+    packageId?: string;
+    flightInfo?: string;
+    duration?: string;
+    travelers?: string;
+    roomCount?: string;
+  }>();
+
   const [loading, setLoading] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const [processing, setProcessing] = useState(false);
 
-  // Form fields
-  const [amount, setAmount] = useState("");
+  // Form fields prefilled from booking params
+  const [amount, setAmount] = useState(params.amount || "");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [reference, setReference] = useState("");
+  const [email, setEmail] = useState(user?.email || "");
+  const [reference, setReference] = useState(
+    params.reference ||
+      (params.packageTitle
+        ? `Package: ${params.packageTitle} (${params.duration || "Bundle"})`
+        : params.vehicleName
+        ? `Rental: ${params.vehicleName} (${params.pickupCity || "Station"})`
+        : params.flightNumber
+        ? `Flight: ${params.flightNumber} (${params.origin || "DEP"} ➔ ${params.destination || "ARR"})`
+        : params.hotelName
+        ? `Booking: ${params.hotelName} (${params.roomType || "Room"})`
+        : params.tourTitle
+        ? `Pass #${params.passId || "TOUR"}: ${params.tourTitle}`
+        : "")
+  );
 
   // Animation
   const slideAnim = useRef(new Animated.Value(WINDOW_HEIGHT)).current;
@@ -264,6 +311,225 @@ export default function EnhancedPaymentScreen() {
         </View>
       ) : (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Tour Pass Summary Banner */}
+          {params.tourTitle && (
+            <View style={styles.passSummaryCard}>
+              <View style={styles.passSummaryHeader}>
+                <View style={styles.passBadge}>
+                  <Ionicons name="ticket" size={14} color="#2563EB" />
+                  <Text style={styles.passBadgeText}>DIGITAL TOUR PASS</Text>
+                </View>
+                {params.passId && (
+                  <Text style={styles.passIdBadge}>#{params.passId}</Text>
+                )}
+              </View>
+              <Text style={styles.passTitleText}>{params.tourTitle}</Text>
+              <View style={styles.passMetaRow}>
+                {params.timeSlot && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="time-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>{params.timeSlot}</Text>
+                  </View>
+                )}
+                {params.groupSize && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="people-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>
+                      {params.groupSize} Traveler{Number(params.groupSize) > 1 ? "s" : ""}
+                    </Text>
+                  </View>
+                )}
+                {params.guideName && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="person-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>{params.guideName}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.passTotalDueRow}>
+                <Text style={styles.passTotalDueLabel}>Total Due for Pass:</Text>
+                <Text style={styles.passTotalDueValue}>${params.amount || amount}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Flight Reservation Summary Banner */}
+          {params.flightNumber && (
+            <View style={styles.flightSummaryCard}>
+              <View style={styles.passSummaryHeader}>
+                <View style={styles.flightBadge}>
+                  <Ionicons name="airplane" size={14} color="#FFFFFF" />
+                  <Text style={styles.flightBadgeText}>{params.flightNumber}</Text>
+                </View>
+                <View style={styles.pendingStatusBadge}>
+                  <Text style={styles.pendingStatusText}>RESERVATION PENDING</Text>
+                </View>
+              </View>
+
+              <View style={styles.flightRouteRow}>
+                <View style={styles.flightAirportCol}>
+                  <Text style={styles.flightCodeText}>{params.origin || "DEP"}</Text>
+                  {params.originCity && <Text style={styles.flightCitySubText}>{params.originCity}</Text>}
+                </View>
+                <View style={styles.flightArrowCol}>
+                  <Ionicons name="arrow-forward" size={16} color="#287dfa" />
+                  <Text style={styles.flightDirectText}>Direct</Text>
+                </View>
+                <View style={[styles.flightAirportCol, { alignItems: "flex-end" }]}>
+                  <Text style={styles.flightCodeText}>{params.destination || "ARR"}</Text>
+                  {params.destinationCity && <Text style={styles.flightCitySubText}>{params.destinationCity}</Text>}
+                </View>
+              </View>
+
+              <View style={styles.passMetaRow}>
+                {params.airline && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="shield-checkmark-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>{params.airline}</Text>
+                  </View>
+                )}
+                {params.cabinClass && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="ribbon-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>{params.cabinClass}</Text>
+                  </View>
+                )}
+                {params.passengers && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="people-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>
+                      {params.passengers} Passenger{Number(params.passengers) > 1 ? "s" : ""}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.passTotalDueRow}>
+                <Text style={styles.passTotalDueLabel}>Total Flight Fare:</Text>
+                <Text style={styles.passTotalDueValue}>${params.amount || amount}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Car Rental Reservation Summary Banner */}
+          {params.vehicleName && (
+            <View style={[styles.flightSummaryCard, { borderColor: "#BAE6FD", backgroundColor: "#F0F9FF" }]}>
+              <View style={styles.passSummaryHeader}>
+                <View style={[styles.flightBadge, { backgroundColor: "#0284C7" }]}>
+                  <Ionicons name="car-sport" size={14} color="#FFFFFF" />
+                  <Text style={styles.flightBadgeText}>{params.provider || "CAR RENTAL"}</Text>
+                </View>
+                <View style={styles.pendingStatusBadge}>
+                  <Text style={styles.pendingStatusText}>RESERVATION PENDING</Text>
+                </View>
+              </View>
+
+              <Text style={[styles.passTitleText, { marginTop: 10, marginBottom: 6 }]}>
+                {params.vehicleName}
+              </Text>
+
+              <View style={styles.flightRouteRow}>
+                <View style={styles.flightAirportCol}>
+                  <Text style={styles.flightCitySubText}>Pick-up Location</Text>
+                  <Text style={styles.flightCodeText}>{params.pickupCity || "Station"}</Text>
+                </View>
+                <View style={styles.flightArrowCol}>
+                  <Ionicons name="arrow-forward" size={16} color="#0284C7" />
+                  <Text style={[styles.flightDirectText, { color: "#0284C7" }]}>
+                    {params.rentalDays || "3"} Days
+                  </Text>
+                </View>
+                <View style={[styles.flightAirportCol, { alignItems: "flex-end" }]}>
+                  <Text style={styles.flightCitySubText}>Drop-off Location</Text>
+                  <Text style={styles.flightCodeText}>{params.dropoffCity || params.pickupCity || "Station"}</Text>
+                </View>
+              </View>
+
+              <View style={styles.passMetaRow}>
+                {params.category && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="pricetag-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>{params.category}</Text>
+                  </View>
+                )}
+                <View style={styles.passMetaTag}>
+                  <Ionicons name="shield-checkmark-outline" size={12} color="#10B981" />
+                  <Text style={[styles.passMetaText, { color: "#059669" }]}>Zero Excess / CDW</Text>
+                </View>
+                <View style={styles.passMetaTag}>
+                  <Ionicons name="speedometer-outline" size={12} color="#4B5563" />
+                  <Text style={styles.passMetaText}>Unlimited Mileage</Text>
+                </View>
+              </View>
+
+              <View style={styles.passTotalDueRow}>
+                <Text style={styles.passTotalDueLabel}>Total Rental Amount:</Text>
+                <Text style={[styles.passTotalDueValue, { color: "#0284C7" }]}>${params.amount || amount}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Vacation / Flight + Hotel Package Reservation Summary Banner */}
+          {params.packageTitle && (
+            <View style={[styles.flightSummaryCard, { borderColor: "#DDD6FE", backgroundColor: "#F5F3FF" }]}>
+              <View style={styles.passSummaryHeader}>
+                <View style={[styles.flightBadge, { backgroundColor: "#7C3AED" }]}>
+                  <Ionicons name="briefcase" size={14} color="#FFFFFF" />
+                  <Text style={styles.flightBadgeText}>FLIGHT + HOTEL BUNDLE</Text>
+                </View>
+                <View style={[styles.pendingStatusBadge, { backgroundColor: "#EDE9FE" }]}>
+                  <Text style={[styles.pendingStatusText, { color: "#6D28D9" }]}>RESERVATION PENDING</Text>
+                </View>
+              </View>
+
+              <Text style={[styles.passTitleText, { marginTop: 10, marginBottom: 6 }]}>
+                {params.packageTitle}
+              </Text>
+
+              {params.flightInfo && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <Ionicons name="airplane-outline" size={14} color="#7C3AED" />
+                  <Text style={{ fontSize: 13, color: "#4B5563", fontWeight: "600" }}>{params.flightInfo}</Text>
+                </View>
+              )}
+
+              {params.hotelName && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <Ionicons name="business-outline" size={14} color="#7C3AED" />
+                  <Text style={{ fontSize: 13, color: "#4B5563", fontWeight: "600" }}>{params.hotelName}</Text>
+                </View>
+              )}
+
+              <View style={styles.passMetaRow}>
+                {params.duration && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="calendar-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>{params.duration}</Text>
+                  </View>
+                )}
+                {params.travelers && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="people-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>
+                      {params.travelers} Traveler{Number(params.travelers) > 1 ? "s" : ""}
+                    </Text>
+                  </View>
+                )}
+                {params.destination && (
+                  <View style={styles.passMetaTag}>
+                    <Ionicons name="location-outline" size={12} color="#4B5563" />
+                    <Text style={styles.passMetaText}>{params.destination}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.passTotalDueRow}>
+                <Text style={styles.passTotalDueLabel}>Total Package Price:</Text>
+                <Text style={[styles.passTotalDueValue, { color: "#7C3AED" }]}>${params.amount || amount}</Text>
+              </View>
+            </View>
+          )}
+
           {/* Payment Methods */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Select Payment Method</Text>
@@ -705,4 +971,172 @@ const styles = StyleSheet.create({
   },
   payButtonDisabled: { opacity: 0.6 },
   payButtonText: { fontSize: 17, fontWeight: "700", color: "#fff" },
+  passSummaryCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: "#DBEAFE",
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  passSummaryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  passBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 5,
+  },
+  passBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#2563EB",
+    letterSpacing: 0.5,
+  },
+  passIdBadge: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B7280",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  passTitleText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 10,
+  },
+  passMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  passMetaTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  passMetaText: {
+    fontSize: 12,
+    color: "#4B5563",
+    fontWeight: "600",
+  },
+  passTotalDueRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    paddingTop: 10,
+  },
+  passTotalDueLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4B5563",
+  },
+  passTotalDueValue: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: PRIMARY,
+  },
+  flightSummaryCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 16,
+    backgroundColor: "#F0F7FF",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
+  },
+  flightBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#287dfa",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  flightBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  pendingStatusBadge: {
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+  pendingStatusText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#D97706",
+    letterSpacing: 0.5,
+  },
+  flightRouteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  flightAirportCol: {
+    flex: 1,
+  },
+  flightCodeText: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#1E293B",
+  },
+  flightCitySubText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 2,
+  },
+  flightArrowCol: {
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  flightDirectText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#287dfa",
+    marginTop: 2,
+  },
+  flightMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 10,
+  },
+  flightMetaDot: {
+    fontSize: 12,
+    color: "#94A3B8",
+  },
 });

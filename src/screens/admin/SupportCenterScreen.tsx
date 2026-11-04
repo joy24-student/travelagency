@@ -6,7 +6,7 @@
  * and Live Response Dispatch.
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import {
   MaterialCommunityIcons,
   FontAwesome5,
 } from "@expo/vector-icons";
+import { supabase } from "@/utils/supabase";
 
 const { width } = Dimensions.get("window");
 
@@ -47,90 +48,56 @@ export interface SupportTicketItem {
   inquiryText: string;
 }
 
-const INITIAL_TICKETS: SupportTicketItem[] = [
-  {
-    id: "TKT-4587",
-    title: "Payment gateway failure",
-    priority: "P1 CRITICAL",
-    status: "Open",
-    progressLabel: "Escalated to Engineering",
-    progressStep: 1,
-    icon: "exclamation-circle",
-    iconBg: "#fff1f2",
-    iconColor: "#e11d48",
-    priorityColor: "#e11d48",
-    user: "Atlas Travel Admin",
-    createdDate: "Oct 24, 2023 • 09:30 AM",
-    source: "Payment API (US-East)",
-    category: "Gateway Integration",
-    assignee: "Engineering Lead",
-    inquiryText:
-      "All card transactions on stripe-v2 gateway are timing out with HTTP 504. Multiple agencies unable to process customer payouts.",
-  },
-  {
-    id: "TKT-4586",
-    title: "Booking sync mismatch",
-    priority: "P2 NORMAL",
-    status: "Working",
-    progressLabel: "Database Reconciliation",
-    progressStep: 2,
-    icon: "sync",
-    iconBg: "#eff6ff",
-    iconColor: "#2563eb",
-    priorityColor: "#2563eb",
-    user: "Alex Rivera",
-    createdDate: "Oct 24, 2023 • 09:15 AM",
-    source: "Regional Node (SG)",
-    category: "Database Sync",
-    assignee: "Platform Ops",
-    inquiryText:
-      "How do I synchronize the v2.4 protocols with my current endpoint? I've tried the standard API reference but I'm getting a timeout error.",
-  },
-  {
-    id: "TKT-4585",
-    title: "Commission calc error",
-    priority: "P3 MEDIUM",
-    status: "Triage",
-    progressLabel: "Pending Review",
-    progressStep: 1,
-    icon: "history",
-    iconBg: "#fffbeb",
-    iconColor: "#d97706",
-    priorityColor: "#d97706",
-    user: "Skyline Tours Manager",
-    createdDate: "Oct 24, 2023 • 08:45 AM",
-    source: "Finance Module",
-    category: "Commission Rate",
-    assignee: "Finance Admin",
-    inquiryText:
-      "Commission calculation for premium package BK-9020 was calculated at 8% instead of the contracted 10% tier rate.",
-  },
-  {
-    id: "TKT-4584",
-    title: "API endpoint timeout",
-    priority: "RESOLVED",
-    status: "Closed",
-    progressLabel: "Auto-Validated",
-    progressStep: 4,
-    icon: "check-double",
-    iconBg: "#ecfdf5",
-    iconColor: "#059669",
-    priorityColor: "#059669",
-    user: "Global Explorer",
-    createdDate: "Oct 23, 2023 • 16:20 PM",
-    source: "REST Gateway",
-    category: "Network Latency",
-    assignee: "DevOps Automated",
-    inquiryText:
-      "Rate limit threshold reset completed automatically. All sync endpoints restored with sub-50ms latency.",
-  },
-];
+const INITIAL_TICKETS: SupportTicketItem[] = [];
 
 export const SupportCenterScreen: React.FC = () => {
   const [tickets, setTickets] = useState<SupportTicketItem[]>(INITIAL_TICKETS);
   const [viewMode, setViewMode] = useState<"overview" | "detail">("overview");
-  const [selectedTicket, setSelectedTicket] = useState<SupportTicketItem>(INITIAL_TICKETS[1]);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicketItem | null>(null);
   const [activeFilter, setActiveFilter] = useState<"All" | "Critical" | "Active" | "Escalated">("All");
+
+  useEffect(() => {
+    async function loadTickets() {
+      try {
+        const { data, error } = await supabase
+          .from("support_tickets")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (data && data.length > 0) {
+          const mapped: SupportTicketItem[] = data.map((t: any) => ({
+            id: t.ticket_number || t.id,
+            title: t.subject || "Support Inquiry",
+            priority: t.priority === "urgent" || t.priority === "high" ? "P1 CRITICAL" : "P2 NORMAL",
+            status: t.status === "in_progress" ? "Working" : t.status === "resolved" || t.status === "closed" ? "Closed" : "Open",
+            progressLabel: t.status === "resolved" ? "Resolved" : t.status === "in_progress" ? "In Progress" : "Open Ticket",
+            progressStep: t.status === "resolved" ? 4 : t.status === "in_progress" ? 2 : 1,
+            icon: t.status === "resolved" ? "check-double" : "exclamation-circle",
+            iconBg: t.priority === "urgent" ? "#fff1f2" : "#eff6ff",
+            iconColor: t.priority === "urgent" ? "#e11d48" : "#2563eb",
+            priorityColor: t.priority === "urgent" ? "#e11d48" : "#2563eb",
+            user: t.user_id ? `User-${t.user_id.substring(0, 8)}` : "Customer",
+            createdDate: t.created_at ? new Date(t.created_at).toLocaleDateString() : "Today",
+            source: "Help Desk",
+            category: t.category || "General Support",
+            assignee: t.assigned_to || "Support Team",
+            inquiryText: t.subject || "Customer assistance requested.",
+          }));
+          setTickets(mapped);
+          setSelectedTicket(mapped[0]);
+        } else {
+          setTickets([]);
+          setSelectedTicket(null);
+        }
+      } catch (err) {
+        console.warn("Error loading support tickets:", err);
+        setTickets([]);
+        setSelectedTicket(null);
+      }
+    }
+
+    loadTickets();
+  }, []);
 
   // Detail View State
   const [detailsExpanded, setDetailsExpanded] = useState(true);
@@ -165,7 +132,7 @@ export const SupportCenterScreen: React.FC = () => {
       setTimeout(() => {
         setSendingState("idle");
         setResponseMessage("");
-        Alert.alert("Response Delivered", `Reply dispatched for ticket ${selectedTicket.id}`);
+        Alert.alert("Response Delivered", `Reply dispatched for ticket ${selectedTicket?.id || ""}`);
       }, 1500);
     }, 1200);
   };
@@ -173,7 +140,7 @@ export const SupportCenterScreen: React.FC = () => {
   const handleUpdateInvestigation = () => {
     Alert.alert(
       "Investigation Updated",
-      `Ticket ${selectedTicket.id} status updated to ${investigationStatus}.`
+      `Ticket ${selectedTicket?.id || ""} status updated to ${investigationStatus}.`
     );
   };
 
@@ -264,103 +231,111 @@ export const SupportCenterScreen: React.FC = () => {
         </ScrollView>
 
         {/* Live Feed Ticket Cards */}
-        {filteredTickets.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={styles.ticketCard}
-            onPress={() => {
-              setSelectedTicket(item);
-              setViewMode("detail");
-            }}
-          >
-            <View style={styles.ticketHeaderRow}>
-              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-                <View style={[styles.ticketIconBox, { backgroundColor: item.iconBg }]}>
-                  <FontAwesome5 name={item.icon} size={16} color={item.iconColor} />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.ticketTitle}>{item.title}</Text>
-                  <Text style={styles.ticketMetaText}>
-                    {item.id} •{" "}
-                    <Text style={{ color: item.priorityColor, fontWeight: "600" }}>
-                      {item.priority}
+        {filteredTickets.length === 0 ? (
+          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 48 }}>
+            <Ionicons name="chatbubbles-outline" size={44} color="#94a3b8" />
+            <Text style={{ marginTop: 12, fontSize: 16, color: "#334155", fontWeight: "600" }}>No Support Tickets</Text>
+            <Text style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>All incoming inquiries and customer requests are resolved.</Text>
+          </View>
+        ) : (
+          filteredTickets.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.ticketCard}
+              onPress={() => {
+                setSelectedTicket(item);
+                setViewMode("detail");
+              }}
+            >
+              <View style={styles.ticketHeaderRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                  <View style={[styles.ticketIconBox, { backgroundColor: item.iconBg }]}>
+                    <FontAwesome5 name={item.icon} size={16} color={item.iconColor} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.ticketTitle}>{item.title}</Text>
+                    <Text style={styles.ticketMetaText}>
+                      {item.id} •{" "}
+                      <Text style={{ color: item.priorityColor, fontWeight: "600" }}>
+                        {item.priority}
+                      </Text>
                     </Text>
+                  </View>
+                </View>
+
+                <View
+                  style={[
+                    styles.statusPill,
+                    {
+                      backgroundColor:
+                        item.status === "Open"
+                          ? "#ffe4e6"
+                          : item.status === "Working"
+                          ? "#dbeafe"
+                          : item.status === "Closed"
+                          ? "#d1fae5"
+                          : "#fef3c7",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusPillText,
+                      {
+                        color:
+                          item.status === "Open"
+                            ? "#be123c"
+                            : item.status === "Working"
+                            ? "#1d4ed8"
+                            : item.status === "Closed"
+                            ? "#047857"
+                            : "#b45309",
+                      },
+                    ]}
+                  >
+                    {item.status.toUpperCase()}
                   </Text>
                 </View>
               </View>
 
-              <View
-                style={[
-                  styles.statusPill,
-                  {
-                    backgroundColor:
-                      item.status === "Open"
-                        ? "#ffe4e6"
-                        : item.status === "Working"
-                        ? "#dbeafe"
-                        : item.status === "Closed"
-                        ? "#d1fae5"
-                        : "#fef3c7",
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusPillText,
-                    {
-                      color:
-                        item.status === "Open"
-                          ? "#be123c"
-                          : item.status === "Working"
-                          ? "#1d4ed8"
-                          : item.status === "Closed"
-                          ? "#047857"
-                          : "#b45309",
-                    },
-                  ]}
-                >
-                  {item.status.toUpperCase()}
-                </Text>
-              </View>
-            </View>
+              <View style={styles.progressContainer}>
+                <View style={styles.progressTextRow}>
+                  <Text style={styles.progressLabel}>INVESTIGATION PROGRESS</Text>
+                  <Text style={[styles.progressStatusVal, { color: item.priorityColor }]}>
+                    {item.progressLabel}
+                  </Text>
+                </View>
 
-            <View style={styles.progressContainer}>
-              <View style={styles.progressTextRow}>
-                <Text style={styles.progressLabel}>INVESTIGATION PROGRESS</Text>
-                <Text style={[styles.progressStatusVal, { color: item.priorityColor }]}>
-                  {item.progressLabel}
-                </Text>
+                <View style={styles.progressBarTrack}>
+                  <View
+                    style={[
+                      styles.progressBarSegment,
+                      { backgroundColor: item.progressStep >= 1 ? item.priorityColor : "#e2e8f0" },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.progressBarSegment,
+                      { backgroundColor: item.progressStep >= 2 ? item.priorityColor : "#e2e8f0" },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.progressBarSegment,
+                      { backgroundColor: item.progressStep >= 3 ? item.priorityColor : "#e2e8f0" },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.progressBarSegment,
+                      { backgroundColor: item.progressStep >= 4 ? item.priorityColor : "#e2e8f0" },
+                    ]}
+                  />
+                </View>
               </View>
-
-              <View style={styles.progressBarTrack}>
-                <View
-                  style={[
-                    styles.progressBarSegment,
-                    { backgroundColor: item.progressStep >= 1 ? item.priorityColor : "#e2e8f0" },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.progressBarSegment,
-                    { backgroundColor: item.progressStep >= 2 ? item.priorityColor : "#e2e8f0" },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.progressBarSegment,
-                    { backgroundColor: item.progressStep >= 3 ? item.priorityColor : "#e2e8f0" },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.progressBarSegment,
-                    { backgroundColor: item.progressStep >= 4 ? item.priorityColor : "#e2e8f0" },
-                  ]}
-                />
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -368,14 +343,36 @@ export const SupportCenterScreen: React.FC = () => {
   // --------------------------------------------------------------------------
   // 2. TICKET DETAIL & RESPONSE WORKSPACE
   // --------------------------------------------------------------------------
-  const renderDetail = () => (
-    <View style={styles.screenContainer}>
-      {/* Top AppBar */}
-      <View style={styles.appHeader}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <TouchableOpacity onPress={() => setViewMode("overview")} style={{ paddingRight: 10 }}>
-            <Ionicons name="arrow-back" size={20} color="#003527" />
+  const renderDetail = () => {
+    if (!selectedTicket) {
+      return (
+        <View style={[styles.screenContainer, { justifyContent: "center", alignItems: "center", padding: 32 }]}>
+          <Ionicons name="chatbubbles-outline" size={44} color="#94a3b8" />
+          <Text style={{ marginTop: 12, fontSize: 16, color: "#334155", fontWeight: "600" }}>No Ticket Selected</Text>
+          <TouchableOpacity
+            onPress={() => setViewMode("overview")}
+            style={{
+              marginTop: 16,
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: "#003527",
+            }}
+          >
+            <Text style={{ color: "#ffffff", fontSize: 14, fontWeight: "600" }}>Back to Overview</Text>
           </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.screenContainer}>
+        {/* Top AppBar */}
+        <View style={styles.appHeader}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <TouchableOpacity onPress={() => setViewMode("overview")} style={{ paddingRight: 10 }}>
+              <Ionicons name="arrow-back" size={20} color="#003527" />
+            </TouchableOpacity>
           <View>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Text style={styles.breadcrumbText}>TICKETS </Text>
@@ -690,6 +687,7 @@ export const SupportCenterScreen: React.FC = () => {
       </View>
     </View>
   );
+};
 
   return (
     <SafeAreaView style={styles.safeArea}>

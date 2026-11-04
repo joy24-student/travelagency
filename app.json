@@ -22,7 +22,14 @@
       "expo-router",
       "expo-sharing",
       "@react-native-google-signin/google-signin",
-      ["expo-facebook", { "userTrackingPermission": false }]
+      ["expo-facebook", { "userTrackingPermission": false }],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/adaptive-icon.png",
+          "color": "#0055F2"
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
@@ -34,6 +41,7 @@
     },
     "android": {
       "package": "com.s025.convertedtravelui",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",

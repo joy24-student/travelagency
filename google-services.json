@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "560123613595",
+    "project_id": "swapnojatra-c04a0",
+    "storage_bucket": "swapnojatra-c04a0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:560123613595:android:b0ebd64bc0c981677d513e",
+        "android_client_info": {
+          "package_name": "com.s025.convertedtravelui"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbeyALUsZRIQCH6P_v4wmUACnu955xY1Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+

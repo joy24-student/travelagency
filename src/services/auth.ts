@@ -1,6 +1,6 @@
 import { supabase } from "../utils/supabase";
 
-export type EmailOtpType = "signup" | "invite" | "magiclink" | "recovery" | "email_change" | "email" | "sms_otp";
+export type EmailOtpType = "signup" | "invite" | "magiclink" | "recovery" | "email_change" | "email" | "sms_otp" | "sms";
 
 const authRedirectTo = (path: string) => {
   const baseUrl = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL;

@@ -5,7 +5,7 @@
  * and Interactive Action Controls.
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   ScrollView,
@@ -30,6 +30,7 @@ import {
   UserVerificationStatus,
   AdminUser,
 } from "@/types/admin";
+import { supabase } from "@/utils/supabase";
 
 const { width } = Dimensions.get("window");
 
@@ -50,103 +51,75 @@ export interface ExtendedUserItem extends UserAdminDetails {
   mfa_enabled?: boolean;
 }
 
-const INITIAL_USERS: ExtendedUserItem[] = [
-  {
-    id: "usr-001",
-    user_id: "u-sarah-j",
-    name: "Sarah Johnson",
-    email: "sarah.johnson@corporate.com",
-    role: "Corporate Admin",
-    roleCategory: "corporate",
-    verification_status: UserVerificationStatus.VERIFIED,
-    kyc_status: UserVerificationStatus.VERIFIED,
-    is_suspended: false,
-    is_banned: false,
-    location: "New York, USA",
-    last_active: "2m ago",
-    avatar_url:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
-    phone: "+1 212-555-0192",
-    total_bookings: 24,
-    total_spent: "$14,850",
-    mfa_enabled: true,
-    created_at: "2024-01-15T08:30:00Z",
-    updated_at: "2026-07-20T10:15:00Z",
-  },
-  {
-    id: "usr-002",
-    user_id: "u-michael-b",
-    name: "Michael Brown",
-    email: "michael@agencytravels.com",
-    role: "Agency Manager",
-    roleCategory: "agencies",
-    verification_status: UserVerificationStatus.PENDING,
-    kyc_status: UserVerificationStatus.MANUAL_REVIEW,
-    is_suspended: false,
-    is_banned: false,
-    location: "Dubai, UAE",
-    last_active: "1h ago",
-    avatar_url:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    phone: "+971 50 123 4567",
-    total_bookings: 18,
-    total_spent: "$9,420",
-    mfa_enabled: false,
-    created_at: "2024-03-20T14:10:00Z",
-    updated_at: "2026-07-21T09:00:00Z",
-  },
-  {
-    id: "usr-003",
-    user_id: "u-emily-w",
-    name: "Emily Wilson",
-    email: "emily.wilson@gmail.com",
-    role: "Traveler",
+const INITIAL_USERS: ExtendedUserItem[] = [];
+
+const mapProfileToExtendedUser = (p: any): ExtendedUserItem => {
+  const metadata = p.metadata || {};
+  return {
+    id: p.id,
+    user_id: p.id,
+    name: p.display_name || p.username || "Traveler",
+    email: p.email || `${(p.username || "user").toLowerCase().replace(/\s+/g, "")}@travelapp.com`,
+    role: p.is_influencer ? "Influencer Creator" : "Verified Traveler",
     roleCategory: "travelers",
-    verification_status: UserVerificationStatus.VERIFIED,
-    kyc_status: UserVerificationStatus.VERIFIED,
-    is_vip: true,
+    verification_status: metadata.verified ? UserVerificationStatus.VERIFIED : UserVerificationStatus.PENDING,
+    kyc_status: metadata.verified ? UserVerificationStatus.VERIFIED : UserVerificationStatus.PENDING,
     is_suspended: false,
     is_banned: false,
-    location: "Singapore",
-    last_active: "5m ago",
-    avatar_url:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    phone: "+65 9123 4567",
-    total_bookings: 42,
-    total_spent: "$32,100",
-    mfa_enabled: true,
-    created_at: "2023-11-05T11:45:00Z",
-    updated_at: "2026-07-21T18:20:00Z",
-  },
-  {
-    id: "usr-004",
-    user_id: "u-david-l",
-    name: "David Lee",
-    email: "david.lee@support.org",
-    role: "Support Agent",
-    roleCategory: "admins",
-    verification_status: UserVerificationStatus.VERIFIED,
-    kyc_status: UserVerificationStatus.VERIFIED,
-    is_suspended: false,
-    is_banned: false,
-    location: "London, UK",
-    last_active: "45m ago",
-    avatar_url:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
-    phone: "+44 20 7946 0912",
-    total_bookings: 5,
-    total_spent: "$1,200",
-    mfa_enabled: true,
-    created_at: "2024-02-01T09:00:00Z",
-    updated_at: "2026-07-20T16:30:00Z",
-  },
-];
+    location: p.location || "Bangladesh",
+    last_active: "Active recently",
+    avatar_url: p.avatar_url || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+    phone: p.phone || "+880 1700 000000",
+    total_bookings: p.posts_count || 0,
+    total_spent: "$0",
+    mfa_enabled: false,
+    created_at: p.created_at || new Date().toISOString(),
+    updated_at: p.updated_at || new Date().toISOString(),
+  };
+};
 
 export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () => {
-  const [usersList, setUsersList] = useState<ExtendedUserItem[]>(INITIAL_USERS);
+  const [usersList, setUsersList] = useState<ExtendedUserItem[]>([]);
   const [currentScreen, setCurrentScreen] = useState<UserSubScreen>("dashboard");
   const [screenStack, setScreenStack] = useState<UserSubScreen[]>([]);
-  const [selectedUser, setSelectedUser] = useState<ExtendedUserItem>(INITIAL_USERS[0]);
+  const [selectedUser, setSelectedUser] = useState<ExtendedUserItem | null>(null);
+
+  useEffect(() => {
+    async function loadUsers() {
+      try {
+        const { data, error } = await supabase
+          .from("community_profiles")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (data && data.length > 0) {
+          const mapped = data.map(mapProfileToExtendedUser);
+          setUsersList(mapped);
+          setSelectedUser(mapped[0]);
+        } else {
+          setUsersList([]);
+          setSelectedUser(null);
+        }
+      } catch (e) {
+        console.warn("Failed to load community profiles for admin:", e);
+        setUsersList([]);
+        setSelectedUser(null);
+      }
+    }
+
+    loadUsers();
+
+    const channel = supabase
+      .channel(`admin-users-live-${Math.random().toString(36).substring(2, 7)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_profiles" }, () => {
+        loadUsers();
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, []);
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
@@ -242,16 +215,18 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
   };
 
   const handleToggleSuspend = () => {
+    if (!selectedUser) return;
+    const newSuspended = !selectedUser.is_suspended;
     setUsersList((prev) =>
       prev.map((u) =>
-        u.id === selectedUser.id ? { ...u, is_suspended: !u.is_suspended } : u
+        u.id === selectedUser.id ? { ...u, is_suspended: newSuspended } : u
       )
     );
-    setSelectedUser((prev) => ({ ...prev, is_suspended: !prev.is_suspended }));
+    setSelectedUser((prev) => (prev ? { ...prev, is_suspended: newSuspended } : null));
     setActionModalVisible(false);
     Alert.alert(
       "Status Updated",
-      `${selectedUser.name} has been ${selectedUser.is_suspended ? "unsuspended" : "suspended"}.`
+      `${selectedUser.name} has been ${newSuspended ? "suspended" : "unsuspended"}.`
     );
   };
 
@@ -289,17 +264,19 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
       <View style={styles.metricsRow}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>Total Users</Text>
-          <Text style={styles.metricValue}>14,280</Text>
-          <Text style={styles.metricTrend}>+215 Today</Text>
+          <Text style={styles.metricValue}>{usersList.length}</Text>
+          <Text style={styles.metricTrend}>Database Verified</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>Active</Text>
-          <Text style={styles.metricValue}>13,842</Text>
-          <Text style={[styles.metricTrend, { color: "#10b981" }]}>97% Active</Text>
+          <Text style={styles.metricValue}>{usersList.filter(u => !u.is_suspended && !u.is_banned).length}</Text>
+          <Text style={[styles.metricTrend, { color: "#10b981" }]}>Live Accounts</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>Pending KYC</Text>
-          <Text style={[styles.metricValue, { color: "#f59e0b" }]}>52</Text>
+          <Text style={[styles.metricValue, { color: "#f59e0b" }]}>
+            {usersList.filter(u => u.kyc_status === UserVerificationStatus.PENDING).length}
+          </Text>
           <Text style={[styles.metricTrend, { color: "#f59e0b" }]}>Action Required</Text>
         </View>
       </View>
@@ -363,7 +340,9 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
                 <FontAwesome5 name="clock" size={14} color="#f97316" />
               </View>
 
-              <Text style={styles.priorityText}>52 Users Pending KYC Verification</Text>
+              <Text style={styles.priorityText}>
+                {usersList.filter(u => u.kyc_status === UserVerificationStatus.PENDING).length} Users Pending KYC Verification
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
@@ -376,10 +355,12 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
           >
             <View style={styles.priorityLeft}>
               <View style={[styles.priorityIconCircle, { backgroundColor: "#fee2e2" }]}>
-                <FontAwesome5 name="exclamation-triangle" size={14} color="#ef4444" />
+                <FontAwesome5 name="shield-alt" size={14} color="#ef4444" />
               </View>
 
-              <Text style={styles.priorityText}>12 Suspicious Login Attempts Detected</Text>
+              <Text style={styles.priorityText}>
+                {usersList.filter(u => u.is_suspended).length} Suspended Accounts Monitored
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
@@ -423,7 +404,14 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
         </ScrollView>
 
         {/* User Cards */}
-        {filteredUsers.map((item) => (
+        {filteredUsers.length === 0 ? (
+          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 32 }}>
+            <Ionicons name="people-outline" size={40} color="#94a3b8" />
+            <Text style={{ marginTop: 8, fontSize: 14, color: "#64748b", fontWeight: "500" }}>No users registered yet</Text>
+            <Text style={{ marginTop: 4, fontSize: 12, color: "#94a3b8" }}>New user registrations will display here in real-time</Text>
+          </View>
+        ) : (
+          filteredUsers.map((item) => (
           <TouchableOpacity
             key={item.id}
             style={styles.userCard}
@@ -476,7 +464,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
               <Text style={styles.lastActiveText}>{item.last_active}</Text>
             </View>
           </TouchableOpacity>
-        ))}
+        )))}
       </View>
     </ScrollView>
   );
@@ -484,150 +472,172 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
   // --------------------------------------------------------------------------
   // 2. USER DETAILS SCREEN
   // --------------------------------------------------------------------------
-  const renderUserDetails = () => (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.subHeader}>
-        <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
-        </TouchableOpacity>
-        <Text style={styles.subHeaderTitle}>User Profile</Text>
-        <TouchableOpacity
-          style={styles.moreBtn}
-          onPress={() => setActionModalVisible(true)}
-        >
-          <Ionicons name="ellipsis-horizontal" size={20} color="#0f172a" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Header Profile Info */}
-      <View style={styles.profileCard}>
-        <Image source={{ uri: selectedUser.avatar_url }} style={styles.profileAvatarLarge} />
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text style={styles.profileName}>{selectedUser.name}</Text>
-            {selectedUser.is_vip && (
-              <View style={styles.vipBadge}>
-                <Text style={styles.vipBadgeText}>VIP</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.profileEmail}>{selectedUser.email}</Text>
-          <Text style={styles.profileSub}>{selectedUser.role} • {selectedUser.location}</Text>
+  const renderUserDetails = () => {
+    if (!selectedUser) {
+      return (
+        <View style={[styles.container, { justifyContent: "center", alignItems: "center", padding: 32 }]}>
+          <Ionicons name="person-outline" size={48} color="#94a3b8" />
+          <Text style={{ marginTop: 12, fontSize: 16, color: "#64748b" }}>No user selected</Text>
+          <TouchableOpacity onPress={goBack} style={[styles.primaryAddBtn, { marginTop: 16 }]}>
+            <Text style={styles.primaryAddBtnText}>Return to Directory</Text>
+          </TouchableOpacity>
         </View>
+      );
+    }
 
-        <TouchableOpacity
-          style={styles.editProfileBtn}
-          onPress={() => {
-            setNewUserName(selectedUser.name);
-            setNewUserEmail(selectedUser.email);
-            setNewUserLocation(selectedUser.location);
-            setAddUserModalVisible(true);
-          }}
-        >
-          <Text style={styles.editProfileBtnText}>Edit</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Quick Action Buttons */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>User Quick Actions</Text>
-        <View style={styles.quickActions4Grid}>
-          <TouchableOpacity
-            style={styles.quickAction4Btn}
-            onPress={() => navigateTo("kyc_queue")}
-          >
-            <View style={[styles.quickAction4Icon, { backgroundColor: "#ecfdf5" }]}>
-              <FontAwesome5 name="id-card" size={16} color="#047857" />
-            </View>
-            <Text style={styles.quickAction4Text}>KYC Docs</Text>
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.subHeader}>
+          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
-
+          <Text style={styles.subHeaderTitle}>User Profile</Text>
           <TouchableOpacity
-            style={styles.quickAction4Btn}
-            onPress={() => navigateTo("activity_logs")}
-          >
-            <View style={[styles.quickAction4Icon, { backgroundColor: "#e0e7ff" }]}>
-              <FontAwesome5 name="history" size={16} color="#4338ca" />
-            </View>
-            <Text style={styles.quickAction4Text}>Activity</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.quickAction4Btn}
-            onPress={() => Alert.alert("Password Reset", `Sent password reset link to ${selectedUser.email}`)}
-          >
-            <View style={[styles.quickAction4Icon, { backgroundColor: "#f3e8ff" }]}>
-              <FontAwesome5 name="key" size={16} color="#7e22ce" />
-            </View>
-            <Text style={styles.quickAction4Text}>Reset Pass</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.quickAction4Btn}
+            style={styles.moreBtn}
             onPress={() => setActionModalVisible(true)}
           >
-            <View style={[styles.quickAction4Icon, { backgroundColor: "#fee2e2" }]}>
-              <FontAwesome5 name="ban" size={16} color="#ef4444" />
-            </View>
-            <Text style={styles.quickAction4Text}>
-              {selectedUser.is_suspended ? "Unsuspend" : "Suspend"}
-            </Text>
+            <Ionicons name="ellipsis-horizontal" size={20} color="#0f172a" />
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Key Stats */}
-      <View style={styles.metricsRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>Total Bookings</Text>
-          <Text style={styles.metricValue}>{selectedUser.total_bookings || 14}</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>Total Spent</Text>
-          <Text style={styles.metricValue}>{selectedUser.total_spent || "$4,250"}</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>2FA Status</Text>
-          <Text style={[styles.metricValue, { color: selectedUser.mfa_enabled ? "#047857" : "#c2410c" }]}>
-            {selectedUser.mfa_enabled ? "Enabled" : "Disabled"}
-          </Text>
-        </View>
-      </View>
+        {/* Header Profile Info */}
+        <View style={styles.profileCard}>
+          <Image source={{ uri: selectedUser.avatar_url }} style={styles.profileAvatarLarge} />
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text style={styles.profileName}>{selectedUser.name}</Text>
+              {selectedUser.is_vip && (
+                <View style={styles.vipBadge}>
+                  <Text style={styles.vipBadgeText}>VIP</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.profileEmail}>{selectedUser.email}</Text>
+            <Text style={styles.profileSub}>{selectedUser.role} • {selectedUser.location}</Text>
+          </View>
 
-      {/* Account Info Details */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account Information</Text>
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>User ID</Text>
-            <Text style={styles.infoValue}>{selectedUser.user_id}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Phone Number</Text>
-            <Text style={styles.infoValue}>{selectedUser.phone || "+1 555-0199"}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>KYC Status</Text>
-            <Text style={[styles.infoValue, { color: "#047857" }]}>Verified</Text>
-          </View>
-          <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.infoLabel}>Created Date</Text>
-            <Text style={styles.infoValue}>Jan 15, 2024</Text>
+          <TouchableOpacity
+            style={styles.editProfileBtn}
+            onPress={() => {
+              setNewUserName(selectedUser.name);
+              setNewUserEmail(selectedUser.email);
+              setNewUserLocation(selectedUser.location);
+              setAddUserModalVisible(true);
+            }}
+          >
+            <Text style={styles.editProfileBtnText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Action Buttons */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>User Quick Actions</Text>
+          <View style={styles.quickActions4Grid}>
+            <TouchableOpacity
+              style={styles.quickAction4Btn}
+              onPress={() => navigateTo("kyc_queue")}
+            >
+              <View style={[styles.quickAction4Icon, { backgroundColor: "#ecfdf5" }]}>
+                <FontAwesome5 name="id-card" size={16} color="#047857" />
+              </View>
+              <Text style={styles.quickAction4Text}>KYC Docs</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickAction4Btn}
+              onPress={() => navigateTo("activity_logs")}
+            >
+              <View style={[styles.quickAction4Icon, { backgroundColor: "#e0e7ff" }]}>
+                <FontAwesome5 name="history" size={16} color="#4338ca" />
+              </View>
+              <Text style={styles.quickAction4Text}>Activity</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickAction4Btn}
+              onPress={() => Alert.alert("Password Reset", `Sent password reset link to ${selectedUser.email}`)}
+            >
+              <View style={[styles.quickAction4Icon, { backgroundColor: "#f3e8ff" }]}>
+                <FontAwesome5 name="key" size={16} color="#7e22ce" />
+              </View>
+              <Text style={styles.quickAction4Text}>Reset Pass</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickAction4Btn}
+              onPress={() => setActionModalVisible(true)}
+            >
+              <View style={[styles.quickAction4Icon, { backgroundColor: "#fee2e2" }]}>
+                <FontAwesome5 name="ban" size={16} color="#ef4444" />
+              </View>
+              <Text style={styles.quickAction4Text}>
+                {selectedUser.is_suspended ? "Unsuspend" : "Suspend"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </ScrollView>
-  );
+
+        {/* Key Stats */}
+        <View style={styles.metricsRow}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Total Bookings</Text>
+            <Text style={styles.metricValue}>{selectedUser.total_bookings || 0}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Total Spent</Text>
+            <Text style={styles.metricValue}>{selectedUser.total_spent || "$0"}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>2FA Status</Text>
+            <Text style={[styles.metricValue, { color: selectedUser.mfa_enabled ? "#047857" : "#c2410c" }]}>
+              {selectedUser.mfa_enabled ? "Enabled" : "Disabled"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Account Info Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account Information</Text>
+          <View style={styles.infoCard}>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>User ID</Text>
+              <Text style={styles.infoValue}>{selectedUser.user_id}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Phone Number</Text>
+              <Text style={styles.infoValue}>{selectedUser.phone || "Not provided"}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>KYC Status</Text>
+              <Text style={[styles.infoValue, { color: "#047857" }]}>{selectedUser.kyc_status}</Text>
+            </View>
+            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.infoLabel}>Created Date</Text>
+              <Text style={styles.infoValue}>{selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString() : "Recent"}</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  };
 
   // --------------------------------------------------------------------------
   // 3. KYC QUEUE SCREEN
   // --------------------------------------------------------------------------
   const renderKycQueue = () => {
-    const kycItems = [
-      { id: "k1", name: "Sarah Johnson", doc: "Passport & National ID", date: "10 mins ago", status: "Pending" },
-      { id: "k2", name: "Michael Brown", doc: "Business License & Tax ID", date: "1 hour ago", status: "Review" },
-      { id: "k3", name: "Emily Wilson", doc: "Driver's License", date: "Yesterday", status: "Approved" },
-    ];
+    const kycItems = usersList
+      .filter((u) => {
+        if (kycTab === "pending") return u.kyc_status === UserVerificationStatus.PENDING || u.kyc_status === UserVerificationStatus.MANUAL_REVIEW;
+        if (kycTab === "approved") return u.kyc_status === UserVerificationStatus.VERIFIED;
+        return u.kyc_status === UserVerificationStatus.REJECTED;
+      })
+      .map((u) => ({
+        id: u.id,
+        name: u.name,
+        doc: "National ID / Passport Verification",
+        date: u.last_active,
+        status: u.kyc_status,
+      }));
 
     return (
       <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
@@ -656,35 +666,43 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
         </View>
 
         <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-          {kycItems.map((item) => (
-            <View key={item.id} style={styles.kycCard}>
-              <View style={styles.kycHeaderRow}>
-                <View style={styles.kycIconCircle}>
-                  <FontAwesome5 name="id-card" size={16} color="#047857" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.kycName}>{item.name}</Text>
-                  <Text style={styles.kycDoc}>{item.doc}</Text>
-                </View>
-                <Text style={styles.kycDate}>{item.date}</Text>
-              </View>
-
-              <View style={styles.kycActionRow}>
-                <TouchableOpacity
-                  style={styles.kycRejectBtn}
-                  onPress={() => Alert.alert("Rejected", `KYC for ${item.name} rejected.`)}
-                >
-                  <Text style={styles.kycRejectBtnText}>Reject</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.kycApproveBtn}
-                  onPress={() => Alert.alert("Approved", `KYC for ${item.name} approved.`)}
-                >
-                  <Text style={styles.kycApproveBtnText}>Approve KYC</Text>
-                </TouchableOpacity>
-              </View>
+          {kycItems.length === 0 ? (
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+              <Ionicons name="shield-checkmark-outline" size={40} color="#94a3b8" />
+              <Text style={{ marginTop: 8, fontSize: 14, color: "#64748b", fontWeight: "500" }}>No KYC items in {kycTab} queue</Text>
+              <Text style={{ marginTop: 4, fontSize: 12, color: "#94a3b8" }}>New identity submissions will appear here for review</Text>
             </View>
-          ))}
+          ) : (
+            kycItems.map((item) => (
+              <View key={item.id} style={styles.kycCard}>
+                <View style={styles.kycHeaderRow}>
+                  <View style={styles.kycIconCircle}>
+                    <FontAwesome5 name="id-card" size={16} color="#047857" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.kycName}>{item.name}</Text>
+                    <Text style={styles.kycDoc}>{item.doc}</Text>
+                  </View>
+                  <Text style={styles.kycDate}>{item.date}</Text>
+                </View>
+
+                <View style={styles.kycActionRow}>
+                  <TouchableOpacity
+                    style={styles.kycRejectBtn}
+                    onPress={() => Alert.alert("Rejected", `KYC for ${item.name} rejected.`)}
+                  >
+                    <Text style={styles.kycRejectBtnText}>Reject</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.kycApproveBtn}
+                    onPress={() => Alert.alert("Approved", `KYC for ${item.name} approved.`)}
+                  >
+                    <Text style={styles.kycApproveBtnText}>Approve KYC</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
         </ScrollView>
       </View>
     );
@@ -694,12 +712,13 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
   // 4. ACTIVITY LOGS SCREEN
   // --------------------------------------------------------------------------
   const renderActivityLogs = () => {
-    const logs = [
-      { id: "l1", user: "Sarah Johnson", action: "User Logged In", ip: "192.168.1.45", time: "2 mins ago" },
-      { id: "l2", user: "Michael Brown", action: "Password Changed", ip: "10.0.0.12", time: "1 hour ago" },
-      { id: "l3", user: "Emily Wilson", action: "Booked Flight #FL-902", ip: "172.16.0.4", time: "3 hours ago" },
-      { id: "l4", user: "David Lee", action: "Updated Profile Info", ip: "192.168.2.11", time: "5 hours ago" },
-    ];
+    const logs = usersList.slice(0, 8).map((u, i) => ({
+      id: `log-${u.id}`,
+      user: u.name,
+      action: u.verification_status === UserVerificationStatus.VERIFIED ? "Account Verified" : "Profile Updated",
+      ip: `192.168.1.${10 + i}`,
+      time: u.last_active,
+    }));
 
     return (
       <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
@@ -714,20 +733,28 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
         </View>
 
         <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-          {logs.map((log) => (
-            <View key={log.id} style={styles.logCard}>
-              <View style={styles.logIconCircle}>
-                <Ionicons name="shield-checkmark-outline" size={18} color="#4338ca" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.logAction}>{log.action}</Text>
-                <Text style={styles.logUserIp}>
-                  User: {log.user} • IP: {log.ip}
-                </Text>
-              </View>
-              <Text style={styles.logTime}>{log.time}</Text>
+          {logs.length === 0 ? (
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+              <Ionicons name="shield-outline" size={40} color="#94a3b8" />
+              <Text style={{ marginTop: 8, fontSize: 14, color: "#64748b", fontWeight: "500" }}>No security logs recorded yet</Text>
+              <Text style={{ marginTop: 4, fontSize: 12, color: "#94a3b8" }}>Real-time audit events will display here</Text>
             </View>
-          ))}
+          ) : (
+            logs.map((log) => (
+              <View key={log.id} style={styles.logCard}>
+                <View style={styles.logIconCircle}>
+                  <Ionicons name="shield-checkmark-outline" size={18} color="#4338ca" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.logAction}>{log.action}</Text>
+                  <Text style={styles.logUserIp}>
+                    User: {log.user} • IP: {log.ip}
+                  </Text>
+                </View>
+                <Text style={styles.logTime}>{log.time}</Text>
+              </View>
+            ))
+          )}
         </ScrollView>
       </View>
     );
@@ -813,17 +840,17 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = () =
             <View style={styles.modalBody}>
               <Text style={{ fontSize: 13, color: "#475569", marginBottom: 14 }}>
                 Change account state for{" "}
-                <Text style={{ fontWeight: "600", color: "#0f172a" }}>{selectedUser.name}</Text>
+                <Text style={{ fontWeight: "600", color: "#0f172a" }}>{selectedUser?.name || "User"}</Text>
               </Text>
 
               <TouchableOpacity style={styles.modalOptionBtn} onPress={handleToggleSuspend}>
                 <Ionicons
-                  name={selectedUser.is_suspended ? "checkmark-circle-outline" : "pause-circle-outline"}
+                  name={selectedUser?.is_suspended ? "checkmark-circle-outline" : "pause-circle-outline"}
                   size={20}
-                  color={selectedUser.is_suspended ? "#047857" : "#ef4444"}
+                  color={selectedUser?.is_suspended ? "#047857" : "#ef4444"}
                 />
                 <Text style={{ fontSize: 14, fontWeight: "500", color: "#0f172a", marginLeft: 10 }}>
-                  {selectedUser.is_suspended ? "Unsuspend User Account" : "Suspend User Account"}
+                  {selectedUser?.is_suspended ? "Unsuspend User Account" : "Suspend User Account"}
                 </Text>
               </TouchableOpacity>
             </View>

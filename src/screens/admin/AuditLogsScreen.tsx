@@ -3,7 +3,7 @@
  * Platform Audit Trail for Regulatory Audits & Operations
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,34 +11,76 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  ScrollView,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { supabase } from "@/utils/supabase";
 
 export const AuditLogsScreen: React.FC = () => {
-  const [logs, setLogs] = useState<any[]>([
-    {
-      id: "aud-001",
-      actor: "Chief Technology Officer",
-      action: "SUSPEND_USER",
-      entity_type: "user",
-      entity_id: "usr-mnc-103",
-      details: "Suspended for document audit failure",
-      ip_address: "192.168.1.10",
-      created_at: new Date().toLocaleString(),
-    },
-    {
-      id: "aud-002",
-      actor: "Super Admin",
-      action: "APPROVE_REFUND",
-      entity_type: "refund",
-      entity_id: "ref-902",
-      details: "Approved $1,250.00 hotel double-charge",
-      ip_address: "192.168.1.12",
-      created_at: new Date(Date.now() - 3600000).toLocaleString(),
-    },
-  ]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const loadLogs = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("admin_activity_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (data && data.length > 0) {
+        setLogs(
+          data.map((l: any) => ({
+            id: l.id,
+            actor: l.admin_name || l.actor || "Admin Operator",
+            action: l.action || "SYSTEM_EVENT",
+            entity_type: l.entity_type || "system",
+            entity_id: l.entity_id || "-",
+            details: typeof l.details === "object" ? JSON.stringify(l.details) : (l.details || "Administrative operation logged"),
+            ip_address: l.ip_address || "Internal Gateway",
+            created_at: new Date(l.created_at || Date.now()).toLocaleString(),
+          }))
+        );
+      } else {
+        setLogs([]);
+      }
+    } catch (e) {
+      console.warn("Error loading audit logs:", e);
+      setLogs([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLogs();
+
+    const channel = supabase
+      .channel(`audit-logs-live-${Math.random().toString(36).substring(2, 7)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_activity_logs" }, () => {
+        loadLogs();
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, []);
+
+  const filteredLogs = logs.filter((item) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      item.action.toLowerCase().includes(q) ||
+      item.actor.toLowerCase().includes(q) ||
+      item.details.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <View style={styles.container}>
@@ -56,8 +98,26 @@ export const AuditLogsScreen: React.FC = () => {
       </View>
 
       <FlatList
-        data={logs}
+        data={filteredLogs}
         keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadLogs(); }} />
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60, paddingHorizontal: 24 }}>
+              <MaterialCommunityIcons name="shield-check-outline" size={54} color="#94a3b8" />
+              <Text style={{ marginTop: 12, fontSize: 16, fontWeight: "600", color: "#64748b" }}>
+                No Audit Log Entries
+              </Text>
+              <Text style={{ marginTop: 4, fontSize: 13, color: "#94a3b8", textAlign: "center" }}>
+                Admin and platform security operations will be logged here for compliance auditing.
+              </Text>
+            </View>
+          ) : (
+            <ActivityIndicator size="large" color="#0284c7" style={{ marginTop: 40 }} />
+          )
+        }
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardHeader}>

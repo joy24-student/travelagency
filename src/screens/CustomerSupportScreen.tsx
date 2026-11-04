@@ -14,6 +14,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { chat } from "../services/ai/llm";
+import { supabase } from "../utils/supabase";
 
 // Question Item interface
 interface ServiceQuestion {
@@ -111,27 +113,72 @@ export function CustomerSupportScreen() {
     { sender: "agent", text: "Hello! Welcome to 24/7 Customer Support. How can we assist your trip today?" },
   ]);
   const [chatInput, setChatInput] = useState<string>("");
+  const [isTyping, setIsTyping] = useState<boolean>(false);
 
   // Booking search input
   const [bookingRefInput, setBookingRefInput] = useState<string>("");
-  const [foundBooking, setFoundBooking] = useState<boolean>(false);
+  const [retrievedBooking, setRetrievedBooking] = useState<any | null>(null);
+  const [searchingBooking, setSearchingBooking] = useState<boolean>(false);
+  const [searchError, setSearchError] = useState<string>("");
 
-  const handleSendChatMessage = () => {
-    if (!chatInput.trim()) return;
-    const userMsg = chatInput;
-    setChatMessages((prev) => [...prev, { sender: "user", text: userMsg }]);
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim() || isTyping) return;
+    const userMsg = chatInput.trim();
+    const updatedMessages = [...chatMessages, { sender: "user" as const, text: userMsg }];
+    setChatMessages(updatedMessages);
     setChatInput("");
+    setIsTyping(true);
 
-    // Simulate Agent response
-    setTimeout(() => {
+    try {
+      const response = await chat([
+        {
+          role: "system",
+          content: "You are the 24/7 VIP Customer Support Specialist for the travel platform. Answer the user's travel, flight, hotel, or booking question politely, accurately, and concisely.",
+        },
+        ...updatedMessages.map((m) => ({
+          role: m.sender === "user" ? ("user" as const) : ("assistant" as const),
+          content: m.text,
+        })),
+      ]);
+
+      const reply = response.data || `I've received your query about "${userMsg}". Our support team is here to assist!`;
+      setChatMessages((prev) => [...prev, { sender: "agent", text: reply }]);
+    } catch {
       setChatMessages((prev) => [
         ...prev,
         {
           sender: "agent",
-          text: `Thank you for asking about "${userMsg}". A live specialist is reviewing your request now!`,
+          text: `Thank you for asking about "${userMsg}". A support specialist has noted your request.`,
         },
       ]);
-    }, 1000);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleSearchBooking = async () => {
+    if (!bookingRefInput.trim()) return;
+    setSearchingBooking(true);
+    setSearchError("");
+    setRetrievedBooking(null);
+    try {
+      const q = bookingRefInput.trim();
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("*")
+        .or(`booking_reference.ilike.%${q}%,id.eq.${q}`)
+        .limit(1);
+
+      if (data && data.length > 0) {
+        setRetrievedBooking(data[0]);
+      } else {
+        setSearchError(`No booking found matching "${bookingRefInput}". Please check the reference code.`);
+      }
+    } catch (err: any) {
+      setSearchError("Error retrieving booking. Please try again.");
+    } finally {
+      setSearchingBooking(false);
+    }
   };
 
   return (
@@ -496,6 +543,28 @@ export function CustomerSupportScreen() {
               </TouchableOpacity>
             </View>
 
+            <TouchableOpacity
+              style={[styles.phoneOptionRow, { backgroundColor: "#eff6ff", borderRadius: 12, padding: 12, marginBottom: 8 }]}
+              onPress={() => {
+                setShowCallModal(false);
+                router.push({
+                  pathname: "/screens/call",
+                  params: {
+                    isVideo: "false",
+                    name: "Customer Support Desk",
+                    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300",
+                  },
+                });
+              }}
+            >
+              <Ionicons name="headset" size={22} color="#2563EB" />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.phoneOptionLabel, { fontWeight: "700" }]}>Instant In-App VoIP Call</Text>
+                <Text style={styles.phoneOptionNumber}>Free high-definition voice line</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#2563EB" />
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.phoneOptionRow}>
               <Ionicons name="call-outline" size={20} color="#2563EB" />
               <View style={{ flex: 1, marginLeft: 12 }}>
@@ -538,8 +607,15 @@ export function CustomerSupportScreen() {
             <TouchableOpacity
               style={styles.emergencyCallBtn}
               onPress={() => {
-                alert("Connecting to Emergency Hotline...");
                 setShowEmergencyModal(false);
+                router.push({
+                  pathname: "/screens/call",
+                  params: {
+                    isVideo: "false",
+                    name: "Emergency Response Desk",
+                    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300",
+                  },
+                });
               }}
             >
               <Text style={styles.emergencyCallText}>Call Emergency Hotline Now</Text>
@@ -570,30 +646,41 @@ export function CustomerSupportScreen() {
 
             <TextInput
               style={styles.sheetSearchInput}
-              placeholder="e.g. TRP-984210"
+              placeholder="e.g. BK-88491"
               placeholderTextColor="#94A3B8"
               value={bookingRefInput}
               onChangeText={setBookingRefInput}
             />
 
             <TouchableOpacity
-              style={styles.doneBtn}
-              onPress={() => {
-                setFoundBooking(true);
-              }}
+              style={[styles.doneBtn, searchingBooking && { opacity: 0.6 }]}
+              onPress={handleSearchBooking}
+              disabled={searchingBooking}
             >
-              <Text style={styles.doneBtnText}>Retrieve Booking</Text>
+              {searchingBooking ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.doneBtnText}>Retrieve Booking</Text>
+              )}
             </TouchableOpacity>
 
-            {foundBooking && (
+            {searchError ? (
+              <Text style={{ color: "#ef4444", fontSize: 13, marginTop: 10, textAlign: "center" }}>
+                {searchError}
+              </Text>
+            ) : null}
+
+            {retrievedBooking && (
               <View style={styles.foundBookingBox}>
-                <Text style={styles.foundBookingTitle}>Booking Found: TRP-984210</Text>
-                <Text style={styles.foundBookingDesc}>Flight: Dhaka ✈ Cox's Bazar (Oct 12)</Text>
+                <Text style={styles.foundBookingTitle}>Booking Found: {retrievedBooking.booking_reference}</Text>
+                <Text style={styles.foundBookingDesc}>
+                  {retrievedBooking.product_type?.toUpperCase()} · {retrievedBooking.destination_city || "Itinerary"} · Status: {retrievedBooking.status?.toUpperCase()}
+                </Text>
                 <TouchableOpacity
                   style={styles.viewBookingDetailsBtn}
                   onPress={() => {
                     setShowSearchBookingModal(false);
-                    router.push("/trips" as any);
+                    router.push("/(tabs)/trips" as any);
                   }}
                 >
                   <Text style={styles.viewBookingDetailsText}>Manage Booking</Text>

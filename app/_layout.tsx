@@ -11,6 +11,8 @@ import { AuthProvider } from "../src/auth/context";
 import { useAuth } from "../src/hooks/useAuth";
 import { supabase } from "../src/utils/supabase";
 import { initializeOAuthProviders } from "../src/services/oauth";
+import { IncomingCallBanner } from "../src/components/IncomingCallBanner";
+import { fcmNotificationService } from "../src/services/fcmNotificationService";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -37,79 +39,103 @@ const RootLayoutContent = () => {
     return () => sub.remove();
   }, []);
 
-  if (loading) return null;
+  useEffect(() => {
+    // Register for FCM push notifications & set up response handler
+    fcmNotificationService.registerForPushNotifications().catch(console.warn);
+    const sub = fcmNotificationService.setupNotificationResponseListener();
+    return () => {
+      sub.remove();
+    };
+  }, []);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: "#ffffff" },
-      }}
-    >
-      {/* Always define all route groups - navigation is handled by app logic */}
-      <Stack.Screen
-        name="(auth)"
-        options={{
+    <>
+      <IncomingCallBanner />
+      <Stack
+        screenOptions={{
           headerShown: false,
+          contentStyle: { backgroundColor: "#ffffff" },
         }}
-      />
-      
-      <Stack.Screen
-        name="(tabs)"
-        options={{
-          headerShown: false,
-        }}
-      />
+      >
+        {/* Always define all route groups - navigation is handled by app logic */}
+        <Stack.Screen
+          name="(auth)"
+          options={{
+            headerShown: false,
+          }}
+        />
+        
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: false,
+          }}
+        />
 
-      <Stack.Screen
-        name="admin"
-        options={{
-          headerShown: false,
-        }}
-      />
+        <Stack.Screen
+          name="admin"
+          options={{
+            headerShown: false,
+          }}
+        />
 
-      <Stack.Screen
-        name="index"
-        options={{
-          headerShown: false,
-        }}
-      />
-      
-      <Stack.Screen
-        name="screens/[slug]"
-        options={{
-          headerShown: false,
-        }}
-      />
-      
-      <Stack.Screen
-        name="screens/help"
-        options={{
-          headerShown: false,
-        }}
-      />
-      
-      <Stack.Screen
-        name="screens/profile"
-        options={{
-          headerShown: false,
-        }}
-      />
-      
-      <Stack.Screen
-        name="screens/reviews"
-        options={{
-          headerShown: false,
-        }}
-      />
-      
-      <Stack.Screen
-        name="screens/saved"
-        options={{
-          headerShown: false,
-        }}
-      />
-    </Stack>
+        <Stack.Screen
+          name="index"
+          options={{
+            headerShown: false,
+          }}
+        />
+        
+        <Stack.Screen
+          name="screens/[slug]"
+          options={{
+            headerShown: false,
+          }}
+        />
+        
+        <Stack.Screen
+          name="screens/help"
+          options={{
+            headerShown: false,
+          }}
+        />
+        
+        <Stack.Screen
+          name="screens/profile"
+          options={{
+            headerShown: false,
+          }}
+        />
+        
+        <Stack.Screen
+          name="screens/reviews"
+          options={{
+            headerShown: false,
+          }}
+        />
+        
+        <Stack.Screen
+          name="screens/saved"
+          options={{
+            headerShown: false,
+          }}
+        />
+        
+        <Stack.Screen
+          name="screens/user-profile"
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
+          name="screens/call"
+          options={{
+            headerShown: false,
+          }}
+        />
+      </Stack>
+    </>
   );
 };
 

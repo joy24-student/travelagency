@@ -12,9 +12,18 @@ export const userRepository = {
       .from("user_profiles")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
+    if (error && error.code !== "PGRST116") throw error;
+    if (!data) {
+      return {
+        id: user.id,
+        email: user.email,
+        full_name: (user.user_metadata as any)?.full_name || user.email?.split("@")[0] || "Traveler",
+        avatar_url: (user.user_metadata as any)?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300",
+        phone: user.phone || "",
+      };
+    }
     return data;
   },
 
@@ -47,10 +56,10 @@ export const userRepository = {
       .from("user_preferences")
       .select("*")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
-    return data;
+    if (error && error.code !== "PGRST116") throw error;
+    return data || {};
   },
 
   // Update user preferences
@@ -112,36 +121,75 @@ export const userRepository = {
 
   // Get user settings
   async getSettings() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return {};
 
-    const { data, error } = await supabase
-      .from("user_settings")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
+      const { data, error } = await supabase
+        .from("user_settings")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') throw error;
-    return data || {};
+      if (error && error.code !== 'PGRST116') {
+        console.warn("getSettings error:", error.message);
+        return {};
+      }
+      return data || {};
+    } catch (e) {
+      console.warn("getSettings exception:", e);
+      return {};
+    }
   },
 
   // Update individual setting
   async updateSetting(key: string, value: any) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
 
-    const { data, error } = await supabase
-      .from("user_settings")
-      .update({ [key]: value, updated_at: new Date() })
-      .eq("user_id", user.id)
-      .select();
+      const { data, error } = await supabase
+        .from("user_settings")
+        .upsert({ user_id: user.id, [key]: value, updated_at: new Date().toISOString() }, { onConflict: "user_id" })
+        .select();
 
-    if (error) throw error;
-    return data?.[0];
+      if (error) {
+        console.warn("updateSetting error:", error.message);
+        return null;
+      }
+      return data?.[0];
+    } catch (e) {
+      console.warn("updateSetting exception:", e);
+      return null;
+    }
+  },
+
+  // Update multiple settings
+  async saveAllSettings(settings: Record<string, any>) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from("user_settings")
+        .upsert({ user_id: user.id, ...settings, updated_at: new Date().toISOString() }, { onConflict: "user_id" })
+        .select();
+
+      if (error) {
+        console.warn("saveAllSettings error:", error.message);
+        return null;
+      }
+      return data?.[0];
+    } catch (e) {
+      console.warn("saveAllSettings exception:", e);
+      return null;
+    }
   },
 
   // Change password

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -15,8 +15,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { supabase } from "../utils/supabase";
 
-// Sample Event Data matching reference UI
+// Event Data Interface
 interface EventItem {
   id: string;
   title: string;
@@ -24,83 +25,15 @@ interface EventItem {
   date: string;
   location: string;
   price: string;
-  status: "Upcoming" | "On Sale" | "Sold Out";
+  status: "Upcoming" | "On Sale" | "Sold Out" | "Featured";
   badgeColor: string;
   poster: string;
   venue: string;
   description: string;
 }
 
-const POPULAR_EVENTS: EventItem[] = [
-  {
-    id: "1",
-    title: "BIGBANG 2026-2027 WORLD TOUR",
-    artist: "BIGBANG",
-    date: "Nov 7",
-    location: "Bangkok",
-    price: "USD317.12",
-    status: "Upcoming",
-    badgeColor: "#FFF1F2",
-    poster: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?auto=format&fit=crop&w=600&q=80",
-    venue: "Rajamangala National Stadium",
-    description: "The legendary K-pop icons return for their monumental 2026-2027 World Tour in Bangkok!",
-  },
-  {
-    id: "2",
-    title: "Taipei | BIGBANG 2026-2027 WORLD TOUR",
-    artist: "BIGBANG",
-    date: "Oct 9-Oct 11",
-    location: "Taipei",
-    price: "USD280.00",
-    status: "Upcoming",
-    badgeColor: "#FFF1F2",
-    poster: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80",
-    venue: "Taipei Dome",
-    description: "Experience 3 nights of unforgettable performances at the iconic Taipei Dome.",
-  },
-  {
-    id: "3",
-    title: "PaJang World Tour | Taipei",
-    artist: "PaJang & Guests",
-    date: "Oct 24",
-    location: "Taipei",
-    price: "USD150.00",
-    status: "On Sale",
-    badgeColor: "#F3E8FF",
-    poster: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80",
-    venue: "Taipei Music Center",
-    description: "Electrifying live vocals and visual production by top Asian pop sensations.",
-  },
-];
-
-const AVAILABLE_SOON_EVENTS: EventItem[] = [
-  {
-    id: "4",
-    title: "The Weeknd After Hours Stadium Tour",
-    artist: "The Weeknd",
-    date: "Dec 12",
-    location: "Tokyo",
-    price: "USD220.00",
-    status: "Upcoming",
-    badgeColor: "#FEF3C7",
-    poster: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=600&q=80",
-    venue: "Japan National Stadium",
-    description: "Immersive stadium light show featuring hits from After Hours & Dawn FM.",
-  },
-  {
-    id: "5",
-    title: "Yoasobi 3D Dome Tour 2026",
-    artist: "Yoasobi",
-    date: "Dec 18-20",
-    location: "Osaka",
-    price: "USD190.00",
-    status: "Upcoming",
-    badgeColor: "#E0F2FE",
-    poster: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=600&q=80",
-    venue: "Kyocera Dome Osaka",
-    description: "J-pop sensation Yoasobi brings story music to life with holographic visual effects.",
-  },
-];
+const POPULAR_EVENTS: EventItem[] = [];
+const AVAILABLE_SOON_EVENTS: EventItem[] = [];
 
 const FILTER_TAGS = [
   { id: "all", label: "All" },
@@ -116,6 +49,9 @@ export function EventsScreen() {
   const insets = useSafeAreaInsets();
 
   // State
+  const [popularEvents, setPopularEvents] = useState<EventItem[]>([]);
+  const [availableSoonEvents, setAvailableSoonEvents] = useState<EventItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [selectedLocation, setSelectedLocation] = useState<string>("Global");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -127,8 +63,45 @@ export function EventsScreen() {
   const [claimed, setClaimed] = useState<boolean>(false);
   const [isSubscribed, setIsSubscribed] = useState<boolean>(true);
 
+  // Fetch live experiences & tours from Supabase
+  useEffect(() => {
+    async function loadLiveExperiences() {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.from("tours").select("*");
+        if (data && data.length > 0) {
+          const mapped: EventItem[] = data.map((t: any) => ({
+            id: t.id,
+            title: t.title,
+            artist: t.destination_city || "Live Event",
+            date: t.duration_text || "Flexible Dates",
+            location: t.destination_city || "Global",
+            price: `USD${t.price}.00`,
+            status: t.is_featured ? "Featured" : "On Sale",
+            badgeColor: t.is_featured ? "#FFF1F2" : "#F3E8FF",
+            poster: (t.image_urls && t.image_urls[0]) || "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?auto=format&fit=crop&w=600&q=80",
+            venue: `${t.destination_city || "City"} Experience Center`,
+            description: t.description || "Live immersive cultural and entertainment experience.",
+          }));
+          setPopularEvents(mapped.slice(0, 3));
+          setAvailableSoonEvents(mapped.slice(3));
+        } else {
+          setPopularEvents([]);
+          setAvailableSoonEvents([]);
+        }
+      } catch (err) {
+        console.log("Error loading events:", err);
+        setPopularEvents([]);
+        setAvailableSoonEvents([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadLiveExperiences();
+  }, []);
+
   // Search filter logic
-  const filteredPopular = POPULAR_EVENTS.filter((evt) =>
+  const filteredPopular = popularEvents.filter((evt) =>
     evt.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     evt.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
     evt.location.toLowerCase().includes(searchQuery.toLowerCase())
@@ -238,55 +211,70 @@ export function EventsScreen() {
           <Text style={styles.sectionTitle}>Popular</Text>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.popularCarousel}
-        >
-          {filteredPopular.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.eventCard}
-              activeOpacity={0.88}
-              onPress={() => setSelectedEvent(item)}
-            >
-              <Image source={{ uri: item.poster }} style={styles.eventCardImage} />
-
-              {/* Status Badge */}
-              <View style={[styles.badgeContainer, { backgroundColor: item.badgeColor }]}>
-                <Text
-                  style={[
-                    styles.badgeText,
-                    item.status === "On Sale" && styles.badgeOnSaleText,
-                  ]}
-                >
-                  {item.status}
-                </Text>
-              </View>
-
-              {/* Gradient Text Overlay at Bottom */}
-              <LinearGradient
-                colors={["transparent", "rgba(15, 23, 42, 0.92)"]}
-                style={styles.eventGradientOverlay}
+        {loading ? (
+          <View style={styles.eventLoadingBox}>
+            <ActivityIndicator size="small" color="#2563EB" />
+            <Text style={styles.eventLoadingText}>Loading live shows & events...</Text>
+          </View>
+        ) : filteredPopular.length === 0 ? (
+          <View style={styles.eventEmptyContainer}>
+            <Ionicons name="musical-notes-outline" size={40} color="#94A3B8" />
+            <Text style={styles.eventEmptyTitle}>No events currently found</Text>
+            <Text style={styles.eventEmptySubtitle}>
+              There are no live events matching your current search or category filter.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.popularCarousel}
+          >
+            {filteredPopular.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.eventCard}
+                activeOpacity={0.88}
+                onPress={() => setSelectedEvent(item)}
               >
-                <Text style={styles.eventCardTitle} numberOfLines={2}>
-                  {item.title}
-                </Text>
-                <Text style={styles.eventCardDate}>
-                  {item.date} · {item.location}
-                </Text>
-                <Text style={styles.eventCardPrice}>
-                  From <Text style={styles.priceBold}>{item.price}</Text>
-                </Text>
-                <View style={styles.dotIndicatorRow}>
-                  <View style={[styles.miniDot, styles.miniDotActive]} />
-                  <View style={styles.miniDot} />
-                  <View style={styles.miniDot} />
+                <Image source={{ uri: item.poster }} style={styles.eventCardImage} />
+
+                {/* Status Badge */}
+                <View style={[styles.badgeContainer, { backgroundColor: item.badgeColor }]}>
+                  <Text
+                    style={[
+                      styles.badgeText,
+                      item.status === "On Sale" && styles.badgeOnSaleText,
+                    ]}
+                  >
+                    {item.status}
+                  </Text>
                 </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+
+                {/* Gradient Text Overlay at Bottom */}
+                <LinearGradient
+                  colors={["transparent", "rgba(15, 23, 42, 0.92)"]}
+                  style={styles.eventGradientOverlay}
+                >
+                  <Text style={styles.eventCardTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.eventCardDate}>
+                    {item.date} · {item.location}
+                  </Text>
+                  <Text style={styles.eventCardPrice}>
+                    From <Text style={styles.priceBold}>{item.price}</Text>
+                  </Text>
+                  <View style={styles.dotIndicatorRow}>
+                    <View style={[styles.miniDot, styles.miniDotActive]} />
+                    <View style={styles.miniDot} />
+                    <View style={styles.miniDot} />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* ─── Concerts & Events Travel Voucher Pack Banner ───────────────── */}
         <TouchableOpacity
@@ -402,41 +390,51 @@ export function EventsScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.popularCarousel}
-        >
-          {AVAILABLE_SOON_EVENTS.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.eventCard}
-              activeOpacity={0.88}
-              onPress={() => setSelectedEvent(item)}
-            >
-              <Image source={{ uri: item.poster }} style={styles.eventCardImage} />
-
-              <View style={[styles.badgeContainer, { backgroundColor: item.badgeColor }]}>
-                <Text style={styles.badgeText}>{item.status}</Text>
-              </View>
-
-              <LinearGradient
-                colors={["transparent", "rgba(15, 23, 42, 0.92)"]}
-                style={styles.eventGradientOverlay}
+        {availableSoonEvents.length === 0 ? (
+          <View style={styles.eventEmptyContainer}>
+            <Ionicons name="calendar-outline" size={36} color="#94A3B8" />
+            <Text style={styles.eventEmptyTitle}>No upcoming shows scheduled yet</Text>
+            <Text style={styles.eventEmptySubtitle}>
+              New seasonal events and tour dates will appear here once announced.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.popularCarousel}
+          >
+            {availableSoonEvents.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.eventCard}
+                activeOpacity={0.88}
+                onPress={() => setSelectedEvent(item)}
               >
-                <Text style={styles.eventCardTitle} numberOfLines={2}>
-                  {item.title}
-                </Text>
-                <Text style={styles.eventCardDate}>
-                  {item.date} · {item.location}
-                </Text>
-                <Text style={styles.eventCardPrice}>
-                  From <Text style={styles.priceBold}>{item.price}</Text>
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Image source={{ uri: item.poster }} style={styles.eventCardImage} />
+
+                <View style={[styles.badgeContainer, { backgroundColor: item.badgeColor }]}>
+                  <Text style={styles.badgeText}>{item.status}</Text>
+                </View>
+
+                <LinearGradient
+                  colors={["transparent", "rgba(15, 23, 42, 0.92)"]}
+                  style={styles.eventGradientOverlay}
+                >
+                  <Text style={styles.eventCardTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.eventCardDate}>
+                    {item.date} · {item.location}
+                  </Text>
+                  <Text style={styles.eventCardPrice}>
+                    From <Text style={styles.priceBold}>{item.price}</Text>
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
       </ScrollView>
 
       {/* ─── Floating AI Speech Bubble Button ──────────────────────────────── */}
@@ -1089,5 +1087,48 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
+  },
+  eventLoadingBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginHorizontal: 16,
+    marginVertical: 12,
+  },
+  eventLoadingText: {
+    fontSize: 13,
+    color: "#64748B",
+    fontWeight: "600",
+    marginTop: 8,
+  },
+  eventEmptyContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginHorizontal: 16,
+    marginVertical: 12,
+  },
+  eventEmptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginTop: 10,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  eventEmptySubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 8,
   },
 });

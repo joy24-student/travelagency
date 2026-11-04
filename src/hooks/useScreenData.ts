@@ -15,6 +15,19 @@ export function useScreenData(screen: UIScreen) {
   const userId = user?.id;
 
   const { data, loading, error, refetch } = useQuery(async () => {
+    if (screen.slug === "flights") {
+      return await searchRepository.searchFlights({});
+    }
+    if (screen.slug === "trains") {
+      return await searchRepository.searchTrains({});
+    }
+    if (screen.slug === "car-rentals") {
+      return await searchRepository.searchCarRentals({});
+    }
+    if (screen.slug === "recommended-tours" || screen.slug === "private-tours-search") {
+      return await searchRepository.searchTours({});
+    }
+
     switch (screen.kind) {
       case "hotel":
         return await searchRepository.searchHotels({});
@@ -40,7 +53,7 @@ export function useScreenData(screen: UIScreen) {
         return await userRepository.getSettings();
 
       case "support":
-        return await supportRepository.getFAQs();
+        return await supportRepository.getFAQ();
 
       case "rewards":
         if (!userId) return null;

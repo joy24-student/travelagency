@@ -21,15 +21,12 @@ import {
 import { searchRepository } from "../services/repositories";
 import { BottomNav, AiPill } from "./Navigation";
 import { TopBar } from "./TopBar";
-import type { UIScreen } from "../data/screens";
+import { screens, type UIScreen } from "../data/screens";
 
 const PRIMARY = "#287dfa";
 
-const DESTINATIONS_DEFAULT: any[] = [
-  // ... existing defaults
-];
-
-export function ExploreScreen({ screen }: { screen: UIScreen }) {
+export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
+  const activeScreen = screen ?? screens.find((s) => s.slug === "explore") ?? screens[0];
   const [destinations, setDestinations] = useState<any[]>([]);
   const [selectedDest, setSelectedDest] = useState<any | null>(null);
   const [loadingDestinations, setLoadingDestinations] = useState(true);
@@ -40,26 +37,26 @@ export function ExploreScreen({ screen }: { screen: UIScreen }) {
   const [reviewData, setReviewData] = useState<any>(null);
   const [scamData, setScamData] = useState<any[]>([]);
 
-  // Load destinations from Repository
+  // Load destinations from Supabase repository
   useEffect(() => {
     const loadDestinations = async () => {
       try {
         setLoadingDestinations(true);
-        // Using searchRepository for consistency
-        const data = await searchRepository.searchTours({}); // In a real app we'd have searchDestinations
+        const data = await searchRepository.getDestinations();
         
         if (data && data.length > 0) {
-          setDestinations(data.map((d: any) => ({
+          const mapped = data.map((d: any) => ({
             ...d,
-            name: d.title || d.name,
-            hero: d.image_url || (d.image_urls && d.image_urls[0]),
-            gallery: d.image_urls || [],
-            attractions: d.highlights || [],
-            activities: d.included_services || [],
-            safetyScore: d.rating ? d.rating * 20 : 80,
-            bestSeason: "Nov - Mar",
-            avgBudget: `$${d.price}`,
-          })));
+            name: d.name || d.city || d.title,
+            hero: d.cover_image_url || d.image_url || (Array.isArray(d.image_urls) ? d.image_urls[0] : null) || "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800",
+            gallery: Array.isArray(d.image_urls) ? d.image_urls : (d.images || []),
+            attractions: Array.isArray(d.popular_attractions) ? d.popular_attractions : (Array.isArray(d.highlights) ? d.highlights : ["Scenic Viewpoint", "Historic Center", "Local Cuisine"]),
+            activities: Array.isArray(d.recommended_activities) ? d.recommended_activities : (Array.isArray(d.included_services) ? d.included_services : ["Sightseeing", "Walking Tour", "Photography"]),
+            safetyScore: d.safety_rating ? Math.round(Number(d.safety_rating) * 20) : (d.rating ? Math.round(Number(d.rating) * 20) : 92),
+            bestSeason: d.best_travel_months || "Nov - Mar",
+            avgBudget: d.average_daily_budget ? `$${d.average_daily_budget}` : "$120",
+          }));
+          setDestinations(mapped);
         }
       } catch (err) {
         console.error("Error loading destinations:", err);
@@ -71,7 +68,7 @@ export function ExploreScreen({ screen }: { screen: UIScreen }) {
     loadDestinations();
   }, []);
 
-  const loadWeather = async (dest: (typeof DESTINATIONS_DEFAULT)[0]) => {
+  const loadWeather = async (dest: any) => {
     setLoading(true);
     try {
       const res = await weatherAssistantService.forecast({
@@ -86,7 +83,7 @@ export function ExploreScreen({ screen }: { screen: UIScreen }) {
     setLoading(false);
   };
 
-  const loadBudget = async (dest: (typeof DESTINATIONS_DEFAULT)[0]) => {
+  const loadBudget = async (dest: any) => {
     setLoading(true);
     try {
       const res = await budgetPlannerService.plan({
@@ -104,13 +101,13 @@ export function ExploreScreen({ screen }: { screen: UIScreen }) {
     setLoading(false);
   };
 
-  const loadReviews = async (dest: (typeof DESTINATIONS_DEFAULT)[0]) => {
+  const loadReviews = async (dest: any) => {
     setLoading(true);
     try {
       const res = await reviewAnalyzerService.analyze({
         entityName: dest.name,
         entityType: "destination",
-        reviews: dest.reviews,
+        reviews: dest.reviews || [],
       });
       setReviewData(res.data);
     } catch {
@@ -119,25 +116,25 @@ export function ExploreScreen({ screen }: { screen: UIScreen }) {
     setLoading(false);
   };
 
-const loadScams = async (dest: (typeof DESTINATIONS_DEFAULT)[0]) => {
-     setLoading(true);
-     try {
-       const scams = await scamDetectionService.getCommonScams(dest.name);
-       setScamData(scams);
-     } catch {
-       setScamData([]);
-     }
-     setLoading(false);
-   };
+  const loadScams = async (dest: any) => {
+    setLoading(true);
+    try {
+      const scams = await scamDetectionService.getCommonScams(dest.name);
+      setScamData(scams);
+    } catch {
+      setScamData([]);
+    }
+    setLoading(false);
+  };
 
-   const openDest = (dest: (typeof DESTINATIONS_DEFAULT)[0]) => {
-     setSelectedDest(dest);
-     setActiveTab("overview");
-     setWeatherData(null);
-     setBudgetData(null);
-     setReviewData(null);
-     setScamData([]);
-   };
+  const openDest = (dest: any) => {
+    setSelectedDest(dest);
+    setActiveTab("overview");
+    setWeatherData(null);
+    setBudgetData(null);
+    setReviewData(null);
+    setScamData([]);
+  };
 
   const handleTabChange = (tab: typeof activeTab) => {
     setActiveTab(tab);
@@ -387,12 +384,18 @@ const loadScams = async (dest: (typeof DESTINATIONS_DEFAULT)[0]) => {
 
   return (
     <SafeAreaView style={s.shell}>
-      <TopBar screen={screen} />
+      <TopBar screen={activeScreen} />
       <ScrollView contentContainerStyle={s.scroll}>
         <Text style={s.exploreTitle}>Explore Destinations</Text>
         <Text style={s.exploreSub}>Tap a destination to see full details</Text>
         {loadingDestinations ? (
           <ActivityIndicator color={PRIMARY} size="large" style={{ marginTop: 40 }} />
+        ) : destinations.length === 0 ? (
+          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
+            <Ionicons name="map-outline" size={48} color="#94a3b8" />
+            <Text style={{ marginTop: 12, fontSize: 16, color: "#334155", fontWeight: "600" }}>No Destinations Found</Text>
+            <Text style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>Live travel destinations will appear here automatically.</Text>
+          </View>
         ) : (
           destinations.map((dest) => (
             <Pressable

@@ -3,7 +3,7 @@
  * Review Content Filter, Spam Detection, and Approval
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,34 +11,77 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { supabase } from "@/utils/supabase";
 
 export const ReviewModerationScreen: React.FC = () => {
-  const [reviews, setReviews] = useState<any[]>([
-    {
-      id: "rev-101",
-      user_id: "usr-948",
-      target_name: "Santorini caldera sunset hotel",
-      rating: 5,
-      comment: "Absolutely breathtaking views! Outstanding customer support service.",
-      status: "pending",
-    },
-    {
-      id: "rev-102",
-      user_id: "usr-732",
-      target_name: "Emirates flight booking",
-      rating: 1,
-      comment: "Scam booking code! Cancelled seat without notification.",
-      status: "pending",
-    },
-  ]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleModeration = (reviewId: string, status: "approved" | "rejected") => {
-    setReviews((prev) =>
-      prev.map((r) => (r.id === reviewId ? { ...r, status } : r))
-    );
-    Alert.alert("Success", `Review successfully ${status.toUpperCase()}.`);
+  const loadReviews = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("agency_reviews")
+        .select("*, agencies(name)")
+        .order("created_at", { ascending: false });
+
+      if (data && data.length > 0) {
+        setReviews(
+          data.map((r: any) => ({
+            id: r.id,
+            user_id: r.user_id || "Anonymous User",
+            target_name: r.agencies?.name || "Agency Tour",
+            rating: r.rating || 5,
+            comment: r.comment || r.review_text || "No written comment.",
+            status: r.is_approved ? "approved" : "pending",
+          }))
+        );
+      } else {
+        setReviews([]);
+      }
+    } catch (e) {
+      console.warn("Error loading reviews:", e);
+      setReviews([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReviews();
+
+    const channel = supabase
+      .channel(`admin-reviews-${Math.random().toString(36).substring(2, 7)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agency_reviews" }, () => {
+        loadReviews();
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, []);
+
+  const handleModeration = async (reviewId: string, status: "approved" | "rejected") => {
+    try {
+      await supabase
+        .from("agency_reviews")
+        .update({ is_approved: status === "approved" })
+        .eq("id", reviewId);
+
+      setReviews((prev) =>
+        prev.map((r) => (r.id === reviewId ? { ...r, status } : r))
+      );
+      Alert.alert("Success", `Review successfully marked as ${status.toUpperCase()}.`);
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to update review status");
+    }
   };
 
   return (
@@ -46,6 +89,24 @@ export const ReviewModerationScreen: React.FC = () => {
       <FlatList
         data={reviews}
         keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadReviews(); }} />
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60, paddingHorizontal: 24 }}>
+              <MaterialCommunityIcons name="star-outline" size={54} color="#94a3b8" />
+              <Text style={{ marginTop: 12, fontSize: 16, fontWeight: "600", color: "#64748b" }}>
+                No Reviews in Queue
+              </Text>
+              <Text style={{ marginTop: 4, fontSize: 13, color: "#94a3b8", textAlign: "center" }}>
+                New agency and tour reviews submitted by users will appear here for admin moderation.
+              </Text>
+            </View>
+          ) : (
+            <ActivityIndicator size="large" color="#0284c7" style={{ marginTop: 40 }} />
+          )
+        }
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardHeader}>

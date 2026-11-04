@@ -45,6 +45,7 @@ export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activePostTab, setActivePostTab] = useState("Moments");
 
   // Settings state
@@ -99,10 +100,11 @@ export default function ProfileScreen() {
         setLoading(true);
         setError(null);
         // Load profile data
-        const data = await userRepository.getProfile();
-        setProfile(data);
+        const data = await userRepository.getProfile().catch(() => null);
+        if (data) setProfile(data);
+
         // Load settings data
-        const userSettings = await userRepository.getSettings();
+        const userSettings = await userRepository.getSettings().catch(() => null);
         if (userSettings) {
           setSettings((prev) => ({ ...prev, ...userSettings }));
         }

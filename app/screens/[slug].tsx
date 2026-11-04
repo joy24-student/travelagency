@@ -16,10 +16,47 @@ import { EventsScreen } from "../../src/screens/EventsScreen";
 import { CustomerSupportScreen } from "../../src/screens/CustomerSupportScreen";
 import { ServiceChatScreen } from "../../src/screens/ServiceChatScreen";
 import { InviteEarnScreen } from "../../src/screens/InviteEarnScreen";
+import { SearchStaysScreen } from "../../src/screens/SearchStaysScreen";
+import { FlightsScreen } from "../../src/screens/FlightsScreen";
+import { TrainsScreen } from "../../src/screens/TrainsScreen";
+import { HotelsHomesScreen } from "../../src/screens/HotelsHomesScreen";
+import { RecommendedToursScreen } from "../../src/screens/RecommendedToursScreen";
+import { CarRentalsScreen } from "../../src/screens/CarRentalsScreen";
+import { AgencyListScreen } from "../../src/screens/AgencyListScreen";
+
+import RewardsScreen from "../../src/screens/RewardsScreen";
 
 export default function ScreenRoute() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const screen = screens.find((item) => item.slug === slug) ?? screens[0];
+
+  if (slug === "agencies" || slug === "agency" || slug === "agency-list" || screen.slug === "agencies" || screen.kind === "agency") {
+    return <AgencyListScreen />;
+  }
+
+  if (slug === "search-stays" || screen.slug === "search-stays") {
+    return <SearchStaysScreen />;
+  }
+
+  if (slug === "flights" || screen.slug === "flights") {
+    return <FlightsScreen />;
+  }
+
+  if (slug === "trains" || screen.slug === "trains") {
+    return <TrainsScreen />;
+  }
+
+  if (slug === "hotels-homes" || screen.slug === "hotels-homes") {
+    return <HotelsHomesScreen />;
+  }
+
+  if (slug === "recommended-tours" || slug === "private-tours-search" || screen.slug === "recommended-tours" || screen.slug === "private-tours-search") {
+    return <RecommendedToursScreen />;
+  }
+
+  if (slug === "car-rentals" || screen.slug === "car-rentals") {
+    return <CarRentalsScreen />;
+  }
 
   if (slug === "invite-earn" || slug === "invite" || screen.kind === "invite") {
     return <InviteEarnScreen />;
@@ -41,24 +78,54 @@ export default function ScreenRoute() {
     return <TripPlannerScreen />;
   }
 
-  if (screen.kind === "home" && screen.slug === "home") return <HomeScreen />;
-  if (screen.kind === "explore") return <ExploreScreen screen={screen} />;
-  if (screen.kind === "search") return <SearchScreen screen={screen} />;
-  if (screen.kind === "package") return <PackageScreen screen={screen} />;
-  if (screen.kind === "live") return <LiveScreen screen={screen} />;
-  if (screen.kind === "settings" || slug === "settings") return <SettingsScreen />;
-  if (screen.kind === "community") return <CommunitySpecializedScreen screen={screen} />;
-  if (screen.kind === "booking") return <BookingSystemScreen screen={screen} />;
-  if (screen.kind === "hotel") return <SearchScreen screen={screen} />;
-  if (screen.kind === "assistant") return <TripPlannerScreen />;
-  if (screen.kind === "list") return <ConvertedScreen screen={screen} />;
-  if (screen.kind === "payments") return <ConvertedScreen screen={screen} />;
-  if (screen.kind === "support") return <ConvertedScreen screen={screen} />;
-  if (screen.kind === "rewards") return <ConvertedScreen screen={screen} />;
-  if (screen.kind === "invite") return <ConvertedScreen screen={screen} />;
-  if (screen.kind === "trips") return <ConvertedScreen screen={screen} />;
-  if (screen.kind === "messages") return <ConvertedScreen screen={screen} />;
-  if (screen.slug === "agency-chat") return <AgencyChatScreen />;
+  if (slug === "rewards" || screen.slug === "rewards") {
+    return <RewardsScreen />;
+  }
 
+  if (slug === "search" || screen.slug === "search") {
+    return <SearchScreen screen={screen} />;
+  }
+
+  if (slug === "home" || (screen.kind === "home" && screen.slug === "home")) {
+    return <HomeScreen />;
+  }
+
+  if (slug === "explore" || screen.slug === "explore") {
+    return <ExploreScreen screen={screen} />;
+  }
+
+  if (slug === "packages" || screen.slug === "packages") {
+    return <PackageScreen screen={screen} />;
+  }
+
+  if (slug === "live" || screen.slug === "live") {
+    return <LiveScreen screen={screen} />;
+  }
+
+  if (slug === "settings" || screen.slug === "settings" || screen.kind === "settings") {
+    return <SettingsScreen />;
+  }
+
+  if (slug === "community" || screen.slug === "travel-community-posts" || screen.slug === "travel-community-refined") {
+    return <CommunitySpecializedScreen screen={screen} />;
+  }
+
+  if (slug === "booking-system" || screen.slug === "booking-system" || screen.kind === "booking") {
+    return <BookingSystemScreen screen={screen} />;
+  }
+
+  if (slug === "agency-chat" || screen.slug === "agency-chat") {
+    return <AgencyChatScreen />;
+  }
+
+  // Dedicated replicated service screens render their custom rich UI:
+  // - flights (Flights engine & discovery)
+  // - search-stays (Hotels & stays discovery)
+  // - hotels-homes (Hotels & vacation rentals)
+  // - trains (Trains & transit passes)
+  // - recommended-tours (Attractions & private tours)
+  // - private-tours-search (Private tours catalog)
+  // - car-rentals (Car rentals & vehicle bookings)
+  // - partner-program, account-security, premium-account
   return <ConvertedScreen screen={screen} />;
 }

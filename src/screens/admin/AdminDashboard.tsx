@@ -61,20 +61,40 @@ export const AdminDashboard: React.FC = () => {
 
       const metricsData = await dashboardService.getTodayMetrics();
 
-      // Query dynamic table counts from Supabase
-      const [usersRes, agenciesRes, bookingsRes, refundsRes] = await Promise.all([
-        supabase.from("user_admin_details").select("*", { count: "exact", head: true }),
-        supabase.from("agency_admin_details").select("*", { count: "exact", head: true }),
+      // Query dynamic table counts from Supabase real tables
+      const [
+        usersRes,
+        agenciesRes,
+        pendingAgenciesRes,
+        hotelsRes,
+        toursRes,
+        flightsRes,
+        bookingsRes,
+        refundsRes,
+        ticketsRes,
+      ] = await Promise.all([
+        supabase.from("community_profiles").select("*", { count: "exact", head: true }),
+        supabase.from("agencies").select("*", { count: "exact", head: true }),
+        supabase.from("agencies").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("hotels").select("*", { count: "exact", head: true }),
+        supabase.from("tours").select("*", { count: "exact", head: true }),
+        supabase.from("flights").select("*", { count: "exact", head: true }),
         supabase.from("bookings").select("*", { count: "exact", head: true }),
         supabase.from("refund_requests").select("*", { count: "exact", head: true }),
+        supabase.from("support_tickets").select("*", { count: "exact", head: true }),
       ]);
 
       const liveMetrics = {
         ...metricsData,
-        total_users: usersRes.count || metricsData?.total_users || 28542,
-        total_agencies: agenciesRes.count || metricsData?.total_agencies || 1248,
-        total_bookings: bookingsRes.count || metricsData?.total_bookings || 1245,
-        refund_count: refundsRes.count || 8,
+        total_users: usersRes.count ?? 0,
+        total_agencies: agenciesRes.count ?? 0,
+        pending_agencies: pendingAgenciesRes.count ?? 0,
+        total_hotels: hotelsRes.count ?? 0,
+        total_tours: toursRes.count ?? 0,
+        total_flights: flightsRes.count ?? 0,
+        total_bookings: bookingsRes.count ?? 0,
+        refund_count: refundsRes.count ?? 0,
+        open_tickets: ticketsRes.count ?? 0,
       };
 
       setMetrics(liveMetrics);
@@ -150,11 +170,11 @@ export const AdminDashboard: React.FC = () => {
                 <View style={styles.statCardLeft}>
                   <Text style={styles.statCardLabel}>Users</Text>
                   <Text style={styles.statCardValue}>
-                    {(metrics?.total_users || 28542).toLocaleString()}
+                    {(metrics?.total_users ?? 0).toLocaleString()}
                   </Text>
                   <View style={styles.trendRow}>
                     <Ionicons name="trending-up" size={12} color="#16A34A" />
-                    <Text style={styles.trendTextGreen}>215 Today</Text>
+                    <Text style={styles.trendTextGreen}>{metrics?.new_users ?? 0} Today</Text>
                   </View>
                 </View>
                 <View style={[styles.statIconContainer, { backgroundColor: "#FFF7ED" }]}>
@@ -169,13 +189,13 @@ export const AdminDashboard: React.FC = () => {
                 <View style={styles.statCardLeft}>
                   <Text style={styles.statCardLabel}>Agencies</Text>
                   <Text style={styles.statCardValue}>
-                    {(metrics?.total_agencies || 1248).toLocaleString()}
+                    {(metrics?.total_agencies ?? 0).toLocaleString()}
                   </Text>
                   <View style={styles.trendRow}>
                     <Ionicons name="trending-up" size={12} color="#16A34A" />
-                    <Text style={styles.trendTextGreen}>18 Today</Text>
+                    <Text style={styles.trendTextGreen}>{metrics?.active_agencies ?? 0} Active</Text>
                   </View>
-                  <Text style={styles.statCardSubtext}>42 Applications</Text>
+                  <Text style={styles.statCardSubtext}>{metrics?.pending_agencies ?? 0} Pending</Text>
                 </View>
                 <View style={[styles.statIconContainer, { backgroundColor: "#EFF6FF" }]}>
                   <MaterialCommunityIcons name="storefront" size={18} color="#2563EB" />
@@ -192,21 +212,23 @@ export const AdminDashboard: React.FC = () => {
                 <View style={styles.statCardLeft}>
                   <Text style={styles.statCardLabel}>Bookings</Text>
                   <Text style={styles.statCardValue}>
-                    {(metrics?.total_bookings || 1245).toLocaleString()}
+                    {(metrics?.total_bookings ?? 0).toLocaleString()}
                   </Text>
                   <View style={styles.trendRow}>
                     <Ionicons name="trending-up" size={12} color="#16A34A" />
-                    <Text style={styles.trendTextGreen}>98% Success</Text>
+                    <Text style={styles.trendTextGreen}>
+                      {metrics?.completed_bookings && metrics?.total_bookings ? Math.round((metrics.completed_bookings / metrics.total_bookings) * 100) : 100}% Success
+                    </Text>
                   </View>
 
                   <View style={styles.subDetailDivider} />
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Cancelled</Text>
-                    <Text style={styles.detailValueRed}>{metrics?.cancelled_bookings || 24}</Text>
+                    <Text style={styles.detailValueRed}>{metrics?.cancelled_bookings ?? 0}</Text>
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Avg Value</Text>
-                    <Text style={styles.detailValueBold}>$197</Text>
+                    <Text style={styles.detailValueBold}>${metrics?.total_bookings ? Math.round((metrics.total_revenue || 0) / metrics.total_bookings) : 0}</Text>
                   </View>
                 </View>
                 <View style={[styles.statIconContainer, { backgroundColor: "#FAF5FF" }]}>
@@ -221,21 +243,21 @@ export const AdminDashboard: React.FC = () => {
                 <View style={styles.statCardLeft}>
                   <Text style={styles.statCardLabel}>Trips</Text>
                   <Text style={styles.statCardValue}>
-                    {metrics?.active_trips || 842}
+                    {metrics?.active_trips ?? 0}
                   </Text>
 
                   <View style={styles.subDetailDivider} />
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Completed</Text>
-                    <Text style={styles.detailValueGreen}>790</Text>
+                    <Text style={styles.detailValueGreen}>{metrics?.completed_bookings ?? 0}</Text>
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Pending</Text>
-                    <Text style={styles.detailValueBlue}>42</Text>
+                    <Text style={styles.detailValueBlue}>{metrics?.pending_bookings ?? 0}</Text>
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Cancelled</Text>
-                    <Text style={styles.detailValueRed}>10</Text>
+                    <Text style={styles.detailValueRed}>{metrics?.cancelled_bookings ?? 0}</Text>
                   </View>
                 </View>
                 <View style={[styles.statIconContainer, { backgroundColor: "#EFF6FF" }]}>
@@ -253,25 +275,25 @@ export const AdminDashboard: React.FC = () => {
                 <View style={styles.statCardLeft}>
                   <Text style={styles.statCardLabel}>Revenue</Text>
                   <Text style={styles.statCardValue}>
-                    ${(metrics?.total_revenue || 245900).toLocaleString()}
+                    ${(metrics?.total_revenue ?? 0).toLocaleString()}
                   </Text>
                   <View style={styles.trendRow}>
                     <Ionicons name="trending-up" size={12} color="#16A34A" />
-                    <Text style={styles.trendTextGreen}>8.4%</Text>
+                    <Text style={styles.trendTextGreen}>Commission ${(metrics?.commission_earnings ?? 0).toLocaleString()}</Text>
                   </View>
 
                   <View style={styles.subDetailDivider} />
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Refunds</Text>
-                    <Text style={styles.detailValueRed}>$4,200</Text>
+                    <Text style={styles.detailValueRed}>${(metrics?.refund_count ? metrics.refund_count * 50 : 0)}</Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Transferred</Text>
-                    <Text style={styles.detailValueBold}>$182k</Text>
+                    <Text style={styles.detailLabel}>Completed</Text>
+                    <Text style={styles.detailValueBold}>${(metrics?.total_revenue ?? 0).toLocaleString()}</Text>
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Inflow</Text>
-                    <Text style={styles.detailValueGreen}>$210k</Text>
+                    <Text style={styles.detailValueGreen}>${(metrics?.total_revenue ?? 0).toLocaleString()}</Text>
                   </View>
                 </View>
                 <View style={[styles.statIconContainer, { backgroundColor: "#F0FDF4" }]}>
@@ -290,19 +312,19 @@ export const AdminDashboard: React.FC = () => {
                   <View style={styles.subDetailDivider} />
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Live Travelers</Text>
-                    <Text style={styles.detailValueGreen}>{(metrics?.live_visitors || 1420).toLocaleString()}</Text>
+                    <Text style={styles.detailValueGreen}>{(metrics?.active_trips ?? 0).toLocaleString()}</Text>
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Flights</Text>
-                    <Text style={styles.detailValueBlue}>86</Text>
+                    <Text style={styles.detailValueBlue}>{metrics?.total_flights ?? 0}</Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Check-ins</Text>
-                    <Text style={styles.detailValueOrange}>312</Text>
+                    <Text style={styles.detailLabel}>Hotels</Text>
+                    <Text style={styles.detailValueOrange}>{metrics?.total_hotels ?? 0}</Text>
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Active Tours</Text>
-                    <Text style={styles.detailValueDarkGreen}>45</Text>
+                    <Text style={styles.detailValueDarkGreen}>{metrics?.total_tours ?? 0}</Text>
                   </View>
                 </View>
                 <View style={[styles.statIconContainer, { backgroundColor: "#F0FDF4" }]}>
@@ -356,114 +378,87 @@ export const AdminDashboard: React.FC = () => {
             {/* Agency Verifications */}
             <TouchableOpacity 
               style={styles.attentionCard} 
-              onPress={() => handleAttentionItemPress("Agency Verifications", "12 Pending")}
+              onPress={() => handleAttentionItemPress("Agency Verifications", `${metrics?.pending_agencies ?? 0} Pending`)}
             >
               <View style={[styles.attentionIconContainer, { backgroundColor: "#FFEDD5" }]}>
                 <MaterialCommunityIcons name="shield-check-outline" size={16} color="#EA580C" />
               </View>
               <View style={styles.attentionContent}>
                 <Text style={styles.attentionTitle} numberOfLines={1}>Agency Verifications</Text>
-                <Text style={styles.attentionCountRed}>12 Pending</Text>
+                <Text style={styles.attentionCountRed}>{metrics?.pending_agencies ?? 0} Pending</Text>
               </View>
             </TouchableOpacity>
 
             {/* Refund Requests */}
             <TouchableOpacity 
               style={styles.attentionCard}
-              onPress={() => handleAttentionItemPress("Refund Requests", `${metrics?.refund_count || 8} Urgent`)}
+              onPress={() => handleAttentionItemPress("Refund Requests", `${metrics?.refund_count ?? 0} Urgent`)}
             >
               <View style={[styles.attentionIconContainer, { backgroundColor: "#FEE2E2" }]}>
                 <MaterialCommunityIcons name="cash-refund" size={16} color="#DC2626" />
               </View>
               <View style={styles.attentionContent}>
                 <Text style={styles.attentionTitle} numberOfLines={1}>Refund Requests</Text>
-                <Text style={styles.attentionCountRed}>{metrics?.refund_count || 8} Urgent</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Payment Disputes */}
-            <TouchableOpacity 
-              style={styles.attentionCard}
-              onPress={() => handleAttentionItemPress("Payment Disputes", "3 New")}
-            >
-              <View style={[styles.attentionIconContainer, { backgroundColor: "#FEE2E2" }]}>
-                <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#DC2626" />
-              </View>
-              <View style={styles.attentionContent}>
-                <Text style={styles.attentionTitle} numberOfLines={1}>Payment Disputes</Text>
-                <Text style={styles.attentionCountRed}>3 New</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Reviews */}
-            <TouchableOpacity 
-              style={styles.attentionCard}
-              onPress={() => handleAttentionItemPress("Reviews", "24 Manual")}
-            >
-              <View style={[styles.attentionIconContainer, { backgroundColor: "#EFF6FF" }]}>
-                <MaterialCommunityIcons name="eye-outline" size={16} color="#2563EB" />
-              </View>
-              <View style={styles.attentionContent}>
-                <Text style={styles.attentionTitle} numberOfLines={1}>Reviews</Text>
-                <Text style={styles.attentionCountBlue}>24 Manual</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Failed Payments */}
-            <TouchableOpacity 
-              style={styles.attentionCard}
-              onPress={() => handleAttentionItemPress("Failed Payments", "15 Today")}
-            >
-              <View style={[styles.attentionIconContainer, { backgroundColor: "#FEE2E2" }]}>
-                <MaterialCommunityIcons name="close-circle-outline" size={16} color="#DC2626" />
-              </View>
-              <View style={styles.attentionContent}>
-                <Text style={styles.attentionTitle} numberOfLines={1}>Failed Payments</Text>
-                <Text style={styles.attentionCountRed}>15 Today</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Suspended Agencies */}
-            <TouchableOpacity 
-              style={styles.attentionCard}
-              onPress={() => handleAttentionItemPress("Suspended Agencies", "2 Active")}
-            >
-              <View style={[styles.attentionIconContainer, { backgroundColor: "#F1F5F9" }]}>
-                <MaterialCommunityIcons name="block-helper" size={16} color="#64748b" />
-              </View>
-              <View style={styles.attentionContent}>
-                <Text style={styles.attentionTitle} numberOfLines={1}>Suspended Agencies</Text>
-                <Text style={styles.attentionCountGray}>2 Active</Text>
+                <Text style={styles.attentionCountRed}>{metrics?.refund_count ?? 0} Urgent</Text>
               </View>
             </TouchableOpacity>
 
             {/* Support Tickets */}
             <TouchableOpacity 
               style={styles.attentionCard}
-              onPress={() => handleAttentionItemPress("Support Tickets", "18 Open")}
+              onPress={() => handleAttentionItemPress("Support Tickets", `${metrics?.open_tickets ?? 0} Open`)}
             >
               <View style={[styles.attentionIconContainer, { backgroundColor: "#EFF6FF" }]}>
-                <MaterialCommunityIcons name="message-alert-outline" size={16} color="#2563EB" />
+                <MaterialCommunityIcons name="headset" size={16} color="#2563EB" />
               </View>
               <View style={styles.attentionContent}>
                 <Text style={styles.attentionTitle} numberOfLines={1}>Support Tickets</Text>
-                <Text style={styles.attentionCountBlue}>18 Open</Text>
+                <Text style={styles.attentionCountBlue}>{metrics?.open_tickets ?? 0} Open</Text>
               </View>
             </TouchableOpacity>
 
-            {/* Reports */}
+            {/* User KYC Reviews */}
             <TouchableOpacity 
               style={styles.attentionCard}
-              onPress={() => handleAttentionItemPress("Reports", "42 Generated")}
+              onPress={() => handleAttentionItemPress("Reviews", "0 Manual")}
             >
-              <View style={[styles.attentionIconContainer, { backgroundColor: "#F1F5F9" }]}>
-                <MaterialCommunityIcons name="file-chart-outline" size={16} color="#64748b" />
+              <View style={[styles.attentionIconContainer, { backgroundColor: "#EFF6FF" }]}>
+                <MaterialCommunityIcons name="eye-outline" size={16} color="#2563EB" />
               </View>
               <View style={styles.attentionContent}>
-                <Text style={styles.attentionTitle} numberOfLines={1}>Reports</Text>
-                <Text style={styles.attentionCountGray}>42 Generated</Text>
+                <Text style={styles.attentionTitle} numberOfLines={1}>KYC Reviews</Text>
+                <Text style={styles.attentionCountBlue}>0 Pending</Text>
               </View>
             </TouchableOpacity>
+
+            {/* Cancelled Bookings */}
+            <TouchableOpacity 
+              style={styles.attentionCard}
+              onPress={() => handleAttentionItemPress("Cancelled Bookings", `${metrics?.cancelled_bookings ?? 0} Total`)}
+            >
+              <View style={[styles.attentionIconContainer, { backgroundColor: "#FEE2E2" }]}>
+                <MaterialCommunityIcons name="close-circle-outline" size={16} color="#DC2626" />
+              </View>
+              <View style={styles.attentionContent}>
+                <Text style={styles.attentionTitle} numberOfLines={1}>Cancelled Bookings</Text>
+                <Text style={styles.attentionCountRed}>{metrics?.cancelled_bookings ?? 0} Total</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Suspended Agencies */}
+            <TouchableOpacity 
+              style={styles.attentionCard}
+              onPress={() => handleAttentionItemPress("Suspended Agencies", "0 Active")}
+            >
+              <View style={[styles.attentionIconContainer, { backgroundColor: "#F1F5F9" }]}>
+                <MaterialCommunityIcons name="block-helper" size={16} color="#64748b" />
+              </View>
+              <View style={styles.attentionContent}>
+                <Text style={styles.attentionTitle} numberOfLines={1}>Suspended Agencies</Text>
+                <Text style={styles.attentionCountGray}>0 Active</Text>
+              </View>
+            </TouchableOpacity>
+
 
           </View>
         </View>
