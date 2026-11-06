@@ -21,10 +21,15 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { bookingAdminService, refundService } from "@/services/adminService";
+import { AdminPagination } from "./AdminPagination";
+import { DestructiveConfirmModal } from "./DestructiveConfirmModal";
+import { useRBAC } from "./rbac";
+import { executeAdminCommand, CancelBookingCommand, ConfirmBookingCommand } from "./commands";
 
 const { width } = Dimensions.get("window");
 
 export const BookingManagementScreen: React.FC = () => {
+  const { admin, hasPermission } = useRBAC();
   const [bookings, setBookings] = useState<any[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +39,15 @@ export const BookingManagementScreen: React.FC = () => {
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [actionNotes, setActionNotes] = useState("");
+
+  // Pagination & Destructive Action Modal States
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  const totalPages = Math.ceil(filteredBookings.length / PAGE_SIZE) || 1;
+  const paginatedBookings = filteredBookings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const loadBookings = async () => {
     try {
@@ -74,27 +88,46 @@ export const BookingManagementScreen: React.FC = () => {
     setFilteredBookings(result);
   }, [searchQuery, statusFilter, bookings]);
 
-  const handleCancelBooking = (bookingId: string) => {
-    Alert.alert(
-      "Confirm Cancellation",
-      "Are you sure you want to cancel this booking? This action will trigger supplier notification.",
-      [
-        { text: "No", style: "cancel" },
-        {
-          text: "Yes, Cancel",
-          style: "destructive",
-          onPress: () => {
-            setBookings((prev) =>
-              prev.map((b) =>
-                b.id === bookingId ? { ...b, status: "cancelled" } : b
-              )
-            );
-            setDetailsModalVisible(false);
-            Alert.alert("Success", "Booking cancelled successfully.");
-          },
-        },
-      ]
-    );
+  const handleInitiateCancel = () => {
+    setCancelModalVisible(true);
+  };
+
+  const handleExecuteCancel = async () => {
+    if (!selectedBooking || !admin) return;
+    setCancelLoading(true);
+    try {
+      const command = new CancelBookingCommand(selectedBooking.id, actionNotes || "Administrative cancellation");
+      await executeAdminCommand(command, admin as any);
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === selectedBooking.id ? { ...b, status: "cancelled" } : b
+        )
+      );
+      setCancelModalVisible(false);
+      setDetailsModalVisible(false);
+      Alert.alert("Success", `Booking ${selectedBooking.booking_reference} cancelled successfully.`);
+    } catch (err: any) {
+      Alert.alert("Permission Error", err.message || "Failed to cancel booking due to RBAC policy.");
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleExecuteConfirm = async () => {
+    if (!selectedBooking || !admin) return;
+    try {
+      const command = new ConfirmBookingCommand(selectedBooking.id, actionNotes || "Confirmed by administrator");
+      await executeAdminCommand(command, admin as any);
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === selectedBooking.id ? { ...b, status: "confirmed" } : b
+        )
+      );
+      setDetailsModalVisible(false);
+      Alert.alert("Success", `Booking ${selectedBooking.booking_reference} confirmed successfully.`);
+    } catch (err: any) {
+      Alert.alert("Permission Error", err.message || "Failed to confirm booking due to RBAC policy.");
+    }
   };
 
   const handleResendConfirmation = () => {
@@ -152,7 +185,7 @@ export const BookingManagementScreen: React.FC = () => {
         <ActivityIndicator size="large" color="#4f46e5" style={styles.spinner} />
       ) : (
         <FlatList
-          data={filteredBookings}
+          data={paginatedBookings}
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
@@ -199,6 +232,17 @@ export const BookingManagementScreen: React.FC = () => {
               <Text style={{ marginTop: 12, fontSize: 16, color: "#334155", fontWeight: "600" }}>No Bookings Found</Text>
               <Text style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>Customer bookings across hotels, flights, and tours will display here in real-time.</Text>
             </View>
+          }
+          ListFooterComponent={
+            filteredBookings.length > PAGE_SIZE ? (
+              <AdminPagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={filteredBookings.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+              />
+            ) : null
           }
         />
       )}
@@ -255,14 +299,26 @@ export const BookingManagementScreen: React.FC = () => {
 
                 {/* Booking actions */}
                 <View style={styles.actionsContainer}>
+                  {selectedBooking.status !== "confirmed" && selectedBooking.status !== "completed" && (
+                    <TouchableOpacity
+                      style={[styles.actionBtnConfirm, { backgroundColor: "#10b981", opacity: hasPermission("bookings.modify") ? 1 : 0.5 }]}
+                      onPress={handleExecuteConfirm}
+                      disabled={!hasPermission("bookings.modify")}
+                    >
+                      <MaterialCommunityIcons name="check-circle" size={18} color="#fff" />
+                      <Text style={styles.actionBtnText}>Confirm Booking</Text>
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity style={styles.actionBtnConfirm} onPress={handleResendConfirmation}>
                     <MaterialCommunityIcons name="email-outline" size={18} color="#fff" />
                     <Text style={styles.actionBtnText}>Resend Voucher</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.actionBtnCancel}
-                    onPress={() => handleCancelBooking(selectedBooking.id)}
+                    style={[styles.actionBtnCancel, { opacity: hasPermission("bookings.cancel") ? 1 : 0.5 }]}
+                    onPress={handleInitiateCancel}
+                    disabled={!hasPermission("bookings.cancel")}
                   >
                     <MaterialCommunityIcons name="cancel" size={18} color="#fff" />
                     <Text style={styles.actionBtnText}>Cancel Booking</Text>
@@ -273,6 +329,20 @@ export const BookingManagementScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* High-Visibility Cancellation Modal */}
+      <DestructiveConfirmModal
+        visible={cancelModalVisible}
+        title="Confirm Booking Cancellation"
+        description="Are you sure you want to cancel this booking? This action is permanent and will trigger an automated cancellation notice to the customer and airline/hotel suppliers."
+        targetName={`Ref: ${selectedBooking?.booking_reference || "N/A"}`}
+        targetId={selectedBooking?.id}
+        confirmLabel="Cancel Booking"
+        onConfirm={handleExecuteCancel}
+        onCancel={() => setCancelModalVisible(false)}
+        isLoading={cancelLoading}
+        severity="danger"
+      />
     </View>
   );
 };

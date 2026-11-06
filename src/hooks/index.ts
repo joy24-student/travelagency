@@ -51,3 +51,13 @@ export {
   useTicketInteractions,
   useFAQ,
 } from "./useLoyaltySupport";
+
+export { useDebounce } from "./useDebounce";
+
+// Screen collaboration & Event Bus hooks
+export {
+  useScreenCollaboration,
+  useScreenEventEmitter,
+  useScreenHandoff,
+} from "./useScreenCollaboration";
+

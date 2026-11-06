@@ -15,6 +15,7 @@ import { ActivityIndicator, View } from "react-native";
 import { I18nextProvider } from 'react-i18next';
 import i18n from './src/locales/i18n';
 import { LanguageProvider } from './src/context/LanguageContext';
+import { AgencyRBACProvider } from './src/context/AgencyRBACContext';
 
 // Screen Imports
 import DashboardScreen from "./src/screens/agency/DashboardScreen";
@@ -366,22 +367,24 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <I18nextProvider i18n={i18n}>
         <LanguageProvider>
-          <NavigationContainer>
-            <StatusBar style="light" backgroundColor={COLORS.background} />
-            {user ? (
-              <DashboardTabNavigator />
-            ) : (
-              <AuthStack.Navigator screenOptions={{ headerShown: false }}>
-                <AuthStack.Screen name="Login" component={LoginScreen} />
-                <AuthStack.Screen name="SignUp" component={SignUpScreen} />
-                <AuthStack.Screen
-                  name="ForgotPassword"
-                  component={ForgotPasswordScreen}
-                />
-                <AuthStack.Screen name="OtpVerification" component={OtpScreen} />
-              </AuthStack.Navigator>
-            )}
-          </NavigationContainer>
+          <AgencyRBACProvider>
+            <NavigationContainer>
+              <StatusBar style="light" backgroundColor={COLORS.background} />
+              {user ? (
+                <DashboardTabNavigator />
+              ) : (
+                <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+                  <AuthStack.Screen name="Login" component={LoginScreen} />
+                  <AuthStack.Screen name="SignUp" component={SignUpScreen} />
+                  <AuthStack.Screen
+                    name="ForgotPassword"
+                    component={ForgotPasswordScreen}
+                  />
+                  <AuthStack.Screen name="OtpVerification" component={OtpScreen} />
+                </AuthStack.Navigator>
+              )}
+            </NavigationContainer>
+          </AgencyRBACProvider>
         </LanguageProvider>
       </I18nextProvider>
     </GestureHandlerRootView>

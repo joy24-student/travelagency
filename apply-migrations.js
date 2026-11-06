@@ -6,8 +6,12 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const connectionString =
   process.env.DATABASE_URL ||
-  process.env.SUPABASE_DB_URL ||
-  "postgresql://postgres.htkpmrfhoijznigwimwj:TPQQDA1paSGqphH2@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres";
+  process.env.SUPABASE_DB_URL;
+
+if (!connectionString) {
+  console.error("FATAL: DATABASE_URL or SUPABASE_DB_URL environment variable is required.");
+  process.exit(1);
+}
 
 async function applyMigrations() {
   const client = new Client({
@@ -37,13 +41,23 @@ async function applyMigrations() {
     await client.query(seedSql);
     console.log("Seed migration applied successfully!");
 
+    // Read and run zero-trust hardening migration
+    const hardeningSql = fs.readFileSync(
+      path.join(__dirname, "supabase", "migrations", "20260609_zero_trust_security_hardening.sql"),
+      "utf8"
+    );
+    console.log("\nApplying 20260609_zero_trust_security_hardening.sql...");
+    await client.query(hardeningSql);
+    console.log("Zero-trust security hardening migration applied successfully!");
+
     // Record migrations in schema_migrations table
     try {
       await client.query(`
         INSERT INTO supabase_migrations.schema_migrations (version, name, statements)
         VALUES 
           ('20260608', 'comprehensive_travel_platform_schema', ARRAY['Applied via runner']),
-          ('20260608b', 'seed_travel_platform_data', ARRAY['Applied via runner'])
+          ('20260608b', 'seed_travel_platform_data', ARRAY['Applied via runner']),
+          ('20260609', 'zero_trust_security_hardening', ARRAY['Applied via runner'])
         ON CONFLICT (version) DO NOTHING;
       `);
       console.log("Recorded migrations in supabase_migrations.schema_migrations.");
@@ -64,22 +78,6 @@ async function applyMigrations() {
       console.log(`  ${idx + 1}. ${r.tablename} (RLS: ${r.rowsecurity})`);
     });
 
-    // Verify sample counts
-    const hotelCount = await client.query("SELECT COUNT(*) FROM hotels;");
-    const flightCount = await client.query("SELECT COUNT(*) FROM flights;");
-    const trainCount = await client.query("SELECT COUNT(*) FROM trains;");
-    const carCount = await client.query("SELECT COUNT(*) FROM car_rentals;");
-    const tourCount = await client.query("SELECT COUNT(*) FROM tours;");
-    const promoCount = await client.query("SELECT COUNT(*) FROM promo_codes;");
-
-    console.log("\nSeed Verification:");
-    console.log(`  Hotels: ${hotelCount.rows[0].count}`);
-    console.log(`  Flights: ${flightCount.rows[0].count}`);
-    console.log(`  Trains: ${trainCount.rows[0].count}`);
-    console.log(`  Car Rentals: ${carCount.rows[0].count}`);
-    console.log(`  Tours: ${tourCount.rows[0].count}`);
-    console.log(`  Promo Codes: ${promoCount.rows[0].count}`);
-
     await client.end();
   } catch (err) {
     console.error("Migration error:", err);
@@ -88,4 +86,3 @@ async function applyMigrations() {
 }
 
 applyMigrations();
-

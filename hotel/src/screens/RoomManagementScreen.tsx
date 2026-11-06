@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,46 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
-import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
+import { hotelService, HotelRoomCategory } from '../services/hotelService';
 
 export function RoomManagementScreen() {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({
+    total: 70,
+    available: 18,
+    occupied: 35,
+    maintenance: 5,
+    outOfOrder: 2,
+  });
+  const [categories, setCategories] = useState<HotelRoomCategory[]>([]);
+
+  const loadData = async () => {
+    try {
+      const data = await hotelService.getRoomCategories();
+      setStats(data.stats);
+      setCategories(data.categories);
+    } catch (err) {
+      console.warn('Error loading room management data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
   const StatItem = ({ label, value, color }: any) => (
     <View className="bg-[#1c2128] p-2 rounded-xl text-center border border-[#30363d] flex-1 mx-0.5">
       <Text className="text-[10px] text-gray-400 mb-1" numberOfLines={1}>{label}</Text>
@@ -46,6 +82,11 @@ export function RoomManagementScreen() {
     </View>
   );
 
+  const availPct = stats.total > 0 ? Math.round((stats.available / stats.total) * 100) : 0;
+  const occuPct = stats.total > 0 ? Math.round((stats.occupied / stats.total) * 100) : 0;
+  const maintPct = stats.total > 0 ? Math.round((stats.maintenance / stats.total) * 100) : 0;
+  const outPct = stats.total > 0 ? Math.round((stats.outOfOrder / stats.total) * 100) : 0;
+
   return (
     <SafeAreaView className="flex-1 bg-[#0d1117]">
       <StatusBar barStyle="light-content" />
@@ -59,38 +100,43 @@ export function RoomManagementScreen() {
           <Text className="text-xl font-bold text-white ml-4">Rooms</Text>
         </View>
         <View className="flex-row items-center space-x-3">
-          <TouchableOpacity className="p-1">
-            <MaterialIcons name="search" size={24} color="white" />
-          </TouchableOpacity>
-          <TouchableOpacity className="p-1 bg-indigo-600 rounded-lg">
-            <MaterialIcons name="add" size={24} color="white" />
+          <TouchableOpacity className="p-1" onPress={onRefresh}>
+            <MaterialIcons name="refresh" size={24} color="white" />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1 px-4"
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366f1" />}
+      >
         {/* Stats Summary */}
         <View className="flex-row justify-between mt-4">
-          <StatItem label="Total" value="70" color="text-white" />
-          <StatItem label="Avail" value="18" color="text-green-500" />
-          <StatItem label="Occu" value="35" color="text-orange-500" />
-          <StatItem label="Maint" value="5" color="text-yellow-500" />
-          <StatItem label="Out" value="2" color="text-gray-400" />
+          <StatItem label="Total" value={String(stats.total)} color="text-white" />
+          <StatItem label="Avail" value={String(stats.available)} color="text-green-500" />
+          <StatItem label="Occu" value={String(stats.occupied)} color="text-orange-500" />
+          <StatItem label="Maint" value={String(stats.maintenance)} color="text-yellow-500" />
+          <StatItem label="Out" value={String(stats.outOfOrder)} color="text-gray-400" />
         </View>
 
         {/* Room Categories */}
         <View className="mt-8">
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-base font-semibold text-white">Room Categories</Text>
-            <TouchableOpacity>
-              <Text className="text-sm text-indigo-400">View All</Text>
-            </TouchableOpacity>
+            <Text className="text-xs text-indigo-400 font-semibold">{categories.length} Types</Text>
           </View>
           <View className="flex-row space-x-3">
-            <CategoryItem label="Standard" count="32" icon="king-bed" bgColor="bg-indigo-900/30" iconColor="#818cf8" />
-            <CategoryItem label="Deluxe" count="18" icon="apartment" bgColor="bg-blue-900/30" iconColor="#60a5fa" />
-            <CategoryItem label="Suite" count="12" icon="auto-awesome" bgColor="bg-orange-900/30" iconColor="#fb923c" />
-            <CategoryItem label="Executive" count="8" icon="verified" bgColor="bg-green-900/30" iconColor="#4ade80" />
+            {categories.map((cat) => (
+              <CategoryItem
+                key={cat.id}
+                label={cat.label}
+                count={cat.count}
+                icon={cat.icon}
+                bgColor={cat.bgColor}
+                iconColor={cat.iconColor}
+              />
+            ))}
           </View>
         </View>
 
@@ -98,28 +144,22 @@ export function RoomManagementScreen() {
         <View className="mt-8">
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-base font-semibold text-white">Room Status</Text>
-            <TouchableOpacity>
-              <Text className="text-sm text-indigo-400">View All</Text>
-            </TouchableOpacity>
           </View>
-          <StatusProgress label="Available" value="18" percentage={26} color="#22c55e" icon="check-circle" iconBg="bg-green-500/20" />
-          <StatusProgress label="Occupied" value="35" percentage={50} color="#f97316" icon="person" iconBg="bg-orange-500/20" />
-          <StatusProgress label="Reserved" value="10" percentage={14} color="#eab308" icon="event" iconBg="bg-yellow-500/20" />
-          <StatusProgress label="Maintenance" value="5" percentage={7} color="#a855f7" icon="build" iconBg="bg-purple-500/20" />
+          <StatusProgress label="Available" value={stats.available} percentage={availPct} color="#22c55e" icon="check-circle" iconBg="bg-green-500/20" />
+          <StatusProgress label="Occupied" value={stats.occupied} percentage={occuPct} color="#f97316" icon="person" iconBg="bg-orange-500/20" />
+          <StatusProgress label="Maintenance" value={stats.maintenance} percentage={maintPct} color="#a855f7" icon="build" iconBg="bg-purple-500/20" />
+          <StatusProgress label="Out of Order" value={stats.outOfOrder} percentage={outPct} color="#ef4444" icon="block" iconBg="bg-red-500/20" />
         </View>
 
         {/* Floor Overview */}
         <View className="mt-8 mb-24">
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-base font-semibold text-white">Floor Overview</Text>
-            <TouchableOpacity>
-              <Text className="text-sm text-indigo-400">View All</Text>
-            </TouchableOpacity>
           </View>
           {[
-            { floor: '1st Floor', code: '2B', rooms: '12 / 16', percentage: 75, color: '#818cf8' },
-            { floor: '2nd Floor', code: '3B', rooms: '14 / 16', percentage: 88, color: '#a855f7' },
-            { floor: '3rd Floor', code: '3S', rooms: '16 / 16', percentage: 100, color: '#4ade80' },
+            { floor: '1st Floor', code: '1F', rooms: '18 / 24', percentage: 75, color: '#818cf8' },
+            { floor: '2nd Floor', code: '2F', rooms: '22 / 24', percentage: 91, color: '#a855f7' },
+            { floor: '3rd Floor - Suites', code: '3F', rooms: '18 / 22', percentage: 82, color: '#4ade80' },
           ].map((item, idx) => (
             <View key={idx} className="flex-row items-center space-x-3 mb-4">
               <View className="w-8 h-8 rounded-lg bg-gray-800 items-center justify-center">

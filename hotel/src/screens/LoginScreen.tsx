@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 
 export function LoginScreen({ navigation }: any) {
@@ -107,11 +107,11 @@ export function LoginScreen({ navigation }: any) {
 
             <View className="flex-row space-x-4">
                <TouchableOpacity className="flex-1 h-14 bg-white/5 border border-white/10 rounded-2xl items-center justify-center flex-row space-x-2">
-                  <MaterialIcons name="google" size={20} color="white" />
+                  <Ionicons name="logo-google" size={20} color="white" />
                   <Text className="text-white font-bold text-sm">Google</Text>
                </TouchableOpacity>
                <TouchableOpacity className="flex-1 h-14 bg-white/5 border border-white/10 rounded-2xl items-center justify-center flex-row space-x-2">
-                  <MaterialIcons name="apple" size={20} color="white" />
+                  <Ionicons name="logo-apple" size={20} color="white" />
                   <Text className="text-white font-bold text-sm">Apple</Text>
                </TouchableOpacity>
             </View>

@@ -23,6 +23,8 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { adminService } from "@/services/adminService";
 import { AdminUser } from "@/types/admin";
 import { supabase } from "@/utils/supabase";
+import { useRBAC } from "./rbac";
+import { executeAdminCommand, UpdateSystemSettingCommand } from "./commands";
 
 const { width } = Dimensions.get("window");
 
@@ -133,8 +135,11 @@ const ToggleSetting: React.FC<{
  * Admin Settings Screen
  */
 export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
-  admin,
+  admin: propsAdmin,
 }) => {
+  const { admin: rbacAdmin, hasPermission } = useRBAC();
+  const admin = propsAdmin || rbacAdmin;
+  const activeAdmin = admin;
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [settings, setSettings] = useState({
@@ -187,18 +192,27 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
 
   const handleToggleSetting = async (key: keyof typeof settings) => {
     const nextVal = !settings[key];
+    const prevVal = settings[key];
     setSettings((prev) => ({
       ...prev,
       [key]: nextVal,
     }));
     try {
-      await supabase.from("system_settings").upsert({
-        setting_key: key,
-        setting_value: String(nextVal),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "setting_key" });
-    } catch (err) {
-      console.warn("Failed to persist system setting:", err);
+      if (activeAdmin) {
+        const command = new UpdateSystemSettingCommand(
+          String(key),
+          nextVal
+        );
+        await executeAdminCommand(command, activeAdmin);
+      }
+    } catch (err: any) {
+      console.warn("Failed to persist and audit system setting:", err);
+      // Rollback on failure
+      setSettings((prev) => ({
+        ...prev,
+        [key]: prevVal,
+      }));
+      Alert.alert("Permission Error", err.message || "Failed to update setting due to RBAC policy.");
     }
   };
 
@@ -460,14 +474,14 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
           <SettingsSection title="Admin Account" icon="account">
             <SettingsRow
               label="Admin Name"
-               value={(admin as any)?.name || "Administrator"}
+               value={(activeAdmin as any)?.name || "Administrator"}
               icon="account-circle"
               showChevron={false}
             />
             <View style={styles.divider} />
             <SettingsRow
               label="Admin Role"
-              value={admin?.role || "Super Admin"}
+              value={activeAdmin?.role || "Super Admin"}
               icon="shield"
               showChevron={false}
             />

@@ -1,36 +1,90 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import i18n from '../locales/i18n';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  ReactNode,
+} from "react";
+import { useTranslation } from "react-i18next";
+import i18n, {
+  SupportedLanguage,
+  SUPPORTED_LANGUAGES,
+  LanguageInfo,
+  applyRTLDirection,
+  isRTLLanguage,
+} from "../locales/i18n";
+import { useSettingsStore } from "../store/settingsStore";
 
 interface LanguageContextType {
-  language: string;
-  changeLanguage: (lng: string) => void;
+  language: SupportedLanguage;
+  isRTL: boolean;
+  supportedLanguages: LanguageInfo[];
+  changeLanguage: (lng: SupportedLanguage) => Promise<void>;
+  t: (key: string, options?: any) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export const useLanguage = (): LanguageContextType => {
-  const context = useContext(LanguageContext);
-  if (!context) {
-    throw new Error('useLanguage must be used within a LanguageProvider');
-  }
-  return context;
-};
+export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
+  const { language: storedLanguage, setLanguage: setStoredLanguage, isHydrated } =
+    useSettingsStore();
+  const { t } = useTranslation();
+  const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguage>(
+    (storedLanguage as SupportedLanguage) || (i18n.language as SupportedLanguage) || "en"
+  );
 
-interface LanguageProviderProps {
-  children: ReactNode;
-}
+  // Sync state if store updates or hydrates
+  useEffect(() => {
+    if (isHydrated && storedLanguage && storedLanguage !== currentLanguage) {
+      const lang = storedLanguage as SupportedLanguage;
+      setCurrentLanguage(lang);
+      i18n.changeLanguage(lang);
+      applyRTLDirection(lang);
+    }
+  }, [isHydrated, storedLanguage]);
 
-export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
-  const [language, setLanguage] = useState<string>(i18n.language);
+  const changeLanguage = useCallback(
+    async (lng: SupportedLanguage) => {
+      try {
+        await i18n.changeLanguage(lng);
+        applyRTLDirection(lng);
+        setCurrentLanguage(lng);
+        setStoredLanguage(lng);
+      } catch (err) {
+        console.error("[LanguageContext] Failed to change language:", err);
+      }
+    },
+    [setStoredLanguage]
+  );
 
-  const changeLanguage = (lng: string) => {
-    i18n.changeLanguage(lng);
-    setLanguage(lng);
-  };
+  const isRTL = useMemo(() => isRTLLanguage(currentLanguage), [currentLanguage]);
+
+  const value = useMemo(
+    () => ({
+      language: currentLanguage,
+      isRTL,
+      supportedLanguages: SUPPORTED_LANGUAGES,
+      changeLanguage,
+      t: (key: string, options?: any) => String(t(key, options)),
+    }),
+    [currentLanguage, isRTL, changeLanguage, t]
+  );
 
   return (
-    <LanguageContext.Provider value={{ language, changeLanguage }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );
+};
+
+export const useLanguage = (): LanguageContextType => {
+  const context = useContext(LanguageContext);
+  if (!context) {
+    throw new Error("useLanguage must be used within a LanguageProvider");
+  }
+  return context;
 };

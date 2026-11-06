@@ -1,0 +1,3 @@
+"postgres" "postgres"
+"shopno_search_readonly" "shopno_search_password"
+"shopno_booking_tx" "shopno_booking_password"

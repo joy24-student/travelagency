@@ -334,9 +334,7 @@ export const agencyDashboardService = {
     agencyId: string,
     callback: (metrics: AgencyMetrics) => void,
   ) {
-    const subscription = supabase
-      .from("bookings")
-      .on("*", (payload) => {
+    const subscription = supabase.channel("agency-bookings-all").on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, (payload: any) => {
         if (payload.new?.agency_id === agencyId) {
           this.getMetrics(agencyId).then(callback);
         }
@@ -441,7 +439,7 @@ export const agencyBookingsService = {
         .eq("agency_id", agencyId)
         .single();
 
-      return data as AgencyBooking;
+      return data as unknown as AgencyBooking;
     } catch (error) {
       console.error("Error fetching booking detail:", error);
       return null;
@@ -552,8 +550,8 @@ export const agencyBookingsService = {
     callback: (bookings: AgencyBooking[]) => void,
   ) {
     return supabase
-      .from("bookings")
-      .on("*", (payload) => {
+      .channel(`agency-bookings-${agencyId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, (payload: any) => {
         if (payload.new?.agency_id === agencyId) {
           this.getBookings(agencyId).then(callback);
         }
@@ -714,8 +712,8 @@ export const agencyMessagesService = {
     callback: (message: any) => void,
   ) {
     return supabase
-      .from("agency_messages")
-      .on("INSERT", (payload) => {
+      .channel(`agency-messages-${agencyId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "agency_messages" }, (payload: any) => {
         if (payload.new?.agency_id === agencyId) {
           callback(payload.new);
         }

@@ -5,6 +5,7 @@ node_modules/
 # Environment variables
 .env.local
 .env*
+!.env.example
 
 # Build outputs
 dist/
@@ -140,3 +141,26 @@ Thumbs.db
 !user/**
 !utils/
 !utils/**
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+
+# Generated PDFs
+storage/tickets/*.pdf
+backend-python/storage/tickets/*.pdf
+!storage/tickets/.gitkeep
+!backend-python/storage/tickets/.gitkeep
+

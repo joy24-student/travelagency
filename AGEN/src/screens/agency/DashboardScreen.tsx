@@ -14,6 +14,7 @@ import {
   Animated,
   SafeAreaView,
   StatusBar,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -26,12 +27,14 @@ import {
 import { COLORS } from "../../App";
 import { useAuth } from "../../hooks/useAuth";
 import { agencyDashboardService } from "../../services/agencyService";
+import { supabase } from "../../services/supabaseClient";
 import {
   StatCard,
   Card,
   SectionHeader,
   ActivityItem,
 } from "../ui/UIComponents";
+import { useAgencyRBAC, AGENCY_ROLES_META } from "../../context/AgencyRBACContext";
 
 // High-fidelity UI Constants
 const HEADER_MAX_HEIGHT = 80;
@@ -59,6 +62,7 @@ interface DashboardMetrics {
 
 export default function DashboardScreen() {
   const { user } = useAuth();
+  const { roleMeta } = useAgencyRBAC();
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalRevenue: 0,
     totalBookings: 0,
@@ -127,18 +131,32 @@ export default function DashboardScreen() {
   }, [user?.agency?.id]);
 
   const loadDashboard = async () => {
-    if (!user?.agency?.id) return;
+    try {
+      let targetAgencyId = user?.agency?.id;
+      if (!targetAgencyId) {
+        const { data: defaultAgency } = await supabase
+          .from("agencies")
+          .select("id")
+          .limit(1)
+          .single();
+        targetAgencyId = defaultAgency?.id;
+      }
 
-    const [nextMetrics, nextActivities] = await Promise.all([
-      agencyDashboardService.getMetrics(user.agency.id),
-      agencyDashboardService.getRecentActivity(user.agency.id),
-    ]);
+      if (!targetAgencyId) return;
 
-    setMetrics({
-      ...nextMetrics,
-      activeAgencies: nextMetrics.activeCustomers,
-    });
-    setActivities(nextActivities);
+      const [nextMetrics, nextActivities] = await Promise.all([
+        agencyDashboardService.getMetrics(targetAgencyId),
+        agencyDashboardService.getRecentActivity(targetAgencyId),
+      ]);
+
+      setMetrics({
+        ...nextMetrics,
+        activeAgencies: nextMetrics.activeCustomers,
+      });
+      setActivities(nextActivities);
+    } catch (err) {
+      console.warn("Failed to load dashboard data:", err);
+    }
   };
 
   const onRefresh = async () => {
@@ -170,6 +188,21 @@ export default function DashboardScreen() {
                   {user?.agencyName || "Global Travels"}
                 </Text>
                 <MaterialIcons name="verified" size={14} color="#3b82f6" />
+                <View
+                  style={{
+                    backgroundColor: `${roleMeta.color}25`,
+                    borderColor: roleMeta.color,
+                    borderWidth: 1,
+                    paddingHorizontal: 5,
+                    paddingVertical: 1,
+                    borderRadius: 4,
+                    marginLeft: 6,
+                  }}
+                >
+                  <Text style={{ fontSize: 9, fontWeight: "800", color: roleMeta.color }}>
+                    {roleMeta.badge}
+                  </Text>
+                </View>
               </View>
               <Text style={styles.agencyId}>
                 ID:{" "}
@@ -695,6 +728,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap", // Allow wrapping for smaller screens if needed
     gap: 8, // Smaller gap for mini cards
   },
+  miniStatBlur: { width: "100%", alignItems: "center" },
   miniStatCard: {
     width: "23%",
     padding: 12,

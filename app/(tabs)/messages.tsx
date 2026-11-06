@@ -11,6 +11,10 @@ import {
   Text,
   TextInput,
   View,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -247,7 +251,10 @@ export default function MessagesTab() {
   });
 
   return (
-    <SafeAreaView style={styles.shell} edges={["top"]}>
+    <SafeAreaView style={styles.shell} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={{ flex: 1 }}>
       {/* Top Header */}
       <View style={styles.header}>
         <View>
@@ -818,6 +825,9 @@ export default function MessagesTab() {
         onOpenProfile={(p) => handleOpenProfile(p.id)}
         onStartCall={(p, type) => handleStartCall(p, type)}
       />
+      </View>
+      </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

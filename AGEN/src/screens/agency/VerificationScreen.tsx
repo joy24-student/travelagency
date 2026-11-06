@@ -65,7 +65,7 @@ export default function VerificationScreen({ navigation }: any) {
       setLoading(true);
       const docs = await agencyVerificationService.getDocuments(agencyId);
       // Map API response to local state
-      setDocuments(docs);
+      setDocuments(docs.map((d: any) => ({ ...d, name: d.document_type || "Document", status: d.status || "pending" })));
     } catch (error) {
       console.warn("Failed to load documents:", error);
     } finally {

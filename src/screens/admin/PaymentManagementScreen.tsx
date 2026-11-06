@@ -21,10 +21,13 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { walletAdminService, reportService } from "@/services/adminService";
+import { useRBAC } from "./rbac";
+import { executeAdminCommand, VerifyPaymentCommand } from "./commands";
 
 const { width } = Dimensions.get("window");
 
 export const PaymentManagementScreen: React.FC = () => {
+  const { admin, hasPermission } = useRBAC();
   const [payments, setPayments] = useState<any[]>([]);
   const [filteredPayments, setFilteredPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +77,7 @@ export const PaymentManagementScreen: React.FC = () => {
   }, [searchQuery, statusFilter, payments]);
 
   const handleManualVerification = () => {
+    if (!selectedTxn) return;
     Alert.alert(
       "Confirm Action",
       "Manual verification overrides gateway checks. Mark this payment as completed?",
@@ -81,14 +85,25 @@ export const PaymentManagementScreen: React.FC = () => {
         { text: "No", style: "cancel" },
         {
           text: "Yes, Mark Completed",
-          onPress: () => {
-            setPayments((prev) =>
-              prev.map((p) =>
-                p.id === selectedTxn.id ? { ...p, status: "completed" } : p
-              )
-            );
-            setDetailsModalVisible(false);
-            Alert.alert("Success", "Transaction marked as completed.");
+          onPress: async () => {
+            if (!admin) return;
+            const currentAdmin = admin;
+            try {
+              const command = new VerifyPaymentCommand(
+                selectedTxn.id,
+                `Manual override verification by ${currentAdmin.name || currentAdmin.user_id}`
+              );
+              await executeAdminCommand(command, currentAdmin);
+              setPayments((prev) =>
+                prev.map((p) =>
+                  p.id === selectedTxn.id ? { ...p, status: "completed" } : p
+                )
+              );
+              setDetailsModalVisible(false);
+              Alert.alert("Success", "Transaction marked as completed and audit logged.");
+            } catch (err: any) {
+              Alert.alert("Access Denied", err.message || "Failed to verify transaction due to RBAC policy.");
+            }
           },
         },
       ]

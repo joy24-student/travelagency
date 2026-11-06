@@ -71,7 +71,7 @@ export default function SettingsScreen({ navigation }: any) {
           {/* Notifications */}
           <View style={styles.section}>
             <SectionHeader title="Notifications" />
-            <View style={[styles.glassGroup, { backgroundColor: theme.surface }]}>
+            <View style={[styles.card, { backgroundColor: theme.surface }]}>
               <BlurView intensity={10} tint={darkMode ? "dark" : "light"}>
               <View style={styles.settingItem}>
                 <View style={[styles.iconWrapper, { backgroundColor: '#c3c0ff20' }]}>
@@ -87,7 +87,7 @@ export default function SettingsScreen({ navigation }: any) {
                   trackColor={{ false: 'rgba(0,0,0,0.1)', true: COLORS.primary }}
                 />
               </View>
-              <View style={styles.separator} />
+              <View style={styles.divider} />
               <View style={styles.settingItem}>
                 <View style={[styles.iconWrapper, { backgroundColor: '#4cd7f620' }]}>
                   <MaterialCommunityIcons name="email-fast-outline" size={20} color="#4cd7f6" />
@@ -438,6 +438,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
+  divider: { height: 1, backgroundColor: "rgba(255, 255, 255, 0.08)", marginVertical: 8 },
   card: {
     marginBottom: 12,
     padding: 12,

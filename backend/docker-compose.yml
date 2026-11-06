@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno-jatra-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/postgres
+      - REDIS_URL=redis://redis:6379/0
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET:-your-supabase-jwt-secret}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - BKASH_WEBHOOK_SECRET=${BKASH_WEBHOOK_SECRET:-bkash-webhook-secret-key}
+      - NAGAD_WEBHOOK_SECRET=${NAGAD_WEBHOOK_SECRET:-nagad-webhook-secret-key}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - shopno-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: shopno-jatra-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shopno-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: shopno-jatra-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - "54322:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../supabase/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shopno-network
+
+volumes:
+  redis-data:
+  postgres-data:
+
+networks:
+  shopno-network:
+    driver: bridge

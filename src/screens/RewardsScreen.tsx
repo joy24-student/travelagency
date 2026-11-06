@@ -16,6 +16,7 @@ import Svg, { Path, Defs, RadialGradient, Stop, LinearGradient, Text as SvgText 
 import { router } from 'expo-router';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../utils/supabase';
+import { MysteryBoxModal } from '../components/gamification/MysteryBoxModal';
 
 const { width } = Dimensions.get('window');
 const TRIP_BLUE = "#0077f5";
@@ -31,6 +32,7 @@ export default function RewardsScreen() {
   } | null>(null);
   const [promoCodes, setPromoCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showMysteryBoxModal, setShowMysteryBoxModal] = useState(false);
 
   useEffect(() => {
     async function loadRewards() {
@@ -171,6 +173,31 @@ export default function RewardsScreen() {
             </Text>
           </Pressable>
 
+          {/* Mystery Travel Box Gamification Banner */}
+          <Pressable
+            style={styles.mysteryBoxBanner}
+            onPress={() => setShowMysteryBoxModal(true)}
+          >
+            <View style={styles.mysteryBoxBannerLeft}>
+              <View style={styles.mysteryBoxIconBubble}>
+                <Ionicons name="gift" size={26} color="#F59E0B" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.mysteryBoxBadgeRow}>
+                  <Text style={styles.mysteryBoxBadgeText}>DAILY UNBOX</Text>
+                  <Text style={styles.mysteryBoxStreakTag}>7-DAY STREAK</Text>
+                </View>
+                <Text style={styles.mysteryBoxBannerTitle}>
+                  Mystery Travel Box
+                </Text>
+                <Text style={styles.mysteryBoxBannerSub}>
+                  Unlock 50% Flight Coupons, Free Hotel Breakfast & Room Upgrades!
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+          </Pressable>
+
           {/* Active Promo Codes & Discounts */}
           <Text style={styles.sectionTitle}>Exclusive promo vouchers</Text>
           {promoCodes.length === 0 ? (
@@ -213,6 +240,10 @@ export default function RewardsScreen() {
           </View>
         </View>
       </ScrollView>
+      <MysteryBoxModal
+        visible={showMysteryBoxModal}
+        onClose={() => setShowMysteryBoxModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -596,6 +627,71 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  mysteryBoxBanner: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  mysteryBoxBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  mysteryBoxIconBubble: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  mysteryBoxBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  mysteryBoxBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F59E0B',
+    letterSpacing: 0.5,
+  },
+  mysteryBoxStreakTag: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#38BDF8',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  mysteryBoxBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  mysteryBoxBannerSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    lineHeight: 15,
   },
   coinT: {
     color: '#fff',

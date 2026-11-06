@@ -5,19 +5,19 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 
 export function ChatScreen() {
   const [message, setMessage] = useState('');
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0b1326]">
+    <SafeAreaView className="flex-1 bg-[#0b1326]" edges={["top", "bottom"]}>
       <StatusBar barStyle="light-content" />
 
       {/* Header */}

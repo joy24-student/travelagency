@@ -3,6 +3,8 @@ import React, { useState, useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { supabase } from "./src/lib/supabase";
 import { Session } from "@supabase/supabase-js";
+import { HotelRBACProvider, useHotelRBAC } from "./src/context/HotelRBACContext";
+import { AccessRestrictedScreen } from "./src/components/AccessRestrictedScreen";
 import {
   SplashScreen,
   OnboardingScreen,
@@ -28,17 +30,18 @@ import {
   StaffManagementScreen,
 } from "./src/screens";
 
-// Minimal Route System
-type RouteId =
+// Route Types
+export type RouteId =
   | 'splash' | 'onboarding' | 'login' | 'signUp' | 'forgotPassword'
   | 'dashboard' | 'reservations' | 'rooms' | 'guest' | 'earnings'
   | 'messages' | 'chat' | 'housekeeping' | 'maintenance' | 'reports'
   | 'settings' | 'support' | 'devices' | 'otp' | 'resetPass' | '2fa' | 'staff';
 
-export default function App() {
+function HotelAppContent() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeRoute, setActiveRoute] = useState<RouteId>('splash');
+  const { hasPermission } = useHotelRBAC();
 
   useEffect(() => {
     // Initial Session Check
@@ -56,7 +59,6 @@ export default function App() {
       if (session) {
         setActiveRoute('dashboard');
       } else {
-        // Only redirect to login if we are in the main app
         if (!['splash', 'onboarding', 'signUp', 'forgotPassword'].includes(activeRoute)) {
            setActiveRoute('login');
         }
@@ -68,18 +70,18 @@ export default function App() {
 
   const navigation = {
     navigate: (route: RouteId) => setActiveRoute(route),
-    goBack: () => setActiveRoute('login'), // Simplified
+    goBack: () => setActiveRoute('dashboard'),
   };
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#020617', alignItems: 'center', justify: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: '#020617', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#8083ff" />
       </View>
     );
   }
 
-  // Render Logic
+  // Render Logic with RBAC Authorization Guards
   const renderScreen = () => {
     switch (activeRoute) {
       case 'splash': return <SplashScreen navigation={navigation} />;
@@ -88,12 +90,22 @@ export default function App() {
       case 'signUp': return <SignUpScreen navigation={navigation} />;
       case 'forgotPassword': return <ForgotPasswordScreen navigation={navigation} />;
 
-      // Protected Routes
+      // Protected Hospitality Routes
       case 'dashboard': return <DashboardScreen />;
       case 'reservations': return <ReservationsScreen />;
       case 'rooms': return <RoomManagementScreen />;
       case 'guest': return <GuestDetailsScreen />;
-      case 'earnings': return <EarningsOverviewScreen />;
+      case 'earnings':
+        if (!hasPermission('property.earnings_view')) {
+          return (
+            <AccessRestrictedScreen
+              moduleName="Financial Earnings"
+              requiredRole="General Manager"
+              onGoBack={() => setActiveRoute('dashboard')}
+            />
+          );
+        }
+        return <EarningsOverviewScreen />;
       case 'messages': return <MessagesScreen />;
       case 'chat': return <ChatScreen />;
       case 'housekeeping': return <HousekeepingScreen />;
@@ -105,7 +117,17 @@ export default function App() {
       case 'otp': return <OTPVerificationScreen />;
       case 'resetPass': return <ResetPasswordScreen />;
       case '2fa': return <TwoFactorAuthenticationScreen />;
-      case 'staff': return <StaffManagementScreen />;
+      case 'staff':
+        if (!hasPermission('staff.manage')) {
+          return (
+            <AccessRestrictedScreen
+              moduleName="Staff Personnel Roster"
+              requiredRole="General Manager"
+              onGoBack={() => setActiveRoute('dashboard')}
+            />
+          );
+        }
+        return <StaffManagementScreen />;
 
       default: return <LoginScreen navigation={navigation} />;
     }
@@ -116,5 +138,13 @@ export default function App() {
       {renderScreen()}
       <StatusBar style="light" />
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <HotelRBACProvider>
+      <HotelAppContent />
+    </HotelRBACProvider>
   );
 }

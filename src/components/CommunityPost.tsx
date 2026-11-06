@@ -1,4 +1,6 @@
+import React, { useMemo } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { sanitizeUserText, sanitizeMediaUrl } from "../utils/sanitizer";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { TravelVideoPlayer } from "./TravelVideoPlayer";
@@ -55,6 +57,28 @@ export function CommunityPost({
   onExploreSpot,
   onOpenProfile,
 }: CommunityPostProps) {
+  // Sanitize all user-generated content to prevent XSS / HTML / Script injection
+  const safeAuthorName = useMemo(() => sanitizeUserText(authorName) || "Traveler", [authorName]);
+  const safeTitle = useMemo(() => sanitizeUserText(title), [title]);
+  const safeDescription = useMemo(() => (description ? sanitizeUserText(description) : undefined), [description]);
+  const safeLocation = useMemo(() => (location ? sanitizeUserText(location) : undefined), [location]);
+  const safeTimestamp = useMemo(() => (timestamp ? sanitizeUserText(timestamp) : undefined), [timestamp]);
+  const safeAuthorImage = useMemo(() => sanitizeMediaUrl(authorImage), [authorImage]);
+  const safePostImage = useMemo(() => sanitizeMediaUrl(postImage), [postImage]);
+  const safePostVideo = useMemo(() => sanitizeMediaUrl(postVideo), [postVideo]);
+
+  const safeCommentsList = useMemo(() => {
+    return (commentsList || []).map((c: any) => ({
+      ...c,
+      content: sanitizeUserText(c.content),
+      author: {
+        ...c.author,
+        display_name: sanitizeUserText(c.author?.display_name || "Traveler"),
+        avatar_url: sanitizeMediaUrl(c.author?.avatar_url),
+      },
+    }));
+  }, [commentsList]);
+
   const handleLikePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onLike?.();
@@ -70,9 +94,9 @@ export function CommunityPost({
       {/* Header */}
       <View style={styles.header}>
         <Pressable style={styles.authorInfo} onPress={onOpenProfile}>
-          {authorImage ? (
+          {safeAuthorImage ? (
             <Image
-              source={{ uri: authorImage }}
+              source={{ uri: safeAuthorImage }}
               style={styles.avatar}
               resizeMode="cover"
             />
@@ -83,7 +107,7 @@ export function CommunityPost({
           )}
           <View style={styles.authorDetails}>
             <View style={styles.nameRow}>
-              <Text style={styles.authorName}>{authorName}</Text>
+              <Text style={styles.authorName}>{safeAuthorName}</Text>
               {(isInfluencer || role === "Influencer") && (
                 <View style={styles.influencerBadge}>
                   <Text style={styles.influencerBadgeText}>Influencer</Text>
@@ -92,13 +116,13 @@ export function CommunityPost({
               <Ionicons name="checkmark-circle" size={14} color="#0055F2" />
             </View>
             <View style={styles.subMetaRow}>
-              {location && (
+              {safeLocation && (
                 <View style={styles.locationPill}>
                   <Ionicons name="location-sharp" size={11} color="#0055F2" />
-                  <Text style={styles.locationText}>{location}</Text>
+                  <Text style={styles.locationText}>{safeLocation}</Text>
                 </View>
               )}
-              {timestamp && <Text style={styles.timestamp}>{timestamp}</Text>}
+              {safeTimestamp && <Text style={styles.timestamp}>{safeTimestamp}</Text>}
             </View>
           </View>
         </Pressable>
@@ -108,10 +132,10 @@ export function CommunityPost({
       </View>
 
       {/* Post Video or Image with Explore Experience Glass Pill */}
-      {postVideo ? (
+      {safePostVideo ? (
         <View style={styles.imageContainer}>
-          <TravelVideoPlayer videoUrl={postVideo} posterUrl={postImage} height={240} />
-          {location && (
+          <TravelVideoPlayer videoUrl={safePostVideo} posterUrl={safePostImage} height={240} />
+          {safeLocation && (
             <Pressable style={styles.explorePill} onPress={onExploreSpot}>
               <View style={styles.explorePillContent}>
                 <Ionicons name="compass-outline" size={14} color="#000666" />
@@ -121,14 +145,14 @@ export function CommunityPost({
             </Pressable>
           )}
         </View>
-      ) : postImage ? (
+      ) : safePostImage ? (
         <View style={styles.imageContainer}>
           <Image
-            source={{ uri: postImage }}
+            source={{ uri: safePostImage }}
             style={styles.postImage}
             resizeMode="cover"
           />
-          {location && (
+          {safeLocation && (
             <Pressable style={styles.explorePill} onPress={onExploreSpot}>
               <View style={styles.explorePillContent}>
                 <Ionicons name="compass-outline" size={14} color="#000666" />
@@ -141,8 +165,8 @@ export function CommunityPost({
       ) : null}
 
       {/* Title & Description */}
-      <Text style={styles.title}>{title}</Text>
-      {description && <Text style={styles.description}>{description}</Text>}
+      <Text style={styles.title}>{safeTitle}</Text>
+      {safeDescription && <Text style={styles.description}>{safeDescription}</Text>}
 
       {/* Actions Bar */}
       <View style={styles.actions}>
@@ -188,9 +212,9 @@ export function CommunityPost({
       )}
 
       {/* Recent Comments Preview */}
-      {commentsList && commentsList.length > 0 && (
+      {safeCommentsList && safeCommentsList.length > 0 && (
         <Pressable onPress={onComment} style={styles.commentsPreviewBox}>
-          {commentsList.slice(0, 2).map((c) => (
+          {safeCommentsList.slice(0, 2).map((c) => (
             <View key={c.id} style={styles.commentItem}>
               <Text style={styles.commentAuthor}>
                 {c.author?.display_name || "Traveler"}:{" "}
@@ -198,9 +222,9 @@ export function CommunityPost({
               </Text>
             </View>
           ))}
-          {commentsList.length > 2 ? (
+          {safeCommentsList.length > 2 ? (
             <Text style={styles.viewMoreCommentsText}>
-              View all {commentsList.length} comments...
+              View all {safeCommentsList.length} comments...
             </Text>
           ) : (
             <Text style={styles.viewMoreCommentsText}>Add a comment...</Text>

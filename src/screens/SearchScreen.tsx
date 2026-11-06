@@ -8,6 +8,10 @@ import {
   Text,
   TextInput,
   View,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -143,7 +147,10 @@ export function SearchScreen({ screen }: { screen?: UIScreen } = {}) {
     );
 
   return (
-    <SafeAreaView style={s.shell}>
+    <SafeAreaView style={s.shell} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={{ flex: 1 }}>
       <TopBar screen={activeScreen} />
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -411,6 +418,9 @@ export function SearchScreen({ screen }: { screen?: UIScreen } = {}) {
       </ScrollView>
       <AiPill color={PRIMARY} />
       <BottomNav active="Home" color={PRIMARY} />
+      </View>
+      </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

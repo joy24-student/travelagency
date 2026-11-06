@@ -10,19 +10,59 @@
       "web"
     ],
     "userInterfaceStyle": "automatic",
+    "jsEngine": "hermes",
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    },
     "plugins": [
       [
         "expo-build-properties",
         {
-          "buildReactNativeFromSource": true
+          "buildReactNativeFromSource": true,
+          "android": {
+            "enableHermes": true,
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "hermesFlags": [
+              "-O",
+              "-output-source-map"
+            ]
+          },
+          "ios": {
+            "enableHermes": true,
+            "hermesFlags": [
+              "-O",
+              "-output-source-map"
+            ]
+          }
         }
       ],
       "expo-secure-store",
       "expo-web-browser",
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": "production",
+            "android": "development",
+            "ios": "development",
+            "default": "production"
+          }
+        }
+      ],
       "expo-sharing",
       "@react-native-google-signin/google-signin",
-      ["expo-facebook", { "userTrackingPermission": false }],
+      [
+        "expo-facebook",
+        {
+          "userTrackingPermission": false
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -32,6 +72,7 @@
       ]
     ],
     "ios": {
+      "jsEngine": "hermes",
       "supportsTablet": true,
       "infoPlist": {
         "CFBundleAllowMixedLocalizations": true,
@@ -40,6 +81,7 @@
       }
     },
     "android": {
+      "jsEngine": "hermes",
       "package": "com.s025.convertedtravelui",
       "googleServicesFile": "./google-services.json",
       "versionCode": 1,

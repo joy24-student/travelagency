@@ -31,6 +31,8 @@ import {
   SafeAreaView,
   StatusBar,
   Linking,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import {
   Ionicons,
@@ -50,8 +52,19 @@ import Svg, {
 } from "react-native-svg";
 import { AdminUser } from "@/types/admin";
 import { supabase } from "@/utils/supabase";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { SupportCenterScreen } from "./SupportCenterScreen";
+import {
+  executeAdminCommand,
+  VerifyAgencyCommand,
+  SuspendAgencyCommand,
+  ReactivateAgencyCommand,
+  UpdateCommissionSplitCommand,
+  ApprovePartnerPayoutCommand,
+} from "./commands";
+import { useRBAC } from "./rbac";
+import { AdminPagination } from "./AdminPagination";
+import { DestructiveConfirmModal } from "./DestructiveConfirmModal";
 
 const { width } = Dimensions.get("window");
 
@@ -68,7 +81,37 @@ export type SubScreenType =
   | "payments"
   | "agency_payments"
   | "bookings"
-  | "support_center";
+  | "support_center"
+  | "commission_tiers";
+
+export interface AgencySecurityModalState {
+  visible: boolean;
+  actionType: "suspend" | "revoke_license" | "ban";
+  agency: AgencyItem | null;
+  reason: string;
+  confirmationPhrase: string;
+  acknowledged: boolean;
+  isSubmitting: boolean;
+}
+
+export interface AgencyPayoutItem {
+  id: string;
+  agency_id: string;
+  agency_name: string;
+  license_number: string;
+  bank_name: string;
+  account_name: string;
+  account_number: string;
+  routing_number: string;
+  amount: string;
+  currency: string;
+  commission_fee: string;
+  net_amount: string;
+  commission_balance: string;
+  status: "pending" | "paid_out" | "rejected";
+  requested_at: string;
+  reference: string;
+}
 
 export interface AgencyItem {
   id: string;
@@ -136,44 +179,181 @@ const SAMPLE_AGENCY_ADS: AgencyAdCard[] = [];
 const GLOBAL_PAYMENTS_DATA: GlobalPaymentItem[] = [];
 const SAMPLE_BOOKINGS: BookingRecord[] = [];
 
-export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = () => {
+const INITIAL_PAYOUT_REQUESTS: AgencyPayoutItem[] = [
+  {
+    id: "payout-8941",
+    agency_id: "ag-1",
+    agency_name: "Chalo Shobai Tours Ltd",
+    license_number: "TL-DHK-2024-8921",
+    bank_name: "City Bank PLC",
+    account_name: "Chalo Shobai Tours Ltd",
+    account_number: "•••• •••• •••• 9201",
+    routing_number: "225271890",
+    amount: "৳185,000",
+    currency: "BDT",
+    commission_fee: "10.0%",
+    net_amount: "৳166,500",
+    commission_balance: "৳240,000",
+    status: "pending",
+    requested_at: "Today, 09:30 AM",
+    reference: "PAY-2026-8941",
+  },
+  {
+    id: "payout-8940",
+    agency_id: "ag-2",
+    agency_name: "Bengal Heritage Expeditions",
+    license_number: "TL-CTG-2023-4410",
+    bank_name: "BRAC Bank PLC",
+    account_name: "Bengal Heritage Expeditions",
+    account_number: "•••• •••• •••• 4482",
+    routing_number: "060271420",
+    amount: "৳320,000",
+    currency: "BDT",
+    commission_fee: "8.0%",
+    net_amount: "৳294,400",
+    commission_balance: "৳450,000",
+    status: "pending",
+    requested_at: "Yesterday, 04:15 PM",
+    reference: "PAY-2026-8940",
+  },
+  {
+    id: "payout-8938",
+    agency_id: "ag-3",
+    agency_name: "Skyline Travel & Holiday",
+    license_number: "TL-SYL-2025-1029",
+    bank_name: "Standard Chartered Bank",
+    account_name: "Skyline Holiday BD",
+    account_number: "•••• •••• •••• 1150",
+    routing_number: "010271100",
+    amount: "৳95,000",
+    currency: "BDT",
+    commission_fee: "12.0%",
+    net_amount: "৳83,600",
+    commission_balance: "৳120,000",
+    status: "paid_out",
+    requested_at: "02 Nov 2026",
+    reference: "PAY-2026-8938",
+  },
+];
+
+export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
+  admin: propAdmin,
+}) => {
+  const { admin: rbacAdmin } = useRBAC();
+  const admin = propAdmin || rbacAdmin;
   const [agenciesList, setAgenciesList] = useState<AgencyItem[]>(INITIAL_AGENCIES);
+  const [agencyPage, setAgencyPage] = useState(1);
+  const AGENCY_PAGE_SIZE = 25; // 25-item cursor pagination (Requirement 4)
+  const [totalAgenciesCount, setTotalAgenciesCount] = useState<number>(0);
+  const [loadingAgencies, setLoadingAgencies] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [agencyAdsList, setAgencyAdsList] = useState<AgencyAdCard[]>([]);
+  const [agencyBookingsList, setAgencyBookingsList] = useState<BookingRecord[]>([]);
+  const [currentScreen, setCurrentScreen] = useState<SubScreenType>("dashboard");
+  const [screenStack, setScreenStack] = useState<SubScreenType[]>([]);
+  const [selectedAgency, setSelectedAgency] = useState<AgencyItem>(null as any);
+  const [statusFilter, setStatusFilter] = useState<"All" | "Verified" | "Pending" | "Suspended">("All");
 
-  useEffect(() => {
-    let isMounted = true;
-    async function loadAgenciesFromSupabase() {
+  // Tabs State
+  const [verificationTab, setVerificationTab] = useState<"pending" | "verified">("pending");
+  const [documentTab, setDocumentTab] = useState<"all" | "required" | "uploaded">("all");
+  const [bookingFilterTab, setBookingFilterTab] = useState<"All" | "Confirmed" | "Pending" | "Completed">("All");
+  const [globalPaymentTab, setGlobalPaymentTab] = useState<"Pending" | "Completed" | "On Hold" | "Failed">("Pending");
+  const [adFilterTab, setAdFilterTab] = useState<"All" | "Active" | "Sponsored Packages" | "Banner Ads" | "Paused">("All");
+  const [paymentSearchQuery, setPaymentSearchQuery] = useState("");
+
+  // Commission Tier Manager State (Requirement 3: 5% to 12% custom split configuration)
+  const [commissionRate, setCommissionRate] = useState<number>(10.0);
+  const [verticalSplits, setVerticalSplits] = useState({
+    flights: "5.0%",
+    hotels: "12.0%",
+    tours: "10.0%",
+    train: "6.0%",
+  });
+  const [commissionScope, setCommissionScope] = useState<"global" | "agency">("global");
+  const [commissionNotes, setCommissionNotes] = useState<string>("Standard operational split matrix");
+  const [payoutTab, setPayoutTab] = useState<"pending" | "processed" | "all">("pending");
+  const [payoutRequests, setPayoutRequests] = useState<AgencyPayoutItem[]>(INITIAL_PAYOUT_REQUESTS);
+
+  // Double-Confirmation Security Modal State (Requirement 2: Suspend Agency, Ban User/Agency, Revoke License)
+  const [securityModal, setSecurityModal] = useState<AgencySecurityModalState>({
+    visible: false,
+    actionType: "suspend",
+    agency: null,
+    reason: "",
+    confirmationPhrase: "",
+    acknowledged: false,
+    isSubmitting: false,
+  });
+
+  // Server-Side 25-Item Cursor Pagination with Full-Text Search (Requirement 4)
+  const loadAgenciesFromSupabase = useCallback(
+    async (pageIndex: number, queryText: string, isPullToRefresh: boolean = false) => {
       try {
-        const { data, error } = await supabase
-          .from("agencies")
-          .select("*")
-          .order("rating", { ascending: false });
+        if (isPullToRefresh) setRefreshing(true);
+        else setLoadingAgencies(true);
 
-        if (!error && data && data.length > 0 && isMounted) {
+        const from = (pageIndex - 1) * AGENCY_PAGE_SIZE;
+        const to = from + AGENCY_PAGE_SIZE - 1;
+
+        let query = supabase.from("agencies").select("*", { count: "exact" });
+        const trimmed = queryText.trim();
+        if (trimmed) {
+          // Full-text search by name, email, or agency trade license number
+          query = query.or(
+            `name.ilike.%${trimmed}%,email.ilike.%${trimmed}%,license_number.ilike.%${trimmed}%`
+          );
+        }
+
+        const { data, count, error } = await query
+          .order("created_at", { ascending: false })
+          .range(from, to);
+
+        if (!error && data && data.length > 0) {
           const mapped: AgencyItem[] = data.map((a: any, idx: number) => ({
             id: a.id,
             name: a.name,
-            avatarText: a.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase() || "AG",
-            status: a.is_verified ? "Verified" : "Pending",
+            avatarText:
+              a.name
+                .split(" ")
+                .map((w: string) => w[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase() || "AG",
+            status: a.is_verified
+              ? "Verified"
+              : a.status === "suspended"
+              ? "Suspended"
+              : a.status === "inactive"
+              ? "Inactive"
+              : "Pending",
             rating: Number(a.rating || 4.9),
             reviewsCount: a.total_reviews || 48,
             location: `${a.city || "Dhaka"}, ${a.country || "Bangladesh"}`,
-            revenue: `${((a.total_bookings || 140) * 450).toLocaleString()}`,
+            revenue: `৳${((a.total_bookings || 140) * 12500).toLocaleString()}`,
             bookings: a.total_bookings || 140,
             customers: (a.total_bookings || 140) * 2,
             responseTime: "< 15 mins",
             acceptanceRate: "98.5%",
             cancellationRate: "0.8%",
-            agencyId: a.license_number || `AG-${8000 + idx}`,
+            agencyId: a.license_number || `TL-DHK-${8000 + from + idx}`,
             ownerName: a.contact_person || a.name + " Management",
             ownerPhone: a.phone || "01863054816",
             managerName: "Operations Lead",
             managerPhone: a.phone || "01711963652",
             supportPhone: a.phone || "01863054816",
-            email: a.email || "support@" + a.slug + ".com",
+            email: a.email || "support@" + (a.slug || "agency") + ".com",
             agencyType: "IATA Certified Tour Operator",
           }));
           setAgenciesList(mapped);
-          setSelectedAgency(mapped[0]);
+          setTotalAgenciesCount(count ?? mapped.length);
+          if (!selectedAgency && mapped.length > 0) {
+            setSelectedAgency(mapped[0]);
+          }
+        } else {
+          setAgenciesList([]);
+          setTotalAgenciesCount(count ?? 0);
         }
 
         // 2. Load real agency ads from advertisements table
@@ -182,7 +362,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
           .select("*")
           .order("created_at", { ascending: false });
 
-        if (adsData && adsData.length > 0 && isMounted) {
+        if (adsData && adsData.length > 0) {
           setAgencyAdsList(
             adsData.map((ad: any) => ({
               id: ad.id,
@@ -206,7 +386,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
           .select("*, hotel:hotels(*)")
           .order("created_at", { ascending: false });
 
-        if (bData && bData.length > 0 && isMounted) {
+        if (bData && bData.length > 0) {
           setAgencyBookingsList(
             bData.map((b: any) => ({
               id: b.id,
@@ -216,43 +396,386 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
               agencyName: "Verified Agency Partner",
               date: b.check_in_date || b.travel_date || new Date().toISOString().slice(0, 10),
               amount: `$${b.total_price || b.amount || 450}`,
-              status: b.status === "confirmed" ? "Confirmed" : (b.status === "cancelled" ? "Cancelled" : "Completed"),
+              status:
+                b.status === "confirmed"
+                  ? "Confirmed"
+                  : b.status === "cancelled"
+                  ? "Cancelled"
+                  : "Completed",
             }))
           );
         }
       } catch (err) {
         console.warn("AgencyManagementScreen Supabase fetch:", err);
+      } finally {
+        setLoadingAgencies(false);
+        setRefreshing(false);
       }
-    }
-    loadAgenciesFromSupabase();
+    },
+    [selectedAgency]
+  );
 
+  useEffect(() => {
+    loadAgenciesFromSupabase(agencyPage, searchQuery);
+  }, [agencyPage, loadAgenciesFromSupabase]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAgencyPage(1);
+      loadAgenciesFromSupabase(1, searchQuery);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, loadAgenciesFromSupabase]);
+
+  // Realtime changes listener
+  useEffect(() => {
     const channel = supabase
       .channel(`admin-agencies-${Math.random().toString(36).substring(2, 7)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "agencies" }, () => {
-        loadAgenciesFromSupabase();
+        loadAgenciesFromSupabase(agencyPage, searchQuery);
       })
       .subscribe();
 
     return () => {
-      isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
-  const [agencyAdsList, setAgencyAdsList] = useState<AgencyAdCard[]>([]);
-  const [agencyBookingsList, setAgencyBookingsList] = useState<BookingRecord[]>([]);
-  const [currentScreen, setCurrentScreen] = useState<SubScreenType>("dashboard");
-  const [screenStack, setScreenStack] = useState<SubScreenType[]>([]);
-  const [selectedAgency, setSelectedAgency] = useState<AgencyItem>(null as any);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | "Verified" | "Pending" | "Suspended">("All");
+  }, [agencyPage, searchQuery, loadAgenciesFromSupabase]);
 
-  // Tabs State
-  const [verificationTab, setVerificationTab] = useState<"pending" | "verified">("pending");
-  const [documentTab, setDocumentTab] = useState<"all" | "required" | "uploaded">("all");
-  const [bookingFilterTab, setBookingFilterTab] = useState<"All" | "Confirmed" | "Pending" | "Completed">("All");
-  const [globalPaymentTab, setGlobalPaymentTab] = useState<"Pending" | "Completed" | "On Hold" | "Failed">("Pending");
-  const [adFilterTab, setAdFilterTab] = useState<"All" | "Active" | "Sponsored Packages" | "Banner Ads" | "Paused">("All");
-  const [paymentSearchQuery, setPaymentSearchQuery] = useState("");
+  // Helper to open Double-Confirmation Security Modal
+  const openSecurityModal = (
+    actionType: "suspend" | "revoke_license" | "ban",
+    targetAgency?: AgencyItem
+  ) => {
+    const ag = targetAgency || selectedAgency;
+    if (!ag) return;
+    setSecurityModal({
+      visible: true,
+      actionType,
+      agency: ag,
+      reason: "",
+      confirmationPhrase: "",
+      acknowledged: false,
+      isSubmitting: false,
+    });
+  };
+
+  const closeSecurityModal = () => {
+    setSecurityModal((prev) => ({
+      ...prev,
+      visible: false,
+      reason: "",
+      confirmationPhrase: "",
+      acknowledged: false,
+      isSubmitting: false,
+    }));
+  };
+
+  // Execute Destructive Action with mandatory audit logging (Requirement 2)
+  const handleExecuteSecurityAction = async () => {
+    const { actionType, agency, reason, acknowledged, confirmationPhrase } = securityModal;
+    if (!agency || !admin) return;
+
+    if (!reason.trim() || reason.trim().length < 5) {
+      Alert.alert(
+        "Reason Required",
+        "Please provide a detailed compliance/regulatory rationale (at least 5 characters)."
+      );
+      return;
+    }
+
+    if (!acknowledged) {
+      Alert.alert("Acknowledgement Required", "You must confirm compliance governance responsibility.");
+      return;
+    }
+
+    if (confirmationPhrase.trim().toUpperCase() !== "CONFIRM") {
+      Alert.alert("Confirmation Phrase Required", "Please type 'CONFIRM' to authorize this critical action.");
+      return;
+    }
+
+    setSecurityModal((prev) => ({ ...prev, isSubmitting: true }));
+    const timestamp = new Date().toISOString();
+
+    try {
+      if (actionType === "suspend") {
+        // Atomic update agencies table
+        await supabase
+          .from("agencies")
+          .update({ is_verified: false, status: "suspended" })
+          .eq("id", agency.id);
+
+        // Atomic update agency_admin_details
+        await supabase.from("agency_admin_details").upsert({
+          agency_id: agency.id,
+          is_suspended: true,
+          suspension_reason: reason.trim(),
+          suspension_date: timestamp,
+          verification_status: "suspended",
+          updated_at: timestamp,
+        });
+
+        // Insert immutable audit record into admin_activity_logs
+        await supabase.from("admin_activity_logs").insert({
+          admin_id: admin.id || null,
+          action: "AGENCY_SUSPEND",
+          module: "agencies",
+          entity_type: "travel_agency",
+          entity_id: agency.id,
+          details: {
+            agency_name: agency.name,
+            trade_license: agency.agencyId,
+            reason: reason.trim(),
+            operator: admin.name || "System Admin",
+            timestamp,
+          },
+          ip_address: "127.0.0.1",
+          created_at: timestamp,
+        });
+
+        setAgenciesList((prev) =>
+          prev.map((a) => (a.id === agency.id ? { ...a, status: "Suspended" } : a))
+        );
+        if (selectedAgency?.id === agency.id) {
+          setSelectedAgency((prev) => ({ ...prev, status: "Suspended" }));
+        }
+
+        closeSecurityModal();
+        Alert.alert(
+          "Agency Suspended",
+          `${agency.name} operational privileges suspended. Atomic audit event logged to admin_activity_logs.`
+        );
+      } else if (actionType === "revoke_license") {
+        // Revoke license: sets is_verified: false and marks trade license status revoked
+        await supabase
+          .from("agencies")
+          .update({ is_verified: false })
+          .eq("id", agency.id);
+
+        await supabase.from("agency_admin_details").upsert({
+          agency_id: agency.id,
+          is_certified: false,
+          verification_status: "rejected",
+          suspension_reason: `Trade License Revoked: ${reason.trim()}`,
+          suspension_date: timestamp,
+          updated_at: timestamp,
+        });
+
+        // Update agency_documents if present
+        await supabase
+          .from("agency_documents")
+          .update({
+            verification_status: "rejected",
+            verification_notes: `Trade License Revoked by ${admin.name}: ${reason.trim()}`,
+          })
+          .eq("agency_id", agency.id);
+
+        // Insert immutable audit record into admin_activity_logs
+        await supabase.from("admin_activity_logs").insert({
+          admin_id: admin.id || null,
+          action: "AGENCY_REVOKE_LICENSE",
+          module: "agencies",
+          entity_type: "agency_license",
+          entity_id: agency.id,
+          details: {
+            agency_name: agency.name,
+            trade_license: agency.agencyId,
+            reason: reason.trim(),
+            operator: admin.name || "System Admin",
+            timestamp,
+          },
+          ip_address: "127.0.0.1",
+          created_at: timestamp,
+        });
+
+        setAgenciesList((prev) =>
+          prev.map((a) => (a.id === agency.id ? { ...a, status: "Pending" } : a))
+        );
+        if (selectedAgency?.id === agency.id) {
+          setSelectedAgency((prev) => ({ ...prev, status: "Pending" }));
+        }
+
+        closeSecurityModal();
+        Alert.alert(
+          "Trade License Revoked",
+          `Trade license for ${agency.name} has been REVOKED under compliance governance. Audit record persisted in admin_activity_logs.`
+        );
+      } else if (actionType === "ban") {
+        // Ban agency
+        await supabase
+          .from("agencies")
+          .update({ is_verified: false, status: "inactive" })
+          .eq("id", agency.id);
+
+        await supabase.from("agency_admin_details").upsert({
+          agency_id: agency.id,
+          is_banned: true,
+          ban_reason: reason.trim(),
+          ban_date: timestamp,
+          verification_status: "banned",
+          updated_at: timestamp,
+        });
+
+        await supabase.from("admin_activity_logs").insert({
+          admin_id: admin.id || null,
+          action: "AGENCY_BAN",
+          module: "agencies",
+          entity_type: "travel_agency",
+          entity_id: agency.id,
+          details: {
+            agency_name: agency.name,
+            reason: reason.trim(),
+            operator: admin.name || "System Admin",
+            timestamp,
+          },
+          ip_address: "127.0.0.1",
+          created_at: timestamp,
+        });
+
+        setAgenciesList((prev) =>
+          prev.map((a) => (a.id === agency.id ? { ...a, status: "Inactive" } : a))
+        );
+        if (selectedAgency?.id === agency.id) {
+          setSelectedAgency((prev) => ({ ...prev, status: "Inactive" }));
+        }
+
+        closeSecurityModal();
+        Alert.alert("Agency Banned", `${agency.name} permanently banned and logged to admin_activity_logs.`);
+      }
+    } catch (err: any) {
+      Alert.alert("Mutation Error", err.message || "Failed to execute security mutation.");
+    } finally {
+      setSecurityModal((prev) => ({ ...prev, isSubmitting: false }));
+    }
+  };
+
+  // Commission Tier Manager Handlers (Requirement 3)
+  const handleSaveCommissionSplits = async () => {
+    if (!admin) {
+      Alert.alert("Governance Block", "No administrative session.");
+      return;
+    }
+    const timestamp = new Date().toISOString();
+    try {
+      if (commissionScope === "global") {
+        await supabase.from("system_settings").upsert({
+          setting_key: "commission_splits",
+          setting_value: JSON.stringify({
+            rate: `${commissionRate.toFixed(1)}%`,
+            splits: verticalSplits,
+            updated_by: admin.name || "Super Admin",
+            updated_at: timestamp,
+          }),
+          updated_at: timestamp,
+        });
+      } else if (selectedAgency) {
+        await supabase.from("agency_admin_details").upsert({
+          agency_id: selectedAgency.id,
+          commission_rate: commissionRate,
+          updated_at: timestamp,
+        });
+      }
+
+      // Log to admin_activity_logs
+      await executeAdminCommand(
+        new UpdateCommissionSplitCommand(
+          {
+            default_rate: `${commissionRate.toFixed(1)}%`,
+            ...verticalSplits,
+          },
+          `Commission split updated to ${commissionRate.toFixed(1)}% (${commissionScope})`
+        ),
+        admin
+      );
+
+      Alert.alert(
+        "Commission Splits Saved",
+        `Custom split ${commissionRate.toFixed(1)}% applied (${commissionScope === "global" ? "All Agencies" : selectedAgency?.name}) and logged to admin_activity_logs.`
+      );
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to persist commission configuration.");
+    }
+  };
+
+  // Approve Agency Bank Payout Request (Requirement 3)
+  const handleApprovePayout = async (payout: AgencyPayoutItem) => {
+    if (!admin) return;
+    const timestamp = new Date().toISOString();
+    try {
+      // Update commission ledger status
+      await supabase
+        .from("agency_commissions")
+        .update({ status: "paid_out", updated_at: timestamp })
+        .eq("agency_id", payout.agency_id);
+
+      // Audit log
+      await executeAdminCommand(
+        new ApprovePartnerPayoutCommand(payout.id, payout.net_amount, payout.agency_name),
+        admin
+      );
+
+      setPayoutRequests((prev) =>
+        prev.map((p) => (p.id === payout.id ? { ...p, status: "paid_out" } : p))
+      );
+
+      Alert.alert(
+        "Payout Disbursed",
+        `Settlement of ${payout.net_amount} for ${payout.agency_name} approved for ${payout.bank_name} transfer. Logged to admin_activity_logs.`
+      );
+    } catch (err: any) {
+      Alert.alert("Payout Error", err.message || "Failed to process bank settlement.");
+    }
+  };
+
+  // Reject Agency Bank Payout Request (Requirement 3)
+  const handleRejectPayout = async (payout: AgencyPayoutItem) => {
+    Alert.prompt(
+      "Reject Payout Request",
+      `Enter compliance rejection note for ${payout.agency_name}:`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject Payout",
+          style: "destructive",
+          onPress: async (reason?: string) => {
+            const auditReason = reason?.trim() || "Compliance verification discrepancy";
+            const timestamp = new Date().toISOString();
+            try {
+              await supabase
+                .from("agency_commissions")
+                .update({ status: "reversed", updated_at: timestamp })
+                .eq("agency_id", payout.agency_id);
+
+              await supabase.from("admin_activity_logs").insert({
+                admin_id: admin?.id || null,
+                action: "PARTNER_PAYOUT_REJECT",
+                module: "commissions",
+                entity_type: "agency_payout",
+                entity_id: payout.id,
+                details: {
+                  agency_name: payout.agency_name,
+                  amount: payout.amount,
+                  reason: auditReason,
+                  bank: payout.bank_name,
+                  timestamp,
+                },
+                created_at: timestamp,
+              });
+
+              setPayoutRequests((prev) =>
+                prev.map((p) => (p.id === payout.id ? { ...p, status: "rejected" } : p))
+              );
+
+              Alert.alert("Payout Rejected", `Request marked rejected and logged to admin_activity_logs.`);
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Failed to record rejection.");
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Add Agency Form State
   const [addStep, setAddStep] = useState<1 | 2 | 3>(1);
@@ -307,26 +830,72 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
     });
   };
 
-  const handleConfirmSuspend = () => {
+  const handleConfirmSuspend = async () => {
     if (!suspendReason.trim()) {
       Alert.alert("Required", "Please provide a reason for suspension.");
       return;
     }
-    supabase
-      .from("agencies")
-      .update({ is_verified: false })
-      .eq("id", selectedAgency.id)
-      .then(({ error }) => {
-        if (error) console.warn("Supabase agency suspend update:", error);
-      });
+    if (!admin) {
+      Alert.alert("Error", "No active administrative context.");
+      return;
+    }
 
-    setAgenciesList((prev) =>
-      prev.map((a) => (a.id === selectedAgency.id ? { ...a, status: "Suspended" } : a))
+    const cmdResult = await executeAdminCommand(
+      new SuspendAgencyCommand(selectedAgency.id, suspendReason),
+      admin
     );
-    setSelectedAgency((prev) => ({ ...prev, status: "Suspended" }));
-    setSuspendModalVisible(false);
-    setSuspendReason("");
-    Alert.alert("Suspended", `${selectedAgency.name} has been suspended.`);
+
+    if (cmdResult.success) {
+      setAgenciesList((prev) =>
+        prev.map((a) => (a.id === selectedAgency.id ? { ...a, status: "Suspended" } : a))
+      );
+      setSelectedAgency((prev) => ({ ...prev, status: "Suspended" }));
+      setSuspendModalVisible(false);
+      setSuspendReason("");
+      Alert.alert("Audit Logged", `${selectedAgency.name} suspended and logged to admin_activity_logs.`);
+    } else {
+      Alert.alert("Governance Block", cmdResult.error || "Failed to suspend agency.");
+    }
+  };
+
+  const handleVerifyAgency = async (agency: AgencyItem) => {
+    if (!admin) return;
+    const cmdResult = await executeAdminCommand(
+      new VerifyAgencyCommand(agency.id),
+      admin
+    );
+
+    if (cmdResult.success) {
+      setAgenciesList((prev) =>
+        prev.map((a) => (a.id === agency.id ? { ...a, status: "Verified" } : a))
+      );
+      if (selectedAgency?.id === agency.id) {
+        setSelectedAgency((prev) => ({ ...prev, status: "Verified" }));
+      }
+      Alert.alert("Audit Logged", `${agency.name} verified and logged to admin_activity_logs.`);
+    } else {
+      Alert.alert("Governance Block", cmdResult.error || "Failed to verify agency.");
+    }
+  };
+
+  const handleReactivateAgency = async (agency: AgencyItem) => {
+    if (!admin) return;
+    const cmdResult = await executeAdminCommand(
+      new ReactivateAgencyCommand(agency.id),
+      admin
+    );
+
+    if (cmdResult.success) {
+      setAgenciesList((prev) =>
+        prev.map((a) => (a.id === agency.id ? { ...a, status: "Verified" } : a))
+      );
+      if (selectedAgency?.id === agency.id) {
+        setSelectedAgency((prev) => ({ ...prev, status: "Verified" }));
+      }
+      Alert.alert("Audit Logged", `${agency.name} reactivated and logged to admin_activity_logs.`);
+    } else {
+      Alert.alert("Governance Block", cmdResult.error || "Failed to reactivate agency.");
+    }
   };
 
   const handleCreateAdCampaign = () => {
@@ -370,13 +939,8 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
   // 1. DASHBOARD SCREEN (QUICK ACTION "ADS" -> OVERALL ALL AGENCIES' ADS)
   // --------------------------------------------------------------------------
   const renderDashboard = () => {
-    const filteredAgencies = agenciesList.filter((a) => {
-      const matchesSearch =
-        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.location.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === "All" || a.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
+    const totalAgencyPages = Math.max(1, Math.ceil(totalAgenciesCount / AGENCY_PAGE_SIZE));
+    const paginatedAgencies = agenciesList;
 
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -460,18 +1024,18 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
           </View>
         </View>
 
-        {/* Quick Actions Bar (ADS ACTION REDIRECTS TO GLOBAL ALL AGENCIES' ADS) */}
+        {/* Quick Actions Bar */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={styles.sectionTitle}>Quick Governance Actions</Text>
           <View style={styles.quickActionsGrid}>
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => navigateTo("support_center")}
+              onPress={() => navigateTo("commission_tiers")}
             >
-              <View style={[styles.quickActionIconCircle, { backgroundColor: "#e0e7ff" }]}>
-                <FontAwesome5 name="headset" size={16} color="#4338ca" />
+              <View style={[styles.quickActionIconCircle, { backgroundColor: "#fef3c7" }]}>
+                <FontAwesome5 name="percentage" size={16} color="#b45309" />
               </View>
-              <Text style={styles.quickActionLabel}>Support</Text>
+              <Text style={styles.quickActionLabel}>Commissions</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -481,7 +1045,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
               <View style={[styles.quickActionIconCircle, { backgroundColor: "#d1fae5" }]}>
                 <FontAwesome5 name="user-check" size={16} color="#047857" />
               </View>
-              <Text style={styles.quickActionLabel}>Verify</Text>
+              <Text style={styles.quickActionLabel}>Vetting</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -496,22 +1060,25 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
 
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => navigateTo("payments")}
+              onPress={() => {
+                setPayoutTab("pending");
+                navigateTo("commission_tiers");
+              }}
             >
               <View style={[styles.quickActionIconCircle, { backgroundColor: "#ffedd5" }]}>
-                <FontAwesome5 name="credit-card" size={16} color="#c2410c" />
+                <FontAwesome5 name="university" size={16} color="#c2410c" />
               </View>
-              <Text style={styles.quickActionLabel}>Payments</Text>
+              <Text style={styles.quickActionLabel}>Payouts</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => navigateTo("global_ads")}
+              onPress={() => navigateTo("support_center")}
             >
-              <View style={[styles.quickActionIconCircle, { backgroundColor: "#f3e8ff" }]}>
-                <FontAwesome5 name="ad" size={16} color="#7e22ce" />
+              <View style={[styles.quickActionIconCircle, { backgroundColor: "#e0e7ff" }]}>
+                <FontAwesome5 name="headset" size={16} color="#4338ca" />
               </View>
-              <Text style={styles.quickActionLabel}>Ads</Text>
+              <Text style={styles.quickActionLabel}>Support</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -519,7 +1086,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
         {/* Top Priority Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Top Priority</Text>
+            <Text style={styles.sectionTitle}>Top Governance Priority</Text>
             <TouchableOpacity onPress={() => navigateTo("verification")}>
               <Text style={styles.linkText}>View All</Text>
             </TouchableOpacity>
@@ -528,14 +1095,19 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
           <View style={styles.priorityCard}>
             <TouchableOpacity
               style={styles.priorityItem}
-              onPress={() => navigateTo("verification")}
+              onPress={() => {
+                setPayoutTab("pending");
+                navigateTo("commission_tiers");
+              }}
             >
               <View style={styles.priorityLeft}>
-                <View style={[styles.priorityIconCircle, { backgroundColor: "#ffedd5" }]}>
-                  <FontAwesome5 name="shield-alt" size={14} color="#c2410c" />
+                <View style={[styles.priorityIconCircle, { backgroundColor: "#ecfdf5" }]}>
+                  <FontAwesome5 name="university" size={14} color="#047857" />
                 </View>
-                <Text style={styles.priorityBoldCount}>52</Text>
-                <Text style={styles.priorityText}>Agencies Waiting Verification</Text>
+                <Text style={styles.priorityBoldCount}>
+                  {payoutRequests.filter((p) => p.status === "pending").length}
+                </Text>
+                <Text style={styles.priorityText}>Agency Bank Payouts Awaiting Review</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
             </TouchableOpacity>
@@ -544,14 +1116,16 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
 
             <TouchableOpacity
               style={styles.priorityItem}
-              onPress={() => navigateTo("contracts")}
+              onPress={() => navigateTo("verification")}
             >
               <View style={styles.priorityLeft}>
-                <View style={[styles.priorityIconCircle, { backgroundColor: "#f3e8ff" }]}>
-                  <FontAwesome5 name="file-alt" size={14} color="#7e22ce" />
+                <View style={[styles.priorityIconCircle, { backgroundColor: "#ffedd5" }]}>
+                  <FontAwesome5 name="shield-alt" size={14} color="#c2410c" />
                 </View>
-                <Text style={styles.priorityBoldCount}>7</Text>
-                <Text style={styles.priorityText}>Contracts Expiring Soon</Text>
+                <Text style={styles.priorityBoldCount}>
+                  {agenciesList.filter((a) => a.status === "Pending").length}
+                </Text>
+                <Text style={styles.priorityText}>Agencies Waiting Trade License Vetting</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
             </TouchableOpacity>
@@ -561,16 +1135,18 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
             <TouchableOpacity
               style={styles.priorityItem}
               onPress={() => {
-                setGlobalPaymentTab("On Hold");
-                navigateTo("payments");
+                if (selectedAgency) openSecurityModal("suspend", selectedAgency);
+                else Alert.alert("Select Agency", "Select an agency from the directory.");
               }}
             >
               <View style={styles.priorityLeft}>
                 <View style={[styles.priorityIconCircle, { backgroundColor: "#fee2e2" }]}>
-                  <FontAwesome5 name="credit-card" size={14} color="#ef4444" />
+                  <FontAwesome5 name="ban" size={14} color="#ef4444" />
                 </View>
-                <Text style={styles.priorityBoldCount}>18</Text>
-                <Text style={styles.priorityText}>Payment Holds</Text>
+                <Text style={styles.priorityBoldCount}>
+                  {agenciesList.filter((a) => a.status === "Suspended").length}
+                </Text>
+                <Text style={styles.priorityText}>Suspended Agencies Monitored</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
             </TouchableOpacity>
@@ -587,7 +1163,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
               <Ionicons name="search-outline" size={18} color="#94a3b8" style={{ marginRight: 8 }} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search agencies by name, email or ID..."
+                placeholder="Search by name, email, or trade license #..."
                 placeholderTextColor="#94a3b8"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -613,7 +1189,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
           )}
 
           {/* Agency Cards */}
-          {filteredAgencies.map((agency) => (
+          {paginatedAgencies.map((agency) => (
             <TouchableOpacity
               key={agency.id}
               style={styles.agencyDirectoryCard}
@@ -684,6 +1260,22 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
               </View>
             </TouchableOpacity>
           ))}
+
+          <View style={styles.cursorMetaRow}>
+            <Text style={styles.cursorMetaText}>
+              25-Item Cursor • Showing {(agencyPage - 1) * AGENCY_PAGE_SIZE + 1} -{" "}
+              {Math.min(agencyPage * AGENCY_PAGE_SIZE, totalAgenciesCount || agenciesList.length)} of{" "}
+              {totalAgenciesCount || agenciesList.length}
+            </Text>
+          </View>
+
+          <AdminPagination
+            currentPage={agencyPage}
+            totalPages={totalAgencyPages}
+            totalItems={totalAgenciesCount || agenciesList.length}
+            pageSize={AGENCY_PAGE_SIZE}
+            onPageChange={(p) => setAgencyPage(p)}
+          />
 
           <TouchableOpacity
             style={styles.viewAllDarkBtn}
@@ -1034,18 +1626,18 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
         </View>
       </View>
 
-      {/* Quick Actions (INDIVIDUAL AGENCY ADVERTISEMENT REPLICATED STRICTLY FOR THIS AGENCY) */}
+      {/* Quick Governance & Compliance Actions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <Text style={styles.sectionTitle}>Operations & Analytics</Text>
         <View style={styles.quickActions4Grid}>
           <TouchableOpacity
             style={styles.quickAction4Btn}
-            onPress={() => setSuspendModalVisible(true)}
+            onPress={() => navigateTo("commission_tiers")}
           >
-            <View style={[styles.quickAction4Icon, { backgroundColor: "#fee2e2" }]}>
-              <FontAwesome5 name="ban" size={16} color="#ef4444" />
+            <View style={[styles.quickAction4Icon, { backgroundColor: "#fef3c7" }]}>
+              <FontAwesome5 name="percentage" size={16} color="#b45309" />
             </View>
-            <Text style={styles.quickAction4Text}>Suspend</Text>
+            <Text style={styles.quickAction4Text}>Commissions</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1076,6 +1668,54 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
               <FontAwesome5 name="ad" size={16} color="#7e22ce" />
             </View>
             <Text style={styles.quickAction4Text}>Advertisement</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Compliance Sanctions & Security Controls (Double-Confirmation Modal Trigger) */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Compliance & Security Sanctions</Text>
+        <View style={styles.quickActions4Grid}>
+          <TouchableOpacity
+            style={styles.quickAction4Btn}
+            onPress={() => openSecurityModal("suspend", selectedAgency)}
+          >
+            <View style={[styles.quickAction4Icon, { backgroundColor: "#ffedd5" }]}>
+              <FontAwesome5 name="pause-circle" size={16} color="#c2410c" />
+            </View>
+            <Text style={styles.quickAction4Text}>
+              {selectedAgency.status === "Suspended" ? "Suspended" : "Suspend"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickAction4Btn}
+            onPress={() => openSecurityModal("revoke_license", selectedAgency)}
+          >
+            <View style={[styles.quickAction4Icon, { backgroundColor: "#fee2e2" }]}>
+              <FontAwesome5 name="file-excel" size={16} color="#b91c1c" />
+            </View>
+            <Text style={styles.quickAction4Text}>Revoke Lic</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickAction4Btn}
+            onPress={() => openSecurityModal("ban", selectedAgency)}
+          >
+            <View style={[styles.quickAction4Icon, { backgroundColor: "#fee2e2" }]}>
+              <FontAwesome5 name="ban" size={16} color="#ef4444" />
+            </View>
+            <Text style={styles.quickAction4Text}>Ban Agency</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickAction4Btn}
+            onPress={() => handleVerifyAgency(selectedAgency)}
+          >
+            <View style={[styles.quickAction4Icon, { backgroundColor: "#d1fae5" }]}>
+              <FontAwesome5 name="check-double" size={16} color="#047857" />
+            </View>
+            <Text style={styles.quickAction4Text}>Verify</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -2674,6 +3314,446 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
     );
   };
 
+  // --------------------------------------------------------------------------
+  // 14. AGENCY COMMISSION TIER MANAGER & BANK PAYOUTS (REQUIREMENT 3)
+  // --------------------------------------------------------------------------
+  const renderCommissionTiers = () => {
+    const pendingPayouts = payoutRequests.filter((p) => p.status === "pending");
+    const processedPayouts = payoutRequests.filter((p) => p.status === "paid_out");
+    const activePayouts =
+      payoutTab === "pending"
+        ? pendingPayouts
+        : payoutTab === "processed"
+        ? processedPayouts
+        : payoutRequests;
+
+    return (
+      <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
+        {/* Header */}
+        <View style={styles.subHeader}>
+          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.subHeaderTitle}>Commission & Payout Manager</Text>
+            <Text style={{ fontSize: 11, color: "#64748b" }}>
+              Configure custom splits (5% - 12%) & review bank payouts
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.moreBtn}
+            onPress={() =>
+              Alert.alert(
+                "Export Statement",
+                "Exported full agency commission ledger and bank statement as CSV."
+              )
+            }
+          >
+            <Ionicons name="download-outline" size={20} color="#0f172a" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Section Tabs */}
+        <View style={styles.tabsHeader}>
+          <TouchableOpacity
+            style={[styles.tabBtn, payoutTab === "pending" && styles.tabBtnActive]}
+            onPress={() => setPayoutTab("pending")}
+          >
+            <Text style={[styles.tabBtnText, payoutTab === "pending" && styles.tabBtnTextActive]}>
+              Bank Payouts ({pendingPayouts.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, payoutTab === "processed" && styles.tabBtnActive]}
+            onPress={() => setPayoutTab("processed")}
+          >
+            <Text style={[styles.tabBtnText, payoutTab === "processed" && styles.tabBtnTextActive]}>
+              Disbursed History
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, payoutTab === "all" && styles.tabBtnActive]}
+            onPress={() => setPayoutTab("all")}
+          >
+            <Text style={[styles.tabBtnText, payoutTab === "all" && styles.tabBtnTextActive]}>
+              Commission Splits (5%-12%)
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+          {payoutTab === "all" ? (
+            /* TAB 1: COMMISSION SPLITS & TIER MANAGER */
+            <View>
+              {/* Active Tier Summary Card */}
+              <View style={styles.commSummaryCard}>
+                <View style={styles.commSummaryHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.commSummaryTitle}>Platform Base Commission</Text>
+                    <Text style={styles.commSummarySub}>
+                      Applicable to gross booking volume across connected channels
+                    </Text>
+                  </View>
+                  <View style={styles.commRateCircle}>
+                    <Text style={styles.commRateBigText}>{commissionRate.toFixed(1)}%</Text>
+                    <Text style={styles.commRateSmallText}>Platform Fee</Text>
+                  </View>
+                </View>
+
+                {/* Visual Ratio Progress Bar */}
+                <View style={styles.ratioBarContainer}>
+                  <View
+                    style={[
+                      styles.ratioBarPlatform,
+                      { width: `${Math.min(100, Math.max(10, commissionRate * 4))}%` },
+                    ]}
+                  />
+                  <View style={styles.ratioBarPartner} />
+                </View>
+                <View style={styles.ratioLegendRow}>
+                  <Text style={styles.ratioLegendText}>
+                    Platform Retained:{" "}
+                    <Text style={{ fontWeight: "700", color: "#047857" }}>
+                      {commissionRate.toFixed(1)}%
+                    </Text>
+                  </Text>
+                  <Text style={styles.ratioLegendText}>
+                    Agency Payout Share:{" "}
+                    <Text style={{ fontWeight: "700", color: "#2563eb" }}>
+                      {(100 - commissionRate).toFixed(1)}%
+                    </Text>
+                  </Text>
+                </View>
+              </View>
+
+              {/* Preset Tier Selector (5% to 12%) */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Commission Tier Presets (5% - 12%)</Text>
+                <View style={styles.tierGrid}>
+                  {[
+                    { label: "Starter", rate: 5.0, desc: "High Volume / Strategic Partners", color: "#047857" },
+                    { label: "Bronze", rate: 8.0, desc: "Standard Regional Tour Operator", color: "#b45309" },
+                    { label: "Gold", rate: 10.0, desc: "Default Marketplace Rate", color: "#d97706" },
+                    { label: "Platinum", rate: 12.0, desc: "Full-Service Managed Listing", color: "#7e22ce" },
+                  ].map((tier) => {
+                    const isSelected = Math.abs(commissionRate - tier.rate) < 0.1;
+                    return (
+                      <TouchableOpacity
+                        key={tier.label}
+                        style={[
+                          styles.tierCard,
+                          isSelected && { borderColor: tier.color, backgroundColor: "#f8fafc" },
+                        ]}
+                        onPress={() => setCommissionRate(tier.rate)}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text style={[styles.tierCardTitle, isSelected && { color: tier.color }]}>
+                            {tier.label}
+                          </Text>
+                          <Text style={[styles.tierCardRate, isSelected && { color: tier.color }]}>
+                            {tier.rate.toFixed(1)}%
+                          </Text>
+                        </View>
+                        <Text style={styles.tierCardDesc}>{tier.desc}</Text>
+                        {isSelected && (
+                          <View style={[styles.tierActivePill, { backgroundColor: tier.color }]}>
+                            <Text style={styles.tierActivePillText}>SELECTED</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Custom Commission Split Stepper (5% to 12%) */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Custom Split Stepper</Text>
+                <View style={styles.stepperContainer}>
+                  <Text style={styles.stepperHelpText}>
+                    Configure custom commission split between 5.0% and 12.0% in 0.5% increments
+                  </Text>
+                  <View style={styles.stepperRow}>
+                    <TouchableOpacity
+                      style={[styles.stepperBtn, commissionRate <= 5.0 && styles.stepperBtnDisabled]}
+                      onPress={() => setCommissionRate((prev) => Math.max(5.0, prev - 0.5))}
+                      disabled={commissionRate <= 5.0}
+                    >
+                      <Ionicons
+                        name="remove"
+                        size={20}
+                        color={commissionRate <= 5.0 ? "#cbd5e1" : "#0f172a"}
+                      />
+                    </TouchableOpacity>
+
+                    <View style={styles.stepperDisplay}>
+                      <Text style={styles.stepperValueText}>{commissionRate.toFixed(1)}%</Text>
+                      <Text style={styles.stepperSubText}>Target Commission Rate</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.stepperBtn, commissionRate >= 12.0 && styles.stepperBtnDisabled]}
+                      onPress={() => setCommissionRate((prev) => Math.min(12.0, prev + 0.5))}
+                      disabled={commissionRate >= 12.0}
+                    >
+                      <Ionicons
+                        name="add"
+                        size={20}
+                        color={commissionRate >= 12.0 ? "#cbd5e1" : "#0f172a"}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              {/* Vertical Category Splits */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Vertical Category Matrix</Text>
+                <View style={styles.verticalSplitCard}>
+                  <View style={styles.verticalRow}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <FontAwesome5 name="plane" size={14} color="#2563eb" style={{ marginRight: 8 }} />
+                      <Text style={styles.verticalName}>Flight Bookings</Text>
+                    </View>
+                    <TextInput
+                      style={styles.verticalInput}
+                      value={verticalSplits.flights}
+                      onChangeText={(t) => setVerticalSplits((prev) => ({ ...prev, flights: t }))}
+                    />
+                  </View>
+
+                  <View style={styles.verticalRow}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <FontAwesome5 name="hotel" size={14} color="#047857" style={{ marginRight: 8 }} />
+                      <Text style={styles.verticalName}>Hotel Reservations</Text>
+                    </View>
+                    <TextInput
+                      style={styles.verticalInput}
+                      value={verticalSplits.hotels}
+                      onChangeText={(t) => setVerticalSplits((prev) => ({ ...prev, hotels: t }))}
+                    />
+                  </View>
+
+                  <View style={styles.verticalRow}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <FontAwesome5 name="map-marked-alt" size={14} color="#7e22ce" style={{ marginRight: 8 }} />
+                      <Text style={styles.verticalName}>Tour Packages</Text>
+                    </View>
+                    <TextInput
+                      style={styles.verticalInput}
+                      value={verticalSplits.tours}
+                      onChangeText={(t) => setVerticalSplits((prev) => ({ ...prev, tours: t }))}
+                    />
+                  </View>
+
+                  <View style={[styles.verticalRow, { borderBottomWidth: 0 }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <FontAwesome5 name="train" size={14} color="#c2410c" style={{ marginRight: 8 }} />
+                      <Text style={styles.verticalName}>Intercity Transit & Rail</Text>
+                    </View>
+                    <TextInput
+                      style={styles.verticalInput}
+                      value={verticalSplits.train}
+                      onChangeText={(t) => setVerticalSplits((prev) => ({ ...prev, train: t }))}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Target Scope */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Application Scope</Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.scopeBtn,
+                      commissionScope === "global" && styles.scopeBtnActive,
+                    ]}
+                    onPress={() => setCommissionScope("global")}
+                  >
+                    <Ionicons
+                      name="globe-outline"
+                      size={16}
+                      color={commissionScope === "global" ? "#ffffff" : "#475569"}
+                    />
+                    <Text
+                      style={[
+                        styles.scopeBtnText,
+                        commissionScope === "global" && styles.scopeBtnTextActive,
+                      ]}
+                    >
+                      Global (All Agencies)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.scopeBtn,
+                      commissionScope === "agency" && styles.scopeBtnActive,
+                    ]}
+                    onPress={() => setCommissionScope("agency")}
+                  >
+                    <Ionicons
+                      name="business-outline"
+                      size={16}
+                      color={commissionScope === "agency" ? "#ffffff" : "#475569"}
+                    />
+                    <Text
+                      style={[
+                        styles.scopeBtnText,
+                        commissionScope === "agency" && styles.scopeBtnTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {selectedAgency ? selectedAgency.name : "Selected Agency"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Save Commission CTA */}
+              <TouchableOpacity
+                style={styles.saveCommissionBtn}
+                onPress={handleSaveCommissionSplits}
+              >
+                <Ionicons name="save-outline" size={18} color="#ffffff" style={{ marginRight: 8 }} />
+                <Text style={styles.saveCommissionBtnText}>
+                  Save & Apply Commission Configuration
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            /* TAB 2: REVIEW AGENCY BANK PAYOUT REQUESTS */
+            <View>
+              {activePayouts.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 48 }}>
+                  <Ionicons name="card-outline" size={48} color="#94a3b8" />
+                  <Text style={{ marginTop: 10, fontSize: 15, fontWeight: "600", color: "#334155" }}>
+                    No Payout Requests
+                  </Text>
+                  <Text style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+                    There are no {payoutTab} settlement requests in the queue.
+                  </Text>
+                </View>
+              ) : (
+                activePayouts.map((payout) => (
+                  <View key={payout.id} style={styles.payoutCard}>
+                    <View style={styles.payoutCardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={styles.payoutAgencyName}>{payout.agency_name}</Text>
+                          <View
+                            style={[
+                              styles.payoutStatusBadge,
+                              {
+                                backgroundColor:
+                                  payout.status === "paid_out"
+                                    ? "#d1fae5"
+                                    : payout.status === "rejected"
+                                    ? "#fee2e2"
+                                    : "#ffedd5",
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.payoutStatusBadgeText,
+                                {
+                                  color:
+                                    payout.status === "paid_out"
+                                      ? "#047857"
+                                      : payout.status === "rejected"
+                                      ? "#b91c1c"
+                                      : "#c2410c",
+                                },
+                              ]}
+                            >
+                              {payout.status === "paid_out"
+                                ? "Disbursed"
+                                : payout.status === "rejected"
+                                ? "Rejected"
+                                : "Pending Review"}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.payoutLicenseText}>
+                          Trade License: #{payout.license_number} • Ref: {payout.reference}
+                        </Text>
+                      </View>
+                      <Text style={styles.payoutAmountBig}>{payout.amount}</Text>
+                    </View>
+
+                    {/* Bank Details Strip */}
+                    <View style={styles.payoutBankDetailsBox}>
+                      <View style={styles.payoutBankRow}>
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          <FontAwesome5 name="university" size={14} color="#0f172a" style={{ marginRight: 6 }} />
+                          <Text style={styles.payoutBankName}>{payout.bank_name}</Text>
+                        </View>
+                        <Text style={styles.payoutAccountNum}>{payout.account_number}</Text>
+                      </View>
+                      <View style={styles.payoutBankRowSub}>
+                        <Text style={styles.payoutAccountTitle}>Account: {payout.account_name}</Text>
+                        <Text style={styles.payoutRouting}>Routing: {payout.routing_number}</Text>
+                      </View>
+                    </View>
+
+                    {/* Financial Reconciliation Breakdown */}
+                    <View style={styles.payoutFinancialsRow}>
+                      <View style={styles.financialCol}>
+                        <Text style={styles.financialLabel}>Commission Retained</Text>
+                        <Text style={styles.financialValue}>{payout.commission_fee}</Text>
+                      </View>
+                      <View style={styles.financialCol}>
+                        <Text style={styles.financialLabel}>Net Bank Settlement</Text>
+                        <Text style={[styles.financialValue, { color: "#047857", fontWeight: "700" }]}>
+                          {payout.net_amount}
+                        </Text>
+                      </View>
+                      <View style={styles.financialCol}>
+                        <Text style={styles.financialLabel}>Ledger Balance</Text>
+                        <Text style={styles.financialValue}>{payout.commission_balance}</Text>
+                      </View>
+                    </View>
+
+                    {/* Actions if pending */}
+                    {payout.status === "pending" && (
+                      <View style={styles.payoutActionRow}>
+                        <TouchableOpacity
+                          style={styles.payoutRejectBtn}
+                          onPress={() => handleRejectPayout(payout)}
+                        >
+                          <Ionicons name="close-circle-outline" size={16} color="#b91c1c" style={{ marginRight: 4 }} />
+                          <Text style={styles.payoutRejectBtnText}>Reject Payout</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.payoutApproveBtn}
+                          onPress={() => handleApprovePayout(payout)}
+                        >
+                          <Ionicons name="checkmark-done" size={16} color="#ffffff" style={{ marginRight: 4 }} />
+                          <Text style={styles.payoutApproveBtnText}>Approve Settlement</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -2690,6 +3770,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
       {currentScreen === "agency_payments" && renderAgencyPayments()}
       {currentScreen === "bookings" && renderBookings()}
       {currentScreen === "support_center" && renderSupportCenterFlow()}
+      {currentScreen === "commission_tiers" && renderCommissionTiers()}
 
       {/* Partner Support Quick Modal */}
       <Modal
@@ -2884,76 +3965,197 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ()
         </View>
       </Modal>
 
-      {/* Suspend Agency Modal */}
+      {/* DOUBLE-CONFIRMATION SECURITY MODAL (REQUIREMENT 2: SUSPEND AGENCY, REVOKE LICENSE, BAN AGENCY) */}
       <Modal
-        visible={suspendModalVisible}
+        visible={securityModal.visible}
         transparent
         animationType="fade"
-        onRequestClose={() => setSuspendModalVisible(false)}
+        onRequestClose={closeSecurityModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: "#ef4444" }]}>
-                Suspend Agency
-              </Text>
-              <TouchableOpacity onPress={() => setSuspendModalVisible(false)}>
+          <View style={styles.modalCardLarge}>
+            {/* Security Banner Header */}
+            <View
+              style={[
+                styles.securityModalBanner,
+                {
+                  backgroundColor:
+                    securityModal.actionType === "ban" || securityModal.actionType === "revoke_license"
+                      ? "#fee2e2"
+                      : "#ffedd5",
+                },
+              ]}
+            >
+              <FontAwesome5
+                name={
+                  securityModal.actionType === "revoke_license"
+                    ? "file-excel"
+                    : securityModal.actionType === "ban"
+                    ? "exclamation-triangle"
+                    : "shield-alt"
+                }
+                size={22}
+                color={
+                  securityModal.actionType === "ban" || securityModal.actionType === "revoke_license"
+                    ? "#b91c1c"
+                    : "#c2410c"
+                }
+                style={{ marginRight: 10 }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.securityModalBannerTitle,
+                    {
+                      color:
+                        securityModal.actionType === "ban" || securityModal.actionType === "revoke_license"
+                          ? "#991b1b"
+                          : "#9a3412",
+                    },
+                  ]}
+                >
+                  {securityModal.actionType === "revoke_license"
+                    ? "REGULATORY SANCTION: REVOKE LICENSE"
+                    : securityModal.actionType === "ban"
+                    ? "EXECUTIVE SANCTION: PERMANENT BAN"
+                    : "OPERATIONAL ACTION: SUSPEND AGENCY"}
+                </Text>
+                <Text style={styles.securityModalBannerSub}>
+                  Double-confirmation required. All actions logged to admin_activity_logs.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={closeSecurityModal}>
                 <Ionicons name="close" size={22} color="#0f172a" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={{ fontSize: 13, color: "#475569", marginBottom: 12 }}>
-                Are you sure you want to suspend{" "}
-                <Text style={{ fontWeight: "600", color: "#0f172a" }}>
-                  {selectedAgency.name}
+            <ScrollView style={{ padding: 16 }}>
+              {/* Target Agency Summary */}
+              <View style={styles.targetAccountBox}>
+                <Text style={styles.targetAccountLabel}>Target Agency Partner:</Text>
+                <Text style={styles.targetAccountName}>{securityModal.agency?.name}</Text>
+                <Text style={styles.targetAccountDetails}>
+                  Trade License: #{securityModal.agency?.agencyId} • Status: {securityModal.agency?.status}
                 </Text>
-                ? Suspended agencies will not be able to accept new bookings.
-              </Text>
+              </View>
 
-              <Text style={styles.inputLabel}>Reason for Suspension</Text>
+              {/* Consequence Box */}
+              <View style={styles.consequenceBox}>
+                <Ionicons name="information-circle-outline" size={18} color="#475569" style={{ marginRight: 8 }} />
+                <Text style={styles.consequenceText}>
+                  {securityModal.actionType === "revoke_license"
+                    ? "Revoking trade license invalidates certified partner status, freezes pending settlement payouts, delists published packages, and mandates full regulatory re-vetting."
+                    : securityModal.actionType === "ban"
+                    ? "Permanently blacklists agency credentials, terminates team member dashboard sessions, and closes affiliate pipelines."
+                    : "Suspends new booking acceptance and pauses active promotional campaigns until administratively resolved."}
+                </Text>
+              </View>
+
+              {/* Input Step 1: Mandatory Admin Confirmation Reason */}
+              <Text style={styles.securityInputLabel}>
+                1. Admin Confirmation Reason <Text style={{ color: "#b91c1c" }}>*</Text>
+              </Text>
               <TextInput
-                style={[styles.modalInput, { height: 80, textAlignVertical: "top" }]}
-                placeholder="Specify violation or operational reason..."
+                style={styles.securityInput}
+                placeholder="Enter detailed administrative/compliance justification (min 5 chars)..."
                 placeholderTextColor="#94a3b8"
                 multiline
-                value={suspendReason}
-                onChangeText={setSuspendReason}
+                numberOfLines={3}
+                value={securityModal.reason}
+                onChangeText={(t) => setSecurityModal((prev) => ({ ...prev, reason: t }))}
               />
 
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10 }}>
-                <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    backgroundColor: "#f1f5f9",
-                    borderRadius: 10,
-                    paddingVertical: 12,
-                    alignItems: "center",
-                    marginRight: 6,
-                  }}
-                  onPress={() => setSuspendModalVisible(false)}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "500", color: "#334155" }}>
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
+              {/* Input Step 2: Compliance Acknowledgement Checkbox */}
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                activeOpacity={0.8}
+                onPress={() =>
+                  setSecurityModal((prev) => ({ ...prev, acknowledged: !prev.acknowledged }))
+                }
+              >
+                <Ionicons
+                  name={securityModal.acknowledged ? "checkbox" : "square-outline"}
+                  size={20}
+                  color={securityModal.acknowledged ? "#0f172a" : "#94a3b8"}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.checkboxLabel}>
+                  I confirm that I have verified the operational breach and authorize this sanction
+                  under company compliance governance for audit logging.
+                </Text>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    backgroundColor: "#ef4444",
-                    borderRadius: 10,
-                    paddingVertical: 12,
-                    alignItems: "center",
-                    marginLeft: 6,
-                  }}
-                  onPress={handleConfirmSuspend}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "600", color: "#ffffff" }}>
-                    Suspend
+              {/* Input Step 3: Type 'CONFIRM' */}
+              {(securityModal.actionType === "revoke_license" || securityModal.actionType === "ban") && (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={styles.securityInputLabel}>
+                    2. Type &quot;CONFIRM&quot; to authorize irreversible sanction:
                   </Text>
-                </TouchableOpacity>
-              </View>
+                  <TextInput
+                    style={styles.confirmTextInput}
+                    placeholder="CONFIRM"
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="characters"
+                    value={securityModal.confirmationPhrase}
+                    onChangeText={(t) =>
+                      setSecurityModal((prev) => ({ ...prev, confirmationPhrase: t }))
+                    }
+                  />
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Modal Actions Footer */}
+            <View style={styles.securityModalFooter}>
+              <TouchableOpacity
+                style={styles.securityCancelBtn}
+                onPress={closeSecurityModal}
+                disabled={securityModal.isSubmitting}
+              >
+                <Text style={styles.securityCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.securityExecuteBtn,
+                  {
+                    backgroundColor:
+                      securityModal.actionType === "ban" || securityModal.actionType === "revoke_license"
+                        ? "#b91c1c"
+                        : "#c2410c",
+                    opacity:
+                      !securityModal.reason.trim() ||
+                      securityModal.reason.trim().length < 5 ||
+                      !securityModal.acknowledged ||
+                      ((securityModal.actionType === "revoke_license" || securityModal.actionType === "ban") &&
+                        securityModal.confirmationPhrase.trim().toUpperCase() !== "CONFIRM") ||
+                      securityModal.isSubmitting
+                        ? 0.5
+                        : 1,
+                  },
+                ]}
+                onPress={handleExecuteSecurityAction}
+                disabled={
+                  !securityModal.reason.trim() ||
+                  securityModal.reason.trim().length < 5 ||
+                  !securityModal.acknowledged ||
+                  ((securityModal.actionType === "revoke_license" || securityModal.actionType === "ban") &&
+                    securityModal.confirmationPhrase.trim().toUpperCase() !== "CONFIRM") ||
+                  securityModal.isSubmitting
+                }
+              >
+                {securityModal.isSubmitting ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.securityExecuteBtnText}>
+                    {securityModal.actionType === "revoke_license"
+                      ? "Authorize License Revocation"
+                      : securityModal.actionType === "ban"
+                      ? "Authorize Agency Ban"
+                      : "Authorize Suspension"}
+                  </Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         </View>

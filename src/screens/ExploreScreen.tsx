@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,6 +23,10 @@ import { searchRepository } from "../services/repositories";
 import { BottomNav, AiPill } from "./Navigation";
 import { TopBar } from "./TopBar";
 import { screens, type UIScreen } from "../data/screens";
+import * as Haptics from "expo-haptics";
+import { useDebounce } from "../hooks/useDebounce";
+import { ListSkeleton, CardSkeleton, ErrorStateCard, EmptyStateView } from "../components/common";
+import { WeatherWidget } from "../components/weather/WeatherWidget";
 
 const PRIMARY = "#287dfa";
 
@@ -30,6 +35,10 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
   const [destinations, setDestinations] = useState<any[]>([]);
   const [selectedDest, setSelectedDest] = useState<any | null>(null);
   const [loadingDestinations, setLoadingDestinations] = useState(true);
+  const [destError, setDestError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const [categoryFilter, setCategoryFilter] = useState<"All" | "Top Rated" | "Budget" | "Popular">("All");
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [loading, setLoading] = useState<boolean>(false);
   const [weatherData, setWeatherData] = useState<any>(null);
@@ -38,35 +47,64 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
   const [scamData, setScamData] = useState<any[]>([]);
 
   // Load destinations from Supabase repository
-  useEffect(() => {
-    const loadDestinations = async () => {
-      try {
-        setLoadingDestinations(true);
-        const data = await searchRepository.getDestinations();
-        
-        if (data && data.length > 0) {
-          const mapped = data.map((d: any) => ({
-            ...d,
-            name: d.name || d.city || d.title,
-            hero: d.cover_image_url || d.image_url || (Array.isArray(d.image_urls) ? d.image_urls[0] : null) || "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800",
-            gallery: Array.isArray(d.image_urls) ? d.image_urls : (d.images || []),
-            attractions: Array.isArray(d.popular_attractions) ? d.popular_attractions : (Array.isArray(d.highlights) ? d.highlights : ["Scenic Viewpoint", "Historic Center", "Local Cuisine"]),
-            activities: Array.isArray(d.recommended_activities) ? d.recommended_activities : (Array.isArray(d.included_services) ? d.included_services : ["Sightseeing", "Walking Tour", "Photography"]),
-            safetyScore: d.safety_rating ? Math.round(Number(d.safety_rating) * 20) : (d.rating ? Math.round(Number(d.rating) * 20) : 92),
-            bestSeason: d.best_travel_months || "Nov - Mar",
-            avgBudget: d.average_daily_budget ? `$${d.average_daily_budget}` : "$120",
-          }));
-          setDestinations(mapped);
-        }
-      } catch (err) {
-        console.error("Error loading destinations:", err);
-      } finally {
-        setLoadingDestinations(false);
+  const loadDestinations = async () => {
+    try {
+      setLoadingDestinations(true);
+      setDestError(null);
+      const data = await searchRepository.getDestinations();
+      
+      if (data && data.length > 0) {
+        const mapped = data.map((d: any) => ({
+          ...d,
+          name: d.name || d.city || d.title,
+          hero: d.cover_image_url || d.image_url || (Array.isArray(d.image_urls) ? d.image_urls[0] : null) || "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800",
+          gallery: Array.isArray(d.image_urls) ? d.image_urls : (d.images || []),
+          attractions: Array.isArray(d.popular_attractions) ? d.popular_attractions : (Array.isArray(d.highlights) ? d.highlights : ["Scenic Viewpoint", "Historic Center", "Local Cuisine"]),
+          activities: Array.isArray(d.recommended_activities) ? d.recommended_activities : (Array.isArray(d.included_services) ? d.included_services : ["Sightseeing", "Walking Tour", "Photography"]),
+          safetyScore: d.safety_rating ? Math.round(Number(d.safety_rating) * 20) : (d.rating ? Math.round(Number(d.rating) * 20) : 92),
+          bestSeason: d.best_travel_months || "Nov - Mar",
+          avgBudget: d.average_daily_budget ? `$${d.average_daily_budget}` : "$120",
+        }));
+        setDestinations(mapped);
+      } else {
+        setDestinations([]);
       }
-    };
+    } catch (err: any) {
+      console.error("Error loading destinations:", err);
+      setDestError(err?.message || "Failed to load destinations. Please try again.");
+      setDestinations([]);
+    } finally {
+      setLoadingDestinations(false);
+    }
+  };
 
+  useEffect(() => {
     loadDestinations();
   }, []);
+
+  const filteredDestinations = useMemo(() => {
+    let list = [...destinations];
+    if (debouncedSearchQuery.trim()) {
+      const q = debouncedSearchQuery.toLowerCase();
+      list = list.filter(
+        (d) =>
+          d.name?.toLowerCase().includes(q) ||
+          d.country?.toLowerCase().includes(q) ||
+          d.city?.toLowerCase().includes(q)
+      );
+    }
+    if (categoryFilter === "Top Rated") {
+      list = list.filter((d) => d.safetyScore >= 90);
+    } else if (categoryFilter === "Budget") {
+      list = list.filter((d) => {
+        const num = parseInt(d.avgBudget?.replace(/[^0-9]/g, "") || "120", 10);
+        return num <= 100;
+      });
+    } else if (categoryFilter === "Popular") {
+      list = list.filter((d) => (d.attractions?.length || 0) >= 3);
+    }
+    return list;
+  }, [destinations, debouncedSearchQuery, categoryFilter]);
 
   const loadWeather = async (dest: any) => {
     setLoading(true);
@@ -157,6 +195,9 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
 
         <Image source={{ uri: selectedDest.hero }} style={s.destHero} />
 
+        {/* Live Weather & Meteorological Advisory Banner */}
+        <WeatherWidget location={selectedDest.name} variant="banner" style={{ marginHorizontal: 16 }} />
+
         {/* Tab bar */}
         <ScrollView
           horizontal
@@ -191,7 +232,9 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
           contentContainerStyle={s.tabBody}
         >
           {loading && (
-            <ActivityIndicator color={PRIMARY} style={{ marginTop: 20 }} />
+            <View style={{ marginVertical: 16 }}>
+              <CardSkeleton />
+            </View>
           )}
 
           {!loading && activeTab === "overview" && (
@@ -203,6 +246,10 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
               <Text style={s.metaRow}>
                 💰 Avg budget: {selectedDest.avgBudget}
               </Text>
+
+              {/* Real-time Weather & Climate Snapshot */}
+              <WeatherWidget location={selectedDest.name} variant="compact" />
+
               <SectionBlock title="Top Attractions">
                 {selectedDest.attractions.map((a: string) => (
                   <Chip key={a} label={a} />
@@ -236,44 +283,10 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
             </View>
           )}
 
-          {!loading && activeTab === "weather" && weatherData && (
+          {!loading && activeTab === "weather" && (
             <View style={s.section}>
-              <InfoCard
-                icon="thermometer"
-                label="Avg Temperature"
-                value={weatherData.avgTemperature}
-              />
-              <InfoCard
-                icon="cloud"
-                label="Conditions"
-                value={weatherData.conditions}
-              />
-              <InfoCard
-                icon="star"
-                label="Overall Rating"
-                value={weatherData.overallRating?.toUpperCase()}
-              />
-              <SectionBlock title="Packing Tips">
-                {weatherData.packingTips?.map((t: string, i: number) => (
-                  <Text key={i} style={s.bulletItem}>
-                    • {t}
-                  </Text>
-                ))}
-              </SectionBlock>
-              <SectionBlock title="Best Activities">
-                {weatherData.bestActivities?.map((a: string, i: number) => (
-                  <Chip key={i} label={a} />
-                ))}
-              </SectionBlock>
-              {weatherData.weatherWarnings?.length > 0 && (
-                <SectionBlock title="⚠️ Weather Warnings">
-                  {weatherData.weatherWarnings.map((w: string, i: number) => (
-                    <Text key={i} style={[s.bulletItem, { color: "#ef4444" }]}>
-                      ⚠ {w}
-                    </Text>
-                  ))}
-                </SectionBlock>
-              )}
+              {/* Real-time Multi-Source Meteorological Dashboard */}
+              <WeatherWidget location={selectedDest.name} variant="card" />
             </View>
           )}
 
@@ -388,16 +401,70 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
       <ScrollView contentContainerStyle={s.scroll}>
         <Text style={s.exploreTitle}>Explore Destinations</Text>
         <Text style={s.exploreSub}>Tap a destination to see full details</Text>
+
+        {/* 300ms Debounced Search Bar */}
+        <View style={s.searchContainer}>
+          <Ionicons name="search" size={18} color="#64748B" style={{ marginRight: 8 }} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search by destination or country..."
+            placeholderTextColor="#94A3B8"
+            style={s.searchInput}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            </Pressable>
+          )}
+        </View>
+
+        {/* Persistent Category Filter Chips */}
+        <View style={s.chipsRow}>
+          {(["All", "Top Rated", "Budget", "Popular"] as const).map((cat) => {
+            const active = categoryFilter === cat;
+            return (
+              <Pressable
+                key={cat}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setCategoryFilter(cat);
+                }}
+                style={[s.filterChip, active && s.filterChipActive]}
+              >
+                <Text style={[s.filterChipText, active && s.filterChipTextActive]}>{cat}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         {loadingDestinations ? (
-          <ActivityIndicator color={PRIMARY} size="large" style={{ marginTop: 40 }} />
-        ) : destinations.length === 0 ? (
-          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
-            <Ionicons name="map-outline" size={48} color="#94a3b8" />
-            <Text style={{ marginTop: 12, fontSize: 16, color: "#334155", fontWeight: "600" }}>No Destinations Found</Text>
-            <Text style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>Live travel destinations will appear here automatically.</Text>
+          <View style={{ marginTop: 16 }}>
+            <ListSkeleton count={3} type="card" />
+          </View>
+        ) : destError ? (
+          <View style={{ marginTop: 20 }}>
+            <ErrorStateCard
+              title="Unable to load destinations"
+              message={destError}
+              onRetry={loadDestinations}
+            />
+          </View>
+        ) : filteredDestinations.length === 0 ? (
+          <View style={{ marginTop: 20 }}>
+            <EmptyStateView
+              title="No destinations found"
+              description="Try adjusting your search query or selecting a different category."
+              actionText="Reset Search"
+              onAction={() => {
+                setSearchQuery("");
+                setCategoryFilter("All");
+              }}
+              icon="compass-outline"
+            />
           </View>
         ) : (
-          destinations.map((dest) => (
+          filteredDestinations.map((dest) => (
             <Pressable
               key={dest.name}
               onPress={() => openDest(dest)}
@@ -569,6 +636,48 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   exploreSub: { fontSize: 13, color: "#667085", marginBottom: 16 },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#0F172A",
+    padding: 0,
+  },
+  chipsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  filterChipActive: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  filterChipTextActive: {
+    color: "#FFFFFF",
+  },
   exploreCard: {
     borderRadius: 20,
     overflow: "hidden",

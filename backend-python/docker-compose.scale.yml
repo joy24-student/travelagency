@@ -1,0 +1,445 @@
+version: "3.9"
+
+# ==============================================================================
+# SHOPNO JATRA - HIGH-SCALE DATA TIER & CONTAINERIZED INFRASTRUCTURE MANIFEST
+# Designed for 1,000,000+ daily bookings, >= 5,000 QPS, and zero pool starvation.
+#
+# Topology:
+# 1. Edge Load Balancer: Nginx reverse proxy with least_conn and keepalives.
+# 2. Application Tier: 4 stateless FastAPI application replicas.
+# 3. Connection Pooling: 2 PgBouncer instances (Primary: 6432, Replica: 6433),
+#    handling 10,000 client conns multiplexed into 100 dedicated backend threads.
+# 4. Database Tier: PostgreSQL 16 Primary (writes/locks) + Read-Replica (queries).
+# 5. Distributed Cache & Lock Tier: Redis Master-Replica with 3 Sentinel nodes (HA).
+# 6. Asynchronous Task Tier: Celery workers with concurrency autoscaling (min 4, max 32)
+#    and Flower queue monitoring dashboard.
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. EDGE LOAD BALANCER (Nginx Reverse Proxy)
+  # ----------------------------------------------------------------------------
+  nginx_lb:
+    image: nginx:1.25-alpine
+    container_name: shopno_scale_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "8000:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api_1
+      - api_2
+      - api_3
+      - api_4
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - shopno_scale_net
+
+  # ----------------------------------------------------------------------------
+  # 2. STATELESS FASTAPI APPLICATION REPLICAS (4 Replicas)
+  # ----------------------------------------------------------------------------
+  api_1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno_api_1
+    restart: unless-stopped
+    environment: &api_env
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@pgbouncer_primary:6432/shopnojatra
+      - DATABASE_REPLICA_URLS=postgresql+asyncpg://postgres:postgres@pgbouncer_replica:6433/shopnojatra
+      - REDIS_URL=redis://redis-master:6379/0
+      - CELERY_BROKER_URL=redis://redis-master:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis-master:6379/2
+      - DB_POOL_SIZE=25
+      - DB_MAX_OVERFLOW=50
+      - DB_POOL_TIMEOUT=30
+      - DB_POOL_RECYCLE=1800
+      - SUPABASE_URL=https://htkpmrfhoijznigwimwj.supabase.co
+      - SUPABASE_JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters
+      - BKASH_WEBHOOK_SECRET=bkash-secure-webhook-hmac-secret-key
+      - NAGAD_WEBHOOK_SECRET=nagad-secure-webhook-hmac-secret-key
+      - ROCKET_WEBHOOK_SECRET=rocket-secure-webhook-hmac-secret-key
+      - STRIPE_WEBHOOK_SECRET=whsec_mock_stripe_webhook_secret
+      - CARD_WEBHOOK_SECRET=card-secure-webhook-hmac-secret-key
+    depends_on:
+      pgbouncer_primary:
+        condition: service_healthy
+      pgbouncer_replica:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  api_2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno_api_2
+    restart: unless-stopped
+    environment: *api_env
+    depends_on:
+      pgbouncer_primary:
+        condition: service_healthy
+      pgbouncer_replica:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  api_3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno_api_3
+    restart: unless-stopped
+    environment: *api_env
+    depends_on:
+      pgbouncer_primary:
+        condition: service_healthy
+      pgbouncer_replica:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  api_4:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno_api_4
+    restart: unless-stopped
+    environment: *api_env
+    depends_on:
+      pgbouncer_primary:
+        condition: service_healthy
+      pgbouncer_replica:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  # ----------------------------------------------------------------------------
+  # 3. PGBOUNCER CONNECTION POOLING TIER (Transaction Mode)
+  # Multiplexes 10,000 incoming app connections into 100 dedicated Postgres threads.
+  # ----------------------------------------------------------------------------
+  pgbouncer_primary:
+    image: edoburu/pgbouncer:v1.22.0
+    container_name: shopno_pgbouncer_primary
+    restart: unless-stopped
+    ports:
+      - "6432:6432"
+    volumes:
+      - ./pgbouncer/pgbouncer_primary.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      postgres_primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - shopno_scale_net
+
+  pgbouncer_replica:
+    image: edoburu/pgbouncer:v1.22.0
+    container_name: shopno_pgbouncer_replica
+    restart: unless-stopped
+    ports:
+      - "6433:6433"
+    volumes:
+      - ./pgbouncer/pgbouncer_replica.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      postgres_replica:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 6433 -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - shopno_scale_net
+
+  # ----------------------------------------------------------------------------
+  # 4. POSTGRESQL MULTI-NODE TIER (Primary & Read-Replica)
+  # ----------------------------------------------------------------------------
+  postgres_primary:
+    image: postgres:16-alpine
+    container_name: shopno_postgres_primary
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: shopnojatra
+    command: >
+      postgres
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby=on
+      -c shared_buffers=2GB
+      -c work_mem=32MB
+      -c maintenance_work_mem=512MB
+      -c effective_cache_size=6GB
+      -c max_connections=200
+      -c statement_timeout=10000
+      -c idle_in_transaction_session_timeout=15000
+      -c lock_timeout=5000
+      -c deadlock_timeout=200ms
+    volumes:
+      - pgdata_primary:/var/lib/postgresql/data
+      - ../supabase/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shopnojatra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shopno_scale_net
+
+  postgres_replica:
+    image: postgres:16-alpine
+    container_name: shopno_postgres_replica
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: shopnojatra
+    command: >
+      postgres
+      -c hot_standby=on
+      -c shared_buffers=2GB
+      -c work_mem=32MB
+      -c effective_cache_size=6GB
+      -c max_connections=200
+      -c statement_timeout=5000
+      -c idle_in_transaction_session_timeout=10000
+    volumes:
+      - pgdata_replica:/var/lib/postgresql/data
+    depends_on:
+      postgres_primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shopnojatra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shopno_scale_net
+
+  # ----------------------------------------------------------------------------
+  # 5. REDIS HIGH-AVAILABILITY CLUSTER (Master, Replica & 3 Sentinels)
+  # ----------------------------------------------------------------------------
+  redis-master:
+    image: redis:7-alpine
+    container_name: shopno_redis_master
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 2gb
+      --maxmemory-policy volatile-lru
+      --tcp-keepalive 60
+    volumes:
+      - redis_master_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - shopno_scale_net
+
+  redis-replica:
+    image: redis:7-alpine
+    container_name: shopno_redis_replica
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    command: >
+      redis-server
+      --replicaof redis-master 6379
+      --appendonly yes
+      --maxmemory 2gb
+      --maxmemory-policy volatile-lru
+    volumes:
+      - redis_replica_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - shopno_scale_net
+
+  redis-sentinel-1:
+    image: redis:7-alpine
+    container_name: shopno_redis_sentinel_1
+    restart: unless-stopped
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+    command: ["redis-sentinel", "/etc/redis/sentinel.conf"]
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  redis-sentinel-2:
+    image: redis:7-alpine
+    container_name: shopno_redis_sentinel_2
+    restart: unless-stopped
+    ports:
+      - "26380:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+    command: ["redis-sentinel", "/etc/redis/sentinel.conf"]
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  redis-sentinel-3:
+    image: redis:7-alpine
+    container_name: shopno_redis_sentinel_3
+    restart: unless-stopped
+    ports:
+      - "26381:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+    command: ["redis-sentinel", "/etc/redis/sentinel.conf"]
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  # ----------------------------------------------------------------------------
+  # 6. ASYNCHRONOUS CELERY TASK WORKERS (Autoscaling min 4, max 32)
+  # ----------------------------------------------------------------------------
+  celery_worker_high_priority:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno_celery_worker_high
+    restart: unless-stopped
+    command: [
+      "celery",
+      "-A", "app.tasks.celery_app.celery_app",
+      "worker",
+      "--loglevel=info",
+      "--autoscale=32,4",
+      "-Q", "bookings,payments",
+      "-n", "worker_high@%h",
+      "--events"
+    ]
+    environment: *api_env
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      pgbouncer_primary:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  celery_worker_default:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno_celery_worker_default
+    restart: unless-stopped
+    command: [
+      "celery",
+      "-A", "app.tasks.celery_app.celery_app",
+      "worker",
+      "--loglevel=info",
+      "--autoscale=16,4",
+      "-Q", "default,notifications,ai",
+      "-n", "worker_default@%h",
+      "--events"
+    ]
+    environment: *api_env
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      pgbouncer_primary:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno_celery_beat
+    restart: unless-stopped
+    command: ["celery", "-A", "app.tasks.celery_app.celery_app", "beat", "--loglevel=info"]
+    environment: *api_env
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+  # ----------------------------------------------------------------------------
+  # 7. CELERY FLOWER MONITORING DASHBOARD (Real-Time Queue Depth & Workers)
+  # ----------------------------------------------------------------------------
+  celery_flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno_celery_flower
+    restart: unless-stopped
+    command: ["celery", "-A", "app.tasks.celery_app.celery_app", "flower", "--port=5555"]
+    ports:
+      - "5555:5555"
+    environment: *api_env
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - shopno_scale_net
+
+networks:
+  shopno_scale_net:
+    driver: bridge
+    ipam:
+      driver: default
+
+volumes:
+  pgdata_primary:
+  pgdata_replica:
+  redis_master_data:
+  redis_replica_data:

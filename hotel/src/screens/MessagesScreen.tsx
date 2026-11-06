@@ -6,15 +6,19 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { styled } from 'nativewind';
+// nativewind v4 supports JSX className directly
 
-const StyledView = styled(View);
-const StyledText = styled(Text);
-const StyledTouchableOpacity = styled(TouchableOpacity);
+const StyledView = View;
+const StyledText = Text;
+const StyledTouchableOpacity = TouchableOpacity;
 
 const conversations = [
   {
@@ -68,7 +72,10 @@ export function MessagesScreen() {
   const [activeFilter, setActiveFilter] = useState('All');
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0b1326]">
+    <SafeAreaView className="flex-1 bg-[#0b1326]" edges={["top", "bottom"]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View className="flex-1">
       <StatusBar barStyle="light-content" />
 
       {/* Header */}
@@ -181,6 +188,9 @@ export function MessagesScreen() {
       >
         <MaterialCommunityIcons name="square-edit-outline" size={28} color="#1000a9" />
       </TouchableOpacity>
+      </View>
+      </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

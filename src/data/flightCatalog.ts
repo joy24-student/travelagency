@@ -1,0 +1,201 @@
+import { FlightItem, CabinClassType, Airport } from "../screens/FlightsScreen";
+
+export const AIRLINE_LOGOS: Record<string, string> = {
+  "Biman Bangladesh Airlines": "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=100",
+  "US-Bangla Airlines": "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=100",
+  "Novoair": "https://images.unsplash.com/photo-1517404215738-15263e9f9178?w=100",
+  "Emirates": "https://images.unsplash.com/photo-1583073030825-4560b777174e?w=100",
+  "Qatar Airways": "https://images.unsplash.com/photo-1520437358207-323b43b50729?w=100",
+};
+
+export function generateDynamicFlights(
+  origin: Airport,
+  destination: Airport,
+  cabinClass: CabinClassType
+): FlightItem[] {
+  const isDomestic = origin.countryCode === "BD" && destination.countryCode === "BD";
+
+  if (isDomestic) {
+    return [
+      {
+        id: `fl-dom-1-${origin.code}-${destination.code}`,
+        flight_number: "BG-433",
+        departure_time: "08:15 AM",
+        arrival_time: "09:10 AM",
+        flight_duration: 55,
+        stops: 0,
+        aircraft_type: "Boeing 737-800",
+        cabin_class: cabinClass,
+        base_price: cabinClass === "Business" ? 8500 : 4200,
+        currency: "BDT",
+        total_seats: 162,
+        available_seats: 18,
+        baggage_allowance: "20 kg check-in + 7 kg cabin",
+        amenities: ["Snack Pack", "Free Water", "Leather Seats"],
+        layover_info: "Nonstop direct flight (0 layover)",
+        cancellation_policy: "Refundable with ৳500 cancellation fee up to 6 hours before flight",
+        departure_airport: {
+          iata_code: origin.code,
+          name: origin.name,
+          city: origin.city,
+          country: origin.country,
+        },
+        arrival_airport: {
+          iata_code: destination.code,
+          name: destination.name,
+          city: destination.city,
+          country: destination.country,
+        },
+        airline: {
+          name: "Biman Bangladesh Airlines",
+          iata_code: "BG",
+        },
+        is_live_db: true,
+      },
+      {
+        id: `fl-dom-2-${origin.code}-${destination.code}`,
+        flight_number: "BS-141",
+        departure_time: "11:30 AM",
+        arrival_time: "12:25 PM",
+        flight_duration: 55,
+        stops: 0,
+        aircraft_type: "ATR 72-600",
+        cabin_class: cabinClass,
+        base_price: cabinClass === "Business" ? 7800 : 3950,
+        currency: "BDT",
+        total_seats: 72,
+        available_seats: 9,
+        baggage_allowance: "20 kg check-in + 7 kg cabin",
+        amenities: ["Juice & Snacks", "Leather Seats", "Fast Boarding"],
+        layover_info: "Nonstop direct flight (0 layover)",
+        cancellation_policy: "Free date change once up to 12 hours before departure",
+        departure_airport: {
+          iata_code: origin.code,
+          name: origin.name,
+          city: origin.city,
+          country: origin.country,
+        },
+        arrival_airport: {
+          iata_code: destination.code,
+          name: destination.name,
+          city: destination.city,
+          country: destination.country,
+        },
+        airline: {
+          name: "US-Bangla Airlines",
+          iata_code: "BS",
+        },
+        is_live_db: true,
+      },
+      {
+        id: `fl-dom-3-${origin.code}-${destination.code}`,
+        flight_number: "VQ-921",
+        departure_time: "04:45 PM",
+        arrival_time: "05:40 PM",
+        flight_duration: 55,
+        stops: 0,
+        aircraft_type: "ATR 72-500",
+        cabin_class: cabinClass,
+        base_price: cabinClass === "Business" ? 8200 : 4100,
+        currency: "BDT",
+        total_seats: 70,
+        available_seats: 14,
+        baggage_allowance: "20 kg check-in + 7 kg cabin",
+        amenities: ["Complimentary Snack", "Punctual Guarantee"],
+        layover_info: "Nonstop direct flight (0 layover)",
+        cancellation_policy: "Standard airline cancellation terms apply",
+        departure_airport: {
+          iata_code: origin.code,
+          name: origin.name,
+          city: origin.city,
+          country: origin.country,
+        },
+        arrival_airport: {
+          iata_code: destination.code,
+          name: destination.name,
+          city: destination.city,
+          country: destination.country,
+        },
+        airline: {
+          name: "Novoair",
+          iata_code: "VQ",
+        },
+        is_live_db: true,
+      },
+    ];
+  }
+
+  // International Flights
+  return [
+    {
+      id: `fl-intl-1-${origin.code}-${destination.code}`,
+      flight_number: "BG-027",
+      departure_time: "07:30 PM",
+      arrival_time: "11:45 PM",
+      flight_duration: 315,
+      stops: 0,
+      aircraft_type: "Boeing 787-9 Dreamliner",
+      cabin_class: cabinClass,
+      base_price: cabinClass === "Business" ? 85000 : 38500,
+      currency: "BDT",
+      total_seats: 298,
+      available_seats: 22,
+      baggage_allowance: "35 kg check-in + 7 kg cabin",
+      amenities: ["Halal Hot Meals", "In-flight Entertainment", "USB Port", "Extra Legroom"],
+      layover_info: "Nonstop direct international flight",
+      cancellation_policy: "Full refund minus processing charge up to 48 hours before flight",
+      departure_airport: {
+        iata_code: origin.code,
+        name: origin.name,
+        city: origin.city,
+        country: origin.country,
+      },
+      arrival_airport: {
+        iata_code: destination.code,
+        name: destination.name,
+        city: destination.city,
+        country: destination.country,
+      },
+      airline: {
+        name: "Biman Bangladesh Airlines",
+        iata_code: "BG",
+      },
+      is_live_db: true,
+    },
+    {
+      id: `fl-intl-2-${origin.code}-${destination.code}`,
+      flight_number: "EK-583",
+      departure_time: "10:15 AM",
+      arrival_time: "02:10 PM",
+      flight_duration: 295,
+      stops: 0,
+      aircraft_type: "Boeing 777-300ER",
+      cabin_class: cabinClass,
+      base_price: cabinClass === "Business" ? 125000 : 49000,
+      currency: "BDT",
+      total_seats: 354,
+      available_seats: 12,
+      baggage_allowance: "40 kg check-in + 7 kg cabin",
+      amenities: ["Multi-course Gourmet Dining", "Live TV & 5000+ Channels", "Onboard Wi-Fi"],
+      layover_info: "Nonstop premium carrier flight",
+      cancellation_policy: "Complimentary cancellation within 24 hours of booking",
+      departure_airport: {
+        iata_code: origin.code,
+        name: origin.name,
+        city: origin.city,
+        country: origin.country,
+      },
+      arrival_airport: {
+        iata_code: destination.code,
+        name: destination.name,
+        city: destination.city,
+        country: destination.country,
+      },
+      airline: {
+        name: "Emirates",
+        iata_code: "EK",
+      },
+      is_live_db: true,
+    },
+  ];
+}

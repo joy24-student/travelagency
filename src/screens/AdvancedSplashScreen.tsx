@@ -201,22 +201,23 @@ function ProgressBar() {
     Animated.timing(progress, {
       toValue: 1,
       duration: 3000,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   }, []);
 
-  const progressWidth = progress.interpolate({
+  const translateX = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
+    outputRange: [-300, 0],
   });
 
   return (
-      <View style={styles.progressBarTrack}>
+    <View style={[styles.progressBarTrack, { overflow: 'hidden' }]}>
       <Animated.View
         style={[
           styles.progressFill,
           {
-            width: progressWidth,
+            width: '100%',
+            transform: [{ translateX }],
           },
         ]}
       />

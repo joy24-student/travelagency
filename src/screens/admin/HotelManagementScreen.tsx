@@ -44,6 +44,13 @@ import Svg, { Circle, G } from "react-native-svg";
 import { AdminUser } from "@/types/admin";
 import { supabase } from "@/utils/supabase";
 import { useEffect } from "react";
+import {
+  executeAdminCommand,
+  VerifyHotelCommand,
+  SuspendHotelCommand,
+  ActivateHotelCommand,
+} from "./commands";
+import { useRBAC } from "./rbac";
 
 const { width } = Dimensions.get("window");
 
@@ -140,7 +147,11 @@ const INITIAL_ROOM_CATEGORIES: RoomCategoryItem[] = [];
 const CONTRACTS_DATA: ContractItem[] = [];
 const SAMPLE_HOTEL_BOOKINGS: HotelBookingItem[] = [];
 
-export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = () => {
+export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
+  admin: propAdmin,
+}) => {
+  const { admin: rbacAdmin } = useRBAC();
+  const admin = propAdmin || rbacAdmin;
 
   useEffect(() => {
     let isMounted = true;
@@ -298,13 +309,50 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = () 
     });
   };
 
-  const handleConfirmSuspend = () => {
-    setHotelsList((prev) =>
-      prev.map((h) => (h.id === selectedHotel.id ? { ...h, status: "Suspended" } : h))
+  const handleConfirmSuspend = async () => {
+    if (!admin) {
+      Alert.alert("Error", "No active administrative context.");
+      return;
+    }
+
+    const cmdResult = await executeAdminCommand(
+      new SuspendHotelCommand(selectedHotel.id, suspendReason || "Administrative governance suspension"),
+      admin
     );
-    setSelectedHotel((prev) => ({ ...prev, status: "Suspended" }));
-    Alert.alert("Hotel Suspended", `${selectedHotel.name} has been placed under administrative suspension.`);
-    goBack();
+
+    if (cmdResult.success) {
+      setHotelsList((prev) =>
+        prev.map((h) => (h.id === selectedHotel.id ? { ...h, status: "Suspended" } : h))
+      );
+      setSelectedHotel((prev) => ({ ...prev, status: "Suspended" }));
+      Alert.alert(
+        "Audit Logged",
+        `${selectedHotel.name} placed under administrative suspension and logged to admin_activity_logs.`
+      );
+      goBack();
+    } else {
+      Alert.alert("Governance Block", cmdResult.error || "Failed to suspend hotel property.");
+    }
+  };
+
+  const handleVerifyHotel = async (hotel: HotelItem) => {
+    if (!admin) return;
+    const cmdResult = await executeAdminCommand(
+      new VerifyHotelCommand(hotel.id),
+      admin
+    );
+
+    if (cmdResult.success) {
+      setHotelsList((prev) =>
+        prev.map((h) => (h.id === hotel.id ? { ...h, status: "Active", verifiedPartner: true } : h))
+      );
+      if (selectedHotel?.id === hotel.id) {
+        setSelectedHotel((prev) => ({ ...prev, status: "Active", verifiedPartner: true }));
+      }
+      Alert.alert("Audit Logged", `${hotel.name} verified and logged to admin_activity_logs.`);
+    } else {
+      Alert.alert("Governance Block", cmdResult.error || "Failed to verify hotel property.");
+    }
   };
 
   const handleAddHotelSubmit = () => {

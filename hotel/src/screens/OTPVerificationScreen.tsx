@@ -4,9 +4,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -21,7 +25,10 @@ export function OTPVerificationScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0b0e14]">
+    <SafeAreaView className="flex-1 bg-[#0b0e14]" edges={["top", "bottom"]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View className="flex-1 justify-between">
       <StatusBar barStyle="light-content" />
 
       {/* Header */}
@@ -42,7 +49,7 @@ export function OTPVerificationScreen() {
             <MaterialIcons name="lock-open" size={36} color="#c0c1ff" />
           </View>
 
-          <h1 className="text-2xl font-bold text-[#dae2fd] mb-2 text-center">Verify OTP</h1>
+          <Text className="text-2xl font-bold text-[#dae2fd] mb-2 text-center">Verify OTP</Text>
           <Text className="text-[#c7c4d7] text-center mb-10 max-w-[280px]">
             Enter the 4-digit code sent to{'\n'}
             <Text className="text-[#c0c1ff] font-medium">admin@luminahotels.com</Text>
@@ -99,6 +106,9 @@ export function OTPVerificationScreen() {
           <Text className="text-[#c7c4d7] text-[10px]">Secure AES-256 encrypted verification</Text>
         </View>
       </View>
+      </View>
+      </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

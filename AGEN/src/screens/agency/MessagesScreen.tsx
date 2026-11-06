@@ -145,6 +145,7 @@ export default function MessagesScreen({ navigation }: any) {
     name: string;
     online: boolean;
     size?: number;
+    avatarUrl?: string;
   }) => (
     <View style={[styles.avatarContainer, { width: size, height: size }]}>
       <View

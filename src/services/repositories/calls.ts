@@ -17,7 +17,7 @@ export interface CallLog {
 }
 
 export interface CallSignal {
-  type: "call_request" | "call_accept" | "call_reject" | "call_end";
+  type: "call_request" | "call_accept" | "call_reject" | "call_end" | "ice_candidate" | "sdp_offer" | "sdp_answer" | "call_timeout";
   callId: string;
   callerId: string;
   callerName: string;

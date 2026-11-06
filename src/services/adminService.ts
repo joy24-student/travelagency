@@ -291,6 +291,27 @@ export const userManagementService = {
     }
   },
 
+  async getSecureKycSignedUrl(documentKey: string): Promise<string | null> {
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_APP_URL || "https://api.travel.com"}/api/r2/admin/kyc-download-url`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-is-admin": "true",
+          },
+          body: JSON.stringify({ key: documentKey }),
+        }
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.signedDownloadUrl || null;
+    } catch {
+      return null;
+    }
+  },
+
   async verifyKYCDocument(docId: string, adminId: string, notes: string = ""): Promise<boolean> {
     try {
       await supabase.from("kyc_documents").update({
