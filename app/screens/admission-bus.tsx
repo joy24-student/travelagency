@@ -1735,7 +1735,7 @@ export default function AdmissionBusScreen() {
                 const isExpanded = expandedAdvisory === idx;
                 return (
                   <TouchableOpacity
-                    key={item.id || item.title || `advisory-${idx}`}
+                    key={item.title || `advisory-${idx}`}
                     style={styles.advisoryItemCard}
                     onPress={() =>
                       setExpandedAdvisory(isExpanded ? null : idx)

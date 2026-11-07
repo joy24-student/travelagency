@@ -775,6 +775,18 @@ export function HotelsHomesScreen() {
     freeCancellationOnly,
   ]);
 
+  // Progressive list pagination
+  const [pageLimit, setPageLimit] = useState(8);
+  const pagedRentals = useMemo(() => {
+    return filteredRentals.slice(0, pageLimit);
+  }, [filteredRentals, pageLimit]);
+
+  const handleEndReached = useCallback(() => {
+    if (pageLimit < filteredRentals.length) {
+      setPageLimit((prev) => Math.min(prev + 6, filteredRentals.length));
+    }
+  }, [pageLimit, filteredRentals.length]);
+
   // Calculate Price Breakdown for Selected Villa (Zero hard-coding)
   const priceBreakdown = useMemo(() => {
     if (!selectedVilla) {
@@ -2357,7 +2369,7 @@ export function HotelsHomesScreen() {
         onClose={() => setCompareModalVisible(false)}
         title="হোটেল ও রিসোর্ট তুলনা"
         items={hotelComparisonItems}
-        onSelect={(item) => {
+        onSelect={(item: any) => {
           setCompareModalVisible(false);
           const villa = rentals.find((r) => r.id === item.id);
           if (villa) setSelectedVilla(villa);
