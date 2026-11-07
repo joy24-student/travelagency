@@ -25,10 +25,15 @@ import { AdminPagination } from "./AdminPagination";
 import { DestructiveConfirmModal } from "./DestructiveConfirmModal";
 import { useRBAC } from "./rbac";
 import { executeAdminCommand, CancelBookingCommand, ConfirmBookingCommand } from "./commands";
+import { withErrorBoundary } from "../../components/common/ErrorBoundaryView";
+import { ErrorStateCard } from "../../components/common/ErrorStateCard";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { EmptyState } from "../../components/ui/EmptyState";
 
-const { width } = Dimensions.get("window");
 
-export const BookingManagementScreen: React.FC = () => {
+
+const BookingManagementScreenComponent: React.FC = () => {
+  const [error, setError] = useState<string | null>(null);
   const { admin, hasPermission } = useRBAC();
   const [bookings, setBookings] = useState<any[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<any[]>([]);
@@ -52,11 +57,13 @@ export const BookingManagementScreen: React.FC = () => {
   const loadBookings = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await bookingAdminService.getAllBookings();
-      setBookings(data);
-      setFilteredBookings(data);
-    } catch (error) {
-      console.error("Error loading bookings:", error);
+      setBookings(data || []);
+      setFilteredBookings(data || []);
+    } catch (err: any) {
+      console.error("Error loading bookings:", err);
+      setError(err?.message || "Failed to load bookings. Please check database connectivity.");
     } finally {
       setLoading(false);
     }
@@ -227,11 +234,13 @@ export const BookingManagementScreen: React.FC = () => {
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
-              <MaterialCommunityIcons name="ticket-outline" size={48} color="#94a3b8" />
-              <Text style={{ marginTop: 12, fontSize: 16, color: "#334155", fontWeight: "600" }}>No Bookings Found</Text>
-              <Text style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>Customer bookings across hotels, flights, and tours will display here in real-time.</Text>
-            </View>
+            <EmptyState
+              type="booking"
+              title="No Bookings Found"
+              description="Customer bookings across hotels, flights, and tours will display here in real-time."
+              actionLabel="Reload Bookings"
+              onAction={loadBookings}
+            />
           }
           ListFooterComponent={
             filteredBookings.length > PAGE_SIZE ? (
@@ -248,7 +257,12 @@ export const BookingManagementScreen: React.FC = () => {
       )}
 
       {/* Booking Details Modal */}
-      <Modal visible={detailsModalVisible} animationType="slide" transparent>
+      <Modal
+        visible={detailsModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDetailsModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -342,6 +356,11 @@ export const BookingManagementScreen: React.FC = () => {
         onCancel={() => setCancelModalVisible(false)}
         isLoading={cancelLoading}
         severity="danger"
+        requireTypedConfirmation={true}
+        confirmationWord="CANCEL"
+        requireReason={true}
+        reasonPlaceholder="Enter cancellation reason for audit record..."
+        auditLogRef={`AUD-BKG-CAN-${selectedBooking?.id?.slice(-6).toUpperCase() || "LOG"}`}
       />
     </View>
   );
@@ -366,7 +385,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   searchIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   searchInput: {
     flex: 1,
@@ -383,13 +402,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: "#f1f5f9",
-    marginRight: 8,
+    marginEnd: 8,
   },
   filterPillActive: {
     backgroundColor: "#4f46e5",
   },
   filterText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
   },
@@ -431,7 +450,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   cardContent: {
@@ -486,7 +505,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   label: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     textTransform: "uppercase",
   },
@@ -553,4 +572,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+});
+
+
+export const BookingManagementScreen = withErrorBoundary(BookingManagementScreenComponent, {
+  screenName: "BookingManagementScreen",
 });

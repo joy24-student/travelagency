@@ -11,6 +11,7 @@ export interface DirectMessage {
   is_read: boolean;
   created_at: string;
   sender?: FriendProfile;
+  status?: "sending" | "sent" | "delivered" | "read" | "failed";
 }
 
 export interface ConversationItem {

@@ -1,3 +1,4 @@
+import { AppImage } from "../../src/components/ui/AppImage";
 import * as React from "react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
@@ -23,8 +24,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { LocalProduct } from "../../src/types/localMarketplace";
 import { localMarketplaceService } from "../../src/services/localMarketplaceService";
+import { ErrorStateCard, EmptyStateView } from "../../src/components/common";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+import { useResponsive } from "../../src/hooks/useResponsive";
 
 // Palette
 const THEME_PRIMARY = "#78350F"; // Amber-900 / Warm Terracotta
@@ -825,9 +827,11 @@ const COURIER_PARTNERS = [
 ];
 
 export default function LocalMarketplaceScreen() {
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useResponsive();
   // Inventory state
   const [products, setProducts] = useState<EnrichedProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState("All");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -968,6 +972,7 @@ export default function LocalMarketplaceScreen() {
   // Load Inventory from localMarketplaceService
   const loadInventory = useCallback(async () => {
     try {
+      setFetchError(null);
       const baseProducts = await localMarketplaceService.getProducts({
         region: selectedRegion === "All" ? undefined : selectedRegion,
         category: selectedCategory === "all" ? undefined : selectedCategory,
@@ -1073,8 +1078,9 @@ export default function LocalMarketplaceScreen() {
 
       const enriched = filtered.map(enrichProduct);
       setProducts(enriched);
-    } catch (e) {
+    } catch (e: any) {
       console.warn("Failed to load inventory:", e);
+      setFetchError(e?.message || "ঐতিহ্যবাহী পণ্যসম্ভার লোড করতে সাময়িক সমস্যা হয়েছে।");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -1264,9 +1270,9 @@ export default function LocalMarketplaceScreen() {
         cart.length > 1 ? ` +${cart.length - 1} items` : ""
       }`;
 
-      // Transition smoothly into payments-enhanced.tsx passing order value and vendor payout details
+      // Transition smoothly into payments.tsx passing order value and vendor payout details
       router.push({
-        pathname: "/screens/payments-enhanced" as any,
+        pathname: "/screens/payments" as any,
         params: {
           amount: totalOrderValue.toString(),
           reference: orderRef,
@@ -1355,7 +1361,7 @@ export default function LocalMarketplaceScreen() {
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flex: 1, marginStart: 12 }}>
             <View style={styles.badgeGov}>
               <Ionicons name="shield-checkmark" size={12} color="#FEF3C7" />
               <Text style={styles.badgeGovText}>ভৌগোলিক নির্দেশক (GI) সংরক্ষিত</Text>
@@ -1503,7 +1509,7 @@ export default function LocalMarketplaceScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <View style={{ flex: 1, paddingRight: 10 }}>
+            <View style={{ flex: 1, paddingEnd: 10 }}>
               <View style={styles.spotlightTagRow}>
                 <View style={styles.giGoldPill}>
                   <Ionicons name="ribbon" size={12} color="#78350F" />
@@ -1547,23 +1553,28 @@ export default function LocalMarketplaceScreen() {
             <ActivityIndicator size="large" color={THEME_ACCENT} />
             <Text style={styles.loadingText}>ঐতিহ্যবাহী পণ্যসম্ভার লোড হচ্ছে...</Text>
           </View>
+        ) : fetchError ? (
+          <View style={{ marginHorizontal: 16, marginVertical: 20 }}>
+            <ErrorStateCard
+              title="পণ্য লোড করা সম্ভব হয়নি"
+              message={fetchError}
+              retryText="পুনরায় চেষ্টা করুন"
+              onRetry={loadInventory}
+            />
+          </View>
         ) : products.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Ionicons name="basket-outline" size={54} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>কোনো পণ্য খুঁজে পাওয়া যায়নি</Text>
-            <Text style={styles.emptySub}>
-              অন্য অঞ্চল বা কি-ওয়ার্ড দিয়ে সার্চ করে দেখুন।
-            </Text>
-            <TouchableOpacity
-              style={styles.resetFilterBtn}
-              onPress={() => {
+          <View style={{ marginHorizontal: 16, marginVertical: 20 }}>
+            <EmptyStateView
+              icon="basket-outline"
+              title="কোনো পণ্য খুঁজে পাওয়া যায়নি"
+              description="অন্য অঞ্চল বা কি-ওয়ার্ড দিয়ে সার্চ করে দেখুন।"
+              actionText="সব পণ্য প্রদর্শন করুন"
+              onAction={() => {
                 setSelectedRegion("All");
                 setSelectedCategory("all");
                 setSearchQuery("");
               }}
-            >
-              <Text style={styles.resetFilterBtnText}>সব পণ্য প্রদর্শন করুন</Text>
-            </TouchableOpacity>
+            />
           </View>
         ) : (
           /* Requirement 1: Regional Origin Showcase Product Cards */
@@ -1577,7 +1588,7 @@ export default function LocalMarketplaceScreen() {
               >
                 {/* Image & Badges */}
                 <View style={styles.prodImgWrapper}>
-                  <Image
+                  <AppImage placeholderCategory="package"
                     source={{ uri: prod.image_url }}
                     style={styles.productImage}
                     resizeMode="cover"
@@ -1614,7 +1625,7 @@ export default function LocalMarketplaceScreen() {
 
                   {/* Artisan & Lineage */}
                   <View style={styles.artisanSnippetRow}>
-                    <Image
+                    <AppImage placeholderCategory="package"
                       source={{ uri: prod.artisan.avatar }}
                       style={styles.artisanSnippetAvatar}
                     />
@@ -1723,7 +1734,7 @@ export default function LocalMarketplaceScreen() {
             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
               {/* High Resolution Gallery Carousel */}
               <View style={styles.galleryContainer}>
-                <Image
+                <AppImage placeholderCategory="package"
                   source={{ uri: detailProduct.galleryImages[activeGalleryIndex] || detailProduct.image_url }}
                   style={styles.galleryMainImage}
                   resizeMode="cover"
@@ -1741,14 +1752,14 @@ export default function LocalMarketplaceScreen() {
                   <View style={styles.thumbnailsRow}>
                     {detailProduct.galleryImages.map((img, idx) => (
                       <TouchableOpacity
-                        key={idx}
+                        key={`thumb-${img}-${idx}`}
                         style={[
                           styles.thumbnailBox,
                           activeGalleryIndex === idx && styles.thumbnailBoxActive,
                         ]}
                         onPress={() => setActiveGalleryIndex(idx)}
                       >
-                        <Image source={{ uri: img }} style={styles.thumbnailImg} />
+                        <AppImage placeholderCategory="package" source={{ uri: img }} style={styles.thumbnailImg} />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -1763,7 +1774,7 @@ export default function LocalMarketplaceScreen() {
                     style={styles.giDetailBannerGrad}
                   >
                     <Ionicons name="ribbon" size={24} color="#D97706" />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
+                    <View style={{ flex: 1, marginStart: 10 }}>
                       <Text style={styles.giDetailTitle}>
                         ভৌগোলিক নির্দেশক (GI) সনদপ্রাপ্ত স্থানীয় হস্তশিল্প
                       </Text>
@@ -1845,11 +1856,11 @@ export default function LocalMarketplaceScreen() {
                     style={styles.artisanBioGradient}
                   >
                     <View style={styles.artisanBioTop}>
-                      <Image
+                      <AppImage placeholderCategory="package"
                         source={{ uri: detailProduct.artisan.avatar }}
                         style={styles.artisanBioAvatar}
                       />
-                      <View style={{ flex: 1, marginLeft: 12 }}>
+                      <View style={{ flex: 1, marginStart: 12 }}>
                         <Text style={styles.artisanBioName}>
                           {detailProduct.artisan.banglaName}
                         </Text>
@@ -1892,7 +1903,7 @@ export default function LocalMarketplaceScreen() {
                       <View style={styles.certIconBox}>
                         <Ionicons name="ribbon-outline" size={20} color="#D97706" />
                       </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
+                      <View style={{ flex: 1, marginStart: 10 }}>
                         <Text style={styles.certName}>{cert.name}</Text>
                         <Text style={styles.certIssuer}>প্রদানকারী: {cert.issuer}</Text>
                         <Text style={styles.certCode}>সনদ নং: {cert.code}</Text>
@@ -1922,7 +1933,7 @@ export default function LocalMarketplaceScreen() {
                             {rev.author.charAt(0)}
                           </Text>
                         </View>
-                        <View style={{ flex: 1, marginLeft: 8 }}>
+                        <View style={{ flex: 1, marginStart: 8 }}>
                           <Text style={styles.reviewAuthorName}>{rev.author}</Text>
                           <Text style={styles.reviewLocation}>
                             {rev.location} • {rev.date}
@@ -2055,11 +2066,11 @@ export default function LocalMarketplaceScreen() {
                 <View style={styles.cartItemsSection}>
                   {cart.map((item) => (
                     <View key={item.product.id} style={styles.cartItemRow}>
-                      <Image
+                      <AppImage placeholderCategory="package"
                         source={{ uri: item.product.image_url }}
                         style={styles.cartItemImg}
                       />
-                      <View style={{ flex: 1, marginLeft: 10 }}>
+                      <View style={{ flex: 1, marginStart: 10 }}>
                         <Text style={styles.cartItemName} numberOfLines={1}>
                           {item.product.bangla_name}
                         </Text>
@@ -2352,7 +2363,7 @@ export default function LocalMarketplaceScreen() {
               />
 
               <View style={styles.twoColsRow}>
-                <View style={{ flex: 1, marginRight: 6 }}>
+                <View style={{ flex: 1, marginEnd: 6 }}>
                   <Text style={styles.inputLabel}>বিক্রয় মূল্য (৳) *</Text>
                   <TextInput
                     style={styles.textInput}
@@ -2364,7 +2375,7 @@ export default function LocalMarketplaceScreen() {
                   />
                 </View>
 
-                <View style={{ flex: 1, marginLeft: 6 }}>
+                <View style={{ flex: 1, marginStart: 6 }}>
                   <Text style={styles.inputLabel}>ওজন / সাইজ</Text>
                   <TextInput
                     style={styles.textInput}
@@ -2456,6 +2467,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.25)" } : {}),
   },
   floatingToastText: {
     fontSize: 13,
@@ -2517,7 +2529,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
-    marginRight: 8,
+    marginEnd: 8,
   },
   sellBtnHeaderText: {
     fontSize: 11.5,
@@ -2642,6 +2654,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 8px rgba(15, 23, 42, 0.1)" } : {}),
   },
   spotlightGradient: {
     flexDirection: "row",
@@ -2772,7 +2785,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   productCard: {
-    width: (SCREEN_WIDTH - 42) / 2,
+    width: "48%",
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     overflow: "hidden",
@@ -2784,6 +2797,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 5px rgba(15, 23, 42, 0.05)" } : {}),
   },
   prodImgWrapper: {
     position: "relative",
@@ -2931,7 +2945,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#94A3B8",
     textDecorationLine: "line-through",
-    marginLeft: 4,
+    marginStart: 4,
   },
   payoutArtisanTag: {
     fontSize: 8.5,
@@ -3110,7 +3124,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#94A3B8",
     textDecorationLine: "line-through",
-    marginLeft: 8,
+    marginStart: 8,
   },
   detailWeightText: {
     fontSize: 11.5,
@@ -3443,6 +3457,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 20,
+    ...(Platform.OS === "web" ? { boxShadow: "0px -6px 12px rgba(15, 23, 42, 0.15)" } : {}),
   },
   drawerHandleBar: {
     width: 44,
@@ -3558,7 +3573,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   cartDeleteBtn: {
-    marginLeft: 8,
+    marginStart: 8,
     padding: 6,
   },
 

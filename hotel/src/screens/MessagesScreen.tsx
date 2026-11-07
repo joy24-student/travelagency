@@ -96,7 +96,7 @@ export function MessagesScreen() {
             <MaterialIcons name="search" size={20} color="#908fa0" />
           </View>
           <TextInput
-            className="w-full bg-[#131b2e] border border-[#464554] rounded-xl py-3 pl-12 pr-4 text-[#dae2fd]"
+            className="w-full bg-[#131b2e] border border-[#464554] rounded-xl py-3 ps-12 pe-4 text-[#dae2fd]"
             placeholder="Search messages..."
             placeholderTextColor="#908fa0"
           />
@@ -108,7 +108,7 @@ export function MessagesScreen() {
             <TouchableOpacity
               key={filter}
               onPress={() => setActiveFilter(filter)}
-              className={`mr-2 px-6 py-2 rounded-full border ${
+              className={`me-2 px-6 py-2 rounded-full border ${
                 activeFilter === filter
                   ? 'bg-[#c0c1ff] border-[#c0c1ff]'
                   : 'bg-[#222a3d] border-[#464554]/30'
@@ -151,10 +151,10 @@ export function MessagesScreen() {
                 )}
               </View>
 
-              <View className="flex-1 ml-4">
+              <View className="flex-1 ms-4">
                 <View className="flex-row justify-between items-center mb-1">
                   <View className="flex-row items-center">
-                    <Text className="text-base font-semibold text-[#dae2fd] mr-2">
+                    <Text className="text-base font-semibold text-[#dae2fd] me-2">
                       {item.name}
                     </Text>
                     {item.isVIP && (

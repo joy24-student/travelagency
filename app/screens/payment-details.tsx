@@ -1,3 +1,5 @@
+import { CopyableText } from "../../src/components/common/CopyableText";
+import { showLocalizedAlert } from "../../src/utils/localizedAlert";
 /**
  * Payment Details Screen - Zero-Trust Authoritative Transaction Ledger
  * 
@@ -31,11 +33,14 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { userRepository } from "../../src/services/repositories/user";
 import { paymentService } from "../../src/services/paymentService";
 import {
+  shareUnifiedReceipt,
+  exportReceiptPdf,
+} from "../../src/services/receiptShareService";
+import {
   maskAccountNumber,
   maskCardNumber,
   securePaymentLogger,
 } from "../../src/services/payment/pciDssCompliance";
-import { BottomNav, AiPill } from "../../src/screens/Navigation";
 
 const PRIMARY_COLOR = "#287DFA";
 const CURRENCY_SYMBOL = "৳";
@@ -201,12 +206,12 @@ export default function PaymentDetailsScreen() {
         updated_at: new Date().toISOString(),
       }));
 
-      Alert.alert(
+      showLocalizedAlert(
         "Authoritative Result",
         `Payment gateway verified status: ${verifiedStatus.toUpperCase()}`
       );
     } catch (err: any) {
-      Alert.alert(
+      showLocalizedAlert(
         "Verification Error",
         err.message || "Unable to reach authoritative gateway server."
       );
@@ -215,52 +220,50 @@ export default function PaymentDetailsScreen() {
     }
   };
 
-  // Native Itemized Share / Receipt Download
+  // Native Itemized Share / Receipt Download via Unified Receipt Service
   const handleShareReceipt = async () => {
     if (!payment) return;
-
     const originalAmt = Number(payment.original_amount) || Number(payment.amount) || 0;
     const feeAmt = Number(payment.fee) || 0;
-    const netAmt = Number(payment.amount) || originalAmt + feeAmt;
     const provider = PROVIDER_METADATA_MAP[payment.method]?.name || payment.method.toUpperCase();
 
-    const receiptContent = `
-=========================================
-      SHOPNO JATRA OFFICIAL RECEIPT      
-=========================================
-Transaction ID: ${payment.id}
-Gateway Reference: ${payment.transaction_id || "N/A"}
-Status: ${payment.status.toUpperCase()}
-Date: ${new Date(payment.created_at).toLocaleString()}
-Payment Method: ${provider}
-Account: ${payment.phone ? maskAccountNumber(payment.phone) : "N/A"}
-Booking Reference: ${payment.reference || "N/A"}
------------------------------------------
-Subtotal: ${CURRENCY_SYMBOL}${originalAmt.toFixed(2)}
-Processing Fee: ${CURRENCY_SYMBOL}${feeAmt.toFixed(2)}
-Total Paid: ${CURRENCY_SYMBOL}${netAmt.toFixed(2)}
------------------------------------------
-Security: HMAC-SHA256 Verified • PCI-DSS Level 1
-Authority: Shopno Jatra Fintech Services Ltd.
-=========================================
-`.trim();
+    await shareUnifiedReceipt({
+      receiptId: payment.id,
+      transactionId: payment.transaction_id,
+      provider,
+      amount: Number(payment.amount) || originalAmt + feeAmt,
+      subtotal: originalAmt,
+      processingFee: feeAmt,
+      status: payment.status as any,
+      timestamp: payment.created_at,
+      customerPhone: payment.phone,
+      bookingRef: payment.reference,
+    });
+  };
 
-    try {
-      await Share.share({
-        title: `Shopno Jatra Receipt - #${payment.id.slice(0, 8)}`,
-        message: receiptContent,
-      });
-    } catch {
-      Alert.alert(
-        "Receipt Prepared",
-        `Receipt details copied. Registered email: ${user?.email || "customer"}`
-      );
-    }
+  const handleDownloadPdf = async () => {
+    if (!payment) return;
+    const originalAmt = Number(payment.original_amount) || Number(payment.amount) || 0;
+    const feeAmt = Number(payment.fee) || 0;
+    const provider = PROVIDER_METADATA_MAP[payment.method]?.name || payment.method.toUpperCase();
+
+    await exportReceiptPdf({
+      receiptId: payment.id,
+      transactionId: payment.transaction_id,
+      provider,
+      amount: Number(payment.amount) || originalAmt + feeAmt,
+      subtotal: originalAmt,
+      processingFee: feeAmt,
+      status: payment.status as any,
+      timestamp: payment.created_at,
+      customerPhone: payment.phone,
+      bookingRef: payment.reference,
+    });
   };
 
   const handleReportIssue = () => {
     const inquiryTicket = `SEC-${payment?.id ? payment.id.slice(0, 6).toUpperCase() : "TKT"}`;
-    Alert.alert(
+    showLocalizedAlert(
       "Financial Support Inquiry",
       `Your query for Ticket #${inquiryTicket} has been routed to our Fintech Compliance Desk. We will reach out to ${user?.email || "your registered email"}.`,
       [{ text: "OK" }]
@@ -270,7 +273,7 @@ Authority: Shopno Jatra Fintech Services Ltd.
   const handleRefundRequest = async () => {
     if (payment?.status !== "completed") return;
 
-    Alert.alert(
+    showLocalizedAlert(
       "Confirm Refund Request",
       `Are you sure you wish to submit a refund for ${CURRENCY_SYMBOL}${payment.amount.toFixed(2)}? Refunds are cleared back to the original funding account within 24-48 banking hours.`,
       [
@@ -288,18 +291,18 @@ Authority: Shopno Jatra Fintech Services Ltd.
               if (success) {
                 await userRepository.updatePaymentStatus(payment.id, "refunded");
                 setPayment((prev: any) => ({ ...prev, status: "refunded" }));
-                Alert.alert(
+                showLocalizedAlert(
                   "Refund Submitted",
                   "Your refund has been scheduled for settlement."
                 );
               } else {
-                Alert.alert(
+                showLocalizedAlert(
                   "Refund Noted",
                   "Your request has been logged for administrative clearance."
                 );
               }
             } catch (err: any) {
-              Alert.alert("Refund Error", err.message || "Failed to submit refund request.");
+              showLocalizedAlert("Refund Error", err.message || "Failed to submit refund request.");
             }
           },
         },
@@ -314,7 +317,6 @@ Authority: Shopno Jatra Fintech Services Ltd.
           <ActivityIndicator size="large" color={PRIMARY_COLOR} />
           <Text style={styles.loadingText}>Fetching authoritative transaction ledger...</Text>
         </View>
-        <BottomNav active="Account" color={PRIMARY_COLOR} />
       </SafeAreaView>
     );
   }
@@ -336,7 +338,6 @@ Authority: Shopno Jatra Fintech Services Ltd.
             <Text style={styles.retryButtonText}>Retry Query</Text>
           </Pressable>
         </View>
-        <BottomNav active="Account" color={PRIMARY_COLOR} />
       </SafeAreaView>
     );
   }
@@ -487,7 +488,13 @@ Authority: Shopno Jatra Fintech Services Ltd.
           <View style={styles.detailsCard}>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Internal Ledger ID</Text>
-              <Text style={styles.detailValueMono}>{payment.id}</Text>
+              <CopyableText
+                text={payment.id}
+                label="Ledger ID"
+                textStyle={styles.detailValueMono}
+                iconSize={13}
+                iconColor="#2563EB"
+              />
             </View>
             <View style={styles.divider} />
 
@@ -603,9 +610,14 @@ Authority: Shopno Jatra Fintech Services Ltd.
             </Pressable>
           )}
 
+          <Pressable style={styles.actionButton} onPress={handleDownloadPdf}>
+            <Ionicons name="document-text-outline" size={18} color="#2563EB" />
+            <Text style={[styles.actionButtonText, { color: "#2563EB" }]}>রসিদ ডাউনলোড (PDF)</Text>
+          </Pressable>
+
           <Pressable style={styles.actionButton} onPress={handleShareReceipt}>
             <Ionicons name="share-social-outline" size={18} color={PRIMARY_COLOR} />
-            <Text style={styles.actionButtonText}>Share & Export Tax Receipt</Text>
+            <Text style={styles.actionButtonText}>রসিদ শেয়ার করুন</Text>
           </Pressable>
 
           {payment.status === "completed" && (
@@ -622,7 +634,7 @@ Authority: Shopno Jatra Fintech Services Ltd.
               style={[styles.primaryActionButton, { backgroundColor: PRIMARY_COLOR }]}
               onPress={() =>
                 router.push({
-                  pathname: "/screens/payments-enhanced",
+                  pathname: "/screens/payments",
                   params: {
                     amount: originalAmt.toString(),
                     reference: payment.reference,
@@ -646,8 +658,6 @@ Authority: Shopno Jatra Fintech Services Ltd.
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      <AiPill color={PRIMARY_COLOR} />
-      <BottomNav active="Account" color={PRIMARY_COLOR} />
     </SafeAreaView>
   );
 }
@@ -731,6 +741,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 8px rgba(15, 23, 42, 0.05)" } : {}),
   },
   statusIconContainer: {
     width: 72,
@@ -848,7 +859,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#0F172A",
     fontWeight: "700",
-    marginLeft: 12,
+    marginStart: 12,
     flex: 1,
     textAlign: "right",
   },
@@ -857,7 +868,7 @@ const styles = StyleSheet.create({
     color: "#2563EB",
     fontWeight: "700",
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-    marginLeft: 12,
+    marginStart: 12,
     flex: 1,
     textAlign: "right",
   },
@@ -915,6 +926,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.1)" } : {}),
   },
   btnDisabled: { opacity: 0.6 },
   primaryActionText: {

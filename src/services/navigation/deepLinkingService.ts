@@ -422,8 +422,8 @@ export class DeepLinkingService {
           params.currency = searchParams.currency.toUpperCase();
         }
 
-        // Targets Zero-Trust Enhanced Payments / Split processing screen
-        targetRoute = "/screens/payments-enhanced";
+        // Targets Zero-Trust Payments / Split processing screen
+        targetRoute = "/screens/payments";
         // STRICT REQUIREMENT 4: Split-bills MUST require authentication!
         requiresAuth = true;
       }
@@ -796,10 +796,10 @@ export class DeepLinkingService {
 
       // App Links (Deep Linking for Crawlers / Facebook / Slack / WhatsApp)
       "al:ios:url": `shopnojatra://${metadata.entityType}/${encodeURIComponent(metadata.canonicalUrl.split("/").pop() || "")}`,
-      "al:ios:app_store_id": "com.s025.convertedtravelui",
+      "al:ios:app_store_id": "com.shopnojatra.app",
       "al:ios:app_name": "Shopno Jatra",
       "al:android:url": `shopnojatra://${metadata.entityType}/${encodeURIComponent(metadata.canonicalUrl.split("/").pop() || "")}`,
-      "al:android:package": "com.s025.convertedtravelui",
+      "al:android:package": "com.shopnojatra.app",
       "al:android:app_name": "Shopno Jatra",
     };
 
@@ -892,7 +892,7 @@ ${JSON.stringify(jsonLd, null, 2)}
     // Universal Smart App Banner Instant Launcher
     (function() {
       var appUrl = "${appSchemeUrl}";
-      var storeFallback = "https://play.google.com/store/apps/details?id=com.s025.convertedtravelui";
+      var storeFallback = "https://play.google.com/store/apps/details?id=com.shopnojatra.app";
       var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
       if (isMobile) {
@@ -916,7 +916,7 @@ ${JSON.stringify(jsonLd, null, 2)}
       
       <div class="btn-container">
         <a href="${appSchemeUrl}" class="btn-primary" id="openBtn">Open in Shopno Jatra App</a>
-        <a href="https://play.google.com/store/apps/details?id=com.s025.convertedtravelui" class="btn-secondary">Download on Google Play / App Store</a>
+        <a href="https://play.google.com/store/apps/details?id=com.shopnojatra.app" class="btn-secondary">Download on Google Play / App Store</a>
       </div>
       
       <div class="logo-footer">স্বপ্নযাত্রা • Shopno Jatra SuperApp</div>

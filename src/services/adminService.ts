@@ -149,34 +149,23 @@ export const dashboardService = {
 // ============================================================================
 
 export const adminService = {
-  async getCurrentAdmin(): Promise<AdminUser> {
+  async getCurrentAdmin(): Promise<AdminUser | null> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase.from("admin_users").select("*").eq("user_id", user.id).single();
-        if (data) return data;
-      }
-      return {
-        id: "adm-super-01",
-        user_id: user?.id || "usr-admin-root",
-        name: "Platform Executive",
-        role: AdminRole.SUPER_ADMIN,
-        permissions: { all: true, users: true, agencies: true, refunds: true },
-        status: "active",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from("admin_users")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return data as AdminUser;
     } catch (error) {
-      return {
-        id: "adm-super-01",
-        user_id: "usr-admin-root",
-        name: "Platform Executive",
-        role: AdminRole.SUPER_ADMIN,
-        permissions: { all: true },
-        status: "active",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      console.warn("Failed to retrieve admin user profile:", error);
+      return null;
     }
   },
 

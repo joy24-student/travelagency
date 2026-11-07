@@ -26,6 +26,7 @@ import {
   Dimensions,
   Platform,
   Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -48,7 +49,7 @@ import {
 import { useBookingStore, ScannedReceiptExpense } from "../../store/bookingStore";
 import { useSplitBillStore, SplitGroupMember } from "../../store/splitBillStore";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 
 const TRIP_BLUE = "#287dfa";
 const LUXE_NAVY = "#1a237e";
@@ -406,7 +407,7 @@ export function ReceiptScannerModal({
 
           <View style={styles.headerTitleContainer}>
             <View style={styles.headerTitleRow}>
-              <Ionicons name="scan" size={18} color={TRIP_BLUE} style={{ marginRight: 6 }} />
+              <Ionicons name="scan" size={18} color={TRIP_BLUE} style={{ marginEnd: 6 }} />
               <Text style={styles.headerTitle}>Smart Receipt Scanner</Text>
             </View>
             <Text style={styles.headerSubtitle}>
@@ -479,16 +480,34 @@ export function ReceiptScannerModal({
                 <View style={styles.placeholderIconCircle}>
                   <Ionicons name="camera-outline" size={38} color={TRIP_BLUE} />
                 </View>
-                <Text style={styles.placeholderTitle}>Camera Access Required</Text>
+                <Text style={styles.placeholderTitle}>ক্যামেরা অনুমতি প্রয়োজন / Camera Access</Text>
                 <Text style={styles.placeholderDesc}>
-                  Enable camera to scan restaurant bills, taxi slips, and hotel vouchers instantly.
+                  রসিদ বা বিল স্ক্যান করতে ক্যামেরার অনুমতি দিন। অনুমতি দিতে না চাইলে সরাসরি ম্যানুয়ালি এন্ট্রি করুন।
                 </Text>
                 <TouchableOpacity
                   style={styles.primaryActionButton}
                   onPress={requestPermission}
                 >
                   <Ionicons name="shield-checkmark-outline" size={18} color="#fff" />
-                  <Text style={styles.primaryActionLabel}>Grant Permission</Text>
+                  <Text style={styles.primaryActionLabel}>অনুমতি দিন (Grant Permission)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.primaryActionButton, { backgroundColor: "#f1f5f9", marginTop: 10 }]}
+                  onPress={() => Linking.openSettings()}
+                >
+                  <Ionicons name="settings-outline" size={18} color="#334155" />
+                  <Text style={[styles.primaryActionLabel, { color: "#334155" }]}>
+                    সেটিংসে যান (Open App Settings)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.primaryActionButton, { backgroundColor: "#eff6ff", marginTop: 10 }]}
+                  onPress={(() => {})}
+                >
+                  <Ionicons name="create-outline" size={18} color={TRIP_BLUE} />
+                  <Text style={[styles.primaryActionLabel, { color: TRIP_BLUE }]}>
+                    ম্যানুয়াল এন্ট্রি করুন (Enter Manually)
+                  </Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -536,7 +555,7 @@ export function ReceiptScannerModal({
                       name={preset.thumbnailIcon as any}
                       size={15}
                       color={TRIP_BLUE}
-                      style={{ marginRight: 6 }}
+                      style={{ marginEnd: 6 }}
                     />
                     <View>
                       <Text style={styles.presetChipName} numberOfLines={1}>
@@ -612,7 +631,7 @@ export function ReceiptScannerModal({
                   <Text style={styles.pipelineStepText}>Dynamic contrast optimization</Text>
                 </View>
                 <View style={styles.pipelineStepRow}>
-                  <ActivityIndicator size="small" color={TRIP_BLUE} style={{ marginRight: 6 }} />
+                  <ActivityIndicator size="small" color={TRIP_BLUE} style={{ marginEnd: 6 }} />
                   <Text style={styles.pipelineStepTextActive}>
                     Parsing Total, Currency, Date & Category...
                   </Text>
@@ -685,7 +704,7 @@ export function ReceiptScannerModal({
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Total Amount & Currency</Text>
                 <View style={styles.amountInputRow}>
-                  <View style={[styles.inputWrapper, { flex: 1, marginRight: 10 }]}>
+                  <View style={[styles.inputWrapper, { flex: 1, marginEnd: 10 }]}>
                     <Text style={styles.currencyPrefixText}>{currencySymbol}</Text>
                     <TextInput
                       style={[styles.textInput, styles.amountInput]}
@@ -863,7 +882,7 @@ export function ReceiptScannerModal({
                           name={isPayer ? "checkmark-circle" : "person-outline"}
                           size={14}
                           color={isPayer ? "#fff" : "#64748b"}
-                          style={{ marginRight: 4 }}
+                          style={{ marginEnd: 4 }}
                         />
                         <Text
                           style={[
@@ -899,7 +918,7 @@ export function ReceiptScannerModal({
                         name={isIncluded ? "checkbox" : "square-outline"}
                         size={16}
                         color={isIncluded ? TRIP_BLUE : "#94a3b8"}
-                        style={{ marginRight: 6 }}
+                        style={{ marginEnd: 6 }}
                       />
                       <Text
                         style={[
@@ -935,7 +954,7 @@ export function ReceiptScannerModal({
                   end={{ x: 1, y: 0 }}
                   style={styles.confirmFeedGradient}
                 >
-                  <Ionicons name="flash" size={20} color="#fff" style={{ marginRight: 8 }} />
+                  <Ionicons name="flash" size={20} color="#fff" style={{ marginEnd: 8 }} />
                   <Text style={styles.confirmFeedButtonText}>
                     Auto-Feed to Trip Budget & Ledger
                   </Text>
@@ -1035,7 +1054,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   headerSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   headerTextButton: {
@@ -1131,7 +1150,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 12,
     fontWeight: "500",
-    marginLeft: 6,
+    marginStart: 6,
   },
   cameraControlsBar: {
     flexDirection: "row",
@@ -1242,7 +1261,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#475569",
-    marginLeft: 6,
+    marginStart: 6,
   },
   presetsScroll: {
     paddingHorizontal: 16,
@@ -1265,7 +1284,7 @@ const styles = StyleSheet.create({
     maxWidth: 150,
   },
   presetChipMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
 
@@ -1277,7 +1296,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   enhancingPreviewFrame: {
-    width: SCREEN_WIDTH - 48,
+    width: 360 - 48,
     height: 320,
     borderRadius: 16,
     overflow: "hidden",
@@ -1328,13 +1347,13 @@ const styles = StyleSheet.create({
   pipelineStepText: {
     fontSize: 13,
     color: "#475569",
-    marginLeft: 8,
+    marginStart: 8,
   },
   pipelineStepTextActive: {
     fontSize: 13,
     fontWeight: "600",
     color: TRIP_BLUE,
-    marginLeft: 8,
+    marginStart: 8,
   },
 
   // ─── Step 3: Review & Split Styles ───
@@ -1363,7 +1382,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   enhancementBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#334155",
   },
@@ -1372,7 +1391,7 @@ const styles = StyleSheet.create({
     borderColor: "#a7f3d0",
   },
   confidenceBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#047857",
   },
@@ -1416,7 +1435,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   inputIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   textInput: {
     flex: 1,
@@ -1432,7 +1451,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: TRIP_BLUE,
-    marginRight: 6,
+    marginEnd: 6,
   },
   amountInput: {
     fontSize: 20,
@@ -1472,7 +1491,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   todayShortcutText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#334155",
   },
@@ -1483,7 +1502,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   categoryKeywordsText: {
-    fontSize: 11,
+    fontSize: 12,
     color: EMERALD_GREEN,
     fontWeight: "500",
   },
@@ -1590,7 +1609,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#475569",
-    marginRight: 8,
+    marginEnd: 8,
   },
   payerChip: {
     flexDirection: "row",
@@ -1599,7 +1618,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 16,
     backgroundColor: "#f1f5f9",
-    marginRight: 6,
+    marginEnd: 6,
   },
   payerChipSelected: {
     backgroundColor: LUXE_NAVY,
@@ -1642,9 +1661,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   memberChipShare: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
-    marginLeft: 4,
+    marginStart: 4,
   },
 
   // Actions

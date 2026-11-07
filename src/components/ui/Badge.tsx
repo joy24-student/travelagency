@@ -6,8 +6,11 @@ import {
   StyleProp,
   ViewStyle,
   TextStyle,
+  Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../theme/colors";
+import { FONTS } from "../../theme/typography";
 
 export type BadgeStatus =
   | "pending"
@@ -31,11 +34,13 @@ export interface BadgeProps {
   label?: string;
   children?: React.ReactNode;
   showDot?: boolean;
+  showIcon?: boolean;
   icon?: React.ReactNode;
   className?: string;
   textClassName?: string;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
+  accessibilityLabel?: string;
   testID?: string;
 }
 
@@ -46,11 +51,13 @@ export const Badge: React.FC<BadgeProps> = ({
   label,
   children,
   showDot = false,
+  showIcon = true,
   icon,
   className,
   textClassName,
   style,
   textStyle,
+  accessibilityLabel,
   testID,
 }) => {
   const resolvedStatus: BadgeStatus = status;
@@ -63,9 +70,22 @@ export const Badge: React.FC<BadgeProps> = ({
   const displayLabel =
     label || (typeof children === "string" ? children : undefined) || getDefaultLabel(resolvedStatus);
 
+  const computedA11yLabel =
+    accessibilityLabel || `Status: ${getDefaultLabel(resolvedStatus)}${displayLabel && displayLabel !== getDefaultLabel(resolvedStatus) ? `, ${displayLabel}` : ""}`;
+
+  const defaultIconName = getStatusIconName(resolvedStatus);
+  const iconColor = variantStyles.iconColor;
+
   return (
     <View
       testID={testID}
+      accessible={true}
+      accessibilityRole="text"
+      accessibilityLabel={computedA11yLabel}
+      {...(Platform.OS === "web" && {
+        role: "status",
+        "aria-label": computedA11yLabel,
+      })}
       className={className}
       style={[
         styles.baseContainer,
@@ -76,6 +96,8 @@ export const Badge: React.FC<BadgeProps> = ({
     >
       {showDot ? (
         <View
+          accessible={false}
+          importantForAccessibility="no"
           style={[
             styles.dot,
             sizeStyles.dot,
@@ -84,11 +106,25 @@ export const Badge: React.FC<BadgeProps> = ({
         />
       ) : null}
 
-      {icon ? <View style={styles.iconContainer}>{icon}</View> : null}
+      {icon ? (
+        <View accessible={false} importantForAccessibility="no" style={styles.iconContainer}>
+          {icon}
+        </View>
+      ) : showIcon && defaultIconName ? (
+        <View accessible={false} importantForAccessibility="no" style={styles.iconContainer}>
+          <Ionicons
+            name={defaultIconName as any}
+            size={sizeStyles.iconSize}
+            color={iconColor}
+          />
+        </View>
+      ) : null}
 
       {displayLabel ? (
         <Text
           numberOfLines={1}
+          allowFontScaling={true}
+          maxFontSizeMultiplier={1.3}
           className={textClassName}
           style={[
             styles.baseText,
@@ -188,6 +224,7 @@ function getVariantStyles(variant: BadgeVariant, color: ColorConfig) {
           color: color.contrastText,
         },
         dotColor: color.contrastText,
+        iconColor: color.contrastText,
       };
     case "outline":
       return {
@@ -200,6 +237,7 @@ function getVariantStyles(variant: BadgeVariant, color: ColorConfig) {
           color: color.main,
         },
         dotColor: color.main,
+        iconColor: color.main,
       };
     case "subtle":
     default:
@@ -213,6 +251,7 @@ function getVariantStyles(variant: BadgeVariant, color: ColorConfig) {
           color: color.darkText,
         },
         dotColor: color.main,
+        iconColor: color.darkText,
       };
   }
 }
@@ -223,19 +262,20 @@ function getSizeStyles(size: BadgeSize) {
       return {
         container: {
           paddingVertical: 2,
-          paddingHorizontal: 6,
+          paddingHorizontal: 7,
           borderRadius: 6,
         },
         text: {
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: "600" as const,
         },
         dot: {
           width: 5,
           height: 5,
           borderRadius: 2.5,
-          marginRight: 4,
+          marginEnd: 4,
         },
+        iconSize: 12,
       };
     case "lg":
       return {
@@ -245,15 +285,16 @@ function getSizeStyles(size: BadgeSize) {
           borderRadius: 10,
         },
         text: {
-          fontSize: 13,
+          fontSize: 14,
           fontWeight: "700" as const,
         },
         dot: {
           width: 7,
           height: 7,
           borderRadius: 3.5,
-          marginRight: 6,
+          marginEnd: 6,
         },
+        iconSize: 16,
       };
     case "md":
     default:
@@ -264,16 +305,40 @@ function getSizeStyles(size: BadgeSize) {
           borderRadius: 8,
         },
         text: {
-          fontSize: 11.5,
+          fontSize: 13,
           fontWeight: "600" as const,
         },
         dot: {
           width: 6,
           height: 6,
           borderRadius: 3,
-          marginRight: 5,
+          marginEnd: 5,
         },
+        iconSize: 14,
       };
+  }
+}
+
+function getStatusIconName(status: BadgeStatus): string {
+  switch (status) {
+    case "confirmed":
+    case "success":
+      return "checkmark-circle";
+    case "pending":
+    case "warning":
+      return "time-outline";
+    case "cancelled":
+    case "error":
+      return "close-circle";
+    case "vip":
+      return "star";
+    case "verified":
+      return "shield-checkmark";
+    case "info":
+      return "information-circle";
+    case "neutral":
+    default:
+      return "ellipse-outline";
   }
 }
 
@@ -312,11 +377,12 @@ const styles = StyleSheet.create({
   },
   baseText: {
     letterSpacing: 0.2,
+    fontFamily: FONTS.bengali.semiBold,
   },
   dot: {
     flexShrink: 0,
   },
   iconContainer: {
-    marginRight: 4,
+    marginEnd: 4,
   },
 });

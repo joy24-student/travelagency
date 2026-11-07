@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Clipboard,
   Dimensions,
   FlatList,
   Image,
@@ -25,9 +26,9 @@ import { router, useLocalSearchParams } from "expo-router";
 
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../store/authStore";
+import { useNotificationStore } from "../store/notificationStore";
 import { Badge } from "../components/ui";
 import { supabase } from "../utils/supabase";
-import { BottomNav, AiPill } from "./Navigation";
 import {
   realtimeMessenger,
   ChatMessage,
@@ -129,7 +130,7 @@ const FALLBACK_VOUCHERS: BookingVoucherAttachment[] = [
     guestsCount: "2 Adults",
     totalAmount: "৳ 18,500",
     status: "CONFIRMED",
-    agencyName: "Shopnojatra Tours",
+    agencyName: "Shopno Jatra Tours",
   },
   {
     type: "voucher",
@@ -200,6 +201,33 @@ export function AgencyChatScreen() {
 
   // Rich Attachment Modals & Sheets
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [selectedContextMenuMsg, setSelectedContextMenuMsg] = useState<ChatMessage | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
+
+  const handleMessageLongPress = (msg: ChatMessage) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedContextMenuMsg(msg);
+  };
+
+  const handleCopyMessage = (msg: ChatMessage) => {
+    Clipboard.setString(msg.content);
+    setSelectedContextMenuMsg(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast("বার্তা ক্লিপবোর্ডে কপি করা হয়েছে");
+  };
+
+  const handleReplyMessage = (msg: ChatMessage) => {
+    setReplyingToMessage(msg);
+    setSelectedContextMenuMsg(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleDeleteMessage = (msg: ChatMessage) => {
+    setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+    setSelectedContextMenuMsg(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    showToast("বার্তা মুছে ফেলা হয়েছে");
+  };
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showVoucherPicker, setShowVoucherPicker] = useState(false);
   const [activeVoucherDetails, setActiveVoucherDetails] = useState<BookingVoucherAttachment | null>(null);
@@ -208,6 +236,21 @@ export function AgencyChatScreen() {
   // Staged non-media rich attachments before send
   const [stagedLocation, setStagedLocation] = useState<LocationAttachment | null>(null);
   const [stagedVoucher, setStagedVoucher] = useState<BookingVoucherAttachment | null>(null);
+
+  // Action Menu, Reply & Reassurance states
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [selectedActionMessage, setSelectedActionMessage] = useState<ChatMessage | null>(null);
+  const [showActionMenuModal, setShowActionMenuModal] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [incomingPushToast, setIncomingPushToast] = useState<{ title: string; body: string } | null>(null);
+  const [isAgencyOnline, setIsAgencyOnline] = useState(true);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((cur) => (cur === msg ? null : cur));
+    }, 2800);
+  }, []);
 
   // Helper: Scroll to bottom with layout safeguard
   const scrollToBottom = useCallback((animated = true) => {
@@ -681,6 +724,11 @@ export function AgencyChatScreen() {
     let finalMediaUrl = attachmentUri || undefined;
     let finalMediaType: ChatMessage["media_type"] = hasMedia ? "image" : undefined;
 
+    if (replyingToMessage) {
+      finalContent = `[রিপ্লাই: "${replyingToMessage.content.slice(0, 40)}..."]\n${finalContent}`;
+      setReplyingToMessage(null);
+    }
+
     if (hasLocation && stagedLocation) {
       finalContent = JSON.stringify(stagedLocation);
     } else if (hasVoucher && stagedVoucher) {
@@ -723,6 +771,36 @@ export function AgencyChatScreen() {
 
       // 4. Merge confirmed server message seamlessly
       setMessages((prev) => realtimeMessenger.mergeMessages(prev, confirmed));
+
+      // Automated agency concierge response & push notification simulation
+      setTimeout(() => {
+        const agencyName = selectedAgency?.name || "Shopno Jatra Concierge";
+        const replyText = `ধন্যবাদ! আপনার বার্তা পেয়েছি। আমাদের স্পেশালিস্ট এখনই আপনার বুকিং ও তথ্য যাচাই করে নিশ্চিত করছেন।`;
+        const autoMsg: ChatMessage = {
+          id: `agency-reply-${Date.now()}`,
+          conversation_id: conversationId,
+          sender_id: selectedAgencyId || "agency-concierge",
+          sender_name: agencyName,
+          content: replyText,
+          status: "delivered",
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === autoMsg.id)) return prev;
+          return [...prev, autoMsg];
+        });
+        useNotificationStore.getState().addNotification({
+          title: `${agencyName}: নতুন উত্তর এসেছে`,
+          body: replyText,
+          type: "chat",
+          data: { conversationId, agencyId: selectedAgencyId },
+        });
+        setIncomingPushToast({
+          title: `${agencyName} উত্তর দিয়েছেন`,
+          body: replyText,
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }, 5000);
     } catch {
       setMessages((prev) =>
         prev.map((m) =>
@@ -755,6 +833,36 @@ export function AgencyChatScreen() {
         }
       );
       setMessages((prev) => realtimeMessenger.mergeMessages(prev, confirmed));
+
+      // Automated agency concierge response & push notification simulation
+      setTimeout(() => {
+        const agencyName = selectedAgency?.name || "Shopno Jatra Concierge";
+        const replyText = `ধন্যবাদ! আপনার বার্তা পেয়েছি। আমাদের স্পেশালিস্ট এখনই আপনার বুকিং ও তথ্য যাচাই করে নিশ্চিত করছেন।`;
+        const autoMsg: ChatMessage = {
+          id: `agency-reply-${Date.now()}`,
+          conversation_id: conversationId,
+          sender_id: selectedAgencyId || "agency-concierge",
+          sender_name: agencyName,
+          content: replyText,
+          status: "delivered",
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === autoMsg.id)) return prev;
+          return [...prev, autoMsg];
+        });
+        useNotificationStore.getState().addNotification({
+          title: `${agencyName}: নতুন উত্তর এসেছে`,
+          body: replyText,
+          type: "chat",
+          data: { conversationId, agencyId: selectedAgencyId },
+        });
+        setIncomingPushToast({
+          title: `${agencyName} উত্তর দিয়েছেন`,
+          body: replyText,
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }, 5000);
     } catch {
       setMessages((prev) =>
         prev.map((m) => (m.id === failedMsg.id ? { ...m, status: "failed" } : m))
@@ -778,7 +886,7 @@ export function AgencyChatScreen() {
   const selectedAgency = agencies.find((a) => a.id === selectedAgencyId);
 
   // Render Read Receipt Status
-  const renderReadReceipt = (status: ChatMessage["status"]) => {
+  const renderReadReceipt = (status: ChatMessage["status"], msgItem?: ChatMessage) => {
     switch (status) {
       case "sending":
         return <Ionicons name="time-outline" size={13} color="#94A3B8" />;
@@ -789,10 +897,25 @@ export function AgencyChatScreen() {
       case "read":
         return <Ionicons name="checkmark-done" size={14} color="#38BDF8" />;
       case "failed":
-        return <Ionicons name="alert-circle" size={14} color="#EF4444" />;
+        return (
+          <Pressable
+            style={s.failedReceiptRow}
+            onPress={() => msgItem && handleRetryFailedMessage(msgItem)}
+            hitSlop={6}
+          >
+            <Ionicons name="alert-circle" size={14} color="#EF4444" />
+            <Text style={s.retryLinkText}>আবার পাঠান</Text>
+          </Pressable>
+        );
       default:
         return null;
     }
+  };
+
+  const handleLongPressMessage = (msg: ChatMessage) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedActionMessage(msg);
+    setShowActionMenuModal(true);
   };
 
   // Parse Rich Attachments
@@ -855,9 +978,9 @@ export function AgencyChatScreen() {
             <Badge status="verified" size="sm" variant="subtle" label="Partner" />
           </View>
           <View style={s.onlineRow}>
-            <View style={s.onlineDot} />
+            <View style={[s.onlineDot, !isAgencyOnline && { backgroundColor: "#94A3B8" }]} />
             <Text style={s.subtitle}>
-              {activeTypers.length > 0 ? "Typing..." : "Official Certified Concierge • Online"}
+              {activeTypers.length > 0 ? "টাইপ করছেন..." : (isAgencyOnline ? "অনলাইন • Online" : "অফলাইন • Offline")}
             </Text>
           </View>
         </View>
@@ -899,6 +1022,46 @@ export function AgencyChatScreen() {
           >
             <Ionicons name="videocam" size={18} color={PRIMARY} />
           </Pressable>
+        </View>
+      </View>
+
+      {/* ─── In-App Push Notification Banner for Agency Reply ─ */}
+      {incomingPushToast && (
+        <Pressable
+          style={s.pushToastBanner}
+          onPress={() => setIncomingPushToast(null)}
+        >
+          <View style={s.pushToastIconWrap}>
+            <Ionicons name="chatbubble-ellipses" size={20} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={s.pushToastTitle}>{incomingPushToast.title}</Text>
+              <Text style={s.pushToastTime}>এখনই</Text>
+            </View>
+            <Text style={s.pushToastBody} numberOfLines={2}>
+              {incomingPushToast.body}
+            </Text>
+          </View>
+          <Pressable onPress={() => setIncomingPushToast(null)} hitSlop={8}>
+            <Ionicons name="close" size={16} color="#94A3B8" />
+          </Pressable>
+        </Pressable>
+      )}
+
+      {/* ─── Agency Response Time & Push Notification Banner ──────── */}
+      <View style={s.agencyResponseCard}>
+        <View style={s.agencyResponseRow}>
+          <Ionicons name="time" size={14} color="#0284C7" />
+          <Text style={s.agencyResponseText}>
+            সাধারণত ১০ মিনিটে উত্তর দেয় (Usually replies in ~10 mins)
+          </Text>
+        </View>
+        <View style={s.agencyPushNoticeRow}>
+          <Ionicons name="notifications" size={13} color="#059669" />
+          <Text style={s.agencyPushNoticeText}>
+            উত্তর এলে পুশ নোটিফিকেশন পাবেন, অপেক্ষা করতে হবে না
+          </Text>
         </View>
       </View>
 
@@ -952,7 +1115,7 @@ export function AgencyChatScreen() {
           <FlatList
             ref={flatListRef}
             data={messages}
-            keyExtractor={(item) => item.id || item.client_id || Math.random().toString()}
+            keyExtractor={(item, index) => item.id ? String(item.id) : (item.client_id ? String(item.client_id) : `msg-${index}`)}
             contentContainerStyle={s.listContent}
             onContentSizeChange={() => scrollToBottom(false)}
             onLayout={() => scrollToBottom(false)}
@@ -989,11 +1152,14 @@ export function AgencyChatScreen() {
                       </View>
                     )}
 
-                    <View
-                      style={[
+                    <Pressable
+                      onLongPress={() => handleMessageLongPress(item)}
+                      delayLongPress={280}
+                      style={({ pressed }) => [
                         s.bubbleCard,
                         isMe ? s.bubbleMe : s.bubbleOther,
                         richPayload?.type === "voucher" && s.bubbleVoucherCard,
+                        pressed && { opacity: 0.92 },
                       ]}
                     >
                       {!isMe && (
@@ -1127,9 +1293,9 @@ export function AgencyChatScreen() {
                             minute: "2-digit",
                           })}
                         </Text>
-                        {isMe && renderReadReceipt(item.status)}
+                        {isMe && renderReadReceipt(item.status, item)}
                       </View>
-                    </View>
+                    </Pressable>
 
                     {/* Retry button for failed messages */}
                     {item.status === "failed" && isMe && (
@@ -1165,7 +1331,7 @@ export function AgencyChatScreen() {
         {attachmentUri && (
           <View style={s.attachmentPreviewBox}>
             <Image source={{ uri: attachmentUri }} style={s.attachmentThumbnail} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
+            <View style={{ flex: 1, marginStart: 10 }}>
               <Text style={s.attachmentName}>Photo attached</Text>
               <Text style={s.attachmentReady}>Ready to send with conversation</Text>
             </View>
@@ -1184,7 +1350,7 @@ export function AgencyChatScreen() {
             <View style={[s.attachmentThumbnail, s.locationThumbnail]}>
               <Ionicons name="location" size={20} color="#FFFFFF" />
             </View>
-            <View style={{ flex: 1, marginLeft: 10 }}>
+            <View style={{ flex: 1, marginStart: 10 }}>
               <Text style={s.attachmentName}>Location Pin Staged</Text>
               <Text style={s.attachmentReady} numberOfLines={1}>
                 {stagedLocation.title}
@@ -1205,7 +1371,7 @@ export function AgencyChatScreen() {
             <View style={[s.attachmentThumbnail, s.voucherThumbnail]}>
               <Ionicons name="ticket" size={20} color="#FFFFFF" />
             </View>
-            <View style={{ flex: 1, marginLeft: 10 }}>
+            <View style={{ flex: 1, marginStart: 10 }}>
               <Text style={s.attachmentName}>Booking Voucher Staged</Text>
               <Text style={s.attachmentReady} numberOfLines={1}>
                 {stagedVoucher.tourName} ({stagedVoucher.voucherCode})
@@ -1289,6 +1455,29 @@ export function AgencyChatScreen() {
                 <Ionicons name="ticket" size={22} color="#059669" />
               </View>
               <Text style={s.actionTrayLabel}>Voucher</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* ─── Replying To Preview Banner ─────────────────────── */}
+        {replyingToMessage && (
+          <View style={s.replyingPreviewBar}>
+            <View style={s.replyingBarLeft}>
+              <Ionicons name="return-up-back" size={16} color={PRIMARY} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.replyingToName}>
+                  Replying to {replyingToMessage.sender_name || "message"}
+                </Text>
+                <Text style={s.replyingSnippet} numberOfLines={1}>
+                  {replyingToMessage.content}
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => setReplyingToMessage(null)}
+              hitSlop={8}
+            >
+              <Ionicons name="close-circle" size={18} color="#94A3B8" />
             </Pressable>
           </View>
         )}
@@ -1569,7 +1758,7 @@ export function AgencyChatScreen() {
                       </View>
                     </View>
 
-                    <View style={{ flex: 1, paddingLeft: 12 }}>
+                    <View style={{ flex: 1, paddingStart: 12 }}>
                       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                         <Text style={s.voucherCodeText}>{voucher.voucherCode}</Text>
                         <Text style={s.voucherAmountPill}>{voucher.totalAmount}</Text>
@@ -1683,8 +1872,69 @@ export function AgencyChatScreen() {
         </View>
       </Modal>
 
-      <AiPill color={PRIMARY} />
-      <BottomNav active="Messages" color={PRIMARY} />
+      {/* ─── Message Long-Press Context Menu Modal ───────────── */}
+      <Modal
+        visible={!!selectedContextMenuMsg}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedContextMenuMsg(null)}
+      >
+        <Pressable
+          style={s.contextMenuBackdrop}
+          onPress={() => setSelectedContextMenuMsg(null)}
+        >
+          {selectedContextMenuMsg && (
+            <View style={s.contextMenuCard}>
+              <View style={s.contextMenuHeader}>
+                <Text style={s.contextMenuHeaderTitle}>Message Actions</Text>
+                <Text style={s.contextMenuSnippet} numberOfLines={2}>
+                  "{selectedContextMenuMsg.content}"
+                </Text>
+              </View>
+
+              <View style={s.contextMenuActions}>
+                <Pressable
+                  style={s.contextMenuItem}
+                  onPress={() => handleCopyMessage(selectedContextMenuMsg)}
+                >
+                  <Ionicons name="copy-outline" size={18} color="#0F172A" />
+                  <Text style={s.contextMenuItemText}>কপি করুন (Copy)</Text>
+                </Pressable>
+
+                <Pressable
+                  style={s.contextMenuItem}
+                  onPress={() => handleReplyMessage(selectedContextMenuMsg)}
+                >
+                  <Ionicons name="arrow-undo-outline" size={18} color="#287DFA" />
+                  <Text style={[s.contextMenuItemText, { color: "#287DFA" }]}>উত্তর দিন (Reply)</Text>
+                </Pressable>
+
+                {selectedContextMenuMsg.status === "failed" && (
+                  <Pressable
+                    style={s.contextMenuItem}
+                    onPress={() => {
+                      const msg = selectedContextMenuMsg;
+                      setSelectedContextMenuMsg(null);
+                      handleRetryFailedMessage(msg);
+                    }}
+                  >
+                    <Ionicons name="refresh-outline" size={18} color="#D97706" />
+                    <Text style={[s.contextMenuItemText, { color: "#D97706" }]}>পুনরায় পাঠান (Retry)</Text>
+                  </Pressable>
+                )}
+
+                <Pressable
+                  style={[s.contextMenuItem, { borderBottomWidth: 0 }]}
+                  onPress={() => handleDeleteMessage(selectedContextMenuMsg)}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                  <Text style={[s.contextMenuItemText, { color: "#DC2626" }]}>মুছে ফেলুন (Delete)</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1720,7 +1970,7 @@ const s = StyleSheet.create({
   title: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
   onlineRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
   onlineDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#10B981" },
-  subtitle: { fontSize: 11, color: "#64748B", fontWeight: "600" },
+  subtitle: { fontSize: 12, color: "#64748B", fontWeight: "600" },
   callActionBtn: {
     width: 36,
     height: 36,
@@ -1736,7 +1986,7 @@ const s = StyleSheet.create({
     borderBottomColor: "#F1F5F9",
   },
   pickerLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#94A3B8",
     textTransform: "uppercase",
@@ -1770,7 +2020,7 @@ const s = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-  datePillText: { fontSize: 10, fontWeight: "700", color: "#64748B" },
+  datePillText: { fontSize: 12, fontWeight: "700", color: "#64748B" },
   messageRow: { flexDirection: "row", marginBottom: 14, alignItems: "flex-end", gap: 8 },
   messageRowMe: { justifyContent: "flex-end" },
   messageRowOther: { justifyContent: "flex-start" },
@@ -1808,7 +2058,7 @@ const s = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   senderNameLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: PRIMARY,
     marginBottom: 4,
@@ -1823,7 +2073,7 @@ const s = StyleSheet.create({
     marginTop: 4,
     paddingHorizontal: 6,
   },
-  timeText: { fontSize: 10, color: "#94A3B8" },
+  timeText: { fontSize: 12, color: "#94A3B8" },
   timeTextMe: { color: "rgba(255, 255, 255, 0.75)" },
   retryBtn: { padding: 4, marginBottom: 4 },
   mediaPreviewWrap: {
@@ -1880,7 +2130,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   attachmentName: { fontSize: 13, fontWeight: "700", color: "#0F172A" },
-  attachmentReady: { fontSize: 11, color: "#64748B" },
+  attachmentReady: { fontSize: 12, color: "#64748B" },
   removeAttachmentBtn: { padding: 4 },
   uploadProgressBar: {
     height: 18,
@@ -1895,7 +2145,7 @@ const s = StyleSheet.create({
   uploadProgressText: {
     position: "absolute",
     alignSelf: "center",
-    fontSize: 10,
+    fontSize: 12,
     color: "#fff",
     fontWeight: "700",
   },
@@ -1909,7 +2159,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  quickPromptText: { fontSize: 11, fontWeight: "600", color: "#475569" },
+  quickPromptText: { fontSize: 12, fontWeight: "600", color: "#475569" },
   attachmentActionTray: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
@@ -1927,7 +2177,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actionTrayLabel: { fontSize: 11, fontWeight: "600", color: "#475569" },
+  actionTrayLabel: { fontSize: 12, fontWeight: "600", color: "#475569" },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1991,7 +2241,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   locationVerifiedTag: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#D97706",
     letterSpacing: 0.5,
@@ -2003,7 +2253,7 @@ const s = StyleSheet.create({
     lineHeight: 17,
   },
   locationAddressText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     lineHeight: 15,
     marginBottom: 8,
@@ -2019,7 +2269,7 @@ const s = StyleSheet.create({
     alignSelf: "flex-start",
     marginBottom: 10,
   },
-  coordsText: { fontSize: 10, fontWeight: "600", color: "#2563EB" },
+  coordsText: { fontSize: 12, fontWeight: "600", color: "#2563EB" },
   openMapBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -2051,14 +2301,95 @@ const s = StyleSheet.create({
     borderBottomColor: "#DBEAFE",
   },
   voucherHeaderBadge: { flexDirection: "row", alignItems: "center", gap: 5 },
-  voucherHeaderText: { fontSize: 10, fontWeight: "800", color: "#1D4ED8" },
+  voucherHeaderText: { fontSize: 12, fontWeight: "800", color: "#1D4ED8" },
+  replyingPreviewBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F1F5F9",
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  replyingBarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    marginEnd: 10,
+  },
+  replyingToName: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+  replyingSnippet: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  contextMenuBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  contextMenuCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 16px rgba(15, 23, 42, 0.2)" } : {}),
+  },
+  contextMenuHeader: {
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    marginBottom: 8,
+  },
+  contextMenuHeaderTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#94A3B8",
+    textTransform: "uppercase",
+  },
+  contextMenuSnippet: {
+    fontSize: 13,
+    color: "#334155",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  contextMenuActions: {
+    gap: 2,
+  },
+  contextMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F8FAFC",
+  },
+  contextMenuItemText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
   voucherStatusPill: {
     backgroundColor: "#DCFCE7",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
   },
-  voucherStatusText: { fontSize: 9, fontWeight: "800", color: "#15803D" },
+  voucherStatusText: { fontSize: 12, fontWeight: "800", color: "#15803D" },
   voucherTourTitle: {
     fontSize: 13,
     fontWeight: "800",
@@ -2074,8 +2405,8 @@ const s = StyleSheet.create({
     gap: 8,
   },
   voucherGridItem: { width: "47%" },
-  voucherGridLabel: { fontSize: 9, fontWeight: "700", color: "#94A3B8" },
-  voucherGridValue: { fontSize: 11, fontWeight: "600", color: "#1E293B" },
+  voucherGridLabel: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
+  voucherGridValue: { fontSize: 12, fontWeight: "600", color: "#1E293B" },
   voucherDividerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -2087,7 +2418,7 @@ const s = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: "#F8FAFC",
-    marginLeft: -6,
+    marginStart: -6,
     borderWidth: 1,
     borderColor: "#CBD5E1",
   },
@@ -2102,7 +2433,7 @@ const s = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: "#F8FAFC",
-    marginRight: -6,
+    marginEnd: -6,
     borderWidth: 1,
     borderColor: "#CBD5E1",
   },
@@ -2113,7 +2444,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 10,
   },
-  voucherTotalLabel: { fontSize: 9, fontWeight: "700", color: "#94A3B8" },
+  voucherTotalLabel: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
   voucherTotalValue: { fontSize: 14, fontWeight: "900", color: "#0F172A" },
   viewVoucherBtn: {
     flexDirection: "row",
@@ -2124,7 +2455,7 @@ const s = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
   },
-  viewVoucherBtnText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+  viewVoucherBtnText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
 
   // Modals Common
   modalBackdrop: {
@@ -2166,7 +2497,7 @@ const s = StyleSheet.create({
   modeToggleText: { fontSize: 12, fontWeight: "600", color: "#64748B" },
   modeToggleTextActive: { color: "#0F172A", fontWeight: "800" },
   customInputBox: { paddingVertical: 6 },
-  customInputLabel: { fontSize: 11, fontWeight: "700", color: "#475569", marginBottom: 4, marginTop: 8 },
+  customInputLabel: { fontSize: 12, fontWeight: "700", color: "#475569", marginBottom: 4, marginTop: 8 },
   customTextInput: {
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
@@ -2205,8 +2536,8 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   presetItemTitle: { fontSize: 13, fontWeight: "700", color: "#0F172A" },
-  presetItemSubtitle: { fontSize: 11, color: "#64748B", marginTop: 1 },
-  presetItemCoords: { fontSize: 10, color: "#2563EB", fontWeight: "600", marginTop: 2 },
+  presetItemSubtitle: { fontSize: 12, color: "#64748B", marginTop: 1 },
+  presetItemCoords: { fontSize: 12, color: "#2563EB", fontWeight: "600", marginTop: 2 },
 
   // Voucher Picker Item
   voucherPickRow: {
@@ -2227,10 +2558,10 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  voucherCodeText: { fontSize: 11, fontWeight: "800", color: "#059669" },
+  voucherCodeText: { fontSize: 12, fontWeight: "800", color: "#059669" },
   voucherAmountPill: { fontSize: 13, fontWeight: "800", color: "#0F172A" },
   voucherTitlePick: { fontSize: 13, fontWeight: "700", color: "#0F172A", marginTop: 2 },
-  voucherMetaPick: { fontSize: 11, color: "#64748B", marginTop: 2 },
+  voucherMetaPick: { fontSize: 12, color: "#64748B", marginTop: 2 },
 
   // Fullscreen Voucher Dialog
   fullVoucherDialog: {
@@ -2273,7 +2604,7 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
   },
-  passStatusBadgeText: { fontSize: 10, fontWeight: "800", color: "#166534" },
+  passStatusBadgeText: { fontSize: 12, fontWeight: "800", color: "#166534" },
   passDataGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -2284,7 +2615,7 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   passGridCell: { width: "46%" },
-  passCellLabel: { fontSize: 9, fontWeight: "800", color: "#94A3B8" },
+  passCellLabel: { fontSize: 12, fontWeight: "800", color: "#94A3B8" },
   passCellValue: { fontSize: 12, fontWeight: "700", color: "#0F172A", marginTop: 2 },
   qrSimBox: {
     alignItems: "center",
@@ -2295,7 +2626,7 @@ const s = StyleSheet.create({
     borderColor: "#E2E8F0",
     marginBottom: 10,
   },
-  qrSimLabel: { fontSize: 11, color: "#64748B", fontWeight: "600", marginTop: 8 },
+  qrSimLabel: { fontSize: 12, color: "#64748B", fontWeight: "600", marginTop: 8 },
 
   // Fullscreen Image Zoom
   imageZoomBackdrop: { flex: 1, backgroundColor: "#000000", justifyContent: "center" },
@@ -2309,4 +2640,96 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   fullscreenZoomImg: { width: "100%", height: "85%" },
+  failedReceiptRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginStart: 4,
+  },
+  retryLinkText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#EF4444",
+  },
+  agencyResponseCard: {
+    backgroundColor: "#F0F9FF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#BAE6FD",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  agencyResponseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  agencyResponseText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0369A1",
+  },
+  agencyPushNoticeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  agencyPushNoticeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#15803D",
+  },
+  pushToastBanner: {
+    position: "absolute",
+    top: 60,
+    left: 16,
+    right: 16,
+    backgroundColor: "#0F172A",
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    zIndex: 999,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.25)" } : {}),
+  },
+  pushToastIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pushToastTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  pushToastTime: {
+    fontSize: 10,
+    color: "#94A3B8",
+  },
+  pushToastBody: {
+    fontSize: 12,
+    color: "#CBD5E1",
+    marginTop: 2,
+  },
 });

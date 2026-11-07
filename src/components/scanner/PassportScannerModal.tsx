@@ -22,6 +22,7 @@ import {
   TextInput,
   Platform,
   Alert,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
@@ -39,16 +40,17 @@ import {
 } from "../../services/vision/mrzScanner";
 import { useBookingStore } from "../../store/bookingStore";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 
 // Scanner bounding box dimensions
-const SCANNER_WIDTH = Math.min(SCREEN_WIDTH * 0.9, 360);
+const SCANNER_WIDTH = Math.min(360 * 0.9, 360);
 const SCANNER_HEIGHT = SCANNER_WIDTH * 0.65; // Aspect ratio for ID/Passport data page
 
 export interface PassportScannerModalProps {
   visible: boolean;
   onClose: () => void;
   onScanSuccess?: (data: ParsedMRZ) => void;
+  onManualEntry?: () => void;
   travelerIndex?: number;
   initialFormat?: MRZFormat;
   autoPopulateImmediately?: boolean;
@@ -58,6 +60,7 @@ export const PassportScannerModal: React.FC<PassportScannerModalProps> = ({
   visible,
   onClose,
   onScanSuccess,
+  onManualEntry,
   travelerIndex = 0,
   initialFormat = "TD3",
   autoPopulateImmediately = true,
@@ -73,9 +76,33 @@ export const PassportScannerModal: React.FC<PassportScannerModalProps> = ({
   const [selectedFormat, setSelectedFormat] = useState<MRZFormat>(initialFormat);
   const [isProcessing, setIsProcessing] = useState(false);
   const [scannedResult, setScannedResult] = useState<ParsedMRZ | null>(null);
+  const presetScanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (presetScanTimerRef.current) clearTimeout(presetScanTimerRef.current);
+    };
+  }, []);
   const [statusMessage, setStatusMessage] = useState<string>(
     "Align Machine Readable Zone (MRZ) inside frame"
   );
+
+  // Dynamic live guidance hints
+  const [guidanceTipIndex, setGuidanceTipIndex] = useState(0);
+  const guidanceTips = [
+    "📷 পাসপোর্ট বা এনআইডি সোজা ফ্রেমের মাঝে রাখুন",
+    "💡 আলো কম? ওপরের ফ্ল্যাশ বাটন অন করুন",
+    "🔍 লেখা ঝাপসা হলে ক্যামেরা স্থির রাখুন এবং দূরত্ব সামঞ্জস্য করুন",
+    "✍️ স্ক্যান হতে সমস্যা হলে ম্যানুয়ালি তথ্য পূরণ করুন",
+  ];
+
+  useEffect(() => {
+    if (visible && !scannedResult) {
+      const interval = setInterval(() => {
+        setGuidanceTipIndex((prev) => (prev + 1) % guidanceTips.length);
+      }, 3500);
+      return () => clearInterval(interval);
+    }
+  }, [visible, scannedResult]);
 
   // Test Presets & Manual Input Drawer State
   const [showPresets, setShowPresets] = useState(false);
@@ -264,34 +291,70 @@ export const PassportScannerModal: React.FC<PassportScannerModalProps> = ({
           <View style={styles.permissionContainer}>
             <View style={styles.permissionCard}>
               <View style={styles.shieldIconWrapper}>
-                <Ionicons name="shield-checkmark-outline" size={48} color="#287dfa" />
+                <Ionicons name="camera-outline" size={48} color="#ef4444" />
               </View>
-              <Text style={styles.permissionTitle}>Camera Access Required</Text>
+              <Text style={styles.permissionTitle}>ক্যামেরা ছাড়া স্ক্যান করা যাবে না</Text>
               <Text style={styles.permissionDesc}>
-                To scan Passports and Smart National ID cards on this device, camera
-                permissions are required.
+                পাসপোর্ট এবং স্মার্ট জাতীয় পরিচয়পত্র (NID) ক্যামেরা দিয়ে দ্রুত স্ক্যান করার জন্য অ্যাক্সেস প্রয়োজন। ডিভাইসে অনুমতি বন্ধ থাকলে সেটিংসে গিয়ে চালু করুন, অথবা বিকল্প পথে ম্যানুয়ালি তথ্য দিন।
               </Text>
 
               <View style={styles.privacyBadge}>
                 <Ionicons name="lock-closed-outline" size={16} color="#10b981" />
                 <Text style={styles.privacyBadgeText}>
-                  100% On-Device • Zero Cloud Frame Transmission
+                  ১০০% ডিভাইসে প্রসেসিং • কোনো ছবি সার্ভারে সংরক্ষিত হয় না
                 </Text>
               </View>
 
               <TouchableOpacity
-                style={styles.permissionBtn}
-                onPress={requestPermission}
+                style={[styles.permissionBtn, { backgroundColor: "#0055F2" }]}
+                onPress={() => Linking.openSettings()}
                 activeOpacity={0.85}
               >
-                <Text style={styles.permissionBtnText}>Grant Camera Access</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Ionicons name="settings-outline" size={18} color="#fff" />
+                  <Text style={[styles.permissionBtnText, { color: "#fff", fontWeight: "700" }]}>
+                    সেটিংসে খুলুন
+                  </Text>
+                </View>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.permissionBtn, { backgroundColor: "#eff6ff", marginTop: 10 }]}
+                onPress={() => {
+                  if (onManualEntry) {
+                    onClose();
+                    onManualEntry();
+                  } else {
+                    setShowManualInput(true);
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Ionicons name="create-outline" size={18} color="#0055F2" />
+                  <Text style={[styles.permissionBtnText, { color: "#0055F2", fontWeight: "700" }]}>
+                    বিকল্প পথ: ম্যানুয়ালি তথ্য দিন
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {permission?.canAskAgain ? (
+                <TouchableOpacity
+                  style={[styles.permissionBtn, { backgroundColor: "#f1f5f9", marginTop: 10 }]}
+                  onPress={requestPermission}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.permissionBtnText, { color: "#475569" }]}>
+                    অনুমতি চাওয়ার ডায়ালগ দেখান
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
 
               <TouchableOpacity
                 style={styles.permissionCancelBtn}
                 onPress={onClose}
               >
-                <Text style={styles.permissionCancelBtnText}>Cancel</Text>
+                <Text style={styles.permissionCancelBtnText}>বাতিল করুন</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -494,6 +557,52 @@ export const PassportScannerModal: React.FC<PassportScannerModalProps> = ({
                   )}
                   <Text style={styles.statusText}>{statusMessage}</Text>
                 </View>
+
+                {/* Dynamic Real-Time Live Guidance Banner */}
+                {!scannedResult && (
+                  <View style={styles.liveGuidanceCard}>
+                    <Text style={styles.liveGuidanceText}>
+                      {guidanceTips[guidanceTipIndex]}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={toggleTorch}
+                      style={[
+                        styles.quickTorchBtn,
+                        torchOn && styles.quickTorchBtnActive,
+                      ]}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={torchOn ? "flash" : "flash-outline"}
+                        size={14}
+                        color={torchOn ? "#ffffff" : "#f59e0b"}
+                      />
+                      <Text
+                        style={[
+                          styles.quickTorchBtnText,
+                          torchOn && styles.quickTorchBtnTextActive,
+                        ]}
+                      >
+                        {torchOn ? "ফ্ল্যাশ বন্ধ" : "আলো বাড়ান"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Prominent Manual Entry Alternative Button */}
+                <TouchableOpacity
+                  style={styles.manualEntryFallbackBtn}
+                  onPress={() => {
+                    onClose();
+                    if (onManualEntry) onManualEntry();
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="create-outline" size={16} color="#ffffff" />
+                  <Text style={styles.manualEntryFallbackBtnText}>
+                    স্ক্যানার বাদ দিন ও ম্যানুয়ালি তথ্য পূরণ করুন (Enter Manually)
+                  </Text>
+                </TouchableOpacity>
 
                 {/* Privacy & Security Guarantee Banner */}
                 <View style={styles.privacyBanner}>
@@ -1116,7 +1225,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   mrzZoneLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#93c5fd",
     letterSpacing: 0.5,
@@ -1132,7 +1241,7 @@ const styles = StyleSheet.create({
   },
   guidelineSample: {
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-    fontSize: 8.5,
+    fontSize: 12.5,
     color: "rgba(255, 255, 255, 0.4)",
     letterSpacing: 0.8,
   },
@@ -1147,6 +1256,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     shadowRadius: 6,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 0px 6px rgba(15, 23, 42, 0.9)" } : {}),
   },
   statusPill: {
     flexDirection: "row",
@@ -1173,7 +1283,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   privacyBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6ee7b7",
     fontWeight: "500",
   },
@@ -1202,7 +1312,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    maxHeight: SCREEN_HEIGHT * 0.72,
+    maxHeight: 640 * 0.72,
     backgroundColor: "#0f172a",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -1263,7 +1373,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   resultRowLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
     textTransform: "uppercase",
@@ -1305,12 +1415,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#7f1d1d",
   },
   checksumPillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#ffffff",
   },
   expiredWarning: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#f87171",
     fontWeight: "600",
     marginTop: 4,
@@ -1326,7 +1436,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   compositeSummaryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#cbd5e1",
     flex: 1,
   },
@@ -1376,7 +1486,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    maxHeight: SCREEN_HEIGHT * 0.6,
+    maxHeight: 640 * 0.6,
   },
   sheetHeader: {
     flexDirection: "row",
@@ -1424,7 +1534,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
   presetItemCountry: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 2,
   },
@@ -1454,6 +1564,73 @@ const styles = StyleSheet.create({
   manualSubmitBtnText: {
     color: "#ffffff",
     fontSize: 14,
+    fontWeight: "700",
+  },
+  liveGuidanceCard: {
+    backgroundColor: "rgba(15, 23, 42, 0.85)",
+    borderColor: "#334155",
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginTop: 6,
+    gap: 8,
+  },
+  liveGuidanceText: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
+  quickTorchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "#f59e0b",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  quickTorchBtnActive: {
+    backgroundColor: "#f59e0b",
+    borderColor: "#f59e0b",
+  },
+  quickTorchBtnText: {
+    color: "#f59e0b",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  quickTorchBtnTextActive: {
+    color: "#ffffff",
+  },
+  manualEntryFallbackBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#2563eb",
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 3.84px rgba(15, 23, 42, 0.25)" } : {}),
+  },
+  manualEntryFallbackBtnText: {
+    color: "#ffffff",
+    fontSize: 12,
     fontWeight: "700",
   },
 });

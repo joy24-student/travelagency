@@ -41,10 +41,13 @@ import {
   EmbassyContact,
   NATIONAL_HOTLINES,
   SOSDispatchResult,
+  CountryEmergencyProfile,
+  COUNTRY_EMERGENCY_PROFILES,
+  OfflineReadinessStatus,
 } from "../services/safety/sosService";
+import { emergencySound } from "../utils/emergencySound";
 import { colors } from "../theme/colors";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type TabKey = "sos" | "nearby" | "phrases" | "embassies";
 
@@ -54,10 +57,21 @@ export const EmergencyScreen: React.FC = () => {
   // Active Tab
   const [activeTab, setActiveTab] = useState<TabKey>("sos");
 
-  // GPS Location State
+  // Country Profile State
+  const [selectedCountry, setSelectedCountry] = useState<CountryEmergencyProfile>(
+    COUNTRY_EMERGENCY_PROFILES[0]
+  );
+  const [isCountryModalVisible, setIsCountryModalVisible] = useState<boolean>(false);
+
+  // GPS Location State & Permissions
   const [coords, setCoords] = useState<GeoCoordinates | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locationStatus, setLocationStatus] = useState<"locating" | "ready" | "cached" | "denied">("locating");
   const [gpsError, setGpsError] = useState<string | null>(null);
+
+  // Offline Readiness State
+  const [offlineStatus, setOfflineStatus] = useState<OfflineReadinessStatus | null>(null);
+  const [isDownloadingOffline, setIsDownloadingOffline] = useState<boolean>(false);
 
   // Emergency Contacts
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
@@ -67,9 +81,9 @@ export const EmergencyScreen: React.FC = () => {
   const [newContactRel, setNewContactRel] = useState<EmergencyContact["relationship"]>("Family");
   const [newContactNotify, setNewContactNotify] = useState(true);
 
-  // SOS Panic State & Countdown
+  // SOS Panic State & 5-Second Countdown
   const [isSOSArmed, setIsSOSArmed] = useState<boolean>(false);
-  const [countdown, setCountdown] = useState<number>(3);
+  const [countdown, setCountdown] = useState<number>(5);
   const [isDispatchingSOS, setIsDispatchingSOS] = useState<boolean>(false);
   const [sosResult, setSosResult] = useState<SOSDispatchResult | null>(null);
   const [isResultModalVisible, setIsResultModalVisible] = useState<boolean>(false);
@@ -135,20 +149,54 @@ export const EmergencyScreen: React.FC = () => {
     };
   }, []);
 
-  // ── Initial Data Fetch ───────────────────────────────────────────────────
+  // ── Initial Data Fetch & Lifecycle ──────────────────────────────────────
   useEffect(() => {
     loadLocation();
     loadContacts();
+    loadOfflineStatus();
+    emergencySound.prepare();
+
+    return () => {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+      }
+      emergencySound.stop();
+    };
   }, []);
 
-  const loadLocation = async () => {
+  const loadLocation = async (forceRequest: boolean = false) => {
     setIsLocating(true);
+    setLocationStatus("locating");
     setGpsError(null);
     try {
+      if (forceRequest) {
+        await sosService.requestLocationPermission();
+      }
+
+      const hasPerm = await sosService.checkLocationPermission();
+      if (!hasPerm && Platform.OS !== "web") {
+        const req = await sosService.requestLocationPermission();
+        if (!req.granted) {
+          setLocationStatus("denied");
+        }
+      }
+
       const loc = await sosService.getCurrentLocation();
       setCoords(loc);
+      if (loc.isEstimated) {
+        setLocationStatus("cached");
+      } else {
+        setLocationStatus("ready");
+      }
+
+      // Auto-detect country based on coordinates or device region
+      const detectedCountry = await sosService.detectCurrentCountry(loc);
+      if (detectedCountry) {
+        setSelectedCountry(detectedCountry);
+      }
     } catch (err: any) {
       setGpsError("Unable to acquire live GPS. Using cached tourist coordinates.");
+      setLocationStatus("cached");
     } finally {
       setIsLocating(false);
     }
@@ -163,24 +211,59 @@ export const EmergencyScreen: React.FC = () => {
     }
   };
 
-  // ── SOS Activation & Countdown Logic ────────────────────────────────────
+  const loadOfflineStatus = async () => {
+    try {
+      const status = await sosService.getOfflineReadinessStatus();
+      setOfflineStatus(status);
+    } catch (err) {
+      console.warn("Failed to load offline readiness:", err);
+    }
+  };
+
+  const handleDownloadOfflinePack = async () => {
+    setIsDownloadingOffline(true);
+    try {
+      await sosService.downloadOfflineSafetyPack();
+      await loadOfflineStatus();
+      Alert.alert(
+        "অফলাইনে প্রস্তুত ✓",
+        "জরুরি নম্বর, ১৫ কিমি হাসপাতাল, থানা ও মেডিকেল ফ্রেজবুক সংরক্ষিত হয়েছে (২.৩ MB)।"
+      );
+    } catch {
+      Alert.alert("ত্রুটি", "অফলাইন ডেটা সংরক্ষণ করা সম্ভব হয়নি।");
+    } finally {
+      setIsDownloadingOffline(false);
+    }
+  };
+
+  // ── SOS Activation & 5-Second Countdown Logic ────────────────────────────
   const handleStartSOS = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setIsSOSArmed(true);
-    setCountdown(3);
+    setCountdown(5);
 
     if (countdownTimerRef.current) {
       clearInterval(countdownTimerRef.current);
     }
 
-    let currentCount = 3;
+    // Immediate sound beep and vibration
+    emergencySound.playCountdownBeep();
+
+    let currentCount = 5;
     countdownTimerRef.current = setInterval(() => {
       currentCount -= 1;
       setCountdown(currentCount);
+
+      // Play sound and trigger vibration on each tick
+      emergencySound.playCountdownBeep();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
       if (currentCount <= 0) {
-        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+        if (countdownTimerRef.current) {
+          clearInterval(countdownTimerRef.current);
+          countdownTimerRef.current = null;
+        }
+        emergencySound.stop();
         executeSOSDispatch();
       }
     }, 1000);
@@ -191,25 +274,46 @@ export const EmergencyScreen: React.FC = () => {
       clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
     }
+    emergencySound.stop();
     setIsSOSArmed(false);
-    setCountdown(3);
+    setCountdown(5);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert("SOS Cancelled", "জরুরি সংকেত নিরাপদে বাতিল করা হয়েছে। কোনো বার্তা পাঠানো হয়নি।");
   };
 
   const executeSOSDispatch = async () => {
     setIsSOSArmed(false);
+    emergencySound.stop();
     setIsDispatchingSOS(true);
     try {
-      const result = await sosService.triggerOneTapSOS(customSOSNote);
+      const result = await sosService.triggerOneTapSOS(customSOSNote, selectedCountry.countryCode);
       setSosResult(result);
       setIsResultModalVisible(true);
     } catch (err: any) {
-      Alert.alert("SOS Error", "Failed to dispatch SOS. Calling 999 directly.", [
-        { text: "Call 999", onPress: () => sosService.triggerCall("999") },
+      const emergencyNum = selectedCountry.primaryEmergencyNumber;
+      Alert.alert("SOS Error", `Failed to dispatch SOS. Calling ${emergencyNum} directly.`, [
+        { text: `Call ${emergencyNum}`, onPress: () => sosService.triggerCall(emergencyNum) },
         { text: "Dismiss", style: "cancel" },
       ]);
     } finally {
       setIsDispatchingSOS(false);
+    }
+  };
+
+  // ── Emergency Contacts Phonebook Picker (expo-contacts) ─────────────────
+  const handlePickFromPhonebook = async () => {
+    try {
+      const picked = await sosService.pickContactFromPhonebook();
+      if (picked) {
+        setNewContactName(picked.name);
+        setNewContactPhone(picked.phone);
+        setIsContactsModalVisible(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        setIsContactsModalVisible(true);
+      }
+    } catch {
+      setIsContactsModalVisible(true);
     }
   };
 
@@ -360,11 +464,14 @@ export const EmergencyScreen: React.FC = () => {
             {coords?.locationName || "High accuracy coordinate tracking active"}
             {coords?.accuracy ? ` (±${Math.round(coords.accuracy)}m)` : ""}
           </Text>
+          {gpsError ? (
+            <Text style={styles.gpsErrorText}>⚠ {gpsError}</Text>
+          ) : null}
         </View>
 
         <TouchableOpacity
           style={styles.gpsRefreshBtn}
-          onPress={loadLocation}
+          onPress={() => loadLocation(true)}
           disabled={isLocating}
         >
           {isLocating ? (
@@ -458,7 +565,75 @@ export const EmergencyScreen: React.FC = () => {
         {/* ================================================================== */}
         {activeTab === "sos" && (
           <View style={styles.sectionContainer}>
-            {/* SOS PANIC HERO BUTTON */}
+            {/* ── 1. LIVE LOCATION RELIABILITY BADGE ─────────────────────── */}
+            <View style={styles.locationStatusWrap}>
+              {locationStatus === "ready" && !coords?.isEstimated ? (
+                <View style={styles.locationBadgeSuccess}>
+                  <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
+                  <Text style={styles.locationBadgeSuccessText}>
+                    লোকেশন চালু আছে ✓ {coords?.locationName ? `(${coords.locationName})` : "লাইভ GPS সক্রিয়"}
+                  </Text>
+                </View>
+              ) : coords?.isEstimated ? (
+                <TouchableOpacity
+                  style={styles.locationBadgeWarning}
+                  onPress={() => loadLocation(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="alert-circle" size={16} color="#d97706" />
+                  <Text style={styles.locationBadgeWarningText}>
+                    সর্বশেষ জানা অবস্থান ({coords?.locationName || "ক্যাশড"}) • লোকেশন খোঁজা হচ্ছে…
+                  </Text>
+                  <Ionicons name="refresh" size={14} color="#d97706" />
+                </TouchableOpacity>
+              ) : locationStatus === "locating" ? (
+                <View style={styles.locationBadgeLocating}>
+                  <ActivityIndicator size="small" color="#0284c7" />
+                  <Text style={styles.locationBadgeLocatingText}>
+                    লোকেশন খোঁজা হচ্ছে… (GPS সংকেত খোঁজা হচ্ছে)
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.locationBadgeDenied}
+                  onPress={() => loadLocation(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="warning" size={16} color="#dc2626" />
+                  <Text style={styles.locationBadgeDeniedText}>
+                    লোকেশন বন্ধ — অনুমতি দিন (ট্যাপ করুন ⚙️)
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color="#dc2626" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* ── 2. COUNTRY-AWARE EMERGENCY PROFILE SELECTION ────────────── */}
+            <View style={styles.countryBarCard}>
+              <View style={styles.countryBarLeft}>
+                <Text style={styles.countryFlagIcon}>{selectedCountry.flag}</Text>
+                <View style={styles.countryBarTextWrap}>
+                  <View style={styles.countryTitleRow}>
+                    <Text style={styles.countryNameBold}>{selectedCountry.countryNameBn}</Text>
+                    <View style={styles.countryCodeBadge}>
+                      <Text style={styles.countryCodeBadgeText}>{selectedCountry.countryCode}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.countryEmergencySub}>
+                    জরুরি কল: <Text style={styles.boldRedText}>{selectedCountry.primaryEmergencyNumber}</Text> ({selectedCountry.primaryEmergencyDescBn})
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.countrySwitchBtn}
+                onPress={() => setIsCountryModalVisible(true)}
+              >
+                <Text style={styles.countrySwitchBtnText}>দেশ পরিবর্তন</Text>
+                <Ionicons name="chevron-down" size={14} color="#0284c7" />
+              </TouchableOpacity>
+            </View>
+
+            {/* ── 3. SOS PANIC HERO BUTTON WITH 5-SEC COUNTDOWN ──────────── */}
             <View style={styles.panicHeroWrap}>
               {/* Pulsing Radar Ring Behind Panic Button */}
               <Animated.View
@@ -485,13 +660,15 @@ export const EmergencyScreen: React.FC = () => {
                   ) : isSOSArmed ? (
                     <View style={styles.panicInnerArmed}>
                       <Text style={styles.countdownNumber}>{countdown}</Text>
-                      <Text style={styles.countdownLabel}>TAP TO CANCEL</Text>
+                      <Text style={styles.countdownLabel}>বাতিল করতে ট্যাপ করুন</Text>
                     </View>
                   ) : (
                     <View style={styles.panicInner}>
                       <Ionicons name="warning" size={44} color="#ffffff" />
                       <Text style={styles.panicTitle}>PRESS FOR SOS</Text>
-                      <Text style={styles.panicSubtitle}>One-Tap Tourist Police & 999</Text>
+                      <Text style={styles.panicSubtitle}>
+                        {selectedCountry.primaryEmergencyNumber} ও পরিচিতিদের সতর্কবার্তা
+                      </Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -499,30 +676,20 @@ export const EmergencyScreen: React.FC = () => {
 
               <Text style={styles.panicHint}>
                 {isSOSArmed
-                  ? "⚠️ Sending coordinates in 3 seconds! Tap button to abort."
-                  : "Tap to broadcast live GPS coordinates via SMS to emergency contacts & 999"}
+                  ? `⚠️ ${countdown} সেকেন্ডে লাইভ লোকেশন প্রেরণ হবে! ভুল হলে বাতিল বাটনে চাপুন।`
+                  : `ট্যাপ করলে ৫ সেকেন্ডের কাউন্টডাউন ও বাতিল বাটন আসবে। ভুল অ্যালার্মের কোনো ঝুঁকি নেই।`}
               </Text>
-
-              {/* Instant Immediate Dispatch Shortcut */}
-              <TouchableOpacity
-                style={styles.instantDispatchBtn}
-                onPress={executeSOSDispatch}
-                disabled={isDispatchingSOS}
-              >
-                <Ionicons name="flash-outline" size={16} color="#dc2626" />
-                <Text style={styles.instantDispatchText}>Instant Dispatch (No Countdown)</Text>
-              </TouchableOpacity>
             </View>
 
             {/* OPTIONAL SITUATIONAL NOTE */}
             <View style={styles.noteInputCard}>
               <View style={styles.noteHeaderRow}>
                 <Ionicons name="create-outline" size={16} color="#475569" />
-                <Text style={styles.noteLabel}>Emergency Context Note (Optional):</Text>
+                <Text style={styles.noteLabel}>জরুরি পরিস্থিতির বিবরণ / নোট (ঐচ্ছিক):</Text>
               </View>
               <TextInput
                 style={styles.noteTextInput}
-                placeholder="e.g., Medical emergency / Mugged / In taxi plate #..."
+                placeholder="যেমন: দুর্ঘটনা / ছিনতাই / অসুস্থ / ট্যাক্সি নম্বর..."
                 placeholderTextColor="#94a3b8"
                 value={customSOSNote}
                 onChangeText={setCustomSOSNote}
@@ -530,16 +697,51 @@ export const EmergencyScreen: React.FC = () => {
               />
             </View>
 
-            {/* QUICK EMERGENCY HOTLINES GRID */}
+            {/* ── 4. EMERGENCY CONTACTS EMPTY STATE & ONBOARDING ─────────── */}
+            {contacts.length < 2 && (
+              <View style={styles.contactsWarningCard}>
+                <View style={styles.contactsWarningHeader}>
+                  <Ionicons name="shield-outline" size={20} color="#b45309" />
+                  <Text style={styles.contactsWarningTitle}>
+                    জরুরি সুরক্ষা অসম্পূর্ণ ({contacts.length}/২ জন যুক্ত)
+                  </Text>
+                </View>
+                <Text style={styles.contactsWarningDesc}>
+                  বিপদের সময় এক ট্যাপে আপনার লাইভ GPS লোকেশন SMS আকারে পৌঁছানোর জন্য কমপক্ষে ২টি জরুরি নম্বর যুক্ত করুন।
+                </Text>
+                <View style={styles.contactsWarningActions}>
+                  <TouchableOpacity
+                    style={styles.phonebookPickBtn}
+                    onPress={handlePickFromPhonebook}
+                  >
+                    <Ionicons name="book-outline" size={16} color="#ffffff" />
+                    <Text style={styles.phonebookPickBtnText}>ফোনবুক থেকে বাছুন</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.manualAddContactBtn}
+                    onPress={() => setIsContactsModalVisible(true)}
+                  >
+                    <Ionicons name="add" size={16} color="#0f172a" />
+                    <Text style={styles.manualAddContactBtnText}>নিজে টাইপ করুন</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* ── 5. DIRECT EMERGENCY LINES (COUNTRY-SPECIFIC) ──────────── */}
             <View style={styles.blockSection}>
               <View style={styles.blockTitleRow}>
                 <Ionicons name="call" size={20} color="#dc2626" />
-                <Text style={styles.blockTitle}>Direct Emergency Lines (Bangladesh)</Text>
+                <Text style={styles.blockTitle}>
+                  সরাসরি জরুরি হটলাইন ({selectedCountry.countryNameBn})
+                </Text>
               </View>
-              <Text style={styles.blockSub}>Toll-free 24/7 one-touch direct dialers</Text>
+              <Text style={styles.blockSub}>
+                টোল-ফ্রি ২৪/৭ জরুরি হটলাইনে তাৎক্ষণিক ভয়েস কল সংযোগ
+              </Text>
 
               <View style={styles.hotlinesGrid}>
-                {NATIONAL_HOTLINES.map((hotline) => (
+                {selectedCountry.hotlines.map((hotline) => (
                   <TouchableOpacity
                     key={hotline.id}
                     style={styles.hotlineCard}
@@ -559,7 +761,7 @@ export const EmergencyScreen: React.FC = () => {
                         </View>
                       </View>
                       <Text style={styles.hotlineBn}>{hotline.nameBn}</Text>
-                      <Text style={styles.hotlineDesc}>{hotline.desc}</Text>
+                      <Text style={styles.hotlineDesc}>{hotline.descBn || hotline.desc}</Text>
                       <View style={styles.hotlineCallAction}>
                         <Ionicons name="call" size={14} color="#dc2626" />
                         <Text style={styles.hotlineCallNumber}>
@@ -572,70 +774,125 @@ export const EmergencyScreen: React.FC = () => {
               </View>
             </View>
 
-            {/* DESIGNATED EMERGENCY CONTACTS */}
+            {/* ── 6. DESIGNATED EMERGENCY CONTACTS LIST ──────────────────── */}
             <View style={styles.blockSection}>
               <View style={styles.blockTitleRowBetween}>
                 <View style={styles.blockTitleRow}>
                   <Ionicons name="people" size={20} color="#0284c7" />
-                  <Text style={styles.blockTitle}>Designated SOS Contacts</Text>
+                  <Text style={styles.blockTitle}>সংরক্ষিত জরুরি পরিচিতি</Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.addContactBtn}
-                  onPress={() => setIsContactsModalVisible(true)}
-                >
-                  <Ionicons name="add-circle" size={18} color="#0284c7" />
-                  <Text style={styles.addContactBtnText}>Add Contact</Text>
-                </TouchableOpacity>
+                <View style={styles.contactHeaderActions}>
+                  <TouchableOpacity
+                    style={styles.phonebookMiniBtn}
+                    onPress={handlePickFromPhonebook}
+                  >
+                    <Ionicons name="book-outline" size={14} color="#0284c7" />
+                    <Text style={styles.phonebookMiniBtnText}>ফোনবুক</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.addContactBtn}
+                    onPress={() => setIsContactsModalVisible(true)}
+                  >
+                    <Ionicons name="add-circle" size={18} color="#0284c7" />
+                    <Text style={styles.addContactBtnText}>যোগ করুন</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
               <Text style={styles.blockSub}>
-                These contacts receive automated SMS with your GPS coordinates during SOS.
+                বিপদে SOS ট্যাপ করলে এই পরিচিতিদের কাছে লাইভ GPS লোকেশন SMS আকারে পৌঁছে যাবে।
               </Text>
 
               {contacts.length === 0 ? (
                 <View style={styles.emptyContactsCard}>
                   <Text style={styles.emptyContactsText}>
-                    No custom contacts added yet. Tap "Add Contact" to include family, hotel, or guide.
+                    এখনো কোনো জরুরি পরিচিতি যোগ করা হয়নি। দ্রুত পরিবার, ট্যুর গাইড বা হোটেলের নম্বর যোগ করুন।
                   </Text>
                 </View>
               ) : (
                 contacts.map((contact) => (
-                  <View key={contact.id} style={styles.contactCard}>
-                    <View style={styles.contactAvatar}>
-                      <Text style={styles.contactAvatarText}>
-                        {contact.name.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.contactDetails}>
-                      <View style={styles.contactNameRow}>
-                        <Text style={styles.contactName}>{contact.name}</Text>
-                        {contact.isPrimary && (
-                          <View style={styles.primaryBadge}>
-                            <Text style={styles.primaryBadgeText}>PRIMARY</Text>
-                          </View>
-                        )}
+                  <React.Fragment key={contact.id}>
+                    <View style={styles.contactCard}>
+                      <View style={styles.contactAvatar}>
+                        <Text style={styles.contactAvatarText}>
+                          {contact.name.charAt(0).toUpperCase()}
+                        </Text>
                       </View>
-                      <Text style={styles.contactPhone}>{contact.phone}</Text>
-                      <Text style={styles.contactRel}>
-                        {contact.relationship} • {contact.notifyOnSOS ? "Receives SOS SMS" : "Manual call only"}
-                      </Text>
+                      <View style={styles.contactDetails}>
+                        <View style={styles.contactNameRow}>
+                          <Text style={styles.contactName}>{contact.name}</Text>
+                          {contact.isPrimary && (
+                            <View style={styles.primaryBadge}>
+                              <Text style={styles.primaryBadgeText}>PRIMARY</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.contactPhone}>{contact.phone}</Text>
+                        <Text style={styles.contactRel}>
+                          {contact.relationship} • {contact.notifyOnSOS ? "স্বয়ংক্রিয় SOS SMS পাবে ✓" : "শুধু কল"}
+                        </Text>
+                      </View>
+                      <View style={styles.contactActions}>
+                        <TouchableOpacity
+                          style={styles.contactActionBtn}
+                          onPress={() => sosService.triggerCall(contact.phone)}
+                        >
+                          <Ionicons name="call-outline" size={18} color="#16a34a" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.contactActionBtn}
+                          onPress={() => handleDeleteContact(contact.id, contact.name)}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <View style={styles.contactActions}>
-                      <TouchableOpacity
-                        style={styles.contactActionBtn}
-                        onPress={() => sosService.triggerCall(contact.phone)}
-                      >
-                        <Ionicons name="call-outline" size={18} color="#16a34a" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.contactActionBtn}
-                        onPress={() => handleDeleteContact(contact.id, contact.name)}
-                      >
-                        <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+                  </React.Fragment>
                 ))
               )}
+            </View>
+
+            {/* ── 7. OFFLINE EMERGENCY READINESS & PRE-TRIP DOWNLOAD NUDGE ── */}
+            <View style={styles.offlineReadinessCard}>
+              <View style={styles.offlineReadinessHeader}>
+                <View style={styles.offlineReadyPill}>
+                  <Ionicons name="shield-checkmark" size={18} color="#16a34a" />
+                  <Text style={styles.offlineReadyPillText}>
+                    অফলাইনে প্রস্তুত ✓ ({offlineStatus?.formattedSize || "২.৩ MB"})
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.offlineDownloadActionBtn}
+                  onPress={handleDownloadOfflinePack}
+                  disabled={isDownloadingOffline}
+                >
+                  {isDownloadingOffline ? (
+                    <ActivityIndicator size="small" color="#0284c7" />
+                  ) : (
+                    <Ionicons name="cloud-download-outline" size={16} color="#0284c7" />
+                  )}
+                  <Text style={styles.offlineDownloadActionText}>
+                    {isDownloadingOffline ? "সংরক্ষণ হচ্ছে..." : "পুনরায় ডাউনলোড"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.offlineChecklistHeading}>অফলাইনে সংরক্ষিত ডেটাসেট (নেটওয়ার্ক ছাড়া চালু):</Text>
+              <View style={styles.offlineChecklistGrid}>
+                <Text style={styles.offlineChecklistItem}>✓ ১১টি দেশের জরুরি হটলাইন ও পুলিশ ডিরেক্টরি</Text>
+                <Text style={styles.offlineChecklistItem}>✓ ১৫ কিমি হাসপাতাল, থানা ও ২৪/৭ ট্রমা কেয়ার</Text>
+                <Text style={styles.offlineChecklistItem}>✓ অফলাইন মেডিকেল ফ্রেজবুক ও ডাক্তার ফ্ল্যাশকার্ড</Text>
+                <Text style={styles.offlineChecklistItem}>✓ বিদেশি দূতাবাস ও কনস্যুলার ২৪/৭ হটলাইন</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.openSurvivalModeBtn}
+                onPress={() => router.push("/screens/offline-survival" as any)}
+              >
+                <Ionicons name="compass-outline" size={18} color="#ffffff" />
+                <Text style={styles.openSurvivalModeBtnText}>
+                  অফলাইন সারভাইভাল মোড ও ট্রিপ ভল্ট খুলুন ➔
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -731,7 +988,8 @@ export const EmergencyScreen: React.FC = () => {
 
             {(nearbyData.withinRadius.length > 0 ? nearbyData.withinRadius : nearbyData.allSorted).map(
               (fac) => (
-                <View key={fac.id} style={styles.facilityCard}>
+                <React.Fragment key={fac.id}>
+                <View style={styles.facilityCard}>
                   <View style={styles.facCardHeader}>
                     <View style={styles.facTypeBadgeRow}>
                       <View
@@ -771,9 +1029,11 @@ export const EmergencyScreen: React.FC = () => {
                   {/* Feature tags */}
                   <View style={styles.featureTagsRow}>
                     {fac.features.map((feat, i) => (
-                      <View key={i} style={styles.featureTag}>
-                        <Text style={styles.featureTagText}>{feat}</Text>
-                      </View>
+                      <React.Fragment key={`feat-${fac.id || i}-${feat}`}>
+                        <View style={styles.featureTag}>
+                          <Text style={styles.featureTagText}>{feat}</Text>
+                        </View>
+                      </React.Fragment>
                     ))}
                   </View>
 
@@ -798,6 +1058,7 @@ export const EmergencyScreen: React.FC = () => {
                     </TouchableOpacity>
                   </View>
                 </View>
+                </React.Fragment>
               )
             )}
           </View>
@@ -961,7 +1222,8 @@ export const EmergencyScreen: React.FC = () => {
             </View>
 
             {embassyData.map((emb) => (
-              <View key={emb.id} style={styles.embassyCard}>
+              <React.Fragment key={emb.id}>
+              <View style={styles.embassyCard}>
                 <View style={styles.embassyTopRow}>
                   <Text style={styles.embassyFlag}>{emb.flag}</Text>
                   <View style={styles.embassyNameCol}>
@@ -1024,6 +1286,7 @@ export const EmergencyScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
               </View>
+              </React.Fragment>
             ))}
           </View>
         )}
@@ -1101,7 +1364,105 @@ export const EmergencyScreen: React.FC = () => {
       </Modal>
 
       {/* ==================================================================== */}
-      {/* SOS DISPATCH CONFIRMATION MODAL */}
+      {/* 5-SECOND COUNTDOWN & PROMINENT CANCEL MODAL (ACCIDENTAL RISK PREV) */}
+      {/* ==================================================================== */}
+      <Modal
+        visible={isSOSArmed}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCancelSOS}
+      >
+        <View style={styles.countdownModalBackdrop}>
+          <View style={styles.countdownCard}>
+            <View style={styles.countdownRingOuter}>
+              <View style={styles.countdownRingInner}>
+                <Text style={styles.countdownHugeNumber}>{countdown}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.countdownAlertTitle}>🚨 জরুরি SOS অ্যালার্ম সক্রিয়!</Text>
+            <Text style={styles.countdownAlertSubtitle}>
+              {countdown} সেকেন্ডের মধ্যে আপনার লাইভ GPS লোকেশন জরুরি পরিচিতিদের কাছে SMS আকারে পাঠানো হবে এবং {selectedCountry.primaryEmergencyNumber} হেল্পলাইন প্রস্তুত হবে।
+            </Text>
+
+            {/* HUGE CANCEL BUTTON */}
+            <TouchableOpacity
+              style={styles.bigCancelButton}
+              activeOpacity={0.8}
+              onPress={handleCancelSOS}
+            >
+              <Ionicons name="close-circle" size={30} color="#ffffff" />
+              <Text style={styles.bigCancelButtonText}>বাতিল করুন (CANCEL SOS)</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.cancelHint}>
+              ভুলবশত চাপলে বিলম্ব না করে এখনই উপরের বাটনটিতে ট্যাপ করুন।
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================================================================== */}
+      {/* COUNTRY SELECTION MODAL (INTERNATIONAL TRAVEL SUPPORT) */}
+      {/* ==================================================================== */}
+      <Modal
+        visible={isCountryModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsCountryModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.countryModalContent}>
+            <View style={styles.countryModalHeader}>
+              <View>
+                <Text style={styles.countryModalTitle}>ভ্রমণকৃত দেশ নির্বাচন করুন</Text>
+                <Text style={styles.countryModalSub}>
+                  দেশ পরিবর্তনের সাথে সাথে জরুরি নম্বর ও ডিরেক্টরি স্বয়ংক্রিয়ভাবে পরিবর্তিত হবে।
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setIsCountryModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#0f172a" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.countryListScroll}>
+              {COUNTRY_EMERGENCY_PROFILES.map((profile) => {
+                const isSelected = selectedCountry.countryCode === profile.countryCode;
+                return (
+                  <TouchableOpacity
+                    key={profile.countryCode}
+                    style={[styles.countryItemCard, isSelected && styles.countryItemCardActive]}
+                    onPress={() => {
+                      setSelectedCountry(profile);
+                      sosService.setSelectedCountry(profile.countryCode);
+                      setIsCountryModalVisible(false);
+                      Haptics.selectionAsync();
+                    }}
+                  >
+                    <Text style={styles.countryItemFlag}>{profile.flag}</Text>
+                    <View style={styles.countryItemDetails}>
+                      <View style={styles.countryItemTitleRow}>
+                        <Text style={styles.countryItemNameBn}>{profile.countryNameBn}</Text>
+                        <Text style={styles.countryItemCode}>({profile.countryCode})</Text>
+                      </View>
+                      <Text style={styles.countryItemNameEn}>{profile.countryName}</Text>
+                      <Text style={styles.countryItemHotline}>
+                        প্রধান জরুরি নম্বর: <Text style={styles.boldRedText}>{profile.primaryEmergencyNumber}</Text> • {profile.primaryEmergencyDescBn}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={22} color="#0284c7" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================================================================== */}
+      {/* SOS DISPATCH CONFIRMATION MODAL (ACCURATE & TRANSPARENT STATUS) */}
       {/* ==================================================================== */}
       <Modal
         visible={isResultModalVisible}
@@ -1112,30 +1473,66 @@ export const EmergencyScreen: React.FC = () => {
         <View style={styles.modalBackdrop}>
           <View style={styles.resultModalCard}>
             <View style={styles.resultModalIconWrap}>
-              <Ionicons name="shield-checkmark" size={48} color="#16a34a" />
+              <Ionicons name="shield-checkmark" size={44} color="#16a34a" />
             </View>
 
-            <Text style={styles.resultModalTitle}>Emergency SOS Dispatched!</Text>
+            <Text style={styles.resultModalTitle}>জরুরি সংকেত ডিসপ্যাচ রিপোর্ট</Text>
             <Text style={styles.resultModalSub}>
-              Your live GPS coordinates have been prepared and queued via SMS for designated
-              contacts and emergency responders.
+              আপনার লাইভ অবস্থান ও সাহায্য বার্তা প্রসেস করা হয়েছে। নিচে বিস্তারিত স্ট্যাটাস দেখুন:
             </Text>
 
             {sosResult && (
               <View style={styles.resultDetailsBox}>
                 <Text style={styles.resultDetailRow}>
-                  📍 <Text style={styles.boldText}>Coordinates:</Text>{" "}
-                  {sosResult.coordinates.latitude.toFixed(5)},{" "}
-                  {sosResult.coordinates.longitude.toFixed(5)}
+                  📍 <Text style={styles.boldText}>অবস্থান:</Text>{" "}
+                  {sosResult.coordinates.locationName || "লাইভ GPS"} (
+                  {sosResult.coordinates.latitude.toFixed(5)}, {sosResult.coordinates.longitude.toFixed(5)})
                 </Text>
                 <Text style={styles.resultDetailRow}>
-                  👥 <Text style={styles.boldText}>Contacts Targeted:</Text>{" "}
-                  {sosResult.contactsNotifiedCount} recipients (including 999)
-                </Text>
-                <Text style={styles.resultDetailRow}>
-                  ⏰ <Text style={styles.boldText}>Timestamp:</Text>{" "}
+                  ⏰ <Text style={styles.boldText}>সময়:</Text>{" "}
                   {new Date(sosResult.dispatchTimestamp).toLocaleTimeString()}
                 </Text>
+
+                <View style={styles.recipientsStatusHeader}>
+                  <Text style={styles.recipientsStatusHeading}>প্রাপক ও চ্যানেল স্ট্যাটাস:</Text>
+                </View>
+
+                {sosResult.recipients && sosResult.recipients.map((rec, idx) => (
+                  <React.Fragment key={`rec-${rec.name || rec.phone || idx}`}>
+                    <View style={styles.recipientStatusRow}>
+                      <Ionicons
+                        name={
+                          rec.status === "sent"
+                            ? "checkmark-circle"
+                            : rec.status === "voice_call_ready"
+                            ? "call"
+                            : "chatbubble-ellipses-outline"
+                        }
+                        size={18}
+                        color={
+                          rec.status === "sent"
+                            ? "#16a34a"
+                            : rec.status === "voice_call_ready"
+                            ? "#dc2626"
+                            : "#0284c7"
+                        }
+                      />
+                      <View style={styles.recipientStatusCol}>
+                        <Text style={styles.recipientStatusName}>{rec.name} ({rec.phone})</Text>
+                        <Text style={styles.recipientStatusNote}>{rec.note}</Text>
+                      </View>
+                    </View>
+                  </React.Fragment>
+                ))}
+
+                <View style={styles.auditLogNoticeRow}>
+                  <Ionicons name="cloud-done-outline" size={16} color="#059669" />
+                  <Text style={styles.auditLogNoticeText}>
+                    {sosResult.backendLogged
+                      ? "ক্লাউড অডিট লগ ও সার্ভার রেকর্ড সংরক্ষিত ✓"
+                      : "ডিভাইস লোকাল মেমরিতে অডিট রেকর্ড সংরক্ষিত ✓"}
+                  </Text>
+                </View>
               </View>
             )}
 
@@ -1144,29 +1541,34 @@ export const EmergencyScreen: React.FC = () => {
                 style={styles.callNowModalBtn}
                 onPress={() => {
                   setIsResultModalVisible(false);
-                  sosService.triggerCall("999");
+                  sosService.triggerCall(selectedCountry.primaryEmergencyNumber);
                 }}
               >
                 <Ionicons name="call" size={18} color="#ffffff" />
-                <Text style={styles.callNowModalBtnText}>Call 999 Immediately</Text>
+                <Text style={styles.callNowModalBtnText}>
+                  এখনই {selectedCountry.primaryEmergencyNumber}-এ সরাসরি কল করুন
+                </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.callTouristPolModalBtn}
-                onPress={() => {
-                  setIsResultModalVisible(false);
-                  sosService.triggerCall("+8801320222222");
-                }}
-              >
-                <Ionicons name="shield" size={18} color="#0284c7" />
-                <Text style={styles.callTouristPolModalBtnText}>Call Tourist Police</Text>
-              </TouchableOpacity>
+              {selectedCountry.hotlines.find((h) => h.type === "tourist_police") && (
+                <TouchableOpacity
+                  style={styles.callTouristPolModalBtn}
+                  onPress={() => {
+                    setIsResultModalVisible(false);
+                    const tp = selectedCountry.hotlines.find((h) => h.type === "tourist_police");
+                    if (tp) sosService.triggerCall(tp.number);
+                  }}
+                >
+                  <Ionicons name="shield" size={18} color="#0284c7" />
+                  <Text style={styles.callTouristPolModalBtnText}>ট্যুরিস্ট পুলিশে কল করুন</Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 style={styles.dismissModalBtn}
                 onPress={() => setIsResultModalVisible(false)}
               >
-                <Text style={styles.dismissModalBtnText}>Close Window</Text>
+                <Text style={styles.dismissModalBtnText}>উইন্ডো বন্ধ করুন</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1174,7 +1576,7 @@ export const EmergencyScreen: React.FC = () => {
       </Modal>
 
       {/* ==================================================================== */}
-      {/* MANAGE CONTACTS MODAL */}
+      {/* MANAGE CONTACTS MODAL WITH PHONEBOOK PICKER */}
       {/* ==================================================================== */}
       <Modal
         visible={isContactsModalVisible}
@@ -1185,32 +1587,50 @@ export const EmergencyScreen: React.FC = () => {
         <View style={styles.modalBackdrop}>
           <View style={styles.contactsModalContent}>
             <View style={styles.contactsModalHeader}>
-              <Text style={styles.contactsModalTitle}>Add Emergency Contact</Text>
+              <Text style={styles.contactsModalTitle}>জরুরি পরিচিতি যুক্ত করুন</Text>
               <TouchableOpacity onPress={() => setIsContactsModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#0f172a" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Full Name</Text>
+            {/* QUICK PHONEBOOK PICKER SHORTCUT */}
+            <TouchableOpacity
+              style={styles.phonebookPickBannerBtn}
+              onPress={async () => {
+                const picked = await sosService.pickContactFromPhonebook();
+                if (picked) {
+                  setNewContactName(picked.name);
+                  setNewContactPhone(picked.phone);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+              }}
+            >
+              <Ionicons name="book-outline" size={18} color="#0284c7" />
+              <Text style={styles.phonebookPickBannerText}>
+                ফোনবুক / কন্টাক্ট লিস্ট থেকে অটো-বাছুন ➔
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.inputLabel}>পরিচিত ব্যক্তির পূর্ণ নাম</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="e.g. John Doe / Hotel Front Desk"
+              placeholder="যেমন: বাবা / মা / স্ত্রী / ট্যুর গাইড / হোটেল ফ্রন্ট ডেস্ক"
               placeholderTextColor="#94a3b8"
               value={newContactName}
               onChangeText={setNewContactName}
             />
 
-            <Text style={styles.inputLabel}>Phone Number (with country code)</Text>
+            <Text style={styles.inputLabel}>ফোন নম্বর (দেশের কোডসহ)</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="e.g. +8801700000000 or +12025550199"
+              placeholder="যেমন: +8801700000000 বা +12025550199"
               placeholderTextColor="#94a3b8"
               keyboardType="phone-pad"
               value={newContactPhone}
               onChangeText={setNewContactPhone}
             />
 
-            <Text style={styles.inputLabel}>Relationship</Text>
+            <Text style={styles.inputLabel}>সম্পর্ক / পরিচয়</Text>
             <View style={styles.relChipsRow}>
               {(["Family", "Friend", "Tour Guide", "Hotel", "Colleague", "Other"] as const).map(
                 (rel) => (
@@ -1222,7 +1642,17 @@ export const EmergencyScreen: React.FC = () => {
                     <Text
                       style={[styles.relChipText, newContactRel === rel && styles.relChipTextActive]}
                     >
-                      {rel}
+                      {rel === "Family"
+                        ? "পরিবার"
+                        : rel === "Friend"
+                        ? "বন্ধু"
+                        : rel === "Tour Guide"
+                        ? "ট্যুর গাইড"
+                        : rel === "Hotel"
+                        ? "হোটেল ডেস্ক"
+                        : rel === "Colleague"
+                        ? "সহকর্মী"
+                        : "অন্যান্য"}
                     </Text>
                   </TouchableOpacity>
                 )
@@ -1238,12 +1668,12 @@ export const EmergencyScreen: React.FC = () => {
                 size={22}
                 color={newContactNotify ? "#0284c7" : "#94a3b8"}
               />
-              <Text style={styles.toggleLabel}>Auto-send SMS with GPS during One-Tap SOS</Text>
+              <Text style={styles.toggleLabel}>One-Tap SOS-এর সময় স্বয়ংক্রিয় SMS লোকেশন পাবে</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.saveContactBtn} onPress={handleAddContact}>
               <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
-              <Text style={styles.saveContactBtnText}>Save Emergency Contact</Text>
+              <Text style={styles.saveContactBtnText}>জরুরি পরিচিতি সংরক্ষণ করুন</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1295,7 +1725,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#dc2626",
   },
   headerBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#dc2626",
     letterSpacing: 0.8,
@@ -1325,7 +1755,7 @@ const styles = StyleSheet.create({
   },
   gpsInfoCol: {
     flex: 1,
-    marginRight: 10,
+    marginEnd: 10,
   },
   gpsRow: {
     flexDirection: "row",
@@ -1338,9 +1768,15 @@ const styles = StyleSheet.create({
     color: "#1e3a8a",
   },
   gpsSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     marginTop: 2,
+  },
+  gpsErrorText: {
+    fontSize: 11,
+    color: "#b45309",
+    marginTop: 3,
+    fontStyle: "italic",
   },
   gpsRefreshBtn: {
     flexDirection: "row",
@@ -1354,7 +1790,7 @@ const styles = StyleSheet.create({
     borderColor: "#bfdbfe",
   },
   gpsRefreshText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#0284c7",
   },
@@ -1379,7 +1815,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f172a",
   },
   tabBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
@@ -1397,6 +1833,541 @@ const styles = StyleSheet.create({
     gap: 20,
   },
 
+  // ── 1. LOCATION RELIABILITY BADGE STYLES ─────────────────────────────────
+  locationStatusWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationBadgeSuccess: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ecfdf5",
+    borderWidth: 1,
+    borderColor: "#a7f3d0",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  locationBadgeSuccessText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#065f46",
+  },
+  locationBadgeWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  locationBadgeWarningText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#92400e",
+  },
+  locationBadgeLocating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  locationBadgeLocatingText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1e40af",
+  },
+  locationBadgeDenied: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  locationBadgeDeniedText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#991b1b",
+  },
+
+  // ── 2. COUNTRY PROFILE BAR STYLES ─────────────────────────────────────────
+  countryBarCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#ffffff",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  countryBarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  countryFlagIcon: {
+    fontSize: 26,
+  },
+  countryBarTextWrap: {
+    flex: 1,
+  },
+  countryTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  countryNameBold: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  countryCodeBadge: {
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  countryCodeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  countryEmergencySub: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  boldRedText: {
+    color: "#dc2626",
+    fontWeight: "800",
+  },
+  countrySwitchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#f0f9ff",
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  countrySwitchBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0284c7",
+  },
+
+  // ── 3. EMERGENCY CONTACTS EMPTY / ONBOARDING STYLES ──────────────────────
+  contactsWarningCard: {
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    borderRadius: 14,
+    padding: 14,
+    gap: 8,
+  },
+  contactsWarningHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  contactsWarningTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#b45309",
+  },
+  contactsWarningDesc: {
+    fontSize: 12,
+    color: "#92400e",
+    lineHeight: 17,
+  },
+  contactsWarningActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  phonebookPickBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#0284c7",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  phonebookPickBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  manualAddContactBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  manualAddContactBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  contactHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  phonebookMiniBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#f0f9ff",
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  phonebookMiniBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0284c7",
+  },
+
+  // ── 4. OFFLINE EMERGENCY READINESS CARD STYLES ───────────────────────────
+  offlineReadinessCard: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 16,
+    padding: 14,
+    gap: 10,
+  },
+  offlineReadinessHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  offlineReadyPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#dcfce7",
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  offlineReadyPillText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#15803d",
+  },
+  offlineDownloadActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  offlineDownloadActionText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0284c7",
+  },
+  offlineChecklistHeading: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  offlineChecklistGrid: {
+    gap: 4,
+    backgroundColor: "#ffffff",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+  },
+  offlineChecklistItem: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: "500",
+  },
+  openSurvivalModeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#0f172a",
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 2,
+  },
+  openSurvivalModeBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+
+  // ── 5. 5-SEC FULL SCREEN COUNTDOWN MODAL STYLES ──────────────────────────
+  countdownModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  countdownCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: "#1e293b",
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: "#ef4444",
+    padding: 28,
+    alignItems: "center",
+    shadowColor: "#dc2626",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 20px rgba(15, 23, 42, 0.4)" } : {}),
+  },
+  countdownRingOuter: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  countdownRingInner: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#dc2626",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#ffffff",
+  },
+  countdownHugeNumber: {
+    fontSize: 52,
+    fontWeight: "900",
+    color: "#ffffff",
+  },
+  countdownAlertTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#fecaca",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  countdownAlertSubtitle: {
+    fontSize: 13,
+    color: "#cbd5e1",
+    textAlign: "center",
+    lineHeight: 19,
+    marginBottom: 24,
+  },
+  bigCancelButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    width: "100%",
+    backgroundColor: "#dc2626",
+    paddingVertical: 18,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#fecaca",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.3)" } : {}),
+  },
+  bigCancelButtonText: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#ffffff",
+    letterSpacing: 0.5,
+  },
+  cancelHint: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "center",
+    marginTop: 12,
+  },
+
+  // ── 6. COUNTRY MODAL STYLES ──────────────────────────────────────────────
+  countryModalContent: {
+    width: "92%",
+    maxHeight: "82%",
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
+    padding: 20,
+  },
+  countryModalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+    paddingBottom: 10,
+  },
+  countryModalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  countryModalSub: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 2,
+    maxWidth: 240,
+  },
+  countryListScroll: {
+    maxHeight: 460,
+  },
+  countryItemCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+    marginBottom: 8,
+    backgroundColor: "#ffffff",
+  },
+  countryItemCardActive: {
+    backgroundColor: "#f0f9ff",
+    borderColor: "#0284c7",
+  },
+  countryItemFlag: {
+    fontSize: 30,
+    marginEnd: 12,
+  },
+  countryItemDetails: {
+    flex: 1,
+  },
+  countryItemTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  countryItemNameBn: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  countryItemCode: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  countryItemNameEn: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 1,
+  },
+  countryItemHotline: {
+    fontSize: 11,
+    color: "#475569",
+    marginTop: 2,
+  },
+
+  // ── 7. RESULT RECIPIENTS BREAKDOWN & PHONEBOOK PICKER ───────────────────
+  phonebookPickBannerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#f0f9ff",
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  phonebookPickBannerText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0284c7",
+  },
+  recipientsStatusHeader: {
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  recipientsStatusHeading: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  recipientStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  recipientStatusCol: {
+    flex: 1,
+  },
+  recipientStatusName: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  recipientStatusNote: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 1,
+  },
+  auditLogNoticeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: "#ecfdf5",
+    padding: 8,
+    borderRadius: 8,
+  },
+  auditLogNoticeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#065f46",
+  },
+
   // ── SOS PANIC HERO BUTTON ────────────────────────────────────────────────
   panicHeroWrap: {
     alignItems: "center",
@@ -1412,6 +2383,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 16px rgba(15, 23, 42, 0.15)" } : {}),
   },
   radarRing: {
     position: "absolute",
@@ -1434,6 +2406,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 8px 10px rgba(15, 23, 42, 0.35)" } : {}),
     borderWidth: 4,
     borderColor: "#ffffff",
   },
@@ -1455,7 +2428,7 @@ const styles = StyleSheet.create({
   },
   panicSubtitle: {
     color: "#fecaca",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "600",
     textAlign: "center",
     marginTop: 2,
@@ -1471,7 +2444,7 @@ const styles = StyleSheet.create({
   },
   countdownLabel: {
     color: "#fef08a",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.5,
   },
@@ -1566,6 +2539,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 4px rgba(15, 23, 42, 0.05)" } : {}),
   },
   hotlineIconBadge: {
     width: 48,
@@ -1573,7 +2547,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   hotlineBody: {
     flex: 1,
@@ -1594,7 +2568,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   hotlineDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 2,
   },
@@ -1615,7 +2589,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   badgePillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
 
@@ -1632,7 +2606,7 @@ const styles = StyleSheet.create({
     borderColor: "#bfdbfe",
   },
   addContactBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0284c7",
   },
@@ -1666,7 +2640,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0284c7",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   contactAvatarText: {
     color: "#ffffff",
@@ -1693,7 +2667,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   primaryBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#b45309",
   },
@@ -1704,7 +2678,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   contactRel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94a3b8",
   },
   contactActions: {
@@ -1789,7 +2763,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   expandRadiusText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0284c7",
   },
@@ -1808,7 +2782,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   noFacilitiesSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     textAlign: "center",
     marginTop: 4,
@@ -1825,6 +2799,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 4px rgba(15, 23, 42, 0.05)" } : {}),
   },
   facCardHeader: {
     flexDirection: "row",
@@ -1846,7 +2821,7 @@ const styles = StyleSheet.create({
   facTypePol: { backgroundColor: "#f1f5f9" },
   facTypePharm: { backgroundColor: "#dcfce7" },
   facTypePillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0f172a",
   },
@@ -1868,7 +2843,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#16a34a",
   },
   open24Text: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#16a34a",
   },
@@ -1882,7 +2857,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   distanceBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0f172a",
   },
@@ -1902,7 +2877,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   facAddress: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     flex: 1,
   },
@@ -1920,7 +2895,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   featureTagText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
   },
   facActionRow: {
@@ -1974,12 +2949,12 @@ const styles = StyleSheet.create({
     borderColor: "#bbf7d0",
   },
   offlinePillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#166534",
   },
   phraseCountText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginVertical: -2,
   },
@@ -2006,7 +2981,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   phraseCategoryText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -2019,7 +2994,7 @@ const styles = StyleSheet.create({
   urgencyHigh: { backgroundColor: "#ffedd5" },
   urgencyNormal: { backgroundColor: "#f1f5f9" },
   urgencyText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#0f172a",
   },
@@ -2063,7 +3038,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   showDoctorPrompt: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0284c7",
   },
@@ -2080,7 +3055,7 @@ const styles = StyleSheet.create({
     borderColor: "#bae6fd",
   },
   embassyNoticeText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#0369a1",
     flex: 1,
     lineHeight: 16,
@@ -2110,7 +3085,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   embassyTitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   passportBadge: {
@@ -2120,7 +3095,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   passportBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#b45309",
   },
@@ -2130,7 +3105,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   embassyDetailText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     flex: 1,
   },
@@ -2150,7 +3125,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   embassyEmergencyBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#ffffff",
   },
@@ -2167,7 +3142,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   embassyNavBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0284c7",
   },
@@ -2184,7 +3159,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   embassyEmailBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#334155",
   },
@@ -2253,9 +3228,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.1)" } : {}),
   },
   doctorLangTag: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#64748b",
     marginBottom: 8,
@@ -2341,6 +3317,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 10,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 20px rgba(15, 23, 42, 0.25)" } : {}),
   },
   resultModalIconWrap: {
     width: 80,
@@ -2469,7 +3446,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0284c7",
   },
   relChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },

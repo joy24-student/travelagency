@@ -10,6 +10,7 @@ import { supabase } from "../utils/supabase";
 import { makeRedirectUri } from "expo-auth-session";
 import { signInWithFacebook, signInWithGoogle } from "../services/oauth";
 import { clearTokens, storeTokens } from "./tokenStorage";
+import { useAuthStore } from "../store/authStore";
 import type {
   AuthContextType,
   AuthUser,
@@ -85,10 +86,14 @@ export function AuthProvider({
       if (error) {
         console.warn("AuthProvider getSession error:", error);
         setUser(null);
+        useAuthStore.getState().setSession(null);
       } else if (session?.user) {
         setUser(session.user as unknown as AuthUser);
+        useAuthStore.getState().setSession(session);
+        useAuthStore.getState().fetchProfile();
       } else {
         setUser(null);
+        useAuthStore.getState().setSession(null);
       }
 
       setLoading(false);
@@ -97,6 +102,10 @@ export function AuthProvider({
     const { data: sub } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
         setUser((nextSession?.user as unknown as AuthUser) ?? null);
+        useAuthStore.getState().setSession(nextSession);
+        if (nextSession?.user) {
+          useAuthStore.getState().fetchProfile();
+        }
       }
     );
 
@@ -141,16 +150,18 @@ export function AuthProvider({
         expiresAt: data.session.expires_at,
         userId: data.user?.id,
       });
+      useAuthStore.getState().setSession(data.session);
+      useAuthStore.getState().fetchProfile();
     }
     return data;
   }, []);
 
-  const signInWithOAuth = useCallback(async (provider: "google" | "facebook" | "github") => {
+  const signInWithOAuth = useCallback(async (provider: "google" | "facebook" | "github" | "apple") => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: makeRedirectUri({
-          scheme: "converted-travel-ui",
+          scheme: "shopnojatra",
           path: "auth/callback",
         }),
         skipBrowserRedirect: true,
@@ -176,6 +187,8 @@ export function AuthProvider({
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     await clearTokens();
+    await useAuthStore.getState().logout();
+    setUser(null);
     return true;
   }, []);
 
@@ -239,16 +252,48 @@ export function AuthProvider({
   const getUserRole = useCallback(async (): Promise<UserRole | null> => {
     if (!user) return null;
 
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .order("granted_at", { ascending: false })
-      .limit(1)
-      .single();
+    try {
+      // 1. Strict check against admin_users
+      const { data: adminRecord } = await supabase
+        .from("admin_users")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
 
-    if (error) return null;
-    return (data?.role as UserRole) ?? null;
+      if (adminRecord) {
+        return "admin";
+      }
+
+      // 2. Check agency partnership / business role
+      const { data: agencyRecord } = await supabase
+        .from("agencies")
+        .select("id")
+        .eq("owner_user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (agencyRecord) {
+        return "business";
+      }
+
+      // 3. Fallback to generic user_roles table if present
+      const { data: roleRecord } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .order("granted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (roleRecord?.role) {
+        return roleRecord.role as UserRole;
+      }
+
+      return "user";
+    } catch {
+      return "user";
+    }
   }, [user]);
 
   const value = useMemo<AuthContextType>(

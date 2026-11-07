@@ -78,7 +78,6 @@ const blockedRoots = [
   path.resolve(__dirname, "AGEN"),
   path.resolve(__dirname, "hotel"),
   path.resolve(__dirname, "backend"),
-  path.resolve(__dirname, "backend-python"),
   path.resolve(__dirname, "storage"),
   path.resolve(__dirname, "supabase"),
 ];

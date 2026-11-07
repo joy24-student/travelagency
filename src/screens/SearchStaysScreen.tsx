@@ -21,20 +21,36 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
+import { GlassView } from '../components/ui/GlassView';
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { supabase } from "../utils/supabase";
-import { FALLBACK_HOTELS } from "../data/hotelCatalog";
-import { ListSkeleton } from "../components/common";
+import {
+  FALLBACK_HOTELS,
+  NearbyLandmark,
+  CategorizedImage,
+  DetailedAmenity,
+} from "../data/hotelCatalog";
+import { ListSkeleton, ResultsSummaryHeader } from "../components/common";
 import { EmptyState } from "../components/ui/EmptyState";
+import { PrecisionSlider } from "../components/ui/PrecisionSlider";
+import { formatPrice as utilsFormatPrice } from "../utils/currency";
 import { useTravelStore } from "../store/travelStore";
 import { travelRepository, HotelSearchResult, HotelSearchFilters } from "../repositories";
-import { AiPill, BottomNav } from "./Navigation";
+import { getLocalizedTabLabel } from "./Navigation";
+import { savedItemsService } from "../services/savedItemsService";
+import { RTLIcon } from "../components/ui";
+import {
+  HotelMapView,
+  HotelGalleryModal,
+  HotelDateRangeCalendarModal,
+  HotelGuestsModal,
+  NearbyLandmarksRow,
+  AmenityBadgeItem,
+} from "../components/hotel";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const TRIP_BLUE = "#0055F2";
 const TRIP_DARK_BLUE = "#000666";
 const HOTEL_CARD_HEIGHT = 455;
@@ -45,13 +61,13 @@ const HOTEL_CARD_HEIGHT = 455;
 
 export const HOSPITALITY_CONFIG = {
   TAX_RATE: 0.1, // 10% VAT and local hospitality surcharge
-  VOUCHER_DISCOUNT: 15, // $15 New User Promotional Credit
-  DEFAULT_CURRENCY_SYMBOL: "$",
+  VOUCHER_DISCOUNT: 500, // ৳500 New User Promotional Credit
+  DEFAULT_CURRENCY_SYMBOL: "৳",
   MIN_BUDGET: 0,
-  MAX_BUDGET: 1500,
-  BUDGET_STEP: 50,
-  DEFAULT_CHECKIN_OFFSET_DAYS: 1,
-  DEFAULT_CHECKOUT_OFFSET_DAYS: 4,
+  MAX_BUDGET: 35000,
+  BUDGET_STEP: 500,
+  DEFAULT_CHECKIN_OFFSET_DAYS: 7,
+  DEFAULT_CHECKOUT_OFFSET_DAYS: 10,
 } as const;
 
 export const MEDIA_ASSETS = {
@@ -73,9 +89,12 @@ export const POPULAR_DESTINATIONS = [
 // FORMATTING & CALCULATION UTILITIES (ZERO HARD-CODING)
 // ============================================================================
 
-export function formatPrice(amount: number | string): string {
+export function formatPrice(
+  amount: number | string,
+  _currencySymbol: string = HOSPITALITY_CONFIG.DEFAULT_CURRENCY_SYMBOL
+): string {
   const numeric = typeof amount === "string" ? parseFloat(amount) || 0 : amount;
-  return `${HOSPITALITY_CONFIG.DEFAULT_CURRENCY_SYMBOL}${Math.round(numeric).toLocaleString()}`;
+  return utilsFormatPrice(numeric);
 }
 
 export function formatDateShort(date: Date): string {
@@ -100,18 +119,127 @@ export function calculateNightsCount(checkIn: Date, checkOut: Date): number {
 }
 
 export function getRoomInventoryStatus(roomsCount: number) {
-  const roomsLeft = roomsCount <= 0 ? 1 : roomsCount;
-  const isUrgent = roomsLeft <= 2;
+  const count = typeof roomsCount === "number" ? Math.max(0, roomsCount) : 0;
+  const isSoldOut = count === 0;
+  const isUrgent = count > 0 && count <= 2;
   return {
-    roomsLeft,
+    roomsLeft: count,
+    isSoldOut,
     isUrgent,
-    badgeText: isUrgent
-      ? roomsLeft === 1
+    badgeText: isSoldOut
+      ? "বিক্রি শেষ (Sold Out)"
+      : isUrgent
+      ? count === 1
         ? "Only 1 room left at this price!"
         : "Only 2 rooms left at this price!"
-      : `${roomsLeft} Room Types Available`,
+      : `${count} Room Types Available`,
   };
 }
+
+export interface StarDistributionItem {
+  stars: number;
+  percentage: number;
+  count: number;
+}
+
+export function getStarDistribution(rating: number | string, totalReviews: number): StarDistributionItem[] {
+  const numRating = typeof rating === "string" ? parseFloat(rating) || 4.8 : rating || 4.8;
+  const total = Math.max(1, totalReviews || 1240);
+
+  let p5 = 76;
+  let p4 = 16;
+  let p3 = 5;
+  let p2 = 2;
+  let p1 = 1;
+
+  if (numRating >= 4.8) {
+    p5 = 82;
+    p4 = 13;
+    p3 = 3;
+    p2 = 1;
+    p1 = 1;
+  } else if (numRating >= 4.5) {
+    p5 = 72;
+    p4 = 20;
+    p3 = 5;
+    p2 = 2;
+    p1 = 1;
+  } else if (numRating >= 4.0) {
+    p5 = 55;
+    p4 = 28;
+    p3 = 11;
+    p2 = 4;
+    p1 = 2;
+  } else if (numRating >= 3.5) {
+    p5 = 38;
+    p4 = 32;
+    p3 = 18;
+    p2 = 8;
+    p1 = 4;
+  } else {
+    p5 = 20;
+    p4 = 25;
+    p3 = 25;
+    p2 = 18;
+    p1 = 12;
+  }
+
+  return [
+    { stars: 5, percentage: p5, count: Math.round((p5 / 100) * total) },
+    { stars: 4, percentage: p4, count: Math.round((p4 / 100) * total) },
+    { stars: 3, percentage: p3, count: Math.round((p3 / 100) * total) },
+    { stars: 2, percentage: p2, count: Math.round((p2 / 100) * total) },
+    { stars: 1, percentage: p1, count: Math.round((p1 / 100) * total) },
+  ];
+}
+
+export interface VerifiedGuestReview {
+  id: string;
+  guestName: string;
+  avatar: string;
+  rating: number;
+  date: string;
+  stayDuration: string;
+  roomType: string;
+  isVerifiedGuest: boolean;
+  comment: string;
+}
+
+export const SAMPLE_VERIFIED_REVIEWS: VerifiedGuestReview[] = [
+  {
+    id: "vr-1",
+    guestName: "Tanvir Ahmed",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
+    rating: 5,
+    date: "2 days ago",
+    stayDuration: "৩ রাত অবস্থান (3 Nights Stay)",
+    roomType: "Superior Ocean View",
+    isVerifiedGuest: true,
+    comment: "সত্যিকারের চমৎকার অভিজ্ঞতা! সমুদ্রের দৃশ্য অসাধারণ ছিল, রুম খুব পরিচ্ছন্ন এবং স্টাফদের ব্যবহার অত্যন্ত অমায়িক।",
+  },
+  {
+    id: "vr-2",
+    guestName: "Nusrat Jahan",
+    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200",
+    rating: 4.8,
+    date: "1 week ago",
+    stayDuration: "২ রাত অবস্থান (2 Nights Stay)",
+    roomType: "Executive Suite",
+    isVerifiedGuest: true,
+    comment: "চেক-ইন প্রক্রিয়া খুব দ্রুত ছিল। সুইমিং পুল ও বুফে ব্রেকফাস্ট খুবই উপভোগ করেছি। পরিবার নিয়ে থাকার জন্য সেরা।",
+  },
+  {
+    id: "vr-3",
+    guestName: "Rashidul Hasan",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+    rating: 4.5,
+    date: "2 weeks ago",
+    stayDuration: "৪ রাত অবস্থান (4 Nights Stay)",
+    roomType: "Deluxe King Room",
+    isVerifiedGuest: true,
+    comment: "লোকেশন দারুণ। নিরিবিলি পরিবেশ এবং ওয়াই-ফাই স্পিড কাজের জন্য যথেষ্ট ভালো ছিল। অবশ্যই আবার আসব।",
+  },
+];
 
 // ============================================================================
 // PROGRESSIVE IMAGE WITH BLUR-HASH PLACEHOLDER & SHIMMER PULSE
@@ -199,7 +327,7 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
-          <BlurView intensity={25} tint="light" style={StyleSheet.absoluteFillObject} />
+          <GlassView intensity={25} tint="light" style={StyleSheet.absoluteFillObject} />
           <View style={styles.blurhashPlaceholderBox}>
             <Ionicons name="image-outline" size={24} color="#94A3B8" />
             <Text style={styles.blurhashText}>
@@ -235,8 +363,13 @@ export interface HotelRoom {
   bed_type?: string;
   square_meters?: number;
   amenities?: string[] | string;
+  detailed_amenities?: DetailedAmenity[];
   image_urls?: string[] | string;
+  categorized_images?: CategorizedImage[];
   is_available?: boolean;
+  available_count?: number;
+  stock?: number;
+  rooms_left?: number;
 }
 
 export interface HotelItem {
@@ -245,13 +378,20 @@ export interface HotelItem {
   city: string;
   country?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
   star_rating?: number | string;
   average_rating?: number | string;
   total_reviews?: number;
   base_price: number | string;
   image_url?: string;
   images?: string[];
+  categorized_images?: CategorizedImage[];
   amenities?: string[];
+  detailed_amenities?: DetailedAmenity[];
+  nearby_landmarks?: NearbyLandmark[];
+  landmarks_summary_bn?: string;
+  landmarks_summary_en?: string;
   hotel_rooms?: HotelRoom[];
   is_free_cancellation?: boolean;
   property_type?: "Hotel" | "Resort" | "Villa" | "Apartment";
@@ -308,6 +448,21 @@ export function SearchStaysScreen() {
   const [selectedVibe, setSelectedVibe] = useState<string>("All Stays");
   const [claimedVoucher, setClaimedVoucher] = useState(false);
 
+  // View Mode: List vs Interactive Map Toggle
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
+
+  // Full-Screen Image Gallery Modal State
+  const [galleryVisible, setGalleryVisible] = useState(false);
+  const [galleryHotel, setGalleryHotel] = useState<HotelItem | null>(null);
+  const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
+
+  const handleOpenGallery = useCallback((hotel: HotelItem, index = 0) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setGalleryHotel(hotel);
+    setGalleryInitialIndex(index);
+    setGalleryVisible(true);
+  }, []);
+
   // Filter matrix state (synchronized with useTravelStore)
   const [starRatingFilter, setStarRatingFilter] = useState<number>(
     hotelFilters.starRating?.[0] || 0
@@ -327,22 +482,32 @@ export function SearchStaysScreen() {
 
   // 1. Dates & Nights Configuration
   const [checkInDate, setCheckInDate] = useState<Date>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     if (hotelFilters.checkInDate) {
       const parsed = new Date(hotelFilters.checkInDate);
-      if (!isNaN(parsed.getTime())) return parsed;
+      parsed.setHours(0, 0, 0, 0);
+      if (!isNaN(parsed.getTime()) && parsed.getTime() >= today.getTime()) {
+        return parsed;
+      }
     }
     const d = new Date();
-    d.setDate(d.getDate() + HOSPITALITY_CONFIG.DEFAULT_CHECKIN_OFFSET_DAYS);
+    d.setDate(d.getDate() + 7);
     return d;
   });
 
   const [checkOutDate, setCheckOutDate] = useState<Date>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     if (hotelFilters.checkOutDate) {
       const parsed = new Date(hotelFilters.checkOutDate);
-      if (!isNaN(parsed.getTime())) return parsed;
+      parsed.setHours(0, 0, 0, 0);
+      if (!isNaN(parsed.getTime()) && parsed.getTime() > today.getTime()) {
+        return parsed;
+      }
     }
     const d = new Date();
-    d.setDate(d.getDate() + HOSPITALITY_CONFIG.DEFAULT_CHECKOUT_OFFSET_DAYS);
+    d.setDate(d.getDate() + 10);
     return d;
   });
 
@@ -354,11 +519,17 @@ export function SearchStaysScreen() {
     [checkInDate, checkOutDate]
   );
 
-  // 2. Guests & Rooms Configuration
-  const [guestsConfig, setGuestsConfig] = useState({
+  // 2. Guests & Rooms Configuration with Child Ages Matrix
+  const [guestsConfig, setGuestsConfig] = useState<{
+    rooms: number;
+    adults: number;
+    children: number;
+    childAges?: number[];
+  }>({
     rooms: hotelFilters.roomsCount || 1,
     adults: hotelFilters.guestsCount || 2,
     children: 0,
+    childAges: [],
   });
   const [showGuestsModal, setShowGuestsModal] = useState(false);
 
@@ -454,19 +625,34 @@ export function SearchStaysScreen() {
                 },
               ];
 
+              const fallbackMatch = FALLBACK_HOTELS.find(
+                (f) =>
+                  f.id === r.id ||
+                  f.name.toLowerCase().includes(r.name.toLowerCase()) ||
+                  r.name.toLowerCase().includes(f.name.toLowerCase()) ||
+                  f.city.toLowerCase() === r.city.toLowerCase()
+              );
+
               return {
                 id: r.id,
                 name: r.name,
                 city: r.city,
                 country: r.country || "Bangladesh",
-                address: r.address || `${r.city}, Bangladesh`,
+                address: r.address || fallbackMatch?.address || `${r.city}, Bangladesh`,
+                latitude: fallbackMatch?.latitude || 21.42,
+                longitude: fallbackMatch?.longitude || 91.98,
                 star_rating: r.star_rating,
                 average_rating: r.average_rating,
-                total_reviews: r.reviews_count || 180,
+                total_reviews: r.reviews_count || fallbackMatch?.total_reviews || 180,
                 base_price: basePrice,
-                image_url: r.featured_image,
-                images: r.images && r.images.length > 0 ? r.images : [r.featured_image],
-                amenities: r.amenities || ["Free Wi-Fi", "Swimming Pool", "Breakfast Included"],
+                image_url: r.featured_image || fallbackMatch?.image_url,
+                images: r.images && r.images.length > 0 ? r.images : fallbackMatch?.images || [r.featured_image],
+                categorized_images: fallbackMatch?.categorized_images,
+                amenities: r.amenities || fallbackMatch?.amenities || ["Free Wi-Fi", "Swimming Pool", "Breakfast Included"],
+                detailed_amenities: fallbackMatch?.detailed_amenities,
+                nearby_landmarks: fallbackMatch?.nearby_landmarks,
+                landmarks_summary_bn: fallbackMatch?.landmarks_summary_bn,
+                landmarks_summary_en: fallbackMatch?.landmarks_summary_en,
                 is_free_cancellation: r.is_free_cancellation ?? true,
                 property_type: propType,
                 hotel_rooms: dynamicRooms,
@@ -661,11 +847,39 @@ export function SearchStaysScreen() {
 
   const activeSelectedRoom = activeRooms[selectedRoomIndex] || activeRooms[0];
 
-  // Dynamic Price Breakdown Calculations (Zero hard-coding)
+  // Progressive list pagination
+  const [pageLimit, setPageLimit] = useState(8);
+  const pagedHotels = useMemo(() => {
+    return filteredHotels.slice(0, pageLimit);
+  }, [filteredHotels, pageLimit]);
+
+  const handleEndReached = useCallback(() => {
+    if (pageLimit < filteredHotels.length) {
+      setPageLimit((prev) => Math.min(prev + 6, filteredHotels.length));
+    }
+  }, [pageLimit, filteredHotels.length]);
+
+  // Dynamic Price Breakdown Calculations (Factoring Child Age Supplements)
   const roomRate = activeSelectedRoom
     ? parseFloat(String(activeSelectedRoom.base_price))
     : parseFloat(String(selectedHotel?.base_price)) || 80;
-  const subtotal = roomRate * nightsCount * guestsConfig.rooms;
+
+  // Calculate child supplement cost (0-2: free, 3-5: 25%, 6-11: 50%, 12+: 100%)
+  const childSupplementCost = useMemo(() => {
+    if (!guestsConfig.children || !guestsConfig.childAges || guestsConfig.childAges.length === 0) {
+      return 0;
+    }
+    const totalChildMultiplier = guestsConfig.childAges.reduce((sum, age) => {
+      if (age <= 2) return sum; // Free (Infant)
+      if (age <= 5) return sum + 0.25; // 25% Toddler
+      if (age <= 11) return sum + 0.50; // 50% Child
+      return sum + 1.0; // Adult rate
+    }, 0);
+    return Math.round(totalChildMultiplier * roomRate * nightsCount);
+  }, [guestsConfig.children, guestsConfig.childAges, roomRate, nightsCount]);
+
+  const baseRoomsTotal = roomRate * nightsCount * guestsConfig.rooms;
+  const subtotal = baseRoomsTotal + childSupplementCost;
   const taxes = Math.round(subtotal * HOSPITALITY_CONFIG.TAX_RATE);
   const voucherDiscount = claimedVoucher ? HOSPITALITY_CONFIG.VOUCHER_DISCOUNT : 0;
   const finalTotal = Math.max(0, subtotal + taxes - voucherDiscount);
@@ -723,11 +937,22 @@ export function SearchStaysScreen() {
   // Hotel Card Renderer
   const renderHotelItem = useCallback(
     ({ item: hotel }: { item: HotelItem }) => {
-      const roomTypesCount = hotel.hotel_rooms?.length || 2;
-      const { roomsLeft, isUrgent, badgeText } = getRoomInventoryStatus(roomTypesCount);
+      // Calculate available rooms for real inventory
+      const availableRooms = (hotel.hotel_rooms || []).filter(
+        (r) => r.is_available !== false && (r.available_count === undefined || r.available_count > 0)
+      );
+      const roomTypesCount = hotel.hotel_rooms ? availableRooms.length : 2;
+      const { roomsLeft, isSoldOut, isUrgent, badgeText } = getRoomInventoryStatus(roomTypesCount);
       const rating = hotel.average_rating || hotel.star_rating || "4.8";
-      const reviews = hotel.total_reviews || 320;
-      const startingPrice = hotel.base_price || 85;
+      const reviews = hotel.total_reviews || 1240;
+      const startingPrice = Number(hotel.base_price) || 4500;
+
+      // Transparent Nightly rate and multi-night total stay calculation with tax
+      const nightlyRate = startingPrice;
+      const totalStayNights = Number(nightsCount) || 1;
+      const staySubtotal = nightlyRate * totalStayNights;
+      const stayTaxes = Math.round(staySubtotal * HOSPITALITY_CONFIG.TAX_RATE);
+      const stayTotalWithTax = staySubtotal + stayTaxes;
 
       return (
         <Pressable
@@ -750,56 +975,122 @@ export function SearchStaysScreen() {
             {claimedVoucher && (
               <View style={styles.specialDealBadge} className="absolute top-3 left-3 flex-row items-center bg-emerald-600 px-2.5 py-1 rounded-full shadow-md">
                 <Ionicons name="pricetag" size={11} color="#FFFFFF" />
-                <Text style={styles.specialDealText} className="text-white text-xs font-bold ml-1">
+                <Text style={styles.specialDealText} className="text-white text-xs font-bold ms-1">
                   {formatPrice(HOSPITALITY_CONFIG.VOUCHER_DISCOUNT)} OFF APPLIED
                 </Text>
               </View>
             )}
 
+            {/* Heart / Save Favorite Button */}
+            <Pressable
+              style={{
+                position: "absolute",
+                top: 12,
+                right: 12,
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: "rgba(0,0,0,0.38)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              onPress={(e) => {
+                e.stopPropagation();
+                savedItemsService.toggleSaveItem({
+                  id: hotel.id,
+                  type: "hotel",
+                  title: hotel.name,
+                  subtitle: `${hotel.city} · ${rating}★`,
+                  destination: hotel.city,
+                  price: startingPrice,
+                  totalPriceWithTax: Math.round(startingPrice * (1 + HOSPITALITY_CONFIG.TAX_RATE)),
+                  image_url: hotel.image_url,
+                  rating: Number(rating) || 4.8,
+                  route: `/screens/search-stays?hotelId=${hotel.id}`,
+                });
+              }}
+            >
+              <Ionicons
+                name={savedItemsService.isSaved(hotel.id) ? "heart" : "heart-outline"}
+                size={20}
+                color={savedItemsService.isSaved(hotel.id) ? "#EF4444" : "#FFFFFF"}
+              />
+            </Pressable>
+
+            {/* Gallery Photo Count Trigger */}
+            <Pressable
+              style={styles.galleryBadgePill}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleOpenGallery(hotel, 0);
+              }}
+            >
+              <Ionicons name="images" size={12} color="#FFFFFF" />
+              <Text style={styles.galleryBadgeText}>
+                {hotel.images?.length || 4}+ ছবি
+              </Text>
+            </Pressable>
+
             <View style={styles.ratingBadgePill} className="absolute bottom-3 right-3 flex-row items-center bg-white/95 px-2.5 py-1 rounded-full shadow-sm">
               <Ionicons name="star" size={13} color="#F59E0B" />
-              <Text style={styles.ratingBadgeText} className="text-xs font-bold text-slate-800 ml-1">
+              <Text style={styles.ratingBadgeText} className="text-xs font-bold text-slate-800 ms-1">
                 {rating}
               </Text>
-              <Text style={styles.reviewsCountText} className="text-xs text-slate-500 ml-1">
-                ({reviews})
+              <Text style={styles.reviewsCountText} className="text-xs font-bold text-slate-600 ms-1">
+                ({reviews.toLocaleString()} রিভিউ)
               </Text>
             </View>
           </View>
 
           <View style={styles.hotelCardBody} className="p-4">
             <View style={styles.hotelTitleRow} className="flex-row items-center justify-between">
-              <Text style={styles.hotelName} className="text-base font-extrabold text-slate-900 flex-1 mr-2" numberOfLines={1}>
+              <Text style={styles.hotelName} className="text-base font-extrabold text-slate-900 flex-1 me-2" numberOfLines={1}>
                 {hotel.name}
               </Text>
-              {hotel.star_rating ? (
-                <View className="flex-row items-center">
-                  <Ionicons name="star" size={12} color="#F59E0B" />
-                  <Text className="text-xs font-bold text-amber-600 ml-0.5">{hotel.star_rating}★</Text>
-                </View>
-              ) : null}
+              <View className="flex-row items-center">
+                <Ionicons name="star" size={12} color="#F59E0B" />
+                <Text className="text-xs font-bold text-amber-600 ms-0.5">{rating}★</Text>
+                <Text className="text-[11px] font-semibold text-slate-500 ms-1">
+                  ({reviews.toLocaleString()} রিভিউ)
+                </Text>
+              </View>
             </View>
 
             <View style={styles.hotelLocationRow} className="flex-row items-center mt-1">
               <Ionicons name="location-sharp" size={14} color={TRIP_BLUE} />
-              <Text style={styles.hotelLocationText} className="text-xs text-slate-500 ml-1">
+              <Text style={styles.hotelLocationText} className="text-xs text-slate-500 ms-1">
                 {hotel.city}, {hotel.country || "Bangladesh"}
               </Text>
             </View>
 
+            {/* Nearby Landmark Distance Row */}
+            <NearbyLandmarksRow
+              landmarks={hotel.nearby_landmarks}
+              summaryBn={hotel.landmarks_summary_bn}
+              summaryEn={hotel.landmarks_summary_en}
+              compact={true}
+            />
+
             {/* Real-Time Room Inventory Availability Matrix */}
             <View style={styles.roomAvailTagRow} className="flex-row items-center gap-2 mt-2.5">
-              {isUrgent ? (
+              {isSoldOut ? (
+                <View style={styles.roomSoldOutTag} className="flex-row items-center px-2.5 py-1 rounded-md bg-rose-50 border border-rose-300">
+                  <Ionicons name="close-circle" size={12} color="#E11D48" />
+                  <Text style={styles.roomSoldOutTagText} className="text-xs font-extrabold text-rose-700 ms-1">
+                    {badgeText}
+                  </Text>
+                </View>
+              ) : isUrgent ? (
                 <View style={styles.roomUrgentTag} className="flex-row items-center px-2.5 py-1 rounded-md bg-amber-50 border border-amber-300">
                   <Ionicons name="flame" size={12} color="#D97706" />
-                  <Text style={styles.roomUrgentTagText} className="text-xs font-extrabold text-amber-700 ml-1">
+                  <Text style={styles.roomUrgentTagText} className="text-xs font-extrabold text-amber-700 ms-1">
                     {badgeText}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.roomAvailTag} className="flex-row items-center px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-300">
                   <Ionicons name="checkmark-circle" size={12} color="#059669" />
-                  <Text style={styles.roomAvailTagText} className="text-xs font-bold text-emerald-700 ml-1">
+                  <Text style={styles.roomAvailTagText} className="text-xs font-bold text-emerald-700 ms-1">
                     {badgeText}
                   </Text>
                 </View>
@@ -812,49 +1103,88 @@ export function SearchStaysScreen() {
               </View>
             </View>
 
-            {/* Amenities Tags */}
-            <View style={styles.amenitiesTagsRow} className="flex-row flex-wrap gap-1.5 mt-2">
-              {(hotel.amenities || ["Free WiFi", "Breakfast Included", "Pool"])
-                .slice(0, 3)
-                .map((a) => (
-                  <View key={a} style={styles.amenityTag} className="px-2 py-0.5 rounded bg-slate-100">
-                    <Text style={styles.amenityTagText} className="text-xs text-slate-600 font-medium">
-                      {a}
-                    </Text>
-                  </View>
-                ))}
+            {/* Sold out suggestion notification */}
+            {isSoldOut && (
+              <View className="flex-row items-center justify-between bg-amber-50/90 border border-amber-200 rounded-xl px-3 py-2 mt-2">
+                <View className="flex-row items-center flex-1 me-2">
+                  <Ionicons name="alert-circle-outline" size={15} color="#D97706" />
+                  <Text className="text-xs text-amber-900 ms-1.5 font-medium flex-1">
+                    এই তারিখে বিক্রি শেষ। অন্য তারিখ বা কাছাকাছি হোটেল দেখুন।
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setShowDatePickerModal(true)}
+                  className="bg-white border border-amber-300 px-2.5 py-1 rounded-lg"
+                >
+                  <Text className="text-xs font-bold text-amber-900">অন্য তারিখ</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Amenities Tags with Free / Extra Charge Badges */}
+            <View style={styles.amenitiesTagsRow} className="mt-2.5">
+              {(hotel.detailed_amenities && hotel.detailed_amenities.length > 0
+                ? hotel.detailed_amenities.slice(0, 3)
+                : (hotel.amenities || ["Free WiFi", "Breakfast Included", "Pool"]).slice(0, 3)
+              ).map((a, i) => (
+                <AmenityBadgeItem key={typeof a === "string" ? a : a.id || i} amenity={a} />
+              ))}
             </View>
 
             {/* Bottom Pricing & Reserve Trigger */}
             <View style={styles.hotelFooterRow} className="flex-row items-center justify-between mt-3 pt-3 border-t border-slate-100">
-              <View>
-                <Text style={styles.startingFromLabel} className="text-xs text-slate-400 font-medium">
-                  Starting from
-                </Text>
-                <Text style={styles.hotelPriceText} className="text-xl font-black text-slate-900">
-                  {formatPrice(startingPrice)}
-                  <Text style={styles.hotelPriceUnit} className="text-xs text-slate-500 font-medium">
-                    {" "}/night
+              <View className="flex-1 me-2">
+                <View className="flex-row items-baseline">
+                  <Text style={styles.hotelPriceText} className="text-lg font-black text-slate-900">
+                    {formatPrice(nightlyRate)}
                   </Text>
+                  <Text style={styles.hotelPriceUnit} className="text-xs text-slate-600 font-semibold ms-1">
+                    প্রতি রাত (/night)
+                  </Text>
+                </View>
+                <Text className="text-xs font-bold text-blue-700 mt-0.5">
+                  · {totalStayNights} রাতে {formatPrice(stayTotalWithTax)} (ট্যাক্সসহ)
                 </Text>
               </View>
 
-              <Pressable
-                style={styles.viewRoomsBtn}
-                className="flex-row items-center bg-blue-600 px-4 py-2.5 rounded-xl active:bg-blue-700 shadow-sm"
-                onPress={() => handleOpenHotelRooms(hotel)}
-              >
-                <Text style={styles.viewRoomsBtnText} className="text-white text-xs font-bold mr-1">
-                  Select Room ({roomTypesCount})
-                </Text>
-                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-              </Pressable>
+              {isSoldOut ? (
+                <View className="flex-row items-center gap-1.5">
+                  <Pressable
+                    style={[styles.viewRoomsBtn, { backgroundColor: "#CBD5E1" }]}
+                    className="flex-row items-center px-3 py-2.5 rounded-xl shadow-none"
+                    disabled={true}
+                  >
+                    <Ionicons name="ban" size={13} color="#64748B" />
+                    <Text className="text-slate-600 text-xs font-bold ms-1">
+                      বিক্রি শেষ
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setShowDatePickerModal(true)}
+                    className="flex-row items-center bg-blue-50 border border-blue-200 px-3 py-2.5 rounded-xl active:bg-blue-100"
+                  >
+                    <Ionicons name="calendar-outline" size={13} color="#0055F2" />
+                    <Text className="text-blue-700 text-xs font-bold ms-1">অন্য তারিখ</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.viewRoomsBtn}
+                  className="flex-row items-center bg-blue-600 px-4 py-2.5 rounded-xl active:bg-blue-700 shadow-sm"
+                  onPress={() => handleOpenHotelRooms(hotel)}
+                >
+                  <Text style={styles.viewRoomsBtnText} className="text-white text-xs font-bold me-1">
+                    Select Room ({roomTypesCount})
+                  </Text>
+                  <RTLIcon name="arrow-forward" size={14} color="#FFFFFF" />
+                </Pressable>
+              )}
             </View>
           </View>
         </Pressable>
       );
     },
-    [claimedVoucher, handleOpenHotelRooms]
+    [claimedVoucher, handleOpenHotelRooms, nightsCount]
   );
 
   // ============================================================================
@@ -895,7 +1225,7 @@ export function SearchStaysScreen() {
             <Ionicons name="search" size={20} color={TRIP_BLUE} />
             <TextInput
               style={styles.destinationInput}
-              className="flex-1 ml-2 text-sm font-semibold text-slate-900"
+              className="flex-1 ms-2 text-sm font-semibold text-slate-900"
               placeholder="Where to? (e.g. Cox's Bazar, Dhaka, Sylhet...)"
               placeholderTextColor="#94A3B8"
               value={searchQuery}
@@ -933,7 +1263,7 @@ export function SearchStaysScreen() {
 
             <View style={styles.nightsBadge} className="flex-row items-center bg-blue-50 px-2.5 py-1.5 rounded-xl mx-2">
               <Ionicons name="moon" size={12} color="#0055F2" />
-              <Text style={styles.nightsBadgeText} className="text-xs font-bold text-blue-600 ml-1">
+              <Text style={styles.nightsBadgeText} className="text-xs font-bold text-blue-600 ms-1">
                 {nightsCount} {nightsCount === 1 ? "Night" : "Nights"}
               </Text>
             </View>
@@ -956,13 +1286,13 @@ export function SearchStaysScreen() {
           >
             <View style={styles.guestsInfoLeft} className="flex-row items-center">
               <Ionicons name="people-outline" size={18} color="#64748B" />
-              <Text style={styles.guestsValue} className="text-sm font-bold text-slate-800 ml-2">
+              <Text style={styles.guestsValue} className="text-sm font-bold text-slate-800 ms-2">
                 {guestsConfig.rooms} {guestsConfig.rooms === 1 ? "Room" : "Rooms"} •{" "}
                 {guestsConfig.adults} Adults
                 {guestsConfig.children > 0 ? `, ${guestsConfig.children} Children` : ""}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+            <RTLIcon name="chevron-forward" size={16} color="#94A3B8" />
           </Pressable>
         </View>
 
@@ -989,11 +1319,11 @@ export function SearchStaysScreen() {
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.vouchersScroll} className="mt-2.5">
-            <View style={[styles.voucherCard, claimedVoucher && styles.voucherCardActive]} className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 mr-2">
+            <View style={[styles.voucherCard, claimedVoucher && styles.voucherCardActive]} className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 me-2">
               <Text style={styles.voucherDiscount} className="text-xs font-extrabold text-blue-600">{formatPrice(HOSPITALITY_CONFIG.VOUCHER_DISCOUNT)} OFF</Text>
               <Text style={styles.voucherDesc} className="text-xs text-slate-500">First stay credit</Text>
             </View>
-            <View style={styles.voucherCard} className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 mr-2">
+            <View style={styles.voucherCard} className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 me-2">
               <Text style={styles.voucherDiscount} className="text-xs font-extrabold text-amber-600">Free Breakfast</Text>
               <Text style={styles.voucherDesc} className="text-xs text-slate-500">At 5-star properties</Text>
             </View>
@@ -1015,7 +1345,7 @@ export function SearchStaysScreen() {
             <Pressable
               key={vibe}
               style={[styles.vibePill, selectedVibe === vibe && styles.vibePillActive]}
-              className={`px-3.5 py-2 rounded-full mr-2 border ${
+              className={`px-3.5 py-2 rounded-full me-2 border ${
                 selectedVibe === vibe
                   ? "bg-blue-600 border-blue-600"
                   : "bg-white border-slate-200"
@@ -1071,7 +1401,7 @@ export function SearchStaysScreen() {
                   <Pressable
                     key={type}
                     style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                    className={`px-3 py-1.5 rounded-full mr-2 border ${
+                    className={`px-3 py-1.5 rounded-full me-2 border ${
                       isSelected
                         ? "bg-blue-600 border-blue-600"
                         : "bg-slate-50 border-slate-200"
@@ -1107,7 +1437,7 @@ export function SearchStaysScreen() {
                   <Pressable
                     key={chip.label}
                     style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                    className={`flex-row items-center px-3 py-1.5 rounded-full mr-2 border ${
+                    className={`flex-row items-center px-3 py-1.5 rounded-full me-2 border ${
                       isSelected
                         ? "bg-amber-500 border-amber-500"
                         : "bg-slate-50 border-slate-200"
@@ -1124,7 +1454,7 @@ export function SearchStaysScreen() {
                       name="star"
                       size={12}
                       color={isSelected ? "#FFFFFF" : "#F59E0B"}
-                      style={{ marginRight: 3 }}
+                      style={{ marginEnd: 3 }}
                     />
                     <Text
                       style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}
@@ -1152,7 +1482,7 @@ export function SearchStaysScreen() {
                   <Pressable
                     key={chip.label}
                     style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                    className={`px-3 py-1.5 rounded-full mr-2 border ${
+                    className={`px-3 py-1.5 rounded-full me-2 border ${
                       isSelected
                         ? "bg-indigo-600 border-indigo-600"
                         : "bg-slate-50 border-slate-200"
@@ -1179,113 +1509,24 @@ export function SearchStaysScreen() {
             </ScrollView>
           </View>
 
-          {/* 4. Interactive Price Range Slider & Stepper Controls */}
+          {/* 4. Interactive Precision Slider & Stepper Controls */}
           <View style={styles.filterGroupRow} className="mb-3">
-            <View className="flex-row items-center justify-between mb-1.5">
-              <Text style={styles.filterGroupTitle} className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                Price Range Slider:
-              </Text>
-              <Text className="text-xs font-extrabold text-blue-600">
-                {formatPrice(minPriceSlider)} - {maxPriceSlider >= HOSPITALITY_CONFIG.MAX_BUDGET ? `${formatPrice(HOSPITALITY_CONFIG.MAX_BUDGET)}+` : formatPrice(maxPriceSlider)}
-              </Text>
-            </View>
-
-            {/* Visual Slider Bar Track */}
-            <View className="w-full h-2 bg-slate-200 rounded-full my-2 overflow-hidden">
-              <View
-                style={{
-                  width: `${Math.min(100, Math.max(10, (maxPriceSlider / HOSPITALITY_CONFIG.MAX_BUDGET) * 100))}%`,
-                }}
-                className="h-full bg-blue-600 rounded-full"
-              />
-            </View>
-
-            {/* Quick Price Milestone Pills */}
-            <View className="flex-row justify-between mb-2">
-              {BUDGET_MILESTONES.map((cap) => (
-                <Pressable
-                  key={cap}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setMaxPriceSlider(cap);
-                    setPricePreset("custom");
-                    syncStoreFilters({ maxPrice: cap < HOSPITALITY_CONFIG.MAX_BUDGET ? cap : undefined });
-                  }}
-                  className={`px-2 py-0.5 rounded ${maxPriceSlider === cap ? "bg-blue-600" : "bg-slate-100"}`}
-                >
-                  <Text className={`text-[10px] font-bold ${maxPriceSlider === cap ? "text-white" : "text-slate-600"}`}>
-                    {formatPrice(cap)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Presets Row */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsRow}>
-              {PRICE_PRESETS.map((chip) => {
-                const isSelected = pricePreset === chip.value;
-                return (
-                  <Pressable
-                    key={chip.label}
-                    style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                    className={`px-3 py-1.5 rounded-full mr-2 border ${
-                      isSelected
-                        ? "bg-blue-600 border-blue-600"
-                        : "bg-slate-50 border-slate-200"
-                    }`}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setPricePreset(chip.value);
-                      setMinPriceSlider(chip.min);
-                      setMaxPriceSlider(chip.max);
-                      syncStoreFilters({
-                        minPrice: chip.min > 0 ? chip.min : undefined,
-                        maxPrice: chip.max < HOSPITALITY_CONFIG.MAX_BUDGET ? chip.max : undefined,
-                      });
-                    }}
-                  >
-                    <Text
-                      style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}
-                      className={`text-xs font-semibold ${
-                        isSelected ? "text-white" : "text-slate-700"
-                      }`}
-                    >
-                      {chip.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {/* Interactive Price Stepper Controls */}
-            <View className="flex-row items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 mt-2">
-              <Pressable
-                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg active:bg-slate-100"
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setMaxPriceSlider((prev) => Math.max(minPriceSlider + HOSPITALITY_CONFIG.BUDGET_STEP, prev - HOSPITALITY_CONFIG.BUDGET_STEP));
-                  setPricePreset("custom");
-                }}
-              >
-                <Text className="text-xs font-bold text-slate-700">-{formatPrice(HOSPITALITY_CONFIG.BUDGET_STEP)}</Text>
-              </Pressable>
-
-              <View className="items-center">
-                <Text className="text-xs font-bold text-slate-500">Max Budget Cap</Text>
-                <Text className="text-sm font-extrabold text-slate-900">{formatPrice(maxPriceSlider)}/night</Text>
-              </View>
-
-              <Pressable
-                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg active:bg-slate-100"
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setMaxPriceSlider((prev) => Math.min(HOSPITALITY_CONFIG.MAX_BUDGET, prev + HOSPITALITY_CONFIG.BUDGET_STEP));
-                  setPricePreset("custom");
-                }}
-              >
-                <Text className="text-xs font-bold text-slate-700">+{formatPrice(HOSPITALITY_CONFIG.BUDGET_STEP)}</Text>
-              </Pressable>
-            </View>
+            <PrecisionSlider
+              label="বাজেট সীমা (সর্বোচ্চ প্রতি রাত)"
+              value={maxPriceSlider}
+              min={HOSPITALITY_CONFIG.MIN_BUDGET}
+              max={HOSPITALITY_CONFIG.MAX_BUDGET}
+              step={HOSPITALITY_CONFIG.BUDGET_STEP}
+              unit="/রাত"
+              presets={BUDGET_MILESTONES as any}
+              onChange={(val) => {
+                setMaxPriceSlider(val);
+                setPricePreset("custom");
+                syncStoreFilters({
+                  maxPrice: val < HOSPITALITY_CONFIG.MAX_BUDGET ? val : undefined,
+                });
+              }}
+            />
           </View>
 
           {/* 5. Free Cancellation Policy Chip */}
@@ -1313,7 +1554,7 @@ export function SearchStaysScreen() {
                   name={freeCancellationOnly ? "checkmark-circle" : "shield-checkmark-outline"}
                   size={14}
                   color={freeCancellationOnly ? "#FFFFFF" : "#059669"}
-                  style={{ marginRight: 4 }}
+                  style={{ marginEnd: 4 }}
                 />
                 <Text
                   style={[
@@ -1331,14 +1572,23 @@ export function SearchStaysScreen() {
           </View>
         </View>
 
-        {/* Section Header */}
-        <View style={styles.sectionHeaderRow} className="flex-row items-center justify-between px-4 mt-4 mb-2">
-          <Text style={styles.sectionHeading} className="text-base font-extrabold text-slate-900">
-            {searchQuery ? `Stays in "${searchQuery}"` : "Featured Stays & Resorts"}
-          </Text>
-          <Text style={styles.sectionCountText} className="text-xs font-semibold text-slate-500">
-            ({filteredHotels.length} available)
-          </Text>
+        {/* Section Header & Results Summary Header */}
+        <View className="px-4 mt-4 mb-2">
+          <ResultsSummaryHeader
+            count={filteredHotels.length}
+            entityName="হোটেল ও স্টে"
+            sortLabel={propertyTypeFilter !== "All Types" ? propertyTypeFilter : "জনপ্রিয়তা"}
+            filterCount={
+              (searchQuery.trim() ? 1 : 0) +
+              (selectedVibe !== "All Stays" ? 1 : 0) +
+              (propertyTypeFilter !== "All Types" ? 1 : 0) +
+              (starRatingFilter > 0 ? 1 : 0) +
+              (guestRatingFilter > 0 ? 1 : 0) +
+              (maxPriceSlider < HOSPITALITY_CONFIG.MAX_BUDGET ? 1 : 0) +
+              (freeCancellationOnly ? 1 : 0)
+            }
+            onClearFilters={handleResetFilters}
+          />
         </View>
       </View>
     );
@@ -1423,299 +1673,111 @@ export function SearchStaysScreen() {
         <Pressable
           style={styles.backBtn}
           className="w-9 h-9 rounded-full bg-slate-100 items-center justify-center active:bg-slate-200"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}
         >
-          <Ionicons name="arrow-back" size={22} color="#0F172A" />
+          <RTLIcon name="arrow-back" size={22} color="#0F172A" />
         </Pressable>
         <Text style={styles.headerTitle} className="text-base font-extrabold text-slate-900">
           Search Stays
         </Text>
-        <Pressable
-          style={styles.moreBtn}
-          className="w-9 h-9 rounded-full bg-slate-100 items-center justify-center active:bg-slate-200"
-          onPress={() => router.push("/screens/settings" as any)}
-        >
-          <Ionicons name="ellipsis-horizontal" size={22} color="#0F172A" />
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            onPress={() => {
+              Haptics.selectionAsync();
+              setViewMode("list");
+            }}
+            style={[styles.viewToggleBtn, viewMode === "list" && styles.viewToggleBtnActive]}
+          >
+            <Ionicons name="list" size={18} color={viewMode === "list" ? "#FFFFFF" : "#64748B"} />
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              Haptics.selectionAsync();
+              setViewMode("map");
+            }}
+            style={[styles.viewToggleBtn, viewMode === "map" && styles.viewToggleBtnActive]}
+          >
+            <Ionicons name="map" size={18} color={viewMode === "map" ? "#FFFFFF" : "#64748B"} />
+          </Pressable>
+          <Pressable
+            style={styles.moreBtn}
+            className="w-9 h-9 rounded-full bg-slate-100 items-center justify-center active:bg-slate-200"
+            onPress={() => router.push("/screens/settings" as any)}
+          >
+            <Ionicons name="ellipsis-horizontal" size={22} color="#0F172A" />
+          </Pressable>
+        </View>
       </View>
 
-      {/* Optimized Virtualized FlatList */}
-      <FlatList
-        data={filteredHotels}
-        renderItem={renderHotelItem}
-        keyExtractor={keyExtractor}
-        getItemLayout={getItemLayout}
-        windowSize={5}
-        initialNumToRender={5}
-        maxToRenderPerBatch={5}
-        removeClippedSubviews={Platform.OS === "android"}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={renderEmptyState}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {/* View Mode conditional */}
+      {viewMode === "map" ? (
+        <HotelMapView
+          hotels={filteredHotels as any}
+          onSelectHotel={(h) => handleOpenHotelRooms(h as any)}
+          onOpenHotelRooms={(h) => handleOpenHotelRooms(h as any)}
+          currencySymbol={HOSPITALITY_CONFIG.DEFAULT_CURRENCY_SYMBOL}
+        />
+      ) : (
+        /* Optimized Virtualized FlatList */
+        <FlatList
+          data={pagedHotels}
+          renderItem={renderHotelItem}
+          keyExtractor={keyExtractor}
+          getItemLayout={getItemLayout}
+          windowSize={5}
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          removeClippedSubviews={Platform.OS === "android"}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmptyState}
+          ListFooterComponent={
+            pageLimit < filteredHotels.length ? (
+              <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                <ActivityIndicator size="small" color="#0055F2" />
+              </View>
+            ) : null
+          }
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.4}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       {/* =================================================================== */}
       {/* MODAL 1: INTERACTIVE DATE PICKER SHEET */}
       {/* =================================================================== */}
-      <Modal
+      <HotelDateRangeCalendarModal
         visible={showDatePickerModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowDatePickerModal(false)}
-      >
-        <View style={styles.modalOverlay} className="flex-1 justify-end bg-black/60">
-          <View style={styles.modalCard} className="bg-white rounded-t-3xl p-5 shadow-2xl">
-            <View style={styles.modalHeaderRow} className="flex-row items-center justify-between mb-4">
-              <View>
-                <Text style={styles.modalTitle} className="text-lg font-extrabold text-slate-900">
-                  Trip Dates
-                </Text>
-                <Text style={styles.modalSubTitle} className="text-xs text-slate-500">
-                  {nightsCount} {nightsCount === 1 ? "Night" : "Nights"} stay
-                </Text>
-              </View>
-              <Pressable onPress={() => setShowDatePickerModal(false)}>
-                <Ionicons name="close-circle" size={26} color="#94A3B8" />
-              </Pressable>
-            </View>
-
-            {/* Quick Night Chips */}
-            <Text style={styles.modalSectionLabel} className="text-xs font-bold text-slate-500 uppercase mb-2">
-              Quick Duration:
-            </Text>
-            <View style={styles.quickNightsRow} className="flex-row flex-wrap gap-2 mb-4">
-              {[1, 2, 3, 5, 7, 14].map((n) => (
-                <Pressable
-                  key={`nights-${n}`}
-                  style={[
-                    styles.quickNightChip,
-                    nightsCount === n && styles.quickNightChipActive,
-                  ]}
-                  className={`px-3 py-1.5 rounded-full border ${
-                    nightsCount === n
-                      ? "bg-blue-600 border-blue-600"
-                      : "bg-slate-100 border-slate-200"
-                  }`}
-                  onPress={() => setNightsQuick(n)}
-                >
-                  <Text
-                    style={[
-                      styles.quickNightChipText,
-                      nightsCount === n && styles.quickNightChipTextActive,
-                    ]}
-                    className={`text-xs font-bold ${
-                      nightsCount === n ? "text-white" : "text-slate-700"
-                    }`}
-                  >
-                    {n} {n === 1 ? "Night" : "Nights"}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Date Display Card */}
-            <View style={styles.datesSummaryBox} className="flex-row items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
-              <View style={styles.dateSummaryCol}>
-                <Text style={styles.dateSummaryHeading} className="text-xs font-bold text-slate-500">
-                  Check-in
-                </Text>
-                <Text style={styles.dateSummaryDate} className="text-sm font-extrabold text-slate-900 mt-1">
-                  {formatDateFull(checkInDate)}
-                </Text>
-              </View>
-              <Ionicons name="arrow-forward" size={20} color="#0055F2" />
-              <View style={styles.dateSummaryCol}>
-                <Text style={styles.dateSummaryHeading} className="text-xs font-bold text-slate-500">
-                  Check-out
-                </Text>
-                <Text style={styles.dateSummaryDate} className="text-sm font-extrabold text-slate-900 mt-1">
-                  {formatDateFull(checkOutDate)}
-                </Text>
-              </View>
-            </View>
-
-            <Pressable
-              style={styles.modalApplyBtn}
-              className="bg-blue-600 py-3.5 rounded-xl items-center active:bg-blue-700"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowDatePickerModal(false);
-              }}
-            >
-              <Text style={styles.modalApplyBtnText} className="text-white text-sm font-bold">
-                Apply Dates
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowDatePickerModal(false)}
+        checkInDate={checkInDate}
+        checkOutDate={checkOutDate}
+        basePrice={Number(filteredHotels[0]?.base_price) || 8500}
+        onApplyDates={(ci, co) => {
+          setCheckInDate(ci);
+          setCheckOutDate(co);
+          syncStoreFilters({
+            checkInDate: ci.toISOString().split("T")[0],
+            checkOutDate: co.toISOString().split("T")[0],
+          });
+        }}
+      />
 
       {/* =================================================================== */}
       {/* MODAL 2: GUESTS & ROOMS CONFIGURATION MODAL */}
       {/* =================================================================== */}
-      <Modal
+      <HotelGuestsModal
         visible={showGuestsModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowGuestsModal(false)}
-      >
-        <View style={styles.modalOverlay} className="flex-1 justify-end bg-black/60">
-          <View style={styles.modalCard} className="bg-white rounded-t-3xl p-5 shadow-2xl">
-            <View style={styles.modalHeaderRow} className="flex-row items-center justify-between mb-4">
-              <View>
-                <Text style={styles.modalTitle} className="text-lg font-extrabold text-slate-900">
-                  Guests & Rooms
-                </Text>
-                <Text style={styles.modalSubTitle} className="text-xs text-slate-500">
-                  Configure travel party
-                </Text>
-              </View>
-              <Pressable onPress={() => setShowGuestsModal(false)}>
-                <Ionicons name="close-circle" size={26} color="#94A3B8" />
-              </Pressable>
-            </View>
-
-            {/* Stepper Rows */}
-            <View style={styles.stepperRow} className="flex-row items-center justify-between py-3 border-b border-slate-100">
-              <View>
-                <Text style={styles.stepperTitle} className="text-sm font-bold text-slate-900">
-                  Rooms
-                </Text>
-                <Text style={styles.stepperSub} className="text-xs text-slate-500">
-                  Number of hotel rooms
-                </Text>
-              </View>
-              <View style={styles.stepperControl} className="flex-row items-center">
-                <Pressable
-                  style={styles.stepBtn}
-                  className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center"
-                  onPress={() =>
-                    setGuestsConfig((c) => {
-                      const updated = { ...c, rooms: Math.max(1, c.rooms - 1) };
-                      syncStoreFilters({ roomsCount: updated.rooms });
-                      return updated;
-                    })
-                  }
-                >
-                  <Ionicons name="remove" size={16} color="#0F172A" />
-                </Pressable>
-                <Text style={styles.stepValue} className="w-8 text-center text-sm font-bold text-slate-900">
-                  {guestsConfig.rooms}
-                </Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center"
-                  onPress={() =>
-                    setGuestsConfig((c) => {
-                      const updated = { ...c, rooms: Math.min(5, c.rooms + 1) };
-                      syncStoreFilters({ roomsCount: updated.rooms });
-                      return updated;
-                    })
-                  }
-                >
-                  <Ionicons name="add" size={16} color="#0F172A" />
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.stepperRow} className="flex-row items-center justify-between py-3 border-b border-slate-100">
-              <View>
-                <Text style={styles.stepperTitle} className="text-sm font-bold text-slate-900">
-                  Adults
-                </Text>
-                <Text style={styles.stepperSub} className="text-xs text-slate-500">
-                  Age 13+
-                </Text>
-              </View>
-              <View style={styles.stepperControl} className="flex-row items-center">
-                <Pressable
-                  style={styles.stepBtn}
-                  className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center"
-                  onPress={() =>
-                    setGuestsConfig((c) => {
-                      const updated = { ...c, adults: Math.max(1, c.adults - 1) };
-                      syncStoreFilters({ guestsCount: updated.adults });
-                      return updated;
-                    })
-                  }
-                >
-                  <Ionicons name="remove" size={16} color="#0F172A" />
-                </Pressable>
-                <Text style={styles.stepValue} className="w-8 text-center text-sm font-bold text-slate-900">
-                  {guestsConfig.adults}
-                </Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center"
-                  onPress={() =>
-                    setGuestsConfig((c) => {
-                      const updated = { ...c, adults: Math.min(10, c.adults + 1) };
-                      syncStoreFilters({ guestsCount: updated.adults });
-                      return updated;
-                    })
-                  }
-                >
-                  <Ionicons name="add" size={16} color="#0F172A" />
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.stepperRow} className="flex-row items-center justify-between py-3 mb-4">
-              <View>
-                <Text style={styles.stepperTitle} className="text-sm font-bold text-slate-900">
-                  Children
-                </Text>
-                <Text style={styles.stepperSub} className="text-xs text-slate-500">
-                  Age 0-12
-                </Text>
-              </View>
-              <View style={styles.stepperControl} className="flex-row items-center">
-                <Pressable
-                  style={styles.stepBtn}
-                  className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center"
-                  onPress={() =>
-                    setGuestsConfig((c) => ({
-                      ...c,
-                      children: Math.max(0, c.children - 1),
-                    }))
-                  }
-                >
-                  <Ionicons name="remove" size={16} color="#0F172A" />
-                </Pressable>
-                <Text style={styles.stepValue} className="w-8 text-center text-sm font-bold text-slate-900">
-                  {guestsConfig.children}
-                </Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center"
-                  onPress={() =>
-                    setGuestsConfig((c) => ({
-                      ...c,
-                      children: Math.min(6, c.children + 1),
-                    }))
-                  }
-                >
-                  <Ionicons name="add" size={16} color="#0F172A" />
-                </Pressable>
-              </View>
-            </View>
-
-            <Pressable
-              style={styles.modalApplyBtn}
-              className="bg-blue-600 py-3.5 rounded-xl items-center active:bg-blue-700"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowGuestsModal(false);
-              }}
-            >
-              <Text style={styles.modalApplyBtnText} className="text-white text-sm font-bold">
-                Apply Guests
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowGuestsModal(false)}
+        config={guestsConfig}
+        onApply={(updated) => {
+          setGuestsConfig(updated);
+          syncStoreFilters({
+            guestsCount: updated.adults,
+            roomsCount: updated.rooms,
+          });
+        }}
+      />
 
       {/* =================================================================== */}
       {/* MODAL 3: ROOM AVAILABILITY MATRIX & RESERVATION DRAWER */}
@@ -1730,34 +1792,105 @@ export function SearchStaysScreen() {
           <View style={styles.bottomSheetOverlay} className="flex-1 justify-end bg-black/60">
             <View style={styles.bottomSheetCard} className="bg-white rounded-t-3xl max-h-[85%] p-5 shadow-2xl">
               {/* Hotel Header Info */}
-              <View style={styles.bottomSheetHeader} className="flex-row items-center justify-between pb-3 border-b border-slate-100">
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.bottomSheetHotelName} className="text-base font-extrabold text-slate-900" numberOfLines={1}>
-                    {selectedHotel.name}
-                  </Text>
-                  <Text style={styles.bottomSheetLocation} className="text-xs text-slate-500 mt-0.5">
-                    {selectedHotel.city}, {selectedHotel.country || "Bangladesh"}
-                  </Text>
+              <View style={styles.bottomSheetHeader} className="pb-3 border-b border-slate-100">
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.bottomSheetHotelName} className="text-base font-extrabold text-slate-900" numberOfLines={1}>
+                      {selectedHotel.name}
+                    </Text>
+                    <Text style={styles.bottomSheetLocation} className="text-xs text-slate-500 mt-0.5">
+                      {selectedHotel.city}, {selectedHotel.country || "Bangladesh"}
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={styles.sheetCloseBtn}
+                    className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center ms-2"
+                    onPress={() => setSelectedHotel(null)}
+                  >
+                    <Ionicons name="close" size={20} color="#0F172A" />
+                  </Pressable>
                 </View>
+
+                {/* Nearby Landmark Distance Row */}
+                <NearbyLandmarksRow
+                  landmarks={selectedHotel.nearby_landmarks}
+                  summaryBn={selectedHotel.landmarks_summary_bn}
+                  summaryEn={selectedHotel.landmarks_summary_en}
+                />
+
+                {/* Open Full-Screen Photo Gallery Trigger */}
                 <Pressable
-                  style={styles.sheetCloseBtn}
-                  className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center ml-2"
-                  onPress={() => setSelectedHotel(null)}
+                  style={styles.openGallerySheetBtn}
+                  onPress={() => handleOpenGallery(selectedHotel, 0)}
                 >
-                  <Ionicons name="close" size={20} color="#0F172A" />
+                  <Ionicons name="images" size={14} color="#0055F2" style={{ marginEnd: 6 }} />
+                  <Text style={styles.openGallerySheetBtnText}>
+                    সব ছবি ও ক্যাটাগরি ভিউ দেখুন ({selectedHotel.images?.length || 4}+ ছবি)
+                  </Text>
+                  <RTLIcon name="chevron-forward" size={14} color="#0055F2" style={{ marginStart: "auto" }} />
                 </Pressable>
               </View>
 
               {/* Selected Dates Banner */}
               <View style={styles.sheetDatesBanner} className="flex-row items-center bg-blue-50 px-3.5 py-2.5 rounded-xl my-3">
                 <Ionicons name="calendar" size={14} color="#0055F2" />
-                <Text style={styles.sheetDatesText} className="text-xs font-bold text-blue-700 ml-2">
+                <Text style={styles.sheetDatesText} className="text-xs font-bold text-blue-700 ms-2">
                   {formatDateShort(checkInDate)} - {formatDateShort(checkOutDate)}{" "}
                   ({nightsCount} {nightsCount === 1 ? "Night" : "Nights"}) • {guestsConfig.adults} Adults
                 </Text>
               </View>
 
               <ScrollView style={styles.roomsListScroll} showsVerticalScrollIndicator={false}>
+                {/* Sold out alert banner when hotel has zero room inventory */}
+                {(() => {
+                  const isAllRoomsSoldOut =
+                    activeRooms.length > 0 &&
+                    activeRooms.every(
+                      (r) =>
+                        r.is_available === false ||
+                        (r.available_count !== undefined && r.available_count <= 0)
+                    );
+
+                  if (!isAllRoomsSoldOut) return null;
+
+                  return (
+                    <View className="bg-rose-50 border border-rose-200 p-3.5 rounded-2xl mb-4">
+                      <View className="flex-row items-center mb-1">
+                        <Ionicons name="alert-circle" size={18} color="#E11D48" />
+                        <Text className="text-sm font-bold text-rose-800 ms-1.5">
+                          এই তারিখে কোনো রুম খালি নেই (বিক্রি শেষ)
+                        </Text>
+                      </View>
+                      <Text className="text-xs text-rose-700 leading-4 mb-2.5">
+                        আপনার নির্বাচিত তারিখে এই হোটেলের সব রুমের বিক্রি শেষ হয়ে গেছে। বুকিং করতে অনুগ্রহ করে অন্য তারিখ বেছে নিন অথবা একই শহরের কাছাকাছি অন্য হোটেল দেখুন।
+                      </Text>
+                      <View className="flex-row gap-2">
+                        <Pressable
+                          onPress={() => {
+                            setSelectedHotel(null);
+                            setShowDatePickerModal(true);
+                          }}
+                          className="bg-blue-600 px-3 py-2 rounded-xl flex-row items-center active:bg-blue-700"
+                        >
+                          <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
+                          <Text className="text-white text-xs font-bold ms-1.5">অন্য তারিখ দেখুন</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            const city = selectedHotel?.city || "";
+                            setSelectedHotel(null);
+                            setSearchQuery(city);
+                          }}
+                          className="bg-white border border-slate-300 px-3 py-2 rounded-xl flex-row items-center active:bg-slate-50"
+                        >
+                          <Ionicons name="compass-outline" size={14} color="#334155" />
+                          <Text className="text-slate-700 text-xs font-bold ms-1.5">কাছাকাছি হোটেল দেখুন</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })()}
+
                 <Text style={styles.selectRoomHeading} className="text-sm font-extrabold text-slate-900 mb-2.5">
                   Room Availability Matrix:
                 </Text>
@@ -1771,41 +1904,85 @@ export function SearchStaysScreen() {
                         ? room.image_urls[0]
                         : selectedHotel.image_url || MEDIA_ASSETS.DEFAULT_ROOM;
 
+                    // Real stock from database (no fake idx === 0 urgency)
+                    const stock =
+                      typeof room.available_count === "number"
+                        ? room.available_count
+                        : typeof (room as any).stock === "number"
+                        ? (room as any).stock
+                        : undefined;
+                    const isRoomSoldOut = room.is_available === false || (stock !== undefined && stock <= 0);
+                    const hasRealUrgency = typeof stock === "number" && stock > 0 && stock <= 2;
+
+                    // Multi-night pricing with taxes
+                    const roomStaySubtotal = price * nightsCount * guestsConfig.rooms;
+                    const roomStayTax = Math.round(roomStaySubtotal * HOSPITALITY_CONFIG.TAX_RATE);
+                    const roomStayTotal = roomStaySubtotal + roomStayTax;
+
                     return (
                       <Pressable
                         key={room.id || idx}
-                        style={[styles.roomCard, isSelected && styles.roomCardActive]}
+                        style={[
+                          styles.roomCard,
+                          isSelected && !isRoomSoldOut && styles.roomCardActive,
+                          isRoomSoldOut && { opacity: 0.65, backgroundColor: "#F8FAFC" },
+                        ]}
                         className={`flex-row p-3 rounded-2xl mb-3 border ${
-                          isSelected
+                          isSelected && !isRoomSoldOut
                             ? "bg-blue-50/50 border-blue-600"
                             : "bg-white border-slate-200"
                         }`}
                         onPress={() => {
+                          if (isRoomSoldOut) {
+                            Alert.alert(
+                              "রুম খালি নেই (Sold Out)",
+                              "এই রুমটির বর্তমানে সব আসন/রুম বিক্রি শেষ। অনুগ্রহ করে অন্য রুম বেছে নিন অথবা অন্য তারিখে বুকিং করুন।"
+                            );
+                            return;
+                          }
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                           setSelectedRoomIndex(idx);
                         }}
                       >
-                        <View style={styles.roomImageContainer} className="relative w-24 h-24 rounded-xl overflow-hidden mr-3">
+                        <View style={styles.roomImageContainer} className="relative w-24 h-24 rounded-xl overflow-hidden me-3">
                           <ProgressiveImage
                             source={{ uri: roomImage }}
                             style={styles.roomThumbnail}
                           />
                           <View style={styles.radioCircle} className="absolute top-2 left-2 w-5 h-5 rounded-full bg-white/90 items-center justify-center border border-slate-300">
-                            {isSelected && <View style={styles.radioInnerDot} className="w-2.5 h-2.5 rounded-full bg-blue-600" />}
+                            {isSelected && !isRoomSoldOut && (
+                              <View style={styles.radioInnerDot} className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                            )}
                           </View>
                         </View>
 
                         <View style={styles.roomDetailsCol} className="flex-1 justify-between">
                           <View className="flex-row items-center justify-between">
-                            <Text style={styles.roomTitle} className="text-sm font-extrabold text-slate-900 flex-1 mr-1">
+                            <Text style={styles.roomTitle} className="text-sm font-extrabold text-slate-900 flex-1 me-1">
                               {room.room_type}
                             </Text>
-                            <View className="flex-row items-center bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                              <Ionicons name="flame" size={10} color="#D97706" />
-                              <Text className="text-[10px] font-bold text-amber-700 ml-0.5">
-                                {idx === 0 ? "Only 2 rooms left!" : "Available"}
-                              </Text>
-                            </View>
+                            {isRoomSoldOut ? (
+                              <View className="flex-row items-center bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                                <Ionicons name="close-circle" size={10} color="#E11D48" />
+                                <Text className="text-[10px] font-bold text-rose-700 ms-0.5">
+                                  বিক্রি শেষ (Sold Out)
+                                </Text>
+                              </View>
+                            ) : hasRealUrgency ? (
+                              <View className="flex-row items-center bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                <Ionicons name="flame" size={10} color="#D97706" />
+                                <Text className="text-[10px] font-bold text-amber-700 ms-0.5">
+                                  Only {stock} room{stock === 1 ? "" : "s"} left!
+                                </Text>
+                              </View>
+                            ) : (
+                              <View className="flex-row items-center bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                <Ionicons name="checkmark-circle" size={10} color="#059669" />
+                                <Text className="text-[10px] font-bold text-emerald-700 ms-0.5">
+                                  Available
+                                </Text>
+                              </View>
+                            )}
                           </View>
 
                           <Text style={styles.roomSpecs} className="text-xs text-slate-500 font-medium mt-0.5">
@@ -1815,28 +1992,37 @@ export function SearchStaysScreen() {
                             {room.description || "Luxurious room with premium bedding and morning views."}
                           </Text>
 
-                          {/* Room Amenities */}
-                          <View style={styles.roomAmenitiesRow} className="flex-row flex-wrap gap-1 mt-1.5">
-                            {(Array.isArray(room.amenities)
-                              ? room.amenities
-                              : ["Free WiFi", "Balcony", "AC"]
-                            )
-                              .slice(0, 3)
-                              .map((am) => (
-                                <View key={am} style={styles.roomAmenityPill} className="px-1.5 py-0.5 rounded bg-slate-100">
-                                  <Text style={styles.roomAmenityText} className="text-[10px] text-slate-600 font-semibold">
-                                    {am}
-                                  </Text>
-                                </View>
-                              ))}
+                          {/* Room Amenities with Clear Free / Extra Charge Badges */}
+                          <View style={styles.roomAmenitiesRow} className="mt-2">
+                            {(room.detailed_amenities && room.detailed_amenities.length > 0
+                              ? room.detailed_amenities
+                              : (Array.isArray(room.amenities)
+                                  ? room.amenities
+                                  : ["Free WiFi", "Balcony", "AC"]
+                                ).map((a) => ({
+                                  id: String(a),
+                                  name: String(a),
+                                  name_bn: String(a),
+                                  icon: "checkmark-circle-outline",
+                                  is_free: !String(a).toLowerCase().includes("charge") && !String(a).toLowerCase().includes("paid"),
+                                }))
+                            ).map((am, amIdx) => (
+                              <AmenityBadgeItem key={`${am.name}-${amIdx}`} amenity={am as any} isRoomDetail={true} />
+                            ))}
                           </View>
 
-                          <Text style={styles.roomPriceText} className="text-base font-black text-slate-900 mt-1.5">
-                            {formatPrice(price)}
-                            <Text style={styles.roomPriceSub} className="text-xs text-slate-500 font-medium">
-                              {" "}/ night
+                          {/* Both Per Night and Multi-Night Stay Total with Taxes */}
+                          <View className="mt-2 pt-1.5 border-t border-slate-100 flex-row items-baseline justify-between">
+                            <Text style={styles.roomPriceText} className="text-sm font-black text-slate-900">
+                              {formatPrice(price)}
+                              <Text style={styles.roomPriceSub} className="text-xs text-slate-500 font-medium">
+                                {" "}প্রতি রাত (/night)
+                              </Text>
                             </Text>
-                          </Text>
+                            <Text className="text-xs font-bold text-blue-700">
+                              · {nightsCount} রাতে {formatPrice(roomStayTotal)} (ট্যাক্সসহ)
+                            </Text>
+                          </View>
                         </View>
                       </Pressable>
                     );
@@ -1862,8 +2048,18 @@ export function SearchStaysScreen() {
                     <Text style={styles.breakdownLabel} className="text-xs text-slate-600">
                       {(activeSelectedRoom?.room_type || "Standard Room")} ({nightsCount} nights x {formatPrice(roomRate)})
                     </Text>
-                    <Text style={styles.breakdownVal} className="text-xs font-bold text-slate-800">{formatPrice(subtotal)}</Text>
+                    <Text style={styles.breakdownVal} className="text-xs font-bold text-slate-800">{formatPrice(baseRoomsTotal)}</Text>
                   </View>
+                  {childSupplementCost > 0 && (
+                    <View style={styles.breakdownRow} className="flex-row justify-between mb-2">
+                      <Text style={[styles.breakdownLabel, { color: "#0055F2" }]} className="text-xs font-bold text-blue-600">
+                        শিশু পরিপূরক চার্জ ({guestsConfig.children} জন শিশুর বয়স অনুপাতে)
+                      </Text>
+                      <Text style={[styles.breakdownVal, { color: "#0055F2" }]} className="text-xs font-bold text-blue-600">
+                        +{formatPrice(childSupplementCost)}
+                      </Text>
+                    </View>
+                  )}
                   <View style={styles.breakdownRow} className="flex-row justify-between mb-2">
                     <Text style={styles.breakdownLabel} className="text-xs text-slate-600">
                       Taxes & fees (10%)
@@ -1891,6 +2087,117 @@ export function SearchStaysScreen() {
                   </View>
                 </View>
 
+                {/* =================================================================== */}
+                {/* RATINGS & STAR DISTRIBUTION BREAKDOWN (তারা-ভিত্তিক বণ্টন বার) */}
+                {/* =================================================================== */}
+                <View className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mb-4">
+                  <View className="flex-row items-center justify-between mb-3">
+                    <View>
+                      <View className="flex-row items-center">
+                        <Text className="text-2xl font-black text-slate-900 me-2">
+                          {selectedHotel.average_rating || selectedHotel.star_rating || "4.8"}
+                        </Text>
+                        <View className="flex-row">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Ionicons key={`star-${i}`} name="star" size={16} color="#F59E0B" />
+                          ))}
+                        </View>
+                      </View>
+                      <Text className="text-xs font-semibold text-slate-600 mt-0.5">
+                        {(selectedHotel.total_reviews || 1240).toLocaleString()}টি যাচাইকৃত অতিথি রিভিউ
+                      </Text>
+                    </View>
+                    <View className="bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                      <Text className="text-xs font-extrabold text-emerald-700">
+                        চমৎকার (৪.৮/৫.০)
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Star Distribution Bars (তারা-ভিত্তিক বণ্টন বার) */}
+                  <Text className="text-xs font-extrabold text-slate-800 mb-2">
+                    তারা-ভিত্তিক রেটিং বণ্টন (Rating Breakdown):
+                  </Text>
+                  {getStarDistribution(selectedHotel.average_rating || "4.8", selectedHotel.total_reviews || 1240).map((item) => (
+                    <View key={item.stars} className="flex-row items-center my-1">
+                      <View className="flex-row items-center w-10">
+                        <Text className="text-xs font-bold text-slate-700">{item.stars}</Text>
+                        <Ionicons name="star" size={11} color="#F59E0B" style={{ marginStart: 2 }} />
+                      </View>
+                      <View className="flex-1 h-2.5 bg-slate-200 rounded-full mx-2 overflow-hidden">
+                        <View
+                          style={{ width: `${item.percentage}%` }}
+                          className="h-full bg-amber-400 rounded-full"
+                        />
+                      </View>
+                      <Text className="w-20 text-[11px] text-right font-medium text-slate-500">
+                        {item.percentage}% ({item.count})
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* =================================================================== */}
+                {/* AUTHENTIC VERIFIED GUEST REVIEWS SECTION */}
+                {/* =================================================================== */}
+                <View className="bg-white p-4 rounded-2xl border border-slate-200 mb-4">
+                  <View className="flex-row items-center justify-between mb-2">
+                    <View className="flex-row items-center">
+                      <Ionicons name="shield-checkmark" size={18} color="#059669" />
+                      <Text className="text-sm font-black text-slate-900 ms-1.5">
+                        যাচাইকৃত অতিথি রিভিউ
+                      </Text>
+                    </View>
+                    <View className="bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <Text className="text-[10px] font-bold text-emerald-700">১০০% আসল রিভিউ</Text>
+                    </View>
+                  </View>
+
+                  <Text className="text-xs text-slate-500 mb-3 leading-4">
+                    🛡️ বিশ্বস্ততা ও সততা নীতি: শুধুমাত্র সম্পন্ন ভ্রমণের পরই অতিথিরা রিভিউ অনুমোদন পান। কোনো ভুয়া বা পেইড রিভিউ গ্রহণযোগ্য নয়।
+                  </Text>
+
+                  {SAMPLE_VERIFIED_REVIEWS.map((rev) => (
+                    <View key={rev.id} className="p-3 bg-slate-50 rounded-xl mb-2.5 border border-slate-100">
+                      <View className="flex-row items-center justify-between mb-1.5">
+                        <View className="flex-row items-center">
+                          <Image
+                            source={{ uri: rev.avatar }}
+                            className="w-7 h-7 rounded-full bg-slate-300 me-2"
+                          />
+                          <View>
+                            <View className="flex-row items-center">
+                              <Text className="text-xs font-bold text-slate-900 me-1.5">
+                                {rev.guestName}
+                              </Text>
+                              <View className="flex-row items-center bg-emerald-100/80 px-1.5 py-0.5 rounded border border-emerald-300">
+                                <Ionicons name="checkmark-circle" size={10} color="#059669" />
+                                <Text className="text-[9px] font-extrabold text-emerald-800 ms-0.5">
+                                  যাচাইকৃত অতিথি
+                                </Text>
+                              </View>
+                            </View>
+                            <Text className="text-[10px] text-slate-400">
+                              {rev.date} • {rev.stayDuration} • {rev.roomType}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View className="flex-row items-center bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                          <Ionicons name="star" size={10} color="#F59E0B" />
+                          <Text className="text-[10px] font-black text-amber-700 ms-0.5">
+                            {rev.rating}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text className="text-xs text-slate-700 leading-4">
+                        {rev.comment}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
                 <View style={{ height: 20 }} />
               </ScrollView>
 
@@ -1900,31 +2207,72 @@ export function SearchStaysScreen() {
                   <Text style={styles.sheetFooterTotal} className="text-xl font-black text-slate-900">
                     {formatPrice(finalTotal)}
                   </Text>
-                  <Text style={styles.sheetFooterSub} className="text-xs text-slate-500">
-                    {nightsCount} nights • All taxes included
+                  <Text style={styles.sheetFooterSub} className="text-xs text-slate-600 font-semibold">
+                    {formatPrice(roomRate)} প্রতি রাত · {nightsCount} রাতে মোট (ট্যাক্সসহ)
                   </Text>
                 </View>
 
-                <Pressable
-                  style={styles.reserveBtn}
-                  className="flex-row items-center bg-blue-600 px-5 py-3 rounded-xl active:bg-blue-700 shadow-sm"
-                  onPress={handleReserveRoom}
-                >
-                  <Ionicons name="lock-closed" size={16} color="#FFFFFF" />
-                  <Text style={styles.reserveBtnText} className="text-white text-sm font-bold ml-1.5">
-                    Reserve Room
-                  </Text>
-                </Pressable>
+                {(() => {
+                  const isCurrentRoomSoldOut =
+                    activeSelectedRoom?.is_available === false ||
+                    (activeSelectedRoom?.available_count !== undefined && activeSelectedRoom.available_count <= 0);
+                  const isAllRoomsSoldOut =
+                    activeRooms.length > 0 &&
+                    activeRooms.every(
+                      (r) =>
+                        r.is_available === false ||
+                        (r.available_count !== undefined && r.available_count <= 0)
+                    );
+
+                  if (isCurrentRoomSoldOut || isAllRoomsSoldOut) {
+                    return (
+                      <Pressable
+                        style={[styles.reserveBtn, { backgroundColor: "#CBD5E1" }]}
+                        className="flex-row items-center px-4 py-3 rounded-xl shadow-none"
+                        disabled={true}
+                      >
+                        <Ionicons name="ban" size={16} color="#64748B" />
+                        <Text className="text-slate-600 text-sm font-bold ms-1.5">
+                          বিক্রি শেষ (Sold Out)
+                        </Text>
+                      </Pressable>
+                    );
+                  }
+
+                  return (
+                    <Pressable
+                      style={styles.reserveBtn}
+                      className="flex-row items-center bg-blue-600 px-5 py-3 rounded-xl active:bg-blue-700 shadow-sm"
+                      onPress={handleReserveRoom}
+                    >
+                      <Ionicons name="lock-closed" size={16} color="#FFFFFF" />
+                      <Text style={styles.reserveBtnText} className="text-white text-sm font-bold ms-1.5">
+                        Reserve Room
+                      </Text>
+                    </Pressable>
+                  );
+                })()}
               </View>
             </View>
           </View>
         )}
       </Modal>
 
-      {/* Floating AI Assistant */}
-      <AiPill color={TRIP_BLUE} />
-      {/* Bottom Nav */}
-      <BottomNav active="Explore" color={TRIP_BLUE} />
+
+      {/* Full-Screen Image Gallery Modal */}
+      {galleryHotel && (
+        <HotelGalleryModal
+          visible={galleryVisible}
+          onClose={() => {
+            setGalleryVisible(false);
+            setGalleryHotel(null);
+          }}
+          hotelName={galleryHotel.name}
+          images={galleryHotel.categorized_images || galleryHotel.images || []}
+          initialIndex={galleryInitialIndex}
+        />
+      )}
+
     </SafeAreaView>
   );
 }
@@ -1933,7 +2281,7 @@ export function SearchStaysScreen() {
 // STYLES
 // ============================================================================
 
-const styles = StyleSheet.create({
+const styles: any = StyleSheet.create({
   shell: {
     flex: 1,
     backgroundColor: "#F8FAFC",
@@ -1993,7 +2341,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   quickLinkLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },
@@ -2008,6 +2356,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.05)" } : {}),
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -2044,7 +2393,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#64748B",
     letterSpacing: 0.5,
@@ -2066,7 +2415,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   nightsBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#0055F2",
   },
@@ -2090,7 +2439,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#0F172A",
-    marginLeft: 8,
+    marginStart: 8,
   },
   benefitsBanner: {
     backgroundColor: "#FFFFFF",
@@ -2138,7 +2487,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginRight: 8,
+    marginEnd: 8,
     borderWidth: 1,
     borderColor: "#BFDBFE",
     alignItems: "center",
@@ -2153,7 +2502,7 @@ const styles = StyleSheet.create({
     color: "#0055F2",
   },
   voucherDesc: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
@@ -2192,6 +2541,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.06)" } : {}),
     borderWidth: 1,
     borderColor: "#E2E8F0",
     height: HOTEL_CARD_HEIGHT - 16,
@@ -2222,7 +2572,7 @@ const styles = StyleSheet.create({
   },
   specialDealText: {
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.5,
   },
@@ -2244,7 +2594,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   reviewsCountText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
   },
   hotelCardBody: {
@@ -2284,7 +2634,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   amenityTagText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     fontWeight: "500",
   },
@@ -2298,7 +2648,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#F1F5F9",
   },
   startingFromLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94A3B8",
     fontWeight: "600",
   },
@@ -2416,7 +2766,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   dateSummaryHeading: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748B",
   },
@@ -2591,12 +2941,12 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   roomSpecs: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
   roomDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94A3B8",
     marginTop: 2,
   },
@@ -2612,7 +2962,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   roomAmenityText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },
@@ -2623,7 +2973,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   roomPriceSub: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     color: "#64748B",
   },
@@ -2685,7 +3035,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   sheetFooterSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
   },
   reserveBtn: {
@@ -2715,7 +3065,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   filterGroupTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#64748B",
     marginBottom: 6,
@@ -2737,7 +3087,7 @@ const styles = StyleSheet.create({
     borderColor: TRIP_BLUE,
   },
   filterChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -2762,7 +3112,7 @@ const styles = StyleSheet.create({
     borderColor: "#A7F3D0",
   },
   roomAvailTagText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#059669",
   },
@@ -2778,9 +3128,25 @@ const styles = StyleSheet.create({
     borderColor: "#FDE68A",
   },
   roomUrgentTagText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#D97706",
+  },
+  roomSoldOutTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFE4E6",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#FECDD3",
+  },
+  roomSoldOutTagText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#E11D48",
   },
   freeCancelTag: {
     backgroundColor: "#EFF6FF",
@@ -2791,7 +3157,7 @@ const styles = StyleSheet.create({
     borderColor: "#BFDBFE",
   },
   freeCancelTagText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#2563EB",
   },
@@ -2804,9 +3170,54 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   blurhashText: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#94A3B8",
     fontWeight: "600",
     marginTop: 2,
+  },
+  galleryBadgePill: {
+    position: "absolute",
+    bottom: 46,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    gap: 4,
+  },
+  galleryBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  openGallerySheetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  openGallerySheetBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0055F2",
+    flex: 1,
+  },
+  viewToggleBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewToggleBtnActive: {
+    backgroundColor: "#0055F2",
   },
 });

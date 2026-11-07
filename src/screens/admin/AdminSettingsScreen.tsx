@@ -1,3 +1,4 @@
+import { showLocalizedAlert } from "../../utils/localizedAlert";
 /**
  * Admin Settings Screen - Admin Panel
  * Manage system settings, security, feature flags, and configurations
@@ -25,8 +26,6 @@ import { AdminUser } from "@/types/admin";
 import { supabase } from "@/utils/supabase";
 import { useRBAC } from "./rbac";
 import { executeAdminCommand, UpdateSystemSettingCommand } from "./commands";
-
-const { width } = Dimensions.get("window");
 
 /**
  * Settings Section Component
@@ -212,17 +211,17 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
         ...prev,
         [key]: prevVal,
       }));
-      Alert.alert("Permission Error", err.message || "Failed to update setting due to RBAC policy.");
+      showLocalizedAlert("Permission Error", err.message || "Failed to update setting due to RBAC policy.");
     }
   };
 
   const handleBackup = async () => {
     setLoading(true);
     try {
-      Alert.alert("Success", "Database backup initiated successfully");
+      showLocalizedAlert("Success", "Database backup initiated successfully");
       setBackupModalVisible(false);
     } catch (error) {
-      Alert.alert("Error", "Failed to create backup");
+      showLocalizedAlert("Error", "Failed to create backup");
     } finally {
       setLoading(false);
     }
@@ -233,9 +232,9 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
     try {
       const apiKey = `sk_${Math.random().toString(36).substr(2, 20).toUpperCase()}`;
       setNewApiKey(apiKey);
-      Alert.alert("Success", "New API key generated");
+      showLocalizedAlert("Success", "New API key generated");
     } catch (error) {
-      Alert.alert("Error", "Failed to generate API key");
+      showLocalizedAlert("Error", "Failed to generate API key");
     } finally {
       setLoading(false);
     }
@@ -375,7 +374,7 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
               label="API Documentation"
               icon="book-open"
               onPress={() =>
-                Alert.alert("API Documentation", "Visit: api.luxestay.com/docs")
+                showLocalizedAlert("API Documentation", "Visit: api.luxestay.com/docs")
               }
             />
           </SettingsSection>
@@ -399,7 +398,7 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
               label="Backup History"
               icon="history"
               onPress={() =>
-                Alert.alert("Backup History", "Last 10 backups shown")
+                showLocalizedAlert("Backup History", "Last 10 backups shown")
               }
             />
             <View style={styles.divider} />
@@ -431,7 +430,7 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
               label="Clear Cache"
               icon="delete"
               onPress={() =>
-                Alert.alert("Cache Cleared", "Application cache cleared")
+                showLocalizedAlert("Cache Cleared", "Application cache cleared")
               }
             />
             <View style={styles.divider} />
@@ -439,7 +438,7 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
               label="System Logs"
               icon="file-document-multiple"
               onPress={() =>
-                Alert.alert("System Logs", "View latest system logs")
+                showLocalizedAlert("System Logs", "View latest system logs")
               }
             />
           </SettingsSection>
@@ -451,7 +450,7 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
               value="English (US)"
               icon="translate"
               onPress={() =>
-                Alert.alert("Language", "Change admin panel language")
+                showLocalizedAlert("Language", "Change admin panel language")
               }
             />
             <View style={styles.divider} />
@@ -459,14 +458,14 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
               label="Timezone"
               value="UTC-5 (EST)"
               icon="clock"
-              onPress={() => Alert.alert("Timezone", "Set your timezone")}
+              onPress={() => showLocalizedAlert("Timezone", "Set your timezone")}
             />
             <View style={styles.divider} />
             <SettingsRow
               label="Date Format"
               value="MM/DD/YYYY"
               icon="calendar"
-              onPress={() => Alert.alert("Date Format", "Choose date format")}
+              onPress={() => showLocalizedAlert("Date Format", "Choose date format")}
             />
           </SettingsSection>
 
@@ -490,14 +489,14 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
               label="Change Password"
               icon="lock"
               onPress={() =>
-                Alert.alert("Change Password", "Update your password")
+                showLocalizedAlert("Change Password", "Update your password")
               }
             />
             <View style={styles.divider} />
             <SettingsRow
               label="Two-Factor Authentication"
               icon="two-factor-authentication"
-              onPress={() => Alert.alert("2FA", "Configure 2FA settings")}
+              onPress={() => showLocalizedAlert("2FA", "Configure 2FA settings")}
             />
           </SettingsSection>
 
@@ -528,7 +527,7 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
               label="Help & Support"
               icon="help-circle"
               onPress={() =>
-                Alert.alert(
+                showLocalizedAlert(
                   "Support",
                   "Contact: support@luxestay.com\nPhone: +1 (555) 123-4567",
                 )
@@ -623,7 +622,7 @@ export const AdminSettingsScreen: React.FC<{ admin: AdminUser | null }> = ({
                     <Text style={styles.apiKeyText}>{newApiKey}</Text>
                     <TouchableOpacity
                       onPress={() => {
-                        Alert.alert("Copied", "API key copied to clipboard");
+                        showLocalizedAlert("Copied", "API key copied to clipboard");
                       }}
                     >
                       <MaterialCommunityIcons
@@ -840,7 +839,7 @@ const styles = StyleSheet.create({
     color: "#1f2937",
   },
   apiKeyWarning: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#f59e0b",
     fontStyle: "italic",
   },

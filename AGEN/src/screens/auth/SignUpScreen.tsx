@@ -3,7 +3,7 @@
  * Production-ready agency registration flow
  */
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { COLORS } from "../../config/theme";
 import { AuthStackParamList } from "../../navigation/types";
 import { Button } from "../ui/UIComponents";
 import { useAuth } from "../../hooks/useAuth";
+import { PasswordStrengthMeter } from "../../../../src/components/ui/PasswordStrengthMeter";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "SignUp">;
 
@@ -29,8 +30,14 @@ export default function SignUpScreen({ navigation }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   const validateInputs = () => {
     if (!agencyName.trim()) {
@@ -90,6 +97,7 @@ export default function SignUpScreen({ navigation }: Props) {
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerSection}>
           <TouchableOpacity
@@ -119,18 +127,29 @@ export default function SignUpScreen({ navigation }: Props) {
               value={agencyName}
               onChangeText={setAgencyName}
               autoCapitalize="words"
+              autoComplete="name"
+              textContentType="name"
+              accessibilityLabel="Agency Name"
+              returnKeyType="next"
+              onSubmitEditing={() => emailRef.current?.focus()}
             />
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email Address</Text>
             <TextInput
+              ref={emailRef}
               style={styles.input}
               placeholder="Enter your email"
               placeholderTextColor={COLORS.textTertiary}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
+              accessibilityLabel="Email Address"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
               value={email}
               onChangeText={setEmail}
             />
@@ -138,26 +157,71 @@ export default function SignUpScreen({ navigation }: Props) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Create a password"
-              placeholderTextColor={COLORS.textTertiary}
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                ref={passwordRef}
+                style={[styles.input, { paddingEnd: 44 }]}
+                placeholder="Create a password"
+                placeholderTextColor={COLORS.textTertiary}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoComplete="new-password"
+                textContentType="newPassword"
+                accessibilityLabel="Password"
+                returnKeyType="next"
+                onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MaterialCommunityIcons
+                  name={showPassword ? "eye-outline" : "eye-off-outline"}
+                  size={20}
+                  color={COLORS.textTertiary}
+                />
+              </TouchableOpacity>
+            </View>
+            <PasswordStrengthMeter password={password} />
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Confirm Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Confirm your password"
-              placeholderTextColor={COLORS.textTertiary}
-              secureTextEntry
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                ref={confirmPasswordRef}
+                style={[styles.input, { paddingEnd: 44 }]}
+                placeholder="Confirm your password"
+                placeholderTextColor={COLORS.textTertiary}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+                autoComplete="new-password"
+                textContentType="newPassword"
+                accessibilityLabel="Confirm Password"
+                returnKeyType="done"
+                onSubmitEditing={handleSignUp}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={showConfirmPassword ? "Hide password" : "Show password"}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.eyeIcon}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MaterialCommunityIcons
+                  name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
+                  size={20}
+                  color={COLORS.textTertiary}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {error ? (
@@ -258,6 +322,15 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  passwordWrapper: {
+    position: "relative",
+    justifyContent: "center",
+  },
+  eyeIcon: {
+    position: "absolute",
+    right: 14,
+    padding: 6,
   },
   errorBox: {
     padding: 12,

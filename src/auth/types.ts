@@ -11,7 +11,7 @@ export type UserRole = "user" | "business" | "admin" | "professional";
 /**
  * Auth provider types
  */
-export type AuthProvider = "email" | "google" | "facebook" | "phone";
+export type AuthProvider = "email" | "google" | "facebook" | "apple" | "phone";
 
 /**
  * OTP type for verification
@@ -175,7 +175,7 @@ export interface UserRoleAssignment {
  * OAuth provider configuration
  */
 export interface OAuthProviderConfig {
-  provider: "google" | "facebook" | "github";
+  provider: "google" | "facebook" | "github" | "apple";
   clientId?: string;
   clientSecret?: string;
   redirectUrl?: string;
@@ -204,12 +204,13 @@ export interface AuthContextType {
   }) => Promise<unknown>;
   signIn: (params: { email: string; password: string }) => Promise<unknown>;
   signInWithOAuth: (
-    provider: "google" | "facebook" | "github"
+    provider: "google" | "facebook" | "github" | "apple"
   ) => Promise<unknown>;
   signInWithGoogle: () => Promise<unknown>;
   signInWithFacebook: () => Promise<unknown>;
   signOut: () => Promise<boolean>;
   sendOtp: (identifier: string) => Promise<unknown>;
+  sendMagicLink?: (email: string) => Promise<unknown>;
   verifyOtp: (
     identifier: string,
     token: string,

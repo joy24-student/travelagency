@@ -12,14 +12,14 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
-  SafeAreaView,
   Modal,
   Dimensions,
   TextInput,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../../components/ui/UIComponents';
 import { COLORS } from '../../App';
 import { Card, SectionHeader } from '../ui/UIComponents';
 
@@ -32,7 +32,29 @@ export default function SettingsScreen({ navigation }: any) {
   const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
   const [twoFactorStep, setTwoFactorStep] = useState<'selection' | 'sms' | 'passkey'>('selection');
   const [selectedLanguage, setSelectedLanguage] = useState('English (US)');
+  const [selectedCurrency, setSelectedCurrency] = useState('BDT (৳)');
+  const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [cacheSize, setCacheSize] = useState('24.8 MB');
   const [verificationCode, setVerificationCode] = useState('');
+
+  const handleClearCache = () => {
+    Alert.alert(
+      "ক্যাশ মেমোরি মুছবেন?",
+      "অ্যাপের সাময়িক ক্যাশ ও ইমেজ প্রিভিউ মুছে নতুন করে সিঙ্ক করা হবে।",
+      [
+        { text: "বাতিল", style: "cancel" },
+        {
+          text: "মুছে ফেলুন",
+          style: "destructive",
+          onPress: () => {
+            setCacheSize("0.0 KB");
+            Alert.alert("ক্যাশ সফলভাবে পরিষ্কার করা হয়েছে");
+          },
+        },
+      ]
+    );
+  };
 
   const theme = {
     background: darkMode ? '#0B1326' : '#F8FAFC',
@@ -67,12 +89,29 @@ export default function SettingsScreen({ navigation }: any) {
           <View style={{ width: 28 }} />
         </View>
 
+        {/* Global Settings Search Bar */}
+        <View style={[styles.searchBarWrapper, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <MaterialCommunityIcons name="magnify" size={20} color={theme.textTertiary} />
+          <TextInput
+            style={[styles.searchBarInput, { color: theme.text }]}
+            placeholder="Search settings (language, currency, security, cache)..."
+            placeholderTextColor={theme.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialCommunityIcons name="close-circle" size={18} color={theme.textTertiary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Notifications */}
           <View style={styles.section}>
             <SectionHeader title="Notifications" />
             <View style={[styles.card, { backgroundColor: theme.surface }]}>
-              <BlurView intensity={10} tint={darkMode ? "dark" : "light"}>
+              <GlassView intensity={10} tint={darkMode ? "dark" : "light"}>
               <View style={styles.settingItem}>
                 <View style={[styles.iconWrapper, { backgroundColor: '#c3c0ff20' }]}>
                   <MaterialCommunityIcons name="bell-badge-outline" size={20} color="#c3c0ff" />
@@ -98,7 +137,7 @@ export default function SettingsScreen({ navigation }: any) {
                 </View>
                 <Switch value={true} disabled trackColor={{ false: 'rgba(0,0,0,0.1)', true: COLORS.primary }} />
               </View>
-              </BlurView>
+              </GlassView>
             </View>
           </View>
 
@@ -165,8 +204,40 @@ export default function SettingsScreen({ navigation }: any) {
                   <MaterialCommunityIcons name="translate" size={22} color="#EC4899" />
                 </View>
                 <View style={styles.settingContent}>
-                  <Text style={[styles.settingTitle, { color: theme.text }]}>Language</Text>
+                  <Text style={[styles.settingTitle, { color: theme.text }]}>ভাষা / Language</Text>
                   <Text style={[styles.settingSubtitle, { color: theme.textTertiary }]}>{selectedLanguage}</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textTertiary} />
+              </TouchableOpacity>
+            </Card>
+
+            <Card style={StyleSheet.flatten([styles.card, { backgroundColor: theme.surface }])}>
+              <TouchableOpacity 
+                style={styles.settingItem}
+                onPress={() => setIsCurrencyModalVisible(true)}
+              >
+                <View style={[styles.iconWrapper, { backgroundColor: '#10B98120' }]}>
+                  <MaterialCommunityIcons name="currency-usd" size={22} color="#10B981" />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingTitle, { color: theme.text }]}>মুদ্রা / Currency</Text>
+                  <Text style={[styles.settingSubtitle, { color: theme.textTertiary }]}>{selectedCurrency}</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textTertiary} />
+              </TouchableOpacity>
+            </Card>
+
+            <Card style={StyleSheet.flatten([styles.card, { backgroundColor: theme.surface }])}>
+              <TouchableOpacity 
+                style={styles.settingItem}
+                onPress={handleClearCache}
+              >
+                <View style={[styles.iconWrapper, { backgroundColor: '#F9731620' }]}>
+                  <MaterialCommunityIcons name="broom" size={22} color="#F97316" />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingTitle, { color: theme.text }]}>ক্যাশ মেমোরি / Clear Cache</Text>
+                  <Text style={[styles.settingSubtitle, { color: theme.textTertiary }]}>জমা হওয়া ডাটা: {cacheSize}</Text>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textTertiary} />
               </TouchableOpacity>
@@ -220,7 +291,7 @@ export default function SettingsScreen({ navigation }: any) {
             <SafeAreaView style={[styles.modalContent, { backgroundColor: theme.surface }]}>
               <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
                 {twoFactorStep !== 'selection' && (
-                  <TouchableOpacity onPress={() => setTwoFactorStep('selection')} style={{ marginRight: 12 }}>
+                  <TouchableOpacity onPress={() => setTwoFactorStep('selection')} style={{ marginEnd: 12 }}>
                     <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
                   </TouchableOpacity>
                 )}
@@ -395,6 +466,46 @@ export default function SettingsScreen({ navigation }: any) {
             </SafeAreaView>
           </TouchableOpacity>
         </Modal>
+        {/* Currency Selection Modal */}
+        <Modal
+          visible={isCurrencyModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsCurrencyModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>মুদ্রা নির্বাচন করুন (Currency)</Text>
+              {['BDT (৳)', 'USD ($)', 'EUR (€)', 'GBP (£)', 'INR (₹)'].map((curr) => (
+                <TouchableOpacity
+                  key={curr}
+                  style={[
+                    styles.langOption,
+                    { borderBottomColor: theme.border },
+                    selectedCurrency === curr && { backgroundColor: 'rgba(99, 102, 241, 0.15)' }
+                  ]}
+                  onPress={() => {
+                    setSelectedCurrency(curr);
+                    setIsCurrencyModalVisible(false);
+                  }}
+                >
+                  <Text style={[styles.langText, { color: theme.text, fontWeight: selectedCurrency === curr ? '700' : '400' }]}>
+                    {curr}
+                  </Text>
+                  {selectedCurrency === curr && (
+                    <MaterialCommunityIcons name="check" size={20} color={COLORS.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={[styles.modalCloseBtn, { marginTop: 16 }]}
+                onPress={() => setIsCurrencyModalVisible(false)}
+              >
+                <Text style={styles.modalCloseBtnText}>বন্ধ করুন</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -406,6 +517,34 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
+  searchBarWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  searchBarInput: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  modalCloseBtn: {
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#334155',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   container: {
     flex: 1,
   },
@@ -457,7 +596,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginEnd: 12,
   },
 
   settingContent: {
@@ -486,7 +625,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    maxHeight: Dimensions.get('window').height * 0.85,
+    maxHeight: '85%',
   },
 
   modalHeader: {
@@ -527,7 +666,7 @@ const styles = StyleSheet.create({
   modalActionText: {
     fontSize: 16,
     color: COLORS.text,
-    marginLeft: 12,
+    marginStart: 12,
     flex: 1,
   },
 

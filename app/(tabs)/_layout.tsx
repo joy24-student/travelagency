@@ -1,35 +1,64 @@
-import { Tabs, usePathname } from "expo-router";
-import { View, StyleSheet } from "react-native";
-import { BottomNav, AiPill } from "../../src/screens/Navigation";
+import { Tabs } from "expo-router";
+import { StyleSheet, View } from "react-native";
+import { CustomBottomTabBar } from "../../src/screens/Navigation";
 
 export default function TabLayout() {
-  const pathname = usePathname();
-
-  // Determine active tab based on current path for custom navigation indicator
-  let activeTab = "Home";
-  if (pathname.includes("/messages")) activeTab = "Messages";
-  else if (pathname.includes("/community")) activeTab = "Community";
-  else if (pathname.includes("/trips")) activeTab = "My Trips";
-  else if (pathname.includes("/account")) activeTab = "Sign In";
-
   return (
     <View style={styles.container}>
       <Tabs
+        tabBar={(props) => <CustomBottomTabBar {...props} />}
         screenOptions={{
           headerShown: false,
-          tabBarStyle: { display: "none" }, // Custom bottom navbar handles UI globally
+          tabBarHideOnKeyboard: true,
         }}
       >
-        <Tabs.Screen name="index" />
-        <Tabs.Screen name="messages" />
-        <Tabs.Screen name="community" />
-        <Tabs.Screen name="trips" />
-        <Tabs.Screen name="account" />
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Home",
+          }}
+        />
+        <Tabs.Screen
+          name="messages"
+          options={{
+            title: "Messages",
+            tabBarBadge: 3,
+          }}
+        />
+        <Tabs.Screen
+          name="community"
+          options={{
+            title: "Community",
+          }}
+        />
+        <Tabs.Screen
+          name="trips"
+          options={{
+            title: "My Trips",
+          }}
+        />
+        <Tabs.Screen
+          name="account"
+          options={{
+            title: "Sign In",
+          }}
+        />
+        {/* Action Route: Dedicated post composer (hidden from bottom bar, accessed via /post or (+) actions) */}
+        <Tabs.Screen
+          name="post"
+          options={{
+            href: null,
+            title: "Create Post",
+          }}
+        />
+        <Tabs.Screen
+          name="agency"
+          options={{
+            href: null,
+            title: "Agency",
+          }}
+        />
       </Tabs>
-
-      {/* Single Global Navigation Bar Overlay */}
-      <AiPill color="#0055F2" />
-      <BottomNav active={activeTab} color="#0055F2" />
     </View>
   );
 }

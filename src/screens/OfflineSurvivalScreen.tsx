@@ -1,3 +1,4 @@
+import { FocusAwareStatusBar } from "../components/ui/AppStatusBar";
 /**
  * Offline Survival Screen - Zero-Connectivity Expedition Mode
  *
@@ -36,6 +37,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { openLink } from "../utils/openLink";
 import QRCode from "react-native-qrcode-svg";
 import Svg, {
   Path,
@@ -65,7 +67,7 @@ import {
   OfflineContact,
 } from "../services/offline/offlineGuideService";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import { useResponsive } from "../hooks/useResponsive";
 
 // Palette: Tactical Rugged Survival Theme (OLED Black, High-Contrast Emerald, Safety Amber, Crimson)
 const THEME = {
@@ -90,6 +92,7 @@ type ActiveTab = "vault" | "map" | "tools" | "contacts";
 type TorchMode = "off" | "torch" | "sos" | "red" | "amber";
 
 export function OfflineSurvivalScreen() {
+  const { width: SCREEN_WIDTH } = useResponsive();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -476,16 +479,28 @@ export function OfflineSurvivalScreen() {
 
     return (
       <View style={styles.tabContent}>
-        {/* Sync Status Banner */}
+        {/* Sync Status Banner with Offline Readiness & Pre-Trip Download Nudge */}
         <View style={styles.syncCard}>
           <View style={{ flex: 1 }}>
+            <View style={styles.offlineReadyPillRow}>
+              <View style={styles.offlineReadyPill}>
+                <Ionicons name="checkmark-circle" size={14} color={THEME.emerald} />
+                <Text style={styles.offlineReadyPillText}>অফলাইনে প্রস্তুত ✓ (২.৩ MB)</Text>
+              </View>
+              <Text style={styles.offlineReadySyncTime}>{lastSyncText}</Text>
+            </View>
             <Text style={styles.syncCardTitle}>Expedition Vault Ready</Text>
             <Text style={styles.syncCardSubtitle}>
               Target: {vaultData.destinationTitle}
             </Text>
-            <Text style={styles.syncCardHash}>
-              Checksum: {vaultData.dataChecksum} • Synced: {lastSyncText}
-            </Text>
+
+            {/* Checklist of what is downloaded */}
+            <View style={styles.offlineChecklistWrap}>
+              <Text style={styles.offlineChecklistRow}>✓ বুকিং নিশ্চিতকরণ ও হোটেল চেক-ইন QR</Text>
+              <Text style={styles.offlineChecklistRow}>✓ বোর্ডিং পাস ও পরিবহন টিকিট</Text>
+              <Text style={styles.offlineChecklistRow}>✓ অফলাইন ভেক্টর ট্রেইল ম্যাপ (ক্যাশড)</Text>
+              <Text style={styles.offlineChecklistRow}>✓ জরুরি উদ্ধার ও VHF রেডিও ফ্রিকোয়েন্সি</Text>
+            </View>
           </View>
           <TouchableOpacity
             style={styles.syncButton}
@@ -498,7 +513,7 @@ export function OfflineSurvivalScreen() {
               color={THEME.emerald}
             />
             <Text style={styles.syncButtonText}>
-              {isSyncing ? "Syncing..." : "Sync Wi-Fi"}
+              {isSyncing ? "ডাউনলোড..." : "ডাউনলোড করুন"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -565,7 +580,7 @@ export function OfflineSurvivalScreen() {
           <View style={styles.cardActionsRow}>
             <TouchableOpacity
               style={styles.cardActionBtn}
-              onPress={() => Linking.openURL(`tel:${hotel.contactPhone}`)}
+              onPress={() => openLink(`tel:${hotel.contactPhone}`, { label: "হোটেল ফ্রন্ট ডেস্ক" })}
             >
               <Ionicons name="call-outline" size={14} color={THEME.emerald} />
               <Text style={styles.cardActionText}>Call Front Desk ({hotel.contactPhone})</Text>
@@ -1331,7 +1346,7 @@ export function OfflineSurvivalScreen() {
                 style={styles.primaryCallBtn}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                  Linking.openURL(`tel:${c.phonePrimary}`);
+                  openLink(`tel:${c.phonePrimary}`, { label: c.name || "জরুরি যোগাযোগ" });
                 }}
               >
                 <Ionicons name="call" size={14} color="#FFFFFF" />
@@ -1340,7 +1355,7 @@ export function OfflineSurvivalScreen() {
               {c.phoneSecondary && (
                 <TouchableOpacity
                   style={styles.secondaryCallBtn}
-                  onPress={() => Linking.openURL(`tel:${c.phoneSecondary}`)}
+                  onPress={() => openLink(`tel:${c.phoneSecondary}`, { label: `${c.name || "জরুরি"} ব্যাকআপ` })}
                 >
                   <Ionicons name="call-outline" size={14} color={THEME.emerald} />
                   <Text style={styles.secondaryCallText}>Backup ({c.phoneSecondary})</Text>
@@ -1353,7 +1368,7 @@ export function OfflineSurvivalScreen() {
         {/* Survival Protocols Cheat Sheet */}
         <Text style={styles.sectionHeaderTitle}>MOUNTAIN SURVIVAL PROTOCOLS</Text>
         {vaultData.survivalGuide.emergencyProtocols.map((p, idx) => (
-          <View key={idx} style={styles.protocolCard}>
+          <View key={`protocol-${p.title || idx}`} style={styles.protocolCard}>
             <View style={styles.protocolHeader}>
               <Ionicons name="shield" size={16} color={THEME.amber} />
               <Text style={styles.protocolTitle}>{p.title}</Text>
@@ -1377,7 +1392,7 @@ export function OfflineSurvivalScreen() {
         <Text style={styles.sectionHeaderTitle}>OFFLINE SURVIVAL PHRASEBOOK</Text>
         <View style={styles.phrasebookCard}>
           {vaultData.survivalGuide.survivalPhrasebook.map((ph, idx) => (
-            <View key={idx} style={styles.phraseRow}>
+            <View key={`phrase-${ph.phrase || idx}`} style={styles.phraseRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.phraseEng}>{ph.phrase}</Text>
                 <Text style={styles.phrasePhonetic}>"{ph.pronunciation}"</Text>
@@ -1442,7 +1457,7 @@ export function OfflineSurvivalScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor={THEME.bg} />
+      <FocusAwareStatusBar style="light" backgroundColor={THEME.bg} />
 
       {/* Screen Header */}
       <View style={styles.header}>
@@ -1521,7 +1536,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   logoText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: THEME.emerald,
     letterSpacing: 0.5,
@@ -1564,7 +1579,7 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
   bannerSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.textSecondary,
     marginTop: 2,
   },
@@ -1575,7 +1590,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   bannerActionBtnText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.textPrimary,
   },
@@ -1597,12 +1612,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   telemetryLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.textMuted,
   },
   telemetryValue: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: THEME.textPrimary,
   },
@@ -1634,7 +1649,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1F2937",
   },
   tabText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: THEME.textMuted,
   },
@@ -1650,7 +1665,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   sectionHeaderTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: THEME.textMuted,
     letterSpacing: 1,
@@ -1665,6 +1680,40 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
   },
+  offlineReadyPillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  offlineReadyPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: THEME.emeraldBg,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  offlineReadyPillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: THEME.emerald,
+  },
+  offlineReadySyncTime: {
+    fontSize: 11,
+    color: THEME.textMuted,
+  },
+  offlineChecklistWrap: {
+    marginTop: 8,
+    gap: 3,
+  },
+  offlineChecklistRow: {
+    fontSize: 11,
+    color: THEME.textSecondary,
+  },
   syncCardTitle: {
     fontSize: 14,
     fontWeight: "700",
@@ -1676,7 +1725,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   syncCardHash: {
-    fontSize: 10,
+    fontSize: 12,
     color: THEME.textMuted,
     marginTop: 4,
   },
@@ -1715,7 +1764,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   confirmedBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: THEME.emerald,
     letterSpacing: 0.5,
@@ -1726,7 +1775,7 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
   hotelAddress: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.textSecondary,
     marginTop: 2,
   },
@@ -1742,7 +1791,7 @@ const styles = StyleSheet.create({
     width: "46%",
   },
   gridLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.textMuted,
   },
@@ -1773,12 +1822,12 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   qrInstruction: {
-    fontSize: 10,
+    fontSize: 12,
     color: THEME.textSecondary,
     textAlign: "center",
   },
   qrHash: {
-    fontSize: 9,
+    fontSize: 12,
     color: THEME.textMuted,
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
@@ -1826,7 +1875,7 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
   serviceNumber: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.cyan,
   },
@@ -1847,7 +1896,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   routeStation: {
-    fontSize: 10,
+    fontSize: 12,
     color: THEME.textMuted,
     marginTop: 2,
     maxWidth: 110,
@@ -1857,7 +1906,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   seatPill: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.textPrimary,
     backgroundColor: "#1E293B",
@@ -1874,12 +1923,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   passLabel: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.textMuted,
   },
   passValue: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: THEME.textPrimary,
     marginBottom: 4,
@@ -1915,12 +1964,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   itineraryDayText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: THEME.emerald,
   },
   itineraryTimeSlot: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.textSecondary,
     flex: 1,
   },
@@ -1933,7 +1982,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   checkBtnText: {
-    fontSize: 10,
+    fontSize: 12,
     color: THEME.textMuted,
   },
   checkBtnTextDone: {
@@ -1965,7 +2014,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   metaBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     color: THEME.textPrimary,
   },
   advisoryBox: {
@@ -1978,7 +2027,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   advisoryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.amber,
     flex: 1,
     lineHeight: 15,
@@ -1999,7 +2048,7 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
   mapSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.emerald,
     marginTop: 1,
   },
@@ -2025,14 +2074,14 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.cardBg,
     borderWidth: 1,
     borderColor: THEME.cardBorder,
-    marginRight: 8,
+    marginEnd: 8,
   },
   filterChipActive: {
     backgroundColor: THEME.emeraldBg,
     borderColor: THEME.emerald,
   },
   filterChipText: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.textSecondary,
     fontWeight: "600",
   },
@@ -2060,7 +2109,7 @@ const styles = StyleSheet.create({
     borderColor: "#334155",
   },
   miniHeadingText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: THEME.emerald,
     marginTop: 2,
@@ -2084,11 +2133,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   landmarkCategoryText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
   },
   landmarkDist: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.textMuted,
   },
   landmarkName: {
@@ -2102,7 +2151,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   landmarkElev: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.cyan,
     fontWeight: "600",
   },
@@ -2152,7 +2201,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   compassCardSubtitle: {
-    fontSize: 10,
+    fontSize: 12,
     color: THEME.textSecondary,
     marginTop: 2,
   },
@@ -2165,7 +2214,7 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
   headingDirText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: THEME.emerald,
   },
@@ -2185,7 +2234,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.3)",
   },
   hotelBearingText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.emerald,
   },
@@ -2239,7 +2288,7 @@ const styles = StyleSheet.create({
     color: "#000000",
   },
   torchBtnSub: {
-    fontSize: 9,
+    fontSize: 12,
     color: THEME.textMuted,
   },
   screenTorchPanel: {
@@ -2250,7 +2299,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   screenTorchText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     textAlign: "center",
     letterSpacing: 0.5,
@@ -2279,7 +2328,7 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
   contactLoc: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.textSecondary,
     marginTop: 1,
   },
@@ -2299,7 +2348,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   vhfText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.amber,
   },
@@ -2319,7 +2368,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   callBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#FFFFFF",
   },
@@ -2334,7 +2383,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   secondaryCallText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.emerald,
   },
@@ -2362,12 +2411,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   stepNum: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.emerald,
   },
   stepText: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.textSecondary,
     flex: 1,
     lineHeight: 16,
@@ -2382,7 +2431,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   warningBoxText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: THEME.crimson,
     flex: 1,
@@ -2409,7 +2458,7 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
   phrasePhonetic: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.emerald,
     fontStyle: "italic",
     marginTop: 2,
@@ -2421,7 +2470,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   phraseLangText: {
-    fontSize: 9,
+    fontSize: 12,
     color: THEME.textMuted,
     fontWeight: "600",
   },
@@ -2461,7 +2510,7 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   modalInstruction: {
-    fontSize: 11,
+    fontSize: 12,
     color: THEME.textMuted,
     textAlign: "center",
     lineHeight: 16,

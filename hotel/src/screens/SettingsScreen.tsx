@@ -4,10 +4,10 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Switch,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 export function SettingsScreen() {
@@ -28,7 +28,7 @@ export function SettingsScreen() {
       className="flex-row items-center p-4 border-b border-[#1e293b] active:bg-slate-800"
     >
       <View
-        className={`w-10 h-10 rounded-xl ${iconBgColor} items-center justify-center mr-4`}
+        className={`w-10 h-10 rounded-xl ${iconBgColor} items-center justify-center me-4`}
       >
         <MaterialIcons name={icon} size={20} color={iconColor} />
       </View>
@@ -54,7 +54,7 @@ export function SettingsScreen() {
 
       {/* Header */}
       <View className="px-5 py-4 flex-row items-center">
-        <TouchableOpacity className="p-1 mr-4">
+        <TouchableOpacity className="p-1 me-4">
           <MaterialIcons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-white">Settings</Text>

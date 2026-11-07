@@ -1,7 +1,5 @@
 import React from "react";
-import { View } from "react-native";
 import SplashScreen from "./SplashScreen";
-import AdvancedSplashScreen from "./AdvancedSplashScreen";
 import {
   SplashScreenConfig,
   DEFAULT_SPLASH_CONFIG,
@@ -9,56 +7,32 @@ import {
   PresetName,
 } from "../config/splashConfig";
 
-interface CustomSplashScreenProps {
+export interface CustomSplashScreenProps {
   onFinish?: () => void;
   config?: SplashScreenConfig;
   preset?: PresetName;
 }
 
 /**
- * Customizable Splash Screen Wrapper
- *
- * This component allows you to easily switch between splash screen variants
- * and customize their appearance and behavior.
- *
- * @example
- * // Using default configuration
- * <CustomSplashScreen onFinish={() => navigation.navigate('Home')} />
- *
- * @example
- * // Using a preset
- * <CustomSplashScreen preset="advanced" onFinish={() => navigation.navigate('Home')} />
- *
- * @example
- * // Using custom configuration
- * <CustomSplashScreen
- *   config={{
- *     variant: 'advanced',
- *     duration: 4000,
- *     colors: { primary: '#FF0000', accent: '#00FF00', background: '#FFFFFF', text: '#000000' }
- *   }}
- *   onFinish={() => navigation.navigate('Home')}
- * />
+ * CustomSplashScreen - Unified wrapper maintaining backward compatibility.
+ * Re-exports the canonical, theme-aware SplashScreen with ultra-fast startup (<1s).
  */
 export default function CustomSplashScreen({
   onFinish,
   config,
   preset,
 }: CustomSplashScreenProps) {
-  // Determine which configuration to use
   const finalConfig = config || getSplashConfig(preset);
-
-  // Select the appropriate splash screen component
-  const SplashComponent =
-    finalConfig.variant === "advanced" ? AdvancedSplashScreen : SplashScreen;
+  const variant = finalConfig.variant === "advanced" ? "advanced" : "standard";
 
   return (
-    <View style={{ flex: 1 }}>
-      <SplashComponent onFinish={onFinish} />
-    </View>
+    <SplashScreen
+      onFinish={onFinish}
+      variant={variant}
+      duration={Math.min(finalConfig.duration, 1000)}
+    />
   );
 }
 
-// Export configuration helpers
 export { getSplashConfig, DEFAULT_SPLASH_CONFIG };
 export type { SplashScreenConfig };

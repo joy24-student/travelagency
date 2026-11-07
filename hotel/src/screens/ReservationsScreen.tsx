@@ -5,12 +5,12 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   TextInput,
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { hotelService, HotelReservation } from '../services/hotelService';
 
@@ -66,7 +66,7 @@ export function ReservationsScreen() {
       {/* Header */}
       <View className="flex-row justify-between items-center px-5 py-3">
         <View className="flex-row items-center">
-          <TouchableOpacity className="mr-4">
+          <TouchableOpacity className="me-4">
             <MaterialIcons name="menu" size={24} color="white" />
           </TouchableOpacity>
           <Text className="text-lg font-semibold text-white tracking-wide">Reservations</Text>
@@ -91,7 +91,7 @@ export function ReservationsScreen() {
               placeholderTextColor="#64748b"
               value={searchQuery}
               onChangeText={setSearchQuery}
-              className="flex-1 ml-2 text-white text-sm"
+              className="flex-1 ms-2 text-white text-sm"
               autoFocus
             />
             {searchQuery.length > 0 && (
@@ -113,13 +113,13 @@ export function ReservationsScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           className="px-5 py-4 flex-row"
-          contentContainerStyle={{ paddingRight: 20 }}
+          contentContainerStyle={{ paddingEnd: 20 }}
         >
           {['All', 'Upcoming', 'Checked In', 'Checked Out', 'Pending', 'Cancelled'].map((tab) => (
             <TouchableOpacity
               key={tab}
               onPress={() => setActiveTab(tab)}
-              className={`mr-2 px-4 py-1.5 rounded-full border ${
+              className={`me-2 px-4 py-1.5 rounded-full border ${
                 activeTab === tab
                   ? 'bg-[#4f46e5] border-[#4f46e5]'
                   : 'bg-gray-800 border-gray-700'
@@ -165,9 +165,9 @@ export function ReservationsScreen() {
                         source={{ uri: item.avatar }}
                         className="w-12 h-12 rounded-full border-2 border-indigo-500/30"
                       />
-                      <View className="ml-3 flex-1 justify-center">
+                      <View className="ms-3 flex-1 justify-center">
                         <View className="flex-row items-center">
-                          <Text className="text-sm font-semibold text-white mr-2">{item.name}</Text>
+                          <Text className="text-sm font-semibold text-white me-2">{item.name}</Text>
                           {item.isVIP && (
                             <View className="bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded">
                               <Text className="text-[9px] font-bold text-yellow-500">VIP</Text>
@@ -191,11 +191,11 @@ export function ReservationsScreen() {
                     <View>
                       <View className="flex-row items-center mb-1">
                         <MaterialIcons name="event" size={14} color="#94a3b8" />
-                        <Text className="text-xs text-gray-300 ml-1.5">{item.dates}</Text>
+                        <Text className="text-xs text-gray-300 ms-1.5">{item.dates}</Text>
                       </View>
                       <View className="flex-row items-center">
                         <MaterialIcons name="meeting-room" size={14} color="#94a3b8" />
-                        <Text className="text-xs text-gray-400 ml-1.5">
+                        <Text className="text-xs text-gray-400 ms-1.5">
                           {item.roomType} • {item.guests}
                         </Text>
                       </View>

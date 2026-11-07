@@ -111,6 +111,7 @@ export default function OtpScreen({ navigation, route }: Props) {
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerSection}>
           <TouchableOpacity
@@ -133,13 +134,19 @@ export default function OtpScreen({ navigation, route }: Props) {
             <Text style={styles.label}>Verification Code</Text>
             <TextInput
               style={styles.codeInput}
-              placeholder="000000"
+              placeholder="Enter 6 or 8-digit code"
               placeholderTextColor={COLORS.textTertiary}
-              keyboardType="numeric"
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="one-time-code"
               textContentType="oneTimeCode"
+              accessibilityLabel="Verification Code"
+              returnKeyType="done"
+              onSubmitEditing={handleVerify}
               value={code}
-              onChangeText={(value) => setCode(value.replace(/[^0-9]/g, ""))}
-              maxLength={6}
+              onChangeText={(value) => setCode(value.replace(/[^a-zA-Z0-9]/g, ""))}
+              maxLength={8}
             />
           </View>
 

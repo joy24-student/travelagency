@@ -17,6 +17,15 @@ CREATE INDEX IF NOT EXISTS idx_user_device_tokens_user ON user_device_tokens(use
 
 ALTER TABLE user_device_tokens ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Public device tokens policy" ON user_device_tokens;
-CREATE POLICY "Public device tokens policy" ON user_device_tokens FOR ALL USING (true);
+-- Revoke insecure public access
+REVOKE ALL ON user_device_tokens FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON user_device_tokens TO authenticated, service_role;
 
+DROP POLICY IF EXISTS "Public device tokens policy" ON user_device_tokens;
+DROP POLICY IF EXISTS "User device tokens isolated" ON user_device_tokens;
+
+-- Strict zero-trust policy: users can only manage their own device tokens
+CREATE POLICY "User device tokens isolated" ON user_device_tokens
+  FOR ALL TO authenticated
+  USING ((SELECT auth.uid()) = user_id OR public.is_admin())
+  WITH CHECK ((SELECT auth.uid()) = user_id OR public.is_admin());

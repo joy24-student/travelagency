@@ -10,7 +10,7 @@
  */
 
 import React, { useEffect, useState, useRef } from "react";
-import {
+import { Platform,
   ActivityIndicator,
   Pressable,
   ScrollView,
@@ -204,6 +204,25 @@ export default function PaymentCallbackScreen() {
               <Text style={styles.primaryButtonText}>Try Again</Text>
             </Pressable>
             <Pressable
+              style={[styles.primaryButton, { backgroundColor: "#0284C7", marginTop: 8 }]}
+              onPress={() =>
+                router.push({
+                  pathname: "/screens/customer-support",
+                  params: {
+                    transactionId: activeTxId || "",
+                    issue: `পেমেন্ট ব্যর্থ হয়েছে: ${statusMessage}`,
+                    autoOpenChat: "true",
+                    source: "payment_callback",
+                  },
+                })
+              }
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="headset" size={18} color="#FFFFFF" />
+                <Text style={styles.primaryButtonText}>সাহায্য চাই (Need Help)</Text>
+              </View>
+            </Pressable>
+            <Pressable
               style={styles.secondaryButton}
               onPress={() => router.replace("/(tabs)")}
             >
@@ -224,6 +243,25 @@ export default function PaymentCallbackScreen() {
               onPress={() => router.replace("/screens/payments")}
             >
               <Text style={styles.primaryButtonText}>Return to Checkout</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.primaryButton, { backgroundColor: "#0284C7", marginTop: 8 }]}
+              onPress={() =>
+                router.push({
+                  pathname: "/screens/customer-support",
+                  params: {
+                    transactionId: activeTxId || "",
+                    issue: `পেমেন্ট বাতিল করা হয়েছে: ${statusMessage}`,
+                    autoOpenChat: "true",
+                    source: "payment_callback",
+                  },
+                })
+              }
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="headset" size={18} color="#FFFFFF" />
+                <Text style={styles.primaryButtonText}>সাহায্য চাই (Need Help)</Text>
+              </View>
             </Pressable>
             <Pressable
               style={styles.secondaryButton}
@@ -288,6 +326,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 12px rgba(15, 23, 42, 0.08)" } : {}),
   },
   iconCircle: {
     width: 96,

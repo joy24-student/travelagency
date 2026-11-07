@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import {
+import React, { useState, useEffect } from "react";
+import { Platform,
   ActivityIndicator,
   Modal,
   Pressable,
@@ -12,10 +12,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { chat } from "../services/ai/llm";
 import { supabase } from "../utils/supabase";
+import { RTLIcon } from "../components/ui";
 
 // Question Item interface
 interface ServiceQuestion {
@@ -94,6 +95,9 @@ const FAQ_CHIPS = [
 ];
 
 export function CustomerSupportScreen() {
+  const params = useLocalSearchParams<{ bookingRef?: string; issue?: string }>();
+  const effectiveBookingRef = params?.bookingRef || "";
+  const effectiveIssue = params?.issue || "";
   const insets = useSafeAreaInsets();
 
   // Active Category State
@@ -207,7 +211,7 @@ export function CustomerSupportScreen() {
               }}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <RTLIcon name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
@@ -236,6 +240,57 @@ export function CustomerSupportScreen() {
             </View>
           </View>
         </LinearGradient>
+
+        {/* ─── Active Issue Assistance Card (Pre-filled from Error / Payment) ─── */}
+        {(effectiveBookingRef || effectiveIssue) && (
+          <View style={styles.activeIssueCard}>
+            <View style={styles.activeIssueHeader}>
+              <View style={styles.activeIssueBadge}>
+                <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.activeIssueBadgeText}>সক্রিয় অভিযোগ / লেনদেন সহায়তা</Text>
+              </View>
+              {effectiveBookingRef ? (
+                <Text style={styles.activeIssueId}>
+                  আইডি: {effectiveBookingRef}
+                </Text>
+              ) : null}
+            </View>
+            <Text style={styles.activeIssueDesc}>
+              {effectiveIssue || "বুকিং বা লেনদেন সংক্রান্ত সাহায্য চাই"}
+            </Text>
+            <TouchableOpacity
+              style={styles.activeIssueBtn}
+              onPress={() => setShowLiveChatModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubbles" size={18} color="#FFFFFF" />
+              <Text style={styles.activeIssueBtnText}>
+                এই সমস্যার জন্য লাইভ এজেন্টের সাথে কথা বলুন
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ─── Unified Hub: Hotels & Homes Service Chat Direct Link ─── */}
+        <View style={styles.serviceChatPillCard}>
+          <View style={styles.serviceChatIconBox}>
+            <Ionicons name="bed-outline" size={22} color="#007A78" />
+          </View>
+          <View style={{ flex: 1, marginHorizontal: 10 }}>
+            <Text style={styles.serviceChatCardTitle}>হোটেল ও হোম সার্ভিস চ্যাট</Text>
+            <Text style={styles.serviceChatCardSub}>
+              বুকিং সংশোধন, চেক-ইন বা প্রোপার্টি সংক্রান্ত তাত্ক্ষণিক AI সেবা
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.serviceChatActionBtn}
+            onPress={() => router.push("/screens/service-chat")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.serviceChatActionText}>চ্যাটে যান</Text>
+            <RTLIcon name="arrow-forward" size={14} color="#007A78" />
+          </TouchableOpacity>
+        </View>
 
         {/* ─── Card 1: Need help with your upcoming trip? ─────────────────── */}
         <View style={styles.cardOverlap}>
@@ -293,7 +348,7 @@ export function CustomerSupportScreen() {
                       name={tab.icon as any}
                       size={16}
                       color={isSelected ? "#FFFFFF" : "#1E293B"}
-                      style={{ marginRight: 6 }}
+                      style={{ marginEnd: 6 }}
                     />
                     <Text
                       style={[
@@ -359,7 +414,7 @@ export function CustomerSupportScreen() {
               <Ionicons name="headset-outline" size={22} color="#0F172A" />
               <Text style={styles.actionCardTitle}>Chat with us</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#64748B" />
+            <RTLIcon name="chevron-forward" size={18} color="#64748B" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -371,7 +426,7 @@ export function CustomerSupportScreen() {
               <Ionicons name="call-outline" size={22} color="#0F172A" />
               <Text style={styles.actionCardTitle}>Call us</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#64748B" />
+            <RTLIcon name="chevron-forward" size={18} color="#64748B" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -383,7 +438,7 @@ export function CustomerSupportScreen() {
               <Ionicons name="alert-circle-outline" size={22} color="#0F172A" />
               <Text style={styles.actionCardTitle}>Emergency assistance</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#64748B" />
+            <RTLIcon name="chevron-forward" size={18} color="#64748B" />
           </TouchableOpacity>
         </View>
 
@@ -425,7 +480,7 @@ export function CustomerSupportScreen() {
             </View>
 
             <View style={styles.playButtonCircle}>
-              <Ionicons name="play" size={26} color="#2563EB" style={{ marginLeft: 4 }} />
+              <Ionicons name="play" size={26} color="#2563EB" style={{ marginStart: 4 }} />
             </View>
           </TouchableOpacity>
         </View>
@@ -494,7 +549,7 @@ export function CustomerSupportScreen() {
           <ScrollView style={{ flex: 1, padding: 16 }}>
             {chatMessages.map((msg, idx) => (
               <View
-                key={idx}
+                key={msg.id || `msg-${msg.sender}-${idx}`}
                 style={[
                   styles.chatBubble,
                   msg.sender === "user" ? styles.userBubble : styles.agentBubble,
@@ -558,16 +613,16 @@ export function CustomerSupportScreen() {
               }}
             >
               <Ionicons name="headset" size={22} color="#2563EB" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flex: 1, marginStart: 12 }}>
                 <Text style={[styles.phoneOptionLabel, { fontWeight: "700" }]}>Instant In-App VoIP Call</Text>
                 <Text style={styles.phoneOptionNumber}>Free high-definition voice line</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#2563EB" />
+              <RTLIcon name="chevron-forward" size={18} color="#2563EB" />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.phoneOptionRow}>
               <Ionicons name="call-outline" size={20} color="#2563EB" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flex: 1, marginStart: 12 }}>
                 <Text style={styles.phoneOptionLabel}>International Toll-Free</Text>
                 <Text style={styles.phoneOptionNumber}>+1 (800) 874-7326</Text>
               </View>
@@ -575,7 +630,7 @@ export function CustomerSupportScreen() {
 
             <TouchableOpacity style={styles.phoneOptionRow}>
               <Ionicons name="globe-outline" size={20} color="#2563EB" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flex: 1, marginStart: 12 }}>
                 <Text style={styles.phoneOptionLabel}>Asia-Pacific Direct Line</Text>
                 <Text style={styles.phoneOptionNumber}>+852 3008 3268</Text>
               </View>
@@ -739,7 +794,7 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: "#F59E0B",
-    marginLeft: 3,
+    marginStart: 3,
     marginTop: 6,
   },
   responseBadge: {
@@ -760,7 +815,7 @@ const styles = StyleSheet.create({
   },
   illustrationWrap: {
     position: "relative",
-    marginLeft: 10,
+    marginStart: 10,
   },
   avatarCircle: {
     width: 56,
@@ -794,6 +849,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 16,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 16px rgba(15, 23, 42, 0.05)" } : {}),
   },
   cardOverlapTitle: {
     fontSize: 17,
@@ -847,6 +903,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 12,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 12px rgba(15, 23, 42, 0.03)" } : {}),
   },
   serviceChatTitle: {
     fontSize: 20,
@@ -911,7 +968,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#0F172A",
     flex: 1,
-    paddingRight: 10,
+    paddingEnd: 10,
   },
 
   /* FAQ Chips */
@@ -957,6 +1014,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 8,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 8px rgba(15, 23, 42, 0.02)" } : {}),
   },
   actionLeftRow: {
     flexDirection: "row",
@@ -1022,7 +1080,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   videoPlayerContainer: {
-    height: 170,
+    minHeight: 170,
     backgroundColor: "#2563EB",
     borderRadius: 16,
     alignItems: "center",
@@ -1046,7 +1104,7 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: "#F59E0B",
-    marginLeft: 3,
+    marginStart: 3,
     marginTop: 4,
   },
   playButtonCircle: {
@@ -1061,6 +1119,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.2)" } : {}),
   },
 
   /* Bottom Footer */
@@ -1287,5 +1346,111 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
     fontSize: 13,
+  },
+  activeIssueCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "#FECACA",
+    shadowColor: "#DC2626",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.08)" } : {}),
+  },
+  activeIssueHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  activeIssueBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  activeIssueBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#DC2626",
+  },
+  activeIssueId: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#991B1B",
+    fontFamily: "monospace",
+  },
+  activeIssueDesc: {
+    fontSize: 13,
+    color: "#475569",
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  activeIssueBtn: {
+    backgroundColor: "#DC2626",
+    borderRadius: 12,
+    paddingVertical: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  activeIssueBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  serviceChatPillCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: "#F0FDFA",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#CCFBF1",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  serviceChatIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#CCFBF1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  serviceChatCardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  serviceChatCardSub: {
+    fontSize: 11,
+    color: "#0D9488",
+    marginTop: 2,
+  },
+  serviceChatActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#99F6E4",
+  },
+  serviceChatActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#007A78",
   },
 });

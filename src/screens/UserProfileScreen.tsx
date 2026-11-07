@@ -4,6 +4,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -20,6 +21,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
 import { router, useLocalSearchParams } from "expo-router";
+import { showLocalizedAlert } from "../utils/localizedAlert";
 
 import { supabase } from "../utils/supabase";
 import { userRepository } from "../repositories";
@@ -31,8 +33,11 @@ import {
   DEMO_USER_ID,
 } from "../services/repositories/friends";
 import { TravelVideoPlayer } from "../components/TravelVideoPlayer";
+import { useTheme } from "../context/ThemeContext";
+import { FONTS } from "../theme/typography";
+import { ProfileCompletenessBar } from "../components/profile/ProfileCompletenessBar";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 const TRIP_BLUE = "#0055F2";
 const BG_COLOR = "#F8FAFC";
 
@@ -96,6 +101,7 @@ const DIETARY_OPTIONS = [
 ];
 
 export function UserProfileScreen() {
+  const { colors, isDark } = useTheme();
   const params = useLocalSearchParams<{ userId?: string }>();
   const [currentAuthUserId, setCurrentAuthUserId] = useState<string>(DEMO_USER_ID);
   const [isSelf, setIsSelf] = useState(true);
@@ -141,6 +147,7 @@ export function UserProfileScreen() {
   const [uploadDocType, setUploadDocType] = useState<KYCDocumentType>(KYCDocumentType.PASSPORT);
   const [uploadDocNumber, setUploadDocNumber] = useState("");
   const [uploadDocExpiry, setUploadDocExpiry] = useState("");
+  const [kycErrors, setKycErrors] = useState<{ docNumber?: string; file?: string }>({});
   const [uploadFile, setUploadFile] = useState<{ uri: string; name: string; type: string; size?: number } | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploadingKyc, setIsUploadingKyc] = useState(false);
@@ -321,9 +328,9 @@ export function UserProfileScreen() {
 
       setShowEditProfileModal(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success", "Profile and preferences updated successfully!");
+      showLocalizedAlert("Success", "Profile and preferences updated successfully!");
     } catch (err: any) {
-      Alert.alert("Save Error", err.message || "Failed to update profile details.");
+      showLocalizedAlert("Save Error", err.message || "Failed to update profile details.");
     } finally {
       setActionLoading(false);
     }
@@ -336,7 +343,7 @@ export function UserProfileScreen() {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Permission Required", "Please grant photo library access to upload documents.");
+        showLocalizedAlert("Permission Required", "Please grant photo library access to upload documents.");
         return;
       }
 
@@ -360,7 +367,7 @@ export function UserProfileScreen() {
       }
     } catch (err) {
       console.warn("Picker error:", err);
-      Alert.alert("File Selection Failed", "Unable to select document file.");
+      showLocalizedAlert("File Selection Failed", "Unable to select document file.");
     }
   };
 
@@ -368,7 +375,24 @@ export function UserProfileScreen() {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Permission Required", "Camera access is required to photograph ID documents.");
+        Alert.alert(
+          "ক্যামেরা ছাড়া ছবি তোলা যাবে না",
+          "ডকুমেন্ট স্ক্যান বা ছবি তুলতে ক্যামেরা অনুমতি প্রয়োজন। অনুগ্রহ করে অ্যাপ সেটিংসে গিয়ে অনুমতি চালু করুন, অথবা ফাইল/গ্যালারি থেকে নির্বাচন করুন।",
+          [
+            {
+              text: "সেটিংসে খুলুন",
+              onPress: () => Linking.openSettings(),
+            },
+            {
+              text: "বিকল্প: ফাইল থেকে আপলোড",
+              onPress: () => handlePickDocument(),
+            },
+            {
+              text: "বাতিল",
+              style: "cancel",
+            },
+          ]
+        );
         return;
       }
 
@@ -390,19 +414,24 @@ export function UserProfileScreen() {
       }
     } catch (err) {
       console.warn("Camera error:", err);
-      Alert.alert("Camera Error", "Could not capture document image.");
+      showLocalizedAlert("Camera Error", "Could not capture document image.");
     }
   };
 
   const handleUploadKycDocument = async () => {
-    if (!uploadFile) {
-      Alert.alert("File Required", "Please select or photograph your identity document.");
-      return;
-    }
+    const errors: { docNumber?: string; file?: string } = {};
     if (!uploadDocNumber.trim()) {
-      Alert.alert("Document Number Required", "Please enter the document identification number.");
+      errors.docNumber = "Please enter the document identification number.";
+    }
+    if (!uploadFile) {
+      errors.file = "Please select or photograph your identity document.";
+    }
+    if (Object.keys(errors).length > 0 || !uploadFile) {
+      setKycErrors(errors);
       return;
     }
+    setKycErrors({});
+    const safeFile = uploadFile;
 
     setIsUploadingKyc(true);
     setUploadProgress(10);
@@ -413,10 +442,10 @@ export function UserProfileScreen() {
       setUploadProgress(35);
       const r2Result = await uploadKycDocument(
         {
-          uri: uploadFile.uri,
-          name: uploadFile.name,
-          type: uploadFile.type,
-          size: uploadFile.size,
+          uri: safeFile.uri,
+          name: safeFile.name,
+          type: safeFile.type,
+          size: safeFile.size,
           documentType: uploadDocType,
         },
         (progress) => {
@@ -428,9 +457,9 @@ export function UserProfileScreen() {
       const uploadedDoc = await userRepository.uploadKYCDocument(currentAuthUserId, {
         documentType: uploadDocType,
         documentNumber: uploadDocNumber.trim(),
-        fileUri: r2Result.key ? `r2://private-kyc/${r2Result.key}` : uploadFile.uri,
-        fileName: uploadFile.name,
-        mimeType: uploadFile.type,
+        fileUri: r2Result.key ? `r2://private-kyc/${r2Result.key}` : safeFile.uri,
+        fileName: safeFile.name,
+        mimeType: safeFile.type,
         expiryDate: uploadDocExpiry || undefined,
       });
 
@@ -462,12 +491,12 @@ export function UserProfileScreen() {
       setShowKycUploadModal(false);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showLocalizedAlert(
         "KYC Document Submitted",
         "Your document has been securely encrypted and uploaded to our private R2 vault. Status is now set to Pending Verification."
       );
     } catch (err: any) {
-      Alert.alert("Upload Failed", err.message || "Failed to upload KYC document to private vault.");
+      showLocalizedAlert("Upload Failed", err.message || "Failed to upload KYC document to private vault.");
     } finally {
       setIsUploadingKyc(false);
       setUploadProgress(0);
@@ -515,9 +544,9 @@ export function UserProfileScreen() {
     try {
       const { data } = await friendsRepository.sendFriendRequest(currentAuthUserId, profile.id);
       setFriendship({ status: "pending_sent", requestId: data?.id });
-      Alert.alert("Request Sent", `Friend request sent to ${profile.display_name}!`);
+      showLocalizedAlert("Request Sent", `Friend request sent to ${profile.display_name}!`);
     } catch {
-      Alert.alert("Error", "Could not send friend request.");
+      showLocalizedAlert("Error", "Could not send friend request.");
     } finally {
       setActionLoading(false);
     }
@@ -594,7 +623,7 @@ export function UserProfileScreen() {
   const kycBadge = getKycBadge(kycStatus);
 
   return (
-    <SafeAreaView style={styles.shell} edges={["top"]}>
+    <SafeAreaView style={[styles.shell, { backgroundColor: colors.background }]} edges={["top"]}>
       {/* Toast Notification */}
       {showReferralToast && (
         <View style={styles.toastBox}>
@@ -604,26 +633,40 @@ export function UserProfileScreen() {
       )}
 
       {/* Top Navigation Bar */}
-      <View style={styles.navBar}>
+      <View
+        style={[
+          styles.navBar,
+          { backgroundColor: colors.card, borderBottomColor: colors.borderSubtle },
+        ]}
+      >
         <Pressable style={styles.navIconBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color="#0F172A" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
 
-        <Text style={styles.navTitle} numberOfLines={1}>
+        <Text
+          style={[
+            styles.navTitle,
+            { color: colors.text, fontFamily: FONTS.bengali.bold },
+          ]}
+          numberOfLines={1}
+        >
           {isSelf ? "Identity & Profile" : profile?.username ? `@${profile.username}` : "Profile"}
         </Text>
 
         <Pressable style={styles.navIconBtn} onPress={handleShareReferral}>
-          <Ionicons name="share-social-outline" size={20} color="#0F172A" />
+          <Ionicons name="share-social-outline" size={20} color={colors.text} />
         </Pressable>
       </View>
 
       {loading ? (
         <View style={styles.centerLoader}>
-          <ActivityIndicator size="large" color={TRIP_BLUE} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : profile ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scroll, { backgroundColor: colors.background }]}
+        >
           {/* Cover Photo */}
           <View style={styles.coverWrapper}>
             <Image source={{ uri: profile.cover_url }} style={styles.coverImage} />
@@ -634,7 +677,12 @@ export function UserProfileScreen() {
           </View>
 
           {/* Profile Identity Card */}
-          <View style={styles.profileHeaderCard}>
+          <View
+            style={[
+              styles.profileHeaderCard,
+              { backgroundColor: colors.card, borderColor: colors.borderSubtle },
+            ]}
+          >
             <View style={styles.avatarRow}>
               <View style={styles.avatarContainer}>
                 <Image source={{ uri: profile.avatar_url }} style={styles.bigAvatar} />
@@ -651,42 +699,69 @@ export function UserProfileScreen() {
             {/* Name, Handle & Location */}
             <View style={styles.identityDetails}>
               <View style={styles.displayNameRow}>
-                <Text style={styles.displayName}>{profile.display_name}</Text>
+                <Text
+                  style={[
+                    styles.displayName,
+                    { color: colors.text, fontFamily: FONTS.bengali.bold },
+                  ]}
+                >
+                  {profile.display_name}
+                </Text>
                 {kycStatus.toLowerCase().includes("verified") && !kycStatus.toLowerCase().includes("pending") && (
-                  <Ionicons name="checkmark-circle" size={18} color={TRIP_BLUE} />
+                  <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
                 )}
               </View>
 
-              <Text style={styles.handleText}>@{profile.username || "traveler"}</Text>
-              {profile.bio && <Text style={styles.bioText}>{profile.bio}</Text>}
+              <Text style={[styles.handleText, { color: colors.textMuted }]}>
+                @{profile.username || "traveler"}
+              </Text>
+              {profile.bio && (
+                <Text
+                  style={[
+                    styles.bioText,
+                    { color: colors.textSecondary, fontFamily: FONTS.bengali.regular },
+                  ]}
+                >
+                  {profile.bio}
+                </Text>
+              )}
 
               <View style={styles.contactMetaRow}>
                 <View style={styles.contactMetaItem}>
-                  <Ionicons name="mail-outline" size={13} color="#64748B" />
-                  <Text style={styles.contactMetaText}>{maskEmail(profile.email)}</Text>
+                  <Ionicons name="mail-outline" size={13} color={colors.textMuted} />
+                  <Text style={[styles.contactMetaText, { color: colors.textMuted }]}>
+                    {maskEmail(profile.email)}
+                  </Text>
                 </View>
                 <View style={styles.contactMetaItem}>
-                  <Ionicons name="call-outline" size={13} color="#64748B" />
-                  <Text style={styles.contactMetaText}>{maskPhone(profile.phone)}</Text>
+                  <Ionicons name="call-outline" size={13} color={colors.textMuted} />
+                  <Text style={[styles.contactMetaText, { color: colors.textMuted }]}>
+                    {maskPhone(profile.phone)}
+                  </Text>
                 </View>
               </View>
             </View>
 
             {/* Quick Stats Row */}
-            <View style={styles.statsRow}>
+            <View
+              style={[
+                styles.statsRow,
+                { borderColor: colors.borderSubtle },
+              ]}
+            >
               <View style={styles.statCol}>
-                <Text style={styles.statNumber}>{userFriends.length}</Text>
-                <Text style={styles.statLabel}>Friends</Text>
+                <Text style={[styles.statNumber, { color: colors.text }]}>{userFriends.length}</Text>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>Friends</Text>
               </View>
-              <View style={styles.statSeparator} />
+              <View style={[styles.statSeparator, { backgroundColor: colors.borderSubtle }]} />
               <View style={styles.statCol}>
-                <Text style={styles.statNumber}>{kycDocuments.length}</Text>
-                <Text style={styles.statLabel}>KYC Docs</Text>
+                <Text style={[styles.statNumber, { color: colors.text }]}>{kycDocuments.length}</Text>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>KYC Docs</Text>
               </View>
-              <View style={styles.statSeparator} />
+              <View style={[styles.statSeparator, { backgroundColor: colors.borderSubtle }]} />
               <View style={styles.statCol}>
-                <Text style={styles.statNumber}>{profile.followers_count || 142}</Text>
-                <Text style={styles.statLabel}>Followers</Text>
+                <Text style={[styles.statNumber, { color: colors.text }]}>{profile.followers_count || 142}</Text>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>Followers</Text>
               </View>
             </View>
 
@@ -695,19 +770,33 @@ export function UserProfileScreen() {
               {isSelf ? (
                 <>
                   <Pressable
-                    style={styles.editProfileBtn}
+                    style={[styles.editProfileBtn, { backgroundColor: colors.surface }]}
                     onPress={() => setShowEditProfileModal(true)}
                   >
-                    <Ionicons name="create-outline" size={16} color="#0F172A" />
-                    <Text style={styles.editProfileText}>Edit Profile & PII</Text>
+                    <Ionicons name="create-outline" size={16} color={colors.text} />
+                    <Text
+                      style={[
+                        styles.editProfileText,
+                        { color: colors.text, fontFamily: FONTS.bengali.bold },
+                      ]}
+                    >
+                      Edit Profile & PII
+                    </Text>
                   </Pressable>
 
                   <Pressable
-                    style={styles.uploadKycPrimaryBtn}
+                    style={[styles.uploadKycPrimaryBtn, { backgroundColor: colors.primary }]}
                     onPress={() => setShowKycUploadModal(true)}
                   >
                     <Ionicons name="cloud-upload-outline" size={16} color="#FFFFFF" />
-                    <Text style={styles.uploadKycPrimaryText}>Upload KYC</Text>
+                    <Text
+                      style={[
+                        styles.uploadKycPrimaryText,
+                        { fontFamily: FONTS.bengali.bold },
+                      ]}
+                    >
+                      Upload KYC
+                    </Text>
                   </Pressable>
                 </>
               ) : (
@@ -769,8 +858,25 @@ export function UserProfileScreen() {
             </View>
           )}
 
+          {/* Profile Completeness Guidance Bar */}
+          {isSelf && (
+            <ProfileCompletenessBar
+              profile={profile}
+              kycDocuments={kycDocuments}
+              onAddPassportPress={() => {
+                setActiveTab("identity");
+                setShowKycUploadModal(true);
+              }}
+            />
+          )}
+
           {/* Section Tabs */}
-          <View style={styles.tabBar}>
+          <View
+            style={[
+              styles.tabBar,
+              { backgroundColor: colors.card, borderBottomColor: colors.borderSubtle },
+            ]}
+          >
             {isSelf && (
               <Pressable
                 style={[styles.tabItem, activeTab === "identity" && styles.tabItemActive]}
@@ -834,7 +940,7 @@ export function UserProfileScreen() {
               {/* Status Alert Banner */}
               <View style={[styles.kycBannerCard, { borderColor: kycBadge.bg }]}>
                 <Ionicons name={kycBadge.icon as any} size={28} color={kycBadge.text} />
-                <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={{ flex: 1, marginStart: 12 }}>
                   <Text style={[styles.kycBannerTitle, { color: kycBadge.text }]}>{kycBadge.label}</Text>
                   <Text style={styles.kycBannerDesc}>
                     {kycStatus === "pending_verification"
@@ -879,7 +985,7 @@ export function UserProfileScreen() {
                         color={TRIP_BLUE}
                       />
                     </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <Text style={styles.kycDocType}>
                         {doc.document_type ? doc.document_type.replace("_", " ").toUpperCase() : "GOVERNMENT ID"}
                       </Text>
@@ -1321,13 +1427,19 @@ export function UserProfileScreen() {
             {/* Document Number */}
             <Text style={styles.inputLabel}>Document Number</Text>
             <TextInput
-              style={styles.inputField}
+              style={[styles.inputField, kycErrors.docNumber && { borderColor: '#ef4444', backgroundColor: '#fef2f2' }]}
               value={uploadDocNumber}
-              onChangeText={setUploadDocNumber}
+              onChangeText={(t) => { setUploadDocNumber(t); if (kycErrors.docNumber) setKycErrors(prev => ({ ...prev, docNumber: undefined })); }}
               placeholder="Enter ID or Passport Number"
               autoCapitalize="characters"
               placeholderTextColor="#94A3B8"
             />
+            {kycErrors.docNumber && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, marginBottom: 8 }}>
+                <Ionicons name="alert-circle" size={14} color="#ef4444" />
+                <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '500' }}>{kycErrors.docNumber}</Text>
+              </View>
+            )}
 
             {/* Expiry Date */}
             <Text style={styles.inputLabel}>Expiration Date (Optional)</Text>
@@ -1341,6 +1453,12 @@ export function UserProfileScreen() {
 
             {/* Document Picker Buttons */}
             <Text style={styles.inputLabel}>Document Image File</Text>
+            {kycErrors.file && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                <Ionicons name="alert-circle" size={14} color="#ef4444" />
+                <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '500' }}>{kycErrors.file}</Text>
+              </View>
+            )}
             <View style={styles.filePickerActionRow}>
               <Pressable style={styles.filePickerBtn} onPress={handlePickDocument}>
                 <Ionicons name="images-outline" size={20} color={TRIP_BLUE} />
@@ -1357,7 +1475,7 @@ export function UserProfileScreen() {
             {uploadFile && (
               <View style={styles.selectedFileBox}>
                 <Ionicons name="document-attach" size={24} color="#10B981" />
-                <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={{ flex: 1, marginStart: 10 }}>
                   <Text style={styles.selectedFileName} numberOfLines={1}>
                     {uploadFile.name}
                   </Text>
@@ -1602,7 +1720,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
     marginTop: 1,
@@ -1924,7 +2042,7 @@ const styles = StyleSheet.create({
     fontFamily: "monospace",
   },
   kycDocMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -1935,7 +2053,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   r2BadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#2563EB",
   },
@@ -1945,7 +2063,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   kycDocStatusText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   infoCard: {
@@ -2061,7 +2179,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   postStatText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
@@ -2071,7 +2189,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   friendCard: {
-    width: (SCREEN_WIDTH - 52) / 3,
+    width: "31%",
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 10,
@@ -2086,12 +2204,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   friendName: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0F172A",
   },
   friendHandle: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94A3B8",
   },
 
@@ -2115,7 +2233,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   modalSubTitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -2209,7 +2327,7 @@ const styles = StyleSheet.create({
     borderColor: TRIP_BLUE,
   },
   docTypeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748B",
   },
@@ -2255,7 +2373,7 @@ const styles = StyleSheet.create({
     color: "#166534",
   },
   selectedFileSize: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#15803D",
   },
   uploadProgressBox: {
@@ -2272,7 +2390,7 @@ const styles = StyleSheet.create({
     backgroundColor: TRIP_BLUE,
   },
   uploadProgressText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 4,
     textAlign: "center",
@@ -2287,7 +2405,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   encryptionDisclaimerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     lineHeight: 15,
     flex: 1,

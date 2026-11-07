@@ -262,7 +262,9 @@ export const busAndLaunchService = {
           metadata: newBooking,
         },
       ]);
-    } catch {}
+    } catch (syncErr) {
+      console.warn("[busAndLaunchService] Remote ticket sync failed, saving locally:", syncErr);
+    }
 
     const raw = await AsyncStorage.getItem(TRANSPORT_BOOKINGS_KEY);
     const existing: TransportBooking[] = raw ? JSON.parse(raw) : [];

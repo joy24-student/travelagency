@@ -1,93 +1,92 @@
 """
-Hotel Search and Inventory Endpoints with Redis Caching.
+Hotel Search and Inventory Endpoints.
 """
 
 import uuid
 from datetime import date
-from typing import Optional
-from fastapi import APIRouter, Depends, Query, Response, status
-from sqlalchemy import select
+from typing import List, Optional
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db
 from app.core.exceptions import NotFoundError
-from app.models.hotel import Hotel
-from app.schemas.hotel import HotelResponse, HotelSearchQuery, HotelSearchResponse
+from app.core.rate_limit import limiter
+from app.repositories.hotel_repository import HotelRepository
+from app.schemas.common import PaginatedResponse, StandardResponse
+from app.schemas.hotel import HotelResponse, HotelRoomResponse, HotelSearchQuery
 from app.services.search_service import SearchService
 
-router = APIRouter(prefix="/hotels", tags=["Hotels & Lodging"])
+router = APIRouter(prefix="/hotels", tags=["Hotels"])
 
 
-@router.get("/search", response_model=HotelSearchResponse, summary="Search Hotels with Filters & Caching")
+@router.get("/search", response_model=PaginatedResponse[HotelResponse])
+@limiter.limit("60/minute")
 async def search_hotels(
-    response: Response,
-    city: Optional[str] = Query(None, description="City name (e.g. Cox's Bazar, Dhaka, Sylhet)"),
-    country: Optional[str] = Query(None, description="Country filter"),
-    query: Optional[str] = Query(None, description="Free text query (name or location)"),
-    check_in: Optional[date] = Query(None, description="Check-in date (YYYY-MM-DD)"),
-    check_out: Optional[date] = Query(None, description="Check-out date (YYYY-MM-DD)"),
-    guests: int = Query(1, ge=1, le=20),
-    rooms_needed: int = Query(1, ge=1, le=10),
+    request: Request,
+    city: str = Query(..., description="Destination city, e.g. Cox's Bazar, Dhaka"),
+    check_in: Optional[date] = Query(None, description="Check-in date YYYY-MM-DD"),
+    check_out: Optional[date] = Query(None, description="Check-out date YYYY-MM-DD"),
+    guests: int = Query(1, ge=1, le=10),
+    rooms: int = Query(1, ge=1, le=5),
+    min_star_rating: Optional[int] = Query(None, ge=1, le=5),
     min_price: Optional[float] = Query(None, ge=0),
     max_price: Optional[float] = Query(None, ge=0),
-    min_rating: Optional[float] = Query(None, ge=1.0, le=5.0),
+    sort_by: Optional[str] = Query("recommended"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-) -> HotelSearchResponse:
+):
     """
-    Search available hotels with price, location, rating, and date filters.
-    Results are cached in Redis with high cache-hit ratio.
+    Search hotels with Redis caching (5-minute TTL).
+    Provides paginated query results with star rating and pricing filters.
     """
     search_query = HotelSearchQuery(
         city=city,
-        country=country,
-        query=query,
         check_in=check_in,
         check_out=check_out,
         guests=guests,
-        rooms_needed=rooms_needed,
+        rooms=rooms,
+        min_star_rating=min_star_rating,
         min_price=min_price,
         max_price=max_price,
-        min_rating=min_rating,
+        sort_by=sort_by,
         page=page,
         page_size=page_size,
     )
-
-    items, total, is_cached = await SearchService.search_hotels(db=db, query=search_query)
-
-    # Set cache indicator header
-    response.headers["X-Cache"] = "HIT" if is_cached else "MISS"
-
-    total_pages = (total + page_size - 1) // page_size if page_size > 0 else 1
-
-    return HotelSearchResponse(
-        items=[HotelResponse.model_validate(it) for it in items],
-        total=total,
-        page=page,
-        page_size=page_size,
-        total_pages=total_pages,
-        has_next=page < total_pages,
-        has_prev=page > 1,
-        cached=is_cached,
-    )
+    return await SearchService.search_hotels(db=db, query=search_query)
 
 
-@router.get("/{hotel_id}", response_model=HotelResponse, summary="Get Hotel Details by ID")
+@router.get("/{hotel_id}", response_model=StandardResponse[HotelResponse])
 async def get_hotel_details(
     hotel_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-) -> HotelResponse:
-    """Retrieve full hotel information including rooms, amenities, and reviews."""
-    stmt = (
-        select(Hotel)
-        .where(Hotel.id == hotel_id)
-        .options(selectinload(Hotel.rooms))
+):
+    """Retrieve comprehensive hotel profile including room configurations."""
+    repo = HotelRepository(db)
+    hotel = await repo.get_hotel_by_id(hotel_id)
+    if not hotel:
+        raise NotFoundError("Hotel", hotel_id)
+    return StandardResponse[HotelResponse](
+        success=True,
+        message="Hotel details retrieved",
+        data=HotelResponse.model_validate(hotel),
     )
-    res = await db.execute(stmt)
-    hotel = res.scalar_one_or_none()
+
+
+@router.get("/{hotel_id}/rooms", response_model=StandardResponse[List[HotelRoomResponse]])
+async def get_hotel_rooms(
+    hotel_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """List available room types for a specific hotel."""
+    repo = HotelRepository(db)
+    hotel = await repo.get_hotel_by_id(hotel_id)
     if not hotel:
         raise NotFoundError("Hotel", hotel_id)
 
-    return HotelResponse.model_validate(hotel)
+    rooms = [HotelRoomResponse.model_validate(r) for r in hotel.rooms]
+    return StandardResponse[List[HotelRoomResponse]](
+        success=True,
+        message="Hotel rooms retrieved",
+        data=rooms,
+    )

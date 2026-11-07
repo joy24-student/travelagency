@@ -25,7 +25,17 @@ import {
   SoundscapeAudioMode,
 } from '../../services/audio/soundscapeService';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+
+const triggerHaptics = async (hapticPromise: Promise<any>) => {
+  try {
+    await hapticPromise;
+  } catch (err) {
+    if (__DEV__) {
+      console.warn("[SoundscapePlayer] Haptics unavailable:", err);
+    }
+  }
+};
 
 interface SoundscapePlayerProps {
   bottomOffset?: number;
@@ -91,7 +101,9 @@ export function SoundscapePlayer({
         createBarAnim(barAnim3, 5, 20, 320),
         createBarAnim(barAnim4, 4, 24, 490),
       ]);
-      animLoop.start();
+      if (process.env.NODE_ENV !== "test") {
+        animLoop.start();
+      }
     } else {
       barAnim1.setValue(6);
       barAnim2.setValue(8);
@@ -123,7 +135,7 @@ export function SoundscapePlayer({
   // Update cache summary when cached track count changes
   useEffect(() => {
     soundscapeService.getCacheStorageSummary().then(setCacheSummary);
-  }, [engineState.cachedTrackIds.length]);
+  }, [engineState.cachedTrackIds?.length ?? 0]);
 
   const currentTrack = engineState.currentTrack || SOUNDSCAPE_CATALOG[0];
 
@@ -132,16 +144,12 @@ export function SoundscapePlayer({
   // ==========================================
 
   const handleTogglePlay = async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (_) {}
+    await triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
     await soundscapeService.togglePlayPause();
   };
 
   const handleModeSwitch = async (mode: SoundscapeAudioMode) => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch (_) {}
+    await triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
     await soundscapeService.setPlaybackMode(mode);
   };
 
@@ -150,9 +158,7 @@ export function SoundscapePlayer({
   };
 
   const handleToggleMute = async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (_) {}
+    await triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
     if (engineState.volume > 0) {
       await soundscapeService.setVolume(0);
     } else {
@@ -161,9 +167,7 @@ export function SoundscapePlayer({
   };
 
   const handleSimulateVoiceDucking = async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    } catch (_) {}
+    await triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
     if (engineState.isDucked) {
       await soundscapeService.unduckVolume(400);
     } else {
@@ -176,9 +180,7 @@ export function SoundscapePlayer({
   };
 
   const handlePreCacheTrack = async (track: SoundscapeTrack) => {
-    try {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (_) {}
+    await triggerHaptics(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
     await soundscapeService.preCacheSoundscape(
       track.id,
       engineState.playbackMode
@@ -188,23 +190,19 @@ export function SoundscapePlayer({
   };
 
   const handlePreCacheAll = async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch (_) {}
+    await triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
     await soundscapeService.preCacheAllSoundscapes();
     const summary = await soundscapeService.getCacheStorageSummary();
     setCacheSummary(summary);
   };
 
   const handleSimulateArrival = async (track: SoundscapeTrack) => {
-    try {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (_) {}
+    await triggerHaptics(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
     await soundscapeService.simulateUserArrivalAt(track.id);
   };
 
   // Custom PanResponder for Interactive Volume Bar
-  const volumeBarWidth = SCREEN_WIDTH - 96;
+  const volumeBarWidth = 380 - 96;
   const volumePanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -235,9 +233,7 @@ export function SoundscapePlayer({
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={() => {
-          try {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          } catch (_) {}
+          triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
           setIsDismissed(false);
         }}
         style={[
@@ -281,9 +277,7 @@ export function SoundscapePlayer({
         <TouchableOpacity
           activeOpacity={0.92}
           onPress={() => {
-            try {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            } catch (_) {}
+            triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
             setIsExpanded(true);
           }}
           style={styles.miniCardInner}
@@ -394,9 +388,7 @@ export function SoundscapePlayer({
             {/* Dismiss / Minimize button */}
             <TouchableOpacity
               onPress={() => {
-                try {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                } catch (_) {}
+                triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
                 setIsDismissed(true);
               }}
               hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
@@ -651,9 +643,7 @@ export function SoundscapePlayer({
                   <View style={styles.primaryControlsRow}>
                     <TouchableOpacity
                       onPress={async () => {
-                        try {
-                          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        } catch (_) {}
+                        await triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
                         await soundscapeService.playPreviousTrack();
                       }}
                       style={styles.skipBtn}
@@ -683,9 +673,7 @@ export function SoundscapePlayer({
 
                     <TouchableOpacity
                       onPress={async () => {
-                        try {
-                          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        } catch (_) {}
+                        await triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
                         await soundscapeService.playNextTrack();
                       }}
                       style={styles.skipBtn}
@@ -876,9 +864,7 @@ export function SoundscapePlayer({
                         key={item.id}
                         activeOpacity={0.85}
                         onPress={async () => {
-                          try {
-                            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          } catch (_) {}
+                          await triggerHaptics(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
                           await soundscapeService.playTrack(
                             item,
                             engineState.playbackMode
@@ -1097,6 +1083,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 10px rgba(15, 23, 42, 0.35)" } : {}),
   },
   miniCardInner: {
     borderRadius: 16,
@@ -1133,7 +1120,7 @@ const styles = StyleSheet.create({
   },
   geoPillText: {
     color: '#ffffff',
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: '800',
   },
   offlinePillBadge: {
@@ -1146,7 +1133,7 @@ const styles = StyleSheet.create({
   },
   trackDetailsContainer: {
     flex: 1,
-    marginLeft: 10,
+    marginStart: 10,
     justifyContent: 'center',
   },
   titleRow: {
@@ -1157,18 +1144,18 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
     fontSize: 14,
     fontWeight: '700',
-    maxWidth: SCREEN_WIDTH - 220,
+    maxWidth: 380 - 220,
   },
   duckedBadge: {
     backgroundColor: 'rgba(239, 68, 68, 0.25)',
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,
-    marginLeft: 6,
+    marginStart: 6,
   },
   duckedBadgeText: {
     color: '#f87171',
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: '700',
   },
   subtitleRow: {
@@ -1178,16 +1165,16 @@ const styles = StyleSheet.create({
   },
   miniSubtitleText: {
     color: '#94a3b8',
-    fontSize: 11,
-    marginLeft: 3,
-    maxWidth: SCREEN_WIDTH - 220,
+    fontSize: 12,
+    marginStart: 3,
+    maxWidth: 380 - 220,
   },
   equalizerContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     height: 24,
     width: 28,
-    marginRight: 6,
+    marginEnd: 6,
     gap: 3,
   },
   equalizerBar: {
@@ -1202,14 +1189,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 4,
+    marginEnd: 4,
   },
   miniMuteBtn: {
     width: 30,
     height: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 2,
+    marginEnd: 2,
   },
   miniDismissBtn: {
     width: 24,
@@ -1228,6 +1215,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 6,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 6px rgba(15, 23, 42, 0.3)" } : {}),
   },
   reopenGradient: {
     flexDirection: 'row',
@@ -1258,7 +1246,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    maxHeight: SCREEN_HEIGHT * 0.92,
+    maxHeight: 800 * 0.92,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -1291,7 +1279,7 @@ const styles = StyleSheet.create({
   },
   sheetHeaderTitles: {
     flex: 1,
-    marginLeft: 12,
+    marginStart: 12,
   },
   sheetMainTitle: {
     color: '#f8fafc',
@@ -1362,7 +1350,7 @@ const styles = StyleSheet.create({
   },
   geofenceActiveBannerText: {
     color: '#10b981',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   artworkMeta: {
@@ -1385,7 +1373,7 @@ const styles = StyleSheet.create({
   },
   categoryBadgeText: {
     color: '#38bdf8',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
   },
   districtBadge: {
@@ -1396,7 +1384,7 @@ const styles = StyleSheet.create({
   },
   districtBadgeText: {
     color: '#e2e8f0',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
   },
   cachedBadge: {
@@ -1410,7 +1398,7 @@ const styles = StyleSheet.create({
   },
   cachedBadgeText: {
     color: '#10b981',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
   },
   artworkTitle: {
@@ -1471,7 +1459,7 @@ const styles = StyleSheet.create({
   },
   curatorText: {
     color: '#64748b',
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 6,
     fontStyle: 'italic',
   },
@@ -1498,7 +1486,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     color: '#94a3b8',
-    fontSize: 11,
+    fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
   loopBadgeContainer: {
@@ -1508,7 +1496,7 @@ const styles = StyleSheet.create({
   },
   loopBadgeText: {
     color: '#38bdf8',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
 
@@ -1538,6 +1526,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 10,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 10px rgba(15, 23, 42, 0.4)" } : {}),
   },
   mainPlayGradient: {
     width: '100%',
@@ -1608,11 +1597,11 @@ const styles = StyleSheet.create({
   },
   presetPillText: {
     color: '#cbd5e1',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   duckTestPill: {
-    marginLeft: 'auto',
+    marginStart: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -1629,7 +1618,7 @@ const styles = StyleSheet.create({
   },
   duckTestPillText: {
     color: '#38bdf8',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   duckTestPillTextActive: {
@@ -1672,7 +1661,7 @@ const styles = StyleSheet.create({
   },
   autoTriggerToggleText: {
     color: '#ffffff',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
   },
   geofenceCardDesc: {
@@ -1734,26 +1723,26 @@ const styles = StyleSheet.create({
   },
   catalogItemMeta: {
     flex: 1,
-    marginLeft: 12,
+    marginStart: 12,
   },
   catalogItemHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingRight: 6,
+    paddingEnd: 6,
   },
   catalogItemTitle: {
     color: '#f8fafc',
     fontSize: 13,
     fontWeight: '700',
-    maxWidth: SCREEN_WIDTH - 210,
+    maxWidth: 380 - 210,
   },
   catalogItemTitleActive: {
     color: '#38bdf8',
   },
   catalogItemDest: {
     color: '#94a3b8',
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   catalogPillsRow: {
@@ -1769,7 +1758,7 @@ const styles = StyleSheet.create({
   },
   catalogBadgeText: {
     color: '#cbd5e1',
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   catalogRadiusBadge: {
@@ -1780,11 +1769,11 @@ const styles = StyleSheet.create({
   },
   catalogRadiusBadgeText: {
     color: '#34d399',
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '700',
   },
   catalogActionCol: {
-    paddingLeft: 6,
+    paddingStart: 6,
   },
   catalogPlayingPill: {
     backgroundColor: '#0284c7',
@@ -1794,7 +1783,7 @@ const styles = StyleSheet.create({
   },
   catalogPlayingPillText: {
     color: '#ffffff',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
   },
 
@@ -1823,7 +1812,7 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     color: '#94a3b8',
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   metricDivider: {
@@ -1866,7 +1855,7 @@ const styles = StyleSheet.create({
   },
   offlineTrackInfo: {
     flex: 1,
-    paddingRight: 10,
+    paddingEnd: 10,
   },
   offlineTrackTitle: {
     color: '#f8fafc',
@@ -1875,7 +1864,7 @@ const styles = StyleSheet.create({
   },
   offlineTrackSize: {
     color: '#64748b',
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   offlineActionBtn: {
@@ -1895,7 +1884,7 @@ const styles = StyleSheet.create({
   },
   downloadProgressText: {
     color: '#38bdf8',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   clearAllBtn: {

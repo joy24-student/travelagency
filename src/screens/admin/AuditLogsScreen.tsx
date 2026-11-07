@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import {
+import { Platform,
   View,
   Text,
   StyleSheet,
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   searchIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   searchInput: {
     flex: 1,
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#4f46e5",
   },
   categoryChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
   },
@@ -465,11 +465,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   moduleText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94a3b8",
   },
   timeText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94a3b8",
   },
   cardContent: {
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#f1f5f9",
   },
   subtext: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94a3b8",
   },
   emptyContainer: {
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   modalSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   detailRow: {
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
   },
   jsonText: {
     fontFamily: "monospace",
-    fontSize: 11,
+    fontSize: 12,
     color: "#38bdf8",
   },
 });

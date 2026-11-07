@@ -1,9 +1,8 @@
 """
-Pytest configuration, async test fixtures, database engine mocking, and test JWT helpers.
+Pytest Test Fixtures and Async SQLite Test Suite Configuration.
 """
 
 import os
-import sys
 import uuid
 from typing import AsyncGenerator
 import jwt
@@ -12,49 +11,45 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# Ensure backend root is in python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Set testing environment variables before importing app
+os.environ["ENVIRONMENT"] = "testing"
+os.environ["DEBUG"] = "true"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["REDIS_URL"] = ""
+os.environ["SUPABASE_JWT_SECRET"] = "test-secret-key-with-at-least-32-characters"
+os.environ["BKASH_WEBHOOK_SECRET"] = "test-bkash-secret"
+os.environ["NAGAD_WEBHOOK_SECRET"] = "test-nagad-secret"
+os.environ["ROCKET_WEBHOOK_SECRET"] = "test-rocket-secret"
+os.environ["STRIPE_WEBHOOK_SECRET"] = "test-stripe-secret"
+os.environ["CARD_WEBHOOK_SECRET"] = "test-card-secret"
 
+from app.api.deps import get_db
 from app.core.config import settings
-from app.core.database import Base, get_db
+from app.core.database import Base
 from app.main import app
-from app.models.flight import Airline, Airport, Flight, FlightSeat
-from app.models.hotel import Hotel, HotelRoom, HotelRoomAvailability
-from app.models.user import AccountProfile, AdminUser, Agency, UserProfile
+from app.tasks.celery_app import celery_app
 
-# Test JWT Secret
-TEST_JWT_SECRET = "test-supabase-jwt-secret-key-32-chars-long!"
-settings.SUPABASE_JWT_SECRET = TEST_JWT_SECRET
-settings.SUPABASE_JWT_ALGORITHM = "HS256"
+# Enable eager task execution during tests so tasks run synchronously without connecting to an external Redis broker
+celery_app.conf.update(task_always_eager=True, task_eager_propagates=True)
 
-# In-memory SQLite async engine for lightning-fast hermetic test runs
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Test Async SQLite Engine
+test_engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+)
 
-test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-TestSessionLocal = async_sessionmaker(bind=test_engine, class_=AsyncSession, expire_on_commit=False)
-
-
-def create_test_jwt(
-    user_id: uuid.UUID,
-    email: str = "testuser@shopnojatra.com",
-    role: str = "user",
-) -> str:
-    """Create a signed Supabase JWT for testing."""
-    payload = {
-        "sub": str(user_id),
-        "email": email,
-        "aud": "authenticated",
-        "role": "authenticated",
-        "app_metadata": {"role": role},
-        "user_metadata": {"full_name": "Test User", "role": role},
-        "exp": 9999999999,
-    }
-    return jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
+TestSessionLocal = async_sessionmaker(
+    bind=test_engine,
+    class_=AsyncSession,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+)
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
-async def setup_test_database():
-    """Create all schema tables in test database once for test session."""
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def init_test_db():
+    """Create all database tables in memory for testing."""
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -64,7 +59,7 @@ async def setup_test_database():
 
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Yields clean isolated test session."""
+    """Provide isolated async session per test."""
     async with TestSessionLocal() as session:
         yield session
         await session.rollback()
@@ -72,12 +67,26 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 
 @pytest_asyncio.fixture
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """FastAPI test client with database dependency override."""
+    """Async HTTP test client overriding get_db dependency."""
     async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
     app.dependency_overrides.clear()
+
+
+def make_test_jwt(user_id: uuid.UUID, email: str = "traveler@shopnojatra.com", role: str = "user") -> str:
+    """Generate signed test Supabase JWT."""
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "aud": "authenticated",
+        "app_metadata": {"role": role},
+        "user_metadata": {"full_name": "Test Traveler"},
+    }
+    return jwt.encode(payload, settings.SUPABASE_JWT_SECRET, algorithm="HS256")

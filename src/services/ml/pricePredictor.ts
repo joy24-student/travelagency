@@ -13,7 +13,7 @@
  */
 
 import * as React from "react";
-import {
+import { Platform,
   View,
   Text,
   TouchableOpacity,
@@ -487,7 +487,7 @@ export const PriceTrendBadge: React.FC<PriceTrendBadgeProps> = ({
   }, [onPress]);
 
   const sizeStyles = {
-    sm: { paddingVertical: 2, paddingHorizontal: 6, fontSize: 11, iconSize: 12 },
+    sm: { paddingVertical: 2, paddingHorizontal: 6, fontSize: 12, iconSize: 12 },
     md: { paddingVertical: 4, paddingHorizontal: 10, fontSize: 12, iconSize: 14 },
     lg: { paddingVertical: 6, paddingHorizontal: 14, fontSize: 14, iconSize: 16 },
   }[size];
@@ -513,7 +513,7 @@ export const PriceTrendBadge: React.FC<PriceTrendBadgeProps> = ({
           name: config.iconName,
           size: sizeStyles.iconSize,
           color: config.text,
-          style: { marginRight: 4 },
+          style: { marginEnd: 4 },
         })
       : null,
     React.createElement(
@@ -645,7 +645,7 @@ export const PriceAlertTrigger: React.FC<PriceAlertTriggerProps> = ({
               name: isActive ? "notifications" : "notifications-outline",
               size: 16,
               color: isActive ? colors.primary[600] : colors.text.secondary,
-              style: { marginRight: 6 },
+              style: { marginEnd: 6 },
             }),
             React.createElement(
               Text,
@@ -811,7 +811,7 @@ export const PriceForecastCard: React.FC<PriceForecastCardProps> = ({
           name: "shield-checkmark",
           size: 13,
           color: colors.status.neutral.text,
-          style: { marginRight: 3 },
+          style: { marginEnd: 3 },
         }),
         React.createElement(
           Text,
@@ -964,7 +964,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   confidenceText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     color: colors.status.neutral.text,
   },
@@ -992,7 +992,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border.default,
   },
   boundLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.text.muted,
     marginBottom: 2,
   },
@@ -1021,6 +1021,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.15)" } : {}),
   },
   modalHeader: {
     flexDirection: "row",
@@ -1031,7 +1032,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: colors.text.primary,
-    marginLeft: 8,
+    marginStart: 8,
   },
   modalDescription: {
     fontSize: 13,
@@ -1060,7 +1061,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary[50],
   },
   thresholdPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: colors.text.secondary,
   },
@@ -1074,7 +1075,7 @@ const styles = StyleSheet.create({
   cancelBtn: {
     paddingVertical: 9,
     paddingHorizontal: 14,
-    marginRight: 8,
+    marginEnd: 8,
   },
   cancelBtnText: {
     fontSize: 14,

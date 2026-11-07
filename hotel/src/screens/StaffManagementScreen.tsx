@@ -5,13 +5,13 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   RefreshControl,
   Modal,
   TextInput,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { hotelService, HotelStaffMember } from '../services/hotelService';
 
@@ -92,7 +92,7 @@ export function StaffManagementScreen() {
           source={{ uri: avatar }}
           className="w-10 h-10 rounded-full"
         />
-        <View className="ml-2">
+        <View className="ms-2">
           <Text className="text-sm font-semibold text-white">{name}</Text>
           <Text className="text-[10px] text-gray-400">{role}</Text>
           <Text className="text-[10px] text-gray-400">{phone}</Text>
@@ -135,7 +135,7 @@ export function StaffManagementScreen() {
                 <Text className="text-gray-400 text-xs">Active Staff</Text>
                 <Text className="text-lg font-semibold text-white">{stats.active}</Text>
               </View>
-              <View className="ml-4">
+              <View className="ms-4">
                 <Text className="text-gray-400 text-xs">On Leave</Text>
                 <Text className="text-lg font-semibold text-white">{stats.onLeave}</Text>
               </View>

@@ -25,7 +25,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import {
+import { Platform,
   Modal,
   View,
   Text,
@@ -35,6 +35,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Share,
+  AccessibilityInfo,
+  Switch,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -63,6 +65,8 @@ import {
 import { useAuth } from "../../hooks/useAuth";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+
 
 // Confetti Particle Config
 const NUM_CONFETTI = 36;
@@ -114,6 +118,38 @@ export function MysteryBoxModal({
   const [showWalletList, setShowWalletList] = useState(false);
   const [countdownText, setCountdownText] = useState("");
   const [isOpening, setIsOpening] = useState(false);
+  const [isReduceMotion, setIsReduceMotion] = useState(false);
+
+  // Detect and listen to system "Reduce Motion" accessibility setting
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      if (AccessibilityInfo?.isReduceMotionEnabled) {
+        AccessibilityInfo.isReduceMotionEnabled()
+          .then((enabled) => {
+            if (isMounted) setIsReduceMotion(Boolean(enabled));
+          })
+          .catch(() => {});
+      }
+      if (AccessibilityInfo?.addEventListener) {
+        const sub = AccessibilityInfo.addEventListener(
+          "reduceMotionChanged",
+          (enabled: boolean) => {
+            if (isMounted) setIsReduceMotion(Boolean(enabled));
+          }
+        );
+        return () => {
+          isMounted = false;
+          sub?.remove?.();
+        };
+      }
+    } catch {
+      // Fallback for mock/test environments
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // ============================================================================
   // REANIMATED SHARED VALUES (3D Box & Confetti)
@@ -135,10 +171,31 @@ export function MysteryBoxModal({
   const cardScale = useSharedValue(0);
   const cardTranslateY = useSharedValue(80);
   const cardOpacity = useSharedValue(0);
+  const activeTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  // Floating idle loop
+  const registerSafeTimeout = (fn: () => void, ms: number) => {
+    const id = setTimeout(() => {
+      activeTimersRef.current = activeTimersRef.current.filter((t) => t !== id);
+      fn();
+    }, ms);
+    activeTimersRef.current.push(id);
+    return id;
+  };
+
+  const clearAllActiveTimers = () => {
+    activeTimersRef.current.forEach((t) => clearTimeout(t));
+    activeTimersRef.current = [];
+  };
+
   useEffect(() => {
-    if (visible && boxState === "idle") {
+    return () => {
+      clearAllActiveTimers();
+    };
+  }, []);
+
+  // Floating idle loop (disabled when Reduce Motion is active)
+  useEffect(() => {
+    if (visible && boxState === "idle" && !isReduceMotion) {
       boxTranslateY.value = withRepeat(
         withSequence(
           withTiming(-8, { duration: 1200, easing: Easing.inOut(Easing.quad) }),
@@ -155,8 +212,11 @@ export function MysteryBoxModal({
         -1,
         true
       );
+    } else if (isReduceMotion) {
+      boxTranslateY.value = 0;
+      glowOpacity.value = 0.2;
     }
-  }, [visible, boxState]);
+  }, [visible, boxState, isReduceMotion]);
 
   // Generate randomized confetti particle metadata once
   const confettiParticles = useMemo<ParticleData[]>(() => {
@@ -269,6 +329,38 @@ export function MysteryBoxModal({
   const handleOpenMysteryBox = async (forceDemo: boolean = false) => {
     if (isOpening || (boxState !== "idle" && !forceDemo)) return;
     setIsOpening(true);
+
+    // If Reduce Motion is active, skip all violent 3D shakes and confetti explosions
+    if (isReduceMotion) {
+      triggerHaptic("medium");
+      let result: UnboxResult | null = null;
+      try {
+        result = await mysteryBoxService.unboxMysteryTravelBox(userId, forceDemo);
+        setUnboxResult(result);
+        setStreakStatus(result.streak);
+        if (onVoucherDeposited) {
+          onVoucherDeposited(result.voucher);
+        }
+      } catch (err: any) {
+        console.warn("Unbox error:", err);
+        if (err?.message?.includes("ALREADY_CLAIMED_TODAY")) {
+          result = await mysteryBoxService.unboxMysteryTravelBox(userId, true);
+          setUnboxResult(result);
+        }
+      }
+
+      // Subtle, gentle fade: zero rotation, zero bouncing, zero confetti burst
+      boxScale.value = withTiming(0.96, { duration: 200 });
+      setTimeout(() => {
+        setBoxState("revealed");
+        cardScale.value = 1;
+        cardTranslateY.value = 0;
+        cardOpacity.value = withTiming(1, { duration: 250 });
+        setIsOpening(false);
+      }, 250);
+      return;
+    }
+
     setBoxState("shaking");
 
     // Phase 1: Violent 3D Shaking & Rhythmic Haptics
@@ -384,7 +476,7 @@ export function MysteryBoxModal({
       });
       setCopiedCode(true);
       triggerHaptic("medium");
-      setTimeout(() => setCopiedCode(false), 2500);
+      registerSafeTimeout(() => setCopiedCode(false), 2500);
     } catch {
       setCopiedCode(true);
       setTimeout(() => setCopiedCode(false), 2500);
@@ -924,64 +1016,137 @@ export function MysteryBoxModal({
             <View style={styles.subModalBackdrop}>
               <View style={styles.subModalCard}>
                 <View style={styles.subModalHeader}>
-                  <Text style={styles.subModalTitle}>
-                    Mystery Box Reward Matrix
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.subModalTitle}>
+                      স্বচ্ছতা, সম্ভাব্য পুরস্কার ও শর্তাবলী
+                    </Text>
+                    <Text style={styles.subModalSubtitle}>
+                      ১০০% ফ্রি দৈনিক চেক-ইন রিওয়ার্ড পলিসি
+                    </Text>
+                  </View>
                   <Pressable
                     onPress={() => setShowOddsModal(false)}
                     hitSlop={8}
+                    accessibilityLabel="বন্ধ করুন"
                   >
-                    <Ionicons name="close-circle" size={24} color="#94A3B8" />
+                    <Ionicons name="close-circle" size={26} color="#94A3B8" />
                   </Pressable>
                 </View>
 
-                <ScrollView style={styles.oddsScrollContent}>
-                  <Text style={styles.oddsIntroText}>
-                    All rewards are deterministic and cryptographically verified on
-                    the server with tamper-resistant validation tokens.
+                <ScrollView style={styles.oddsScrollContent} showsVerticalScrollIndicator={false}>
+                  {/* Anti-Gambling & Minor Protection Guarantee */}
+                  <View style={styles.antiGamblingBox}>
+                    <View style={styles.antiGamblingHeader}>
+                      <Ionicons name="shield-checkmark" size={20} color="#10B981" />
+                      <Text style={styles.antiGamblingTitle}>
+                        জুয়ামুক্ত নীতি ও অপ্রাপ্তবয়স্কদের সুরক্ষা
+                      </Text>
+                    </View>
+                    <Text style={styles.antiGamblingBody}>
+                      • কোনো অর্থ বা কয়েন খরচ করে বক্স খোলার সুযোগ নেই — এটি সম্পূর্ণ বিনামূল্যে দৈনিক উপহার।{"\n"}
+                      • অপ্রাপ্তবয়স্ক ও সকল ব্যবহারকারীদের আর্থিক নিরাপত্তা রক্ষায় পে-টু-আনলক বা বাজি সম্পূর্ণ নিষিদ্ধ।{"\n"}
+                      • সব পুরস্কার সুনির্দিষ্ট এবং সার্ভার-ভেরিফায়েড।
+                    </Text>
+                  </View>
+
+                  {/* Accessibility Reduce Motion Setting in Modal */}
+                  <View style={styles.modalA11yRow}>
+                    <View style={{ flex: 1, marginEnd: 10 }}>
+                      <Text style={styles.modalA11yTitle}>রিডিউস মোশন (Reduce Motion)</Text>
+                      <Text style={styles.modalA11ySubtitle}>
+                        ঝাঁকুনি ও কনফেটি বন্ধ করে মৃদু ফেড ট্রানজিশন ব্যবহার করুন
+                      </Text>
+                    </View>
+                    <Switch
+                      value={isReduceMotion}
+                      onValueChange={setIsReduceMotion}
+                      trackColor={{ false: "#334155", true: "#10B981" }}
+                      thumbColor="#FFFFFF"
+                    />
+                  </View>
+
+                  {/* Section Title */}
+                  <Text style={styles.modalSectionHeading}>
+                    সম্ভাব্য পুরস্কারের তালিকা ও মেয়াদ (Potential Rewards & Validity)
                   </Text>
 
                   {/* Legendary Tier Matrix */}
                   <View style={styles.tierOddsCard}>
-                    <View style={[styles.tierOddsBadge, { backgroundColor: "#EA580C" }]}>
-                      <Text style={styles.tierOddsBadgeText}>LEGENDARY (5%)</Text>
+                    <View style={styles.tierOddsCardHeader}>
+                      <View style={[styles.tierOddsBadge, { backgroundColor: "#EA580C" }]}>
+                        <Ionicons name="trophy" size={13} color="#FFFFFF" />
+                        <Text style={styles.tierOddsBadgeText}>লেজেন্ডারি (৫% সম্ভাবনা)</Text>
+                      </View>
+                      <Text style={styles.tierValidityPill}>মেয়াদ: ৩০ দিন</Text>
                     </View>
                     <Text style={styles.tierOddsItems}>
-                      • 50% Flight Coupon (Up to ৳5,000 discount){"\n"}
-                      • 1-Night Luxury Resort 100% Free Stay
+                      • ৫০% ফ্লাইট কুপন (সর্বোচ্চ ৳৫,০০০ পর্যন্ত ছাড়){"\n"}
+                      • ১-রাত লাক্সারি রিসোর্ট ১০০% সম্পূর্ণ ফ্রি স্টে
+                    </Text>
+                    <Text style={styles.tierConditionNote}>
+                      শর্ত: যেকোনো ডোমেস্টিক বা আন্তর্জাতিক বুকিংয়ে সরাসরি প্রযোজ্য।
                     </Text>
                   </View>
 
                   {/* Rare Tier Matrix */}
                   <View style={styles.tierOddsCard}>
-                    <View style={[styles.tierOddsBadge, { backgroundColor: "#7C3AED" }]}>
-                      <Text style={styles.tierOddsBadgeText}>RARE (25%)</Text>
+                    <View style={styles.tierOddsCardHeader}>
+                      <View style={[styles.tierOddsBadge, { backgroundColor: "#7C3AED" }]}>
+                        <Ionicons name="diamond" size={13} color="#FFFFFF" />
+                        <Text style={styles.tierOddsBadgeText}>রেয়ার (২৫% সম্ভাবনা)</Text>
+                      </View>
+                      <Text style={styles.tierValidityPill}>মেয়াদ: ১৫ দিন</Text>
                     </View>
                     <Text style={styles.tierOddsItems}>
-                      • Free Hotel Gourmet Buffet Breakfast (for 2){"\n"}
-                      • Deluxe to Suite Room Upgrade upon check-in{"\n"}
-                      • VIP Airport Lounge Access Pass (DAC)
+                      • ২ জনের জন্য হোটেলের ফ্রেশ গুরমে বুফে ব্রেকফাস্ট{"\n"}
+                      • ডিলাক্স থেকে এক্সিকিউটিভ স্যুট রুম ফ্রি আপগ্রেড{"\n"}
+                      • ভিআইপি এয়ারপোর্ট লাউঞ্জ কমপ্লিমেন্টারি পাস (DAC)
+                    </Text>
+                    <Text style={styles.tierConditionNote}>
+                      শর্ত: পার্টনার হোটেল চেক-ইন ও লাউঞ্জ কাউন্টারে ভাউচার কোড প্রদর্শনযোগ্য।
                     </Text>
                   </View>
 
                   {/* Common Tier Matrix */}
                   <View style={styles.tierOddsCard}>
-                    <View style={[styles.tierOddsBadge, { backgroundColor: "#0284C7" }]}>
-                      <Text style={styles.tierOddsBadgeText}>COMMON (70%)</Text>
+                    <View style={styles.tierOddsCardHeader}>
+                      <View style={[styles.tierOddsBadge, { backgroundColor: "#0284C7" }]}>
+                        <Ionicons name="sparkles" size={13} color="#FFFFFF" />
+                        <Text style={styles.tierOddsBadgeText}>কমন (৭০% সম্ভাবনা)</Text>
+                      </View>
+                      <Text style={styles.tierValidityPill}>মেয়াদ: ৭ দিন / কয়েন আজীবন</Text>
                     </View>
                     <Text style={styles.tierOddsItems}>
-                      • 5% Off Bus Tickets (Green Line, Hanif, Shohagh){"\n"}
-                      • 5% Off Train Bookings (Bangladesh Railway){"\n"}
-                      • 50 Shopno Travel Loyalty Coins
+                      • ৫% বাস টিকিট ছাড় (গ্রিন লাইন, হানিফ, সোহাগ, এনা){"\n"}
+                      • ৫% ট্রেন টিকিট ছাড় (বাংলাদেশ রেলওয়ে নেটওয়ার্ক){"\n"}
+                      • ৫০টি শপনো ট্রাভেল লয়্যালটি কয়েন (৳৫ সমমূল্য, মেয়াদহীন)
+                    </Text>
+                    <Text style={styles.tierConditionNote}>
+                      শর্ত: চেকআউটে সরাসরি ক্যাশ ডিসকাউন্ট হিসেবে প্রযোজ্য।
                     </Text>
                   </View>
 
                   {/* Day 7 Mega Jackpot Note */}
                   <View style={styles.day7JackpotNotice}>
-                    <Ionicons name="flame" size={18} color="#F59E0B" />
-                    <Text style={styles.day7JackpotNoticeText}>
-                      Day 7 Mega Jackpot: 0% Common, 75% Rare, 25% Legendary!
-                      Keep your streak continuous to trigger the Jackpot.
+                    <Ionicons name="flame" size={20} color="#F59E0B" />
+                    <View style={{ flex: 1, marginStart: 8 }}>
+                      <Text style={styles.day7JackpotTitle}>
+                        ৭ম দিনের মেগা জ্যাকপট গ্যারান্টি!
+                      </Text>
+                      <Text style={styles.day7JackpotNoticeText}>
+                        টানা ৭ দিন চেক-ইনে ০% কমন! ৭৫% রেয়ার এবং ২৫% নিশ্চিত লেজেন্ডারি পুরস্কার।
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Terms & Conditions Summary */}
+                  <View style={styles.termsBox}>
+                    <Text style={styles.termsBoxTitle}>সাধারণ নিয়ম ও শর্তাবলী (Rules & Terms):</Text>
+                    <Text style={styles.termsBoxBody}>
+                      ১. দিনে সর্বোচ্চ ১ বার বিনামূল্যে বক্স আনলক করা যাবে।{"\n"}
+                      ২. প্রাপ্ত ভাউচারটি স্বয়ংক্রিয়ভাবে আপনার শপনো ওয়ালেটে যুক্ত হবে।{"\n"}
+                      ৩. ভাউচার বা কয়েন নগদে পরিবর্তন বা অন্য একাউন্টে স্থানান্তর করা যাবে না।{"\n"}
+                      ৪. কোনো প্রকার অর্থ বা কয়েন দিয়ে স্পিন কেনার ব্যবস্থা নেই।
                     </Text>
                   </View>
                 </ScrollView>
@@ -1123,6 +1288,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 24,
     elevation: 20,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 12px 24px rgba(15, 23, 42, 0.5)" } : {}),
   },
   headerBar: {
     flexDirection: "row",
@@ -1201,7 +1367,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   readyBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#F59E0B",
     letterSpacing: 0.5,
@@ -1216,7 +1382,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   claimedBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#CBD5E1",
   },
@@ -1255,7 +1421,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   streakDayNumberText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#94A3B8",
   },
@@ -1263,7 +1429,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   streakDaySubText: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
@@ -1285,7 +1451,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   streakBonusNoteText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#7DD3FC",
     flex: 1,
   },
@@ -1294,7 +1460,7 @@ const styles = StyleSheet.create({
   // MAIN STAGE & 3D BOX
   // --------------------------------------------------------------------------
   stageContainer: {
-    height: 255,
+    minHeight: 255,
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
@@ -1302,7 +1468,7 @@ const styles = StyleSheet.create({
   boxAmbientGlow: {
     position: "absolute",
     width: 140,
-    height: 140,
+    minHeight: 140,
     borderRadius: 70,
     backgroundColor: "rgba(245, 158, 11, 0.4)",
   },
@@ -1392,7 +1558,7 @@ const styles = StyleSheet.create({
   },
   boxBody: {
     width: 130,
-    height: 100,
+    minHeight: 100,
     borderRadius: 12,
     overflow: "hidden",
     borderWidth: 1,
@@ -1521,7 +1687,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tierPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: 0.5,
@@ -1533,7 +1699,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   rewardExpiryText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#FFFFFF",
   },
@@ -1581,13 +1747,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   rewardTicketCategory: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#7DD3FC",
     letterSpacing: 0.5,
   },
   rewardDescription: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#CBD5E1",
     textAlign: "center",
     lineHeight: 16,
@@ -1611,7 +1777,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   voucherCodeLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#94A3B8",
   },
@@ -1631,7 +1797,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   copyCodeButtonText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#FFFFFF",
   },
@@ -1646,7 +1812,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   walletConfirmationText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#34D399",
   },
@@ -1657,7 +1823,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   coinsBonusText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#F59E0B",
   },
@@ -1818,7 +1984,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   tierOddsBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
   },
@@ -1840,7 +2006,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   day7JackpotNoticeText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#FDE047",
     fontWeight: "600",
     flex: 1,
@@ -1897,7 +2063,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0284C7",
   },
   voucherTierPillText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
   },
@@ -1913,7 +2079,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   voucherItemDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94A3B8",
     marginBottom: 8,
   },
@@ -1939,8 +2105,197 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   voucherItemCopyText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#38BDF8",
+  },
+  // Additional Styles for Transparency & Accessibility
+  reduceMotionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 14,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  reduceMotionBtnActive: {
+    backgroundColor: "rgba(16, 185, 129, 0.18)",
+    borderColor: "#10B981",
+  },
+  reduceMotionBtnText: {
+    fontSize: 11,
+    color: "#94A3B8",
+    fontWeight: "600",
+  },
+  reduceMotionBtnTextActive: {
+    color: "#10B981",
+  },
+  reducedMotionNoticeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    gap: 6,
+  },
+  reducedMotionNoticeText: {
+    fontSize: 11,
+    color: "#A7F3D0",
+    fontWeight: "500",
+    flex: 1,
+  },
+  transparencyCard: {
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.28)",
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  transparencyTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  transparencyTitleText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#10B981",
+  },
+  transparencyDescText: {
+    fontSize: 11,
+    color: "#94A3B8",
+    lineHeight: 16,
+    marginBottom: 6,
+  },
+  viewRulesPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(2, 132, 199, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(2, 132, 199, 0.35)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  viewRulesPillText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#38BDF8",
+  },
+  subModalSubtitle: {
+    fontSize: 11,
+    color: "#94A3B8",
+    marginTop: 2,
+  },
+  antiGamblingBox: {
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  antiGamblingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  antiGamblingTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#10B981",
+  },
+  antiGamblingBody: {
+    fontSize: 11.5,
+    color: "#CBD5E1",
+    lineHeight: 17,
+  },
+  modalA11yRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  modalA11yTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#F1F5F9",
+    marginBottom: 2,
+  },
+  modalA11ySubtitle: {
+    fontSize: 11,
+    color: "#94A3B8",
+  },
+  modalSectionHeading: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#F8FAFC",
+    marginBottom: 10,
+  },
+  tierOddsCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  tierValidityPill: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#38BDF8",
+    backgroundColor: "rgba(2, 132, 199, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  tierConditionNote: {
+    fontSize: 11,
+    fontStyle: "italic",
+    color: "#94A3B8",
+    marginTop: 4,
+  },
+  day7JackpotTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#F59E0B",
+    marginBottom: 2,
+  },
+  termsBox: {
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  termsBoxTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#E2E8F0",
+    marginBottom: 6,
+  },
+  termsBoxBody: {
+    fontSize: 11,
+    color: "#94A3B8",
+    lineHeight: 17,
   },
 });

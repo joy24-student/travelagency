@@ -14,6 +14,8 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
+const isWebPlatform = Platform.OS === "web";
+
 export const SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 };
@@ -92,7 +94,7 @@ export async function withTokenRefreshLock<T>(refreshFn: () => Promise<T>): Prom
 export async function setSecureItem(key: string, value: string): Promise<void> {
   return storageMutex.runExclusive(async () => {
     try {
-      if (Platform.OS === "web") {
+      if (isWebPlatform) {
         if (typeof window !== "undefined" && window.sessionStorage) {
           window.sessionStorage.setItem(key, value);
         }
@@ -112,7 +114,7 @@ export async function setSecureItem(key: string, value: string): Promise<void> {
 export async function getSecureItem(key: string): Promise<string | null> {
   return storageMutex.runExclusive(async () => {
     try {
-      if (Platform.OS === "web") {
+      if (isWebPlatform) {
         if (typeof window !== "undefined" && window.sessionStorage) {
           return window.sessionStorage.getItem(key);
         }
@@ -131,7 +133,7 @@ export async function getSecureItem(key: string): Promise<string | null> {
 export async function deleteSecureItem(key: string): Promise<void> {
   return storageMutex.runExclusive(async () => {
     try {
-      if (Platform.OS === "web") {
+      if (isWebPlatform) {
         if (typeof window !== "undefined" && window.sessionStorage) {
           window.sessionStorage.removeItem(key);
         }

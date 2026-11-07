@@ -3,17 +3,34 @@ import "../global.css";
 import React, { useEffect, Suspense, lazy } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { useFonts } from "expo-font";
 import { AuthProvider } from "../src/auth/context";
+import { NetworkProvider } from "../src/context/NetworkContext";
+import { OfflineBanner } from "../src/components/common";
+import { useAuthStore } from "../src/store/authStore";
 import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
 import { LanguageProvider } from "../src/context/LanguageContext";
+import { I18nextProvider } from "react-i18next";
+import i18n from "../src/locales/i18n";
 import { useAuth } from "../src/hooks/useAuth";
 import { supabase } from "../src/utils/supabase";
 import { scheduleLowPriorityTask, runTaskIdle } from "../src/utils/performance";
+import { ErrorBoundary } from "../src/components/common/ErrorBoundaryView";
+import { ToastContainer } from "../src/components/ui/Toast";
+import { DialogContainer } from "../src/components/ui/Dialog";
+import { initAlertPolyfill } from "../src/utils/alertPolyfill";
+import { initGlobalErrorHandlers } from "../src/services/telemetry/crashReporter";
+import { useDeepLinking } from "../src/services/navigation/deepLinkingService";
+
+// Initialize global crash and unhandled exception reporter
+initGlobalErrorHandlers();
+// Initialize branded Dialog alert polyfill for Web & Mobile
+initAlertPolyfill();
 
 /**
  * Route Code-Splitting & Lazy Loading:
@@ -32,14 +49,39 @@ SplashScreen.preventAutoHideAsync().catch(console.error);
  * Lightweight instant fallback view ensuring First Contentful Paint (FCP) < 800ms
  * while async route chunks resolve.
  */
-const RouteChunkFallback = () => (
-  <View style={styles.fallbackContainer}>
-    <ActivityIndicator size="small" color="#0055F2" />
-  </View>
-);
+const RouteChunkFallback = () => {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.fallbackContainer, { backgroundColor: colors.background }]}>
+      <ActivityIndicator size="small" color={colors.primary} />
+    </View>
+  );
+};
 
 const RootLayoutContent = () => {
   const { isAuthenticated, loading } = useAuth();
+  const { colors } = useTheme();
+  const router = useRouter();
+
+  // Initialize Deep Linking lifecycle (universal links, custom schemes, deferred links)
+  useDeepLinking(router);
+
+  // Initialize unified encrypted session store & token refresh interceptor
+  useEffect(() => {
+    const cleanup = useAuthStore.getState().initializeAuth();
+    return () => cleanup?.();
+  }, []);
+
+  const [fontsLoaded, fontError] = useFonts({
+    HindSiliguri_300Light: require("../assets/fonts/HindSiliguri_300Light.ttf"),
+    HindSiliguri_400Regular: require("../assets/fonts/HindSiliguri_400Regular.ttf"),
+    HindSiliguri_500Medium: require("../assets/fonts/HindSiliguri_500Medium.ttf"),
+    HindSiliguri_600SemiBold: require("../assets/fonts/HindSiliguri_600SemiBold.ttf"),
+    HindSiliguri_700Bold: require("../assets/fonts/HindSiliguri_700Bold.ttf"),
+    NotoSansBengali_400Regular: require("../assets/fonts/NotoSansBengali_400Regular.ttf"),
+    NotoSansBengali_600SemiBold: require("../assets/fonts/NotoSansBengali_600SemiBold.ttf"),
+    NotoSansBengali_700Bold: require("../assets/fonts/NotoSansBengali_700Bold.ttf"),
+  });
 
   useEffect(() => {
     // Schedule OAuth provider initialization off the critical render path
@@ -52,14 +94,14 @@ const RootLayoutContent = () => {
       }
     }, 1500);
 
-    if (!loading) {
+    if (!loading && (fontsLoaded || fontError)) {
       SplashScreen.hideAsync().catch(console.error);
     }
 
     return () => {
       cancelOAuthInit();
     };
-  }, [loading]);
+  }, [loading, fontsLoaded, fontError]);
 
   useEffect(() => {
     const handleUrl = async ({ url }: { url: string }) => {
@@ -75,13 +117,14 @@ const RootLayoutContent = () => {
   }, []);
 
   useEffect(() => {
-    // Register FCM push notifications via low-priority scheduler during idle frame budget
+    // Non-intrusive push notification listener: do NOT pop permission prompt on startup
     let listenerSub: { remove: () => void } | undefined;
     const cancelPushInit = scheduleLowPriorityTask(
       async () => {
         try {
           const { fcmNotificationService } = await import("../src/services/fcmNotificationService");
-          await fcmNotificationService.registerForPushNotifications();
+          // Check existing permission silently (forcePrompt = false)
+          await fcmNotificationService.registerForPushNotifications(undefined, false);
           listenerSub = fcmNotificationService.setupNotificationResponseListener();
         } catch (err) {
           console.warn("FCM registration deferred error:", err);
@@ -104,7 +147,7 @@ const RootLayoutContent = () => {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: "#ffffff" },
+          contentStyle: { backgroundColor: colors.background },
         }}
       >
         {/* Core Consumer Navigation Stack with Async Route Code-Splitting */}
@@ -117,6 +160,14 @@ const RootLayoutContent = () => {
 
         <Stack.Screen
           name="(tabs)"
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        {/* Unified Screens Stack (All sub-screens under app/screens) */}
+        <Stack.Screen
+          name="screens"
           options={{
             headerShown: false,
           }}
@@ -137,57 +188,9 @@ const RootLayoutContent = () => {
           }}
         />
 
+        {/* 404 Unmatched Route Catch-All */}
         <Stack.Screen
-          name="screens/[slug]"
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <Stack.Screen
-          name="screens/help"
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <Stack.Screen
-          name="screens/profile"
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <Stack.Screen
-          name="screens/reviews"
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <Stack.Screen
-          name="screens/saved"
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <Stack.Screen
-          name="screens/user-profile"
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <Stack.Screen
-          name="screens/call"
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <Stack.Screen
-          name="screens/settings"
+          name="+not-found"
           options={{
             headerShown: false,
           }}
@@ -215,12 +218,21 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <LanguageProvider>
-          <ThemedStatusBar />
-          <AuthProvider>
-            <RootLayoutContent />
-          </AuthProvider>
-        </LanguageProvider>
+        <I18nextProvider i18n={i18n}>
+          <LanguageProvider>
+            <ThemedStatusBar />
+            <NetworkProvider>
+              <AuthProvider>
+                <ErrorBoundary screenName="RootLayout">
+                  <OfflineBanner />
+                  <RootLayoutContent />
+                  <DialogContainer />
+                  <ToastContainer />
+                </ErrorBoundary>
+              </AuthProvider>
+            </NetworkProvider>
+          </LanguageProvider>
+        </I18nextProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

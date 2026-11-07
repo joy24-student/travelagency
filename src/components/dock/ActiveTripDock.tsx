@@ -12,7 +12,7 @@
  * 4. Clean Overlay: Mounts cleanly above root navigation container with high zIndex & pointerEvents handling.
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import {
   Platform,
   Alert,
   ScrollView,
+  Linking,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -39,7 +40,6 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as Linking from "expo-linking";
 import QRCode from "react-native-qrcode-svg";
 import { BlurView } from "expo-blur";
 
@@ -48,8 +48,11 @@ import {
   DockMode,
   BoardingStatus,
 } from "../../store/dockStore";
+import { CopyableText } from "../common/CopyableText";
+import { openLink } from "../../utils/openLink";
+import { RTLIcon } from "../ui/RTLIcon";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 
 // ============================================================================
 // HELPER UTILITIES
@@ -123,6 +126,12 @@ export function ActiveTripDock() {
   // Local component states
   const [showQrCode, setShowQrCode] = useState(false);
   const [copiedWifi, setCopiedWifi] = useState(false);
+  const wifiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (wifiTimerRef.current) clearTimeout(wifiTimerRef.current);
+    };
+  }, []);
   const [tick, setTick] = useState(0);
 
   // Real-time ticking interval for countdown & context evaluation
@@ -197,7 +206,7 @@ export function ActiveTripDock() {
       // 1. Horizontal swipe threshold: Dismiss
       if (Math.abs(event.translationX) > 110 || Math.abs(event.velocityX) > 750) {
         const direction = Math.sign(event.translationX || event.velocityX);
-        translateX.value = withSpring(direction * (SCREEN_WIDTH + 80), {
+        translateX.value = withSpring(direction * (380 + 80), {
           damping: 15,
           stiffness: 120,
         });
@@ -375,7 +384,7 @@ export function ActiveTripDock() {
                       <Text style={styles.pillBoldText} numberOfLines={1}>
                         {preDeparture.origin.code}
                       </Text>
-                      <Ionicons name="arrow-forward" size={11} color="#64748B" />
+                      <RTLIcon name="arrow-forward" size={11} color="#64748B" />
                       <Text style={styles.pillBoldText} numberOfLines={1}>
                         {preDeparture.destination.code}
                       </Text>
@@ -518,7 +527,9 @@ export function ActiveTripDock() {
                         cycleMode();
                         try {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        } catch {}
+                        } catch (hapticErr) {
+                          if (__DEV__) console.warn("[ActiveTripDock] Haptics unavailable:", hapticErr);
+                        }
                       }}
                       style={({ pressed }) => [
                         styles.cycleModeBtn,
@@ -663,7 +674,13 @@ export function ActiveTripDock() {
 
                         <View style={styles.gridBox}>
                           <Text style={styles.gridBoxLabel}>PNR</Text>
-                          <Text style={styles.gridBoxValue}>{preDeparture.pnr}</Text>
+                          <CopyableText
+                            text={preDeparture.pnr}
+                            label="PNR"
+                            textStyle={styles.gridBoxValue}
+                            iconSize={12}
+                            iconColor="#2563EB"
+                          />
                         </View>
                       </View>
 
@@ -692,7 +709,9 @@ export function ActiveTripDock() {
                             setShowQrCode(!showQrCode);
                             try {
                               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            } catch {}
+                            } catch (hapticErr) {
+                              if (__DEV__) console.warn("[ActiveTripDock] Haptics unavailable:", hapticErr);
+                            }
                           }}
                           style={[styles.primaryActionBtn, { flex: 1.2 }]}
                         >
@@ -806,7 +825,7 @@ export function ActiveTripDock() {
                             <View style={styles.guideAvatar}>
                               <Ionicons name="person" size={14} color="#CBD5E1" />
                             </View>
-                            <View style={{ flex: 1, marginLeft: 8 }}>
+                            <View style={{ flex: 1, marginStart: 8 }}>
                               <Text style={styles.guideName}>
                                 Guide: {inTrip.nextActivity.leadGuide.name}
                               </Text>
@@ -992,13 +1011,16 @@ export function ActiveTripDock() {
                               Haptics.notificationAsync(
                                 Haptics.NotificationFeedbackType.Success
                               );
-                            } catch {}
-                            setTimeout(() => setCopiedWifi(false), 2500);
+                            } catch (hapticErr) {
+                              if (__DEV__) console.warn("[ActiveTripDock] Haptics unavailable:", hapticErr);
+                            }
+                            if (wifiTimerRef.current) clearTimeout(wifiTimerRef.current);
+                            wifiTimerRef.current = setTimeout(() => setCopiedWifi(false), 2500);
                           }}
                           style={styles.amenityRow}
                         >
                           <Ionicons name="wifi" size={16} color="#38BDF8" />
-                          <View style={{ flex: 1, marginLeft: 10 }}>
+                          <View style={{ flex: 1, marginStart: 10 }}>
                             <Text style={styles.amenityTitle}>
                               Wi-Fi: {checkInDay.hotelServices.wifiNetwork}
                             </Text>
@@ -1018,7 +1040,7 @@ export function ActiveTripDock() {
                         {/* Breakfast Timing */}
                         <View style={styles.amenityRow}>
                           <Ionicons name="restaurant-outline" size={16} color="#FBBF24" />
-                          <View style={{ flex: 1, marginLeft: 10 }}>
+                          <View style={{ flex: 1, marginStart: 10 }}>
                             <Text style={styles.amenityTitle}>Breakfast Included</Text>
                             <Text style={styles.amenitySub}>
                               {checkInDay.hotelServices.breakfastInfo}
@@ -1107,6 +1129,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 14,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 16px rgba(15, 23, 42, 0.35)" } : {}),
   },
   dockContainerCollapsed: {
     borderRadius: 24,
@@ -1124,8 +1147,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dockContainerExpanded: {
-    width: Math.min(SCREEN_WIDTH - 24, 420),
-    maxHeight: SCREEN_HEIGHT * 0.76,
+    width: Math.min(380 - 24, 420),
+    maxHeight: 800 * 0.76,
     borderRadius: 28,
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -1150,7 +1173,7 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: "#38BDF8",
-    marginRight: 6,
+    marginEnd: 6,
   },
 
   // Collapsed Pill Row
@@ -1166,7 +1189,7 @@ const styles = StyleSheet.create({
   pillLeftSection: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 8,
+    marginEnd: 8,
   },
   iconCircleCyan: {
     width: 26,
@@ -1175,7 +1198,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(56, 189, 248, 0.18)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 6,
+    marginEnd: 6,
   },
   iconCircleEmerald: {
     width: 26,
@@ -1184,7 +1207,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(52, 211, 153, 0.18)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 6,
+    marginEnd: 6,
   },
   iconCircleAmber: {
     width: 26,
@@ -1193,7 +1216,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(251, 191, 36, 0.18)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 6,
+    marginEnd: 6,
   },
   pillBoldText: {
     color: "#FFFFFF",
@@ -1224,7 +1247,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    marginRight: 5,
+    marginEnd: 5,
   },
   liveDotGreen: {
     backgroundColor: "#10B981",
@@ -1245,12 +1268,12 @@ const styles = StyleSheet.create({
   },
   pillActivityText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   pillActivitySub: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "500",
   },
   roomStatusDot: {
@@ -1258,7 +1281,7 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: "#10B981",
-    marginRight: 5,
+    marginEnd: 5,
   },
   pillRoomStatusText: {
     color: "#E2E8F0",
@@ -1272,11 +1295,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
-    marginLeft: 6,
+    marginStart: 6,
   },
   pillRightBadgeText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
@@ -1287,12 +1310,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 12,
-    marginLeft: 6,
+    marginStart: 6,
     gap: 4,
   },
   pillWeatherText: {
     color: "#F8FAFC",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   pillKeyBadge: {
@@ -1302,12 +1325,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
-    marginLeft: 6,
+    marginStart: 6,
     gap: 3,
   },
   pillKeyText: {
     color: "#34D399",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
 
@@ -1327,10 +1350,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 8px rgba(15, 23, 42, 0.25)" } : {}),
   },
   restoreText: {
     color: "#E2E8F0",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
 
@@ -1358,11 +1382,11 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 6,
+    marginEnd: 6,
   },
   modePillText: {
     color: "#E2E8F0",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.5,
   },
@@ -1382,7 +1406,7 @@ const styles = StyleSheet.create({
   },
   cycleModeText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   iconCircleSmall: {
@@ -1422,13 +1446,13 @@ const styles = StyleSheet.create({
   },
   cityNameText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     marginTop: 1,
   },
   terminalText: {
     color: "#38BDF8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     marginTop: 2,
   },
@@ -1439,7 +1463,7 @@ const styles = StyleSheet.create({
   },
   flightDurationText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     marginBottom: 4,
   },
@@ -1453,11 +1477,11 @@ const styles = StyleSheet.create({
     height: 1.5,
     flex: 1,
     backgroundColor: "rgba(255, 255, 255, 0.2)",
-    marginRight: 4,
+    marginEnd: 4,
   },
   flightNumberSub: {
     color: "#CBD5E1",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     marginTop: 4,
   },
@@ -1479,7 +1503,7 @@ const styles = StyleSheet.create({
   },
   countdownLabel: {
     color: "#38BDF8",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.8,
     marginBottom: 4,
@@ -1499,7 +1523,7 @@ const styles = StyleSheet.create({
   },
   digitalUnitSub: {
     color: "#94A3B8",
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "600",
   },
   digitalSeparator: {
@@ -1518,7 +1542,7 @@ const styles = StyleSheet.create({
   },
   statusPillLargeText: {
     color: "#34D399",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
@@ -1540,7 +1564,7 @@ const styles = StyleSheet.create({
   },
   gridBoxLabel: {
     color: "#94A3B8",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     marginBottom: 3,
   },
@@ -1571,7 +1595,7 @@ const styles = StyleSheet.create({
   },
   qrPassSub: {
     color: "#64748B",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "500",
     marginTop: 2,
     textAlign: "center",
@@ -1592,7 +1616,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   weatherIconLarge: {
-    marginRight: 10,
+    marginEnd: 10,
   },
   weatherTempText: {
     color: "#FFFFFF",
@@ -1601,7 +1625,7 @@ const styles = StyleSheet.create({
   },
   weatherDescText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
   },
   weatherRightMetrics: {
@@ -1609,7 +1633,7 @@ const styles = StyleSheet.create({
   },
   weatherMetricItem: {
     color: "#CBD5E1",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     marginTop: 2,
   },
@@ -1638,13 +1662,13 @@ const styles = StyleSheet.create({
   },
   activityCategoryText: {
     color: "#34D399",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
   durationBadgeText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   activityTitleText: {
@@ -1662,7 +1686,7 @@ const styles = StyleSheet.create({
   },
   activityLocationText: {
     color: "#38BDF8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   notesBox: {
@@ -1675,7 +1699,7 @@ const styles = StyleSheet.create({
   },
   notesText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     lineHeight: 14,
     flex: 1,
   },
@@ -1697,12 +1721,12 @@ const styles = StyleSheet.create({
   },
   guideName: {
     color: "#F8FAFC",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   guideRating: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
   },
   callGuideBtn: {
     flexDirection: "row",
@@ -1715,14 +1739,14 @@ const styles = StyleSheet.create({
   },
   callGuideText: {
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
 
   // Timeline list
   sectionHeaderTitle: {
     color: "#64748B",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.8,
     marginTop: 8,
@@ -1744,17 +1768,17 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: "#38BDF8",
-    marginRight: 8,
+    marginEnd: 8,
   },
   timelineTime: {
     color: "#38BDF8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     width: 44,
   },
   timelineTitle: {
     color: "#E2E8F0",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     flex: 1,
   },
@@ -1776,13 +1800,13 @@ const styles = StyleSheet.create({
   },
   hotelSubText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     marginTop: 1,
   },
   hotelFloorText: {
     color: "#FBBF24",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     marginTop: 2,
   },
@@ -1796,7 +1820,7 @@ const styles = StyleSheet.create({
   },
   roomStatusTagText: {
     color: "#34D399",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
@@ -1813,13 +1837,13 @@ const styles = StyleSheet.create({
   },
   keylessHeroTitle: {
     color: "#FBBF24",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.8,
   },
   keylessHeroSub: {
     color: "#CBD5E1",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     marginTop: 2,
     marginBottom: 10,
@@ -1860,7 +1884,7 @@ const styles = StyleSheet.create({
   },
   keylessStatusSub: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "500",
     marginTop: 2,
   },
@@ -1872,7 +1896,7 @@ const styles = StyleSheet.create({
   },
   passcodeText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
 
@@ -1889,12 +1913,12 @@ const styles = StyleSheet.create({
   },
   amenityTitle: {
     color: "#F8FAFC",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   amenitySub: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
   },
   copyBadge: {
     backgroundColor: "rgba(56, 189, 248, 0.18)",
@@ -1904,7 +1928,7 @@ const styles = StyleSheet.create({
   },
   copyBadgeText: {
     color: "#38BDF8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   amenityDivider: {

@@ -1,12 +1,10 @@
 """
-Pydantic v2 schemas for Cloudflare R2 presigned upload URLs.
+Storage Schemas for Cloudflare R2 / S3 Presigned Uploads.
 """
 
 from enum import Enum
 from typing import Dict, Optional
-from pydantic import Field
-
-from app.schemas.common import BaseSchema
+from pydantic import BaseModel, Field
 
 
 class AllowedEntityType(str, Enum):
@@ -15,20 +13,21 @@ class AllowedEntityType(str, Enum):
     COMMUNITY_MEDIA = "community_media"
     HOTEL_MEDIA = "hotel_media"
     AGENCY_DOCUMENT = "agency_document"
+    TICKET_ATTACHMENT = "ticket_attachment"
 
 
-class PresignedUploadRequest(BaseSchema):
-    file_name: str = Field(..., min_length=1, description="Original filename (e.g. passport.pdf, profile.jpg)")
-    mime_type: str = Field(..., description="MIME content type (e.g. image/jpeg, image/png, application/pdf, video/mp4)")
-    size_bytes: int = Field(..., ge=1, description="File size in bytes")
-    entity_type: AllowedEntityType = Field(..., description="Target category for authorization and pathing")
-    entity_id: Optional[str] = Field(None, description="Optional entity ID (e.g., hotel ID, post ID, or user ID)")
+class PresignedUploadRequest(BaseModel):
+    file_name: str = Field(..., description="Original filename with extension (e.g. passport.pdf, avatar.png)")
+    mime_type: str = Field(..., description="Strict MIME type: image/jpeg, image/png, application/pdf")
+    size_bytes: int = Field(..., gt=0, le=5 * 1024 * 1024, description="File size in bytes (strict 5MB max limit)")
+    entity_type: AllowedEntityType = Field(default=AllowedEntityType.AVATAR, description="Target entity category")
+    entity_id: Optional[str] = Field(None, description="Optional entity UUID to organize folder structure")
 
 
-class PresignedUploadResponse(BaseSchema):
-    upload_url: str = Field(..., description="Direct pre-signed PUT URL for Cloudflare R2")
-    key: str = Field(..., description="R2 storage object key path")
-    public_url: str = Field(..., description="Public CDN access URL once upload completes")
-    expires_in: int = Field(..., description="URL validity in seconds")
-    http_method: str = Field(default="PUT", description="HTTP verb required for the client upload request")
-    required_headers: Dict[str, str] = Field(default_factory=dict, description="Headers that MUST be sent with PUT")
+class PresignedUploadResponse(BaseModel):
+    upload_url: str = Field(..., description="Single-use pre-signed S3/R2 PUT URL")
+    key: str = Field(..., description="Unique S3 object key")
+    public_url: str = Field(..., description="Public CDN distribution URL")
+    expires_in: int = Field(..., description="Pre-signed URL validity in seconds")
+    http_method: str = "PUT"
+    required_headers: Dict[str, str] = Field(default_factory=dict)

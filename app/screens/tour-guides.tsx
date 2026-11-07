@@ -23,8 +23,9 @@ import { z } from "zod";
 
 import { TourGuide, GuideBookingRequest } from "../../src/types/tourGuide";
 import { tourGuideService } from "../../src/services/tourGuideService";
+import { RTLIcon } from "../../src/components/ui";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 const PRIMARY_BLUE = "#0055F2";
 const DARK_NAVY = "#0F172A";
 const ACCENT_GOLD = "#F59E0B";
@@ -180,6 +181,12 @@ export const bookingValidationSchema = z.object({
 export type BookingFormData = z.infer<typeof bookingValidationSchema>;
 
 // Enrich base guide profiles with certified badges, 5 required languages, and specializations
+const getRelativeMonthYear = (monthsAgo: number = 0): string => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - monthsAgo);
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+};
+
 function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
   const guideId = guide.id;
   const hourly =
@@ -207,7 +214,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
 
   let licenseNumber = `BPC-TG-2024-0${guideId.slice(-2) || "42"}`;
   let licenseIssuer = "Bangladesh Parjatan Corporation (BPC)";
-  let certifiedSince = 2024 - guide.experience_years;
+  let certifiedSince = new Date().getFullYear() - guide.experience_years;
 
   let spokenLanguagesProficiency: LanguageProficiency[] = [
     { language: "Bengali", level: "Native", flag: "🇧🇩" },
@@ -221,7 +228,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
       id: "rev-1",
       reviewerName: "Farhan Kabir",
       rating: 5,
-      date: "Nov 2026",
+      date: getRelativeMonthYear(0),
       comment: "অসাধারণ গাইড! সুন্দর এবং নিরাপদভাবে পুরো এলাকা ঘুরে দেখিয়েছেন।",
       tourType: "Scenic Explorer",
     },
@@ -229,7 +236,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
       id: "rev-2",
       reviewerName: "Sarah Jenkins",
       rating: 5,
-      date: "Oct 2026",
+      date: getRelativeMonthYear(1),
       comment: "Super professional! Fluent English and deep local knowledge.",
       tourType: "Historical & Cultural",
     },
@@ -250,7 +257,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
         id: "rev-c1",
         reviewerName: "Dr. Asif Mahmud",
         rating: 5,
-        date: "Nov 2026",
+        date: getRelativeMonthYear(0),
         comment: "ইনানী ও সেন্টমার্টিনের সেরা স্পটগুলো ও সুস্বাদু সামুদ্রিক মাছের জায়গাগুলো দেখিয়েছেন।",
         tourType: "Culinary & Beach",
       },
@@ -258,7 +265,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
         id: "rev-c2",
         reviewerName: "Tariq Al-Mansoor",
         rating: 5,
-        date: "Oct 2026",
+        date: getRelativeMonthYear(1),
         comment: "Excellent guide, speaks good Arabic and made our family tour so pleasant!",
         tourType: "Photography",
       },
@@ -277,7 +284,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
         id: "rev-s1",
         reviewerName: "Julien Moreau",
         rating: 5,
-        date: "Nov 2026",
+        date: getRelativeMonthYear(0),
         comment: "Superbe expérience dans la forêt marécageuse de Ratargul. Très attentif!",
         tourType: "Wildlife",
       },
@@ -285,7 +292,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
         id: "rev-s2",
         reviewerName: "Nusrat Jahan",
         rating: 5,
-        date: "Oct 2026",
+        date: getRelativeMonthYear(1),
         comment: "রাতারগুল ও জাফলং-এ ফটোগ্রাফির সেরা এঙ্গেলগুলো খুব সুন্দর দেখিয়েছেন।",
         tourType: "Photography",
       },
@@ -304,7 +311,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
         id: "rev-w1",
         reviewerName: "Zhang Wei",
         rating: 5,
-        date: "Nov 2026",
+        date: getRelativeMonthYear(0),
         comment: "非常棒的向导！我们在红树林看到了孟加拉虎足迹和珍稀水鸟，安全保障非常到位。",
         tourType: "Wildlife Safari",
       },
@@ -312,7 +319,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
         id: "rev-w2",
         reviewerName: "Kamrul Hasan",
         rating: 5,
-        date: "Oct 2026",
+        date: getRelativeMonthYear(1),
         comment: "সুন্দরবনের বাওয়ালি ঐতিহ্য এবং খালের ভেতর নৌকার যাত্রা চিরস্মরণীয় হয়ে থাকবে।",
         tourType: "Wildlife",
       },
@@ -332,7 +339,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
         id: "rev-d1",
         reviewerName: "Ahmed Al-Ghamdi",
         rating: 5,
-        date: "Nov 2026",
+        date: getRelativeMonthYear(0),
         comment: "جولة تاريخية ممتعة للغاية في قلعة لالباغ وخان مرجان. مرشدة ممتازة ومثقفة جداً.",
         tourType: "Historical",
       },
@@ -340,7 +347,7 @@ function enrichGuideProfile(guide: TourGuide): CertifiedGuideProfile {
         id: "rev-d2",
         reviewerName: "Rifat Chowdhury",
         rating: 5,
-        date: "Oct 2026",
+        date: getRelativeMonthYear(1),
         comment: "পুরান ঢাকার বাকরখানি, বিরিয়ানি আর ঐতিহাসিক অলিগলির চমৎকার গল্প শুনে মুগ্ধ হয়েছি।",
         tourType: "Culinary & Heritage",
       },
@@ -756,9 +763,9 @@ export default function TourGuidesScreen() {
               setTouristEmail("");
               setSpecialRequests("");
 
-              // Seamless handoff to payments-enhanced
+              // Seamless handoff to payments
               router.push({
-                pathname: "/screens/payments-enhanced" as any,
+                pathname: "/screens/payments" as any,
                 params: {
                   amount: String(calculatedTotal),
                   reference: currentBookingId,
@@ -888,9 +895,9 @@ export default function TourGuidesScreen() {
             activeOpacity={0.8}
             accessibilityLabel="Back"
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <RTLIcon name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flex: 1, marginStart: 12 }}>
             <View style={styles.headerTitleRow}>
               <Text style={styles.headerTitle}>Tour Guide Directory</Text>
               <View style={styles.headerCertBadge}>
@@ -1426,7 +1433,7 @@ export default function TourGuidesScreen() {
                       <Ionicons name="person" size={24} color="#64748B" />
                     </View>
                   )}
-                  <View style={{ flex: 1, marginLeft: 12 }}>
+                  <View style={{ flex: 1, marginStart: 12 }}>
                     <View style={styles.bookingNameRow}>
                       <Text style={styles.bookingCardGuideName}>
                         {b.guide_name}
@@ -1552,7 +1559,7 @@ export default function TourGuidesScreen() {
                       source={{ uri: bookingGuide.avatar_url }}
                       style={styles.miniAvatar}
                     />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <Text style={styles.miniGuideName}>
                         {bookingGuide.full_name}
                       </Text>
@@ -1714,7 +1721,7 @@ export default function TourGuidesScreen() {
                         const isSelected = tourDate === targetStr;
                         return (
                           <TouchableOpacity
-                            key={idx}
+                            key={`qdate-${item.label}`}
                             style={[
                               styles.quickDateChip,
                               isSelected && styles.quickDateChipSelected,
@@ -1748,7 +1755,7 @@ export default function TourGuidesScreen() {
                             }
                             disabled={calendarMonthOffset <= 0}
                           >
-                            <Ionicons
+                            <RTLIcon
                               name="chevron-back"
                               size={18}
                               color={calendarMonthOffset <= 0 ? "#CBD5E1" : "#0F172A"}
@@ -1761,7 +1768,7 @@ export default function TourGuidesScreen() {
                             style={styles.calNavBtn}
                             onPress={() => setCalendarMonthOffset(calendarMonthOffset + 1)}
                           >
-                            <Ionicons name="chevron-forward" size={18} color="#0F172A" />
+                            <RTLIcon name="chevron-forward" size={18} color="#0F172A" />
                           </TouchableOpacity>
                         </View>
 
@@ -2121,7 +2128,7 @@ export default function TourGuidesScreen() {
                       source={{ uri: selectedGuide.avatar_url }}
                       style={styles.profileBigAvatar}
                     />
-                    <View style={{ flex: 1, marginLeft: 14 }}>
+                    <View style={{ flex: 1, marginStart: 14 }}>
                       <Text style={styles.profileBigName}>
                         {selectedGuide.full_name}
                       </Text>
@@ -2176,9 +2183,9 @@ export default function TourGuidesScreen() {
                   </Text>
                   <View style={styles.langPillsRow}>
                     {selectedGuide.spokenLanguagesProficiency.map((l, idx) => (
-                      <View key={idx} style={styles.languagePillLarge}>
+                      <View key={`lang-${selectedGuide.id}-${l.language}`} style={styles.languagePillLarge}>
                         <Text style={styles.languageFlag}>{l.flag}</Text>
-                        <View style={{ marginLeft: 6 }}>
+                        <View style={{ marginStart: 6 }}>
                           <Text style={styles.languageNameLarge}>{l.language}</Text>
                           <Text style={styles.languageLevelLarge}>
                             দক্ষতা: {l.level}
@@ -2340,7 +2347,7 @@ export default function TourGuidesScreen() {
               />
 
               <View style={styles.dualFieldRow}>
-                <View style={{ flex: 1, marginRight: 8 }}>
+                <View style={{ flex: 1, marginEnd: 8 }}>
                   <Text style={styles.fieldLabel}>অভিজ্ঞতা (বছর)</Text>
                   <TextInput
                     style={styles.inputField}
@@ -2351,7 +2358,7 @@ export default function TourGuidesScreen() {
                     onChangeText={setApplyExperience}
                   />
                 </View>
-                <View style={{ flex: 1, marginLeft: 8 }}>
+                <View style={{ flex: 1, marginStart: 8 }}>
                   <Text style={styles.fieldLabel}>দৈনিক ফি (৳)</Text>
                   <TextInput
                     style={styles.inputField}
@@ -2491,6 +2498,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 2px rgba(15, 23, 42, 0.1)" } : {}),
   },
   joinGuideBtnText: {
     fontSize: 11.5,
@@ -2510,6 +2518,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.08)" } : {}),
   },
   searchInput: {
     flex: 1,
@@ -2666,7 +2675,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#64748B",
-    marginRight: 6,
+    marginEnd: 6,
   },
   sortChipsRow: {
     gap: 6,
@@ -2756,6 +2765,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.05)" } : {}),
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -2782,7 +2792,7 @@ const styles = StyleSheet.create({
   },
   guideHeaderMeta: {
     flex: 1,
-    marginLeft: 12,
+    marginStart: 12,
   },
   nameRow: {
     flexDirection: "row",
@@ -3372,7 +3382,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: DARK_NAVY,
     flex: 1,
-    marginLeft: 8,
+    marginStart: 8,
   },
   calendarToggleBtn: {
     backgroundColor: "#EFF6FF",
@@ -3441,7 +3451,7 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     fontWeight: "700",
     color: "#64748B",
-    width: (SCREEN_WIDTH - 76) / 7,
+    width: "13%",
     textAlign: "center",
   },
   calDaysGrid: {
@@ -3449,11 +3459,11 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   calDayEmpty: {
-    width: (SCREEN_WIDTH - 76) / 7,
+    width: "13%",
     height: 30,
   },
   calDayCell: {
-    width: (SCREEN_WIDTH - 76) / 7,
+    width: "13%",
     height: 30,
     alignItems: "center",
     justifyContent: "center",
@@ -3753,7 +3763,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 7,
-    marginRight: 6,
+    marginEnd: 6,
     marginBottom: 6,
   },
   languageNameLarge: {

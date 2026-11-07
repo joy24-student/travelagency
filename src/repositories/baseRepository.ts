@@ -54,11 +54,19 @@ export abstract class BaseRepository<
       errorMessage.includes("Failed to fetch") ||
       errorMessage.includes("Network request failed") ||
       errorMessage.includes("NetworkError") ||
+      errorMessage.includes("ধীর") ||
       rawError.code === "ECONNABORTED" ||
       rawError.name === "AbortError"
     ) {
+      const isSlow =
+        errorMessage.includes("ধীর") ||
+        rawError.code === "ECONNABORTED" ||
+        rawError.name === "AbortError";
+
       return new RepositoryError({
-        message: `${prefix}Network connectivity issue. Please check your internet connection.`,
+        message: isSlow
+          ? "নেটওয়ার্ক ধীর, আবার চেষ্টা করবেন?"
+          : `${prefix}Network connectivity issue. Please check your internet connection.`,
         code: "NETWORK_ERROR",
         statusCode: 0,
         cause: error,

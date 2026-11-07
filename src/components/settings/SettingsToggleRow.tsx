@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    paddingRight: 12,
+    paddingEnd: 12,
   },
   iconWrapper: {
     width: 36,
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   textContainer: {
     flex: 1,
@@ -156,13 +156,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    marginLeft: 6,
+    marginStart: 6,
   },
   badgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   actionContainer: {
-    marginLeft: 8,
+    marginStart: 8,
   },
 });

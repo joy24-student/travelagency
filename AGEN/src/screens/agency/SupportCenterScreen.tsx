@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 16,
     padding: 6,
-    paddingLeft: 16,
+    paddingStart: 16,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
     marginBottom: 16,
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    marginEnd: 16,
   },
 
   resourceLabel: {

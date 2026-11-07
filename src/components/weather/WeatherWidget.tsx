@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Easing,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   ViewStyle,
@@ -26,8 +29,15 @@ import {
   WeatherAlert,
   PackingRecommendation,
 } from "../../services/weather/weatherService";
+import {
+  locationService,
+  POPULAR_CITY_HUBS,
+  CityHub,
+} from "../../services/locationService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+
 
 export interface WeatherWidgetProps {
   /** Location name string (e.g., "Cox's Bazar", "Sylhet") or GPS coordinates */
@@ -70,12 +80,34 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   showForecastTabs = true,
   customTitle,
 }) => {
+  const [activeLocation, setActiveLocation] = useState<string | GPSCoordinates>(location);
   const [data, setData] = useState<ComprehensiveWeatherData | null>(initialData);
   const [loading, setLoading] = useState<boolean>(!initialData);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"24h" | "7d">("24h");
   const [alertsExpanded, setAlertsExpanded] = useState<boolean>(false);
   const [packingExpanded, setPackingExpanded] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [showCityModal, setShowCityModal] = useState<boolean>(false);
+  const [citySearchQuery, setCitySearchQuery] = useState<string>("");
+
+  useEffect(() => {
+    setActiveLocation(location);
+  }, [typeof location === "string" ? location : `${location.latitude}_${location.longitude}`]);
+
+  // Relative updated time helper (e.g. "আপডেট ২০ মি আগে")
+  const relativeUpdatedTime = useMemo(() => {
+    const ts = data?.cachedAt || data?.current?.timestamp;
+    if (!ts) return "এইমাত্র আপডেট হয়েছে";
+    const diffMs = Date.now() - new Date(ts).getTime();
+    if (isNaN(diffMs) || diffMs < 60000) return "এইমাত্র আপডেট হয়েছে";
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return `আপডেট ${mins} মি আগে`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `আপডেট ${hours} ঘণ্টা আগে`;
+    return `আপডেট ${Math.floor(hours / 24)} দিন আগে`;
+  }, [data?.cachedAt, data?.current?.timestamp]);
 
   // Animation values for subtle alive pulsing
   const isNativeDriver = Platform.OS !== "web" && process.env.NODE_ENV !== "test";
@@ -83,11 +115,12 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   // Fetch meteorological data
-  const loadWeatherData = async (force: boolean = false) => {
+  const loadWeatherData = async (targetLoc: string | GPSCoordinates = activeLocation, force: boolean = false) => {
     try {
       if (!data) setLoading(true);
+      if (force) setIsRefreshing(true);
       setError(null);
-      const res = await weatherService.getComprehensiveWeather(location, force);
+      const res = await weatherService.getComprehensiveWeather(targetLoc, force);
       setData(res);
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -99,14 +132,59 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
       setError("Weather unavailable");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
+  const handleUseMyLocation = async () => {
+    setIsLocating(true);
+    try {
+      const res = await locationService.getCurrentLocation();
+      if (res.success && res.coords) {
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        }
+        setActiveLocation(res.coords);
+        await loadWeatherData(res.coords, true);
+      } else {
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        }
+        if (res.isDenied) {
+          Alert.alert(
+            "লোকেশন অনুমতি আবশ্যক",
+            res.errorMessage || "লোকেশন ছাড়া আবহাওয়া দেখাতে পারছেন না। সেটিংসে গিয়ে অনুমতি দিন অথবা নিচের শহর তালিকা থেকে বেছে নিন।",
+            [
+              { text: "সেটিংসে খুলুন", onPress: () => locationService.openLocationSettings() },
+              { text: "শহর খুঁজুন (ফলব্যাক)", onPress: () => setShowCityModal(true) },
+              { text: "বাতিল", style: "cancel" },
+            ]
+          );
+        } else {
+          setShowCityModal(true);
+        }
+      }
+    } catch {
+      setShowCityModal(true);
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
+  const handleSelectCity = async (city: CityHub) => {
+    setShowCityModal(false);
+    const coords: GPSCoordinates = { latitude: city.latitude, longitude: city.longitude };
+    setActiveLocation(coords);
+    await loadWeatherData(coords, true);
+  };
+
+  const filteredCities = useMemo(() => locationService.searchCities(citySearchQuery), [citySearchQuery]);
+
   useEffect(() => {
     if (!initialData) {
-      loadWeatherData();
+      loadWeatherData(activeLocation);
     }
-  }, [typeof location === "string" ? location : `${location.latitude}_${location.longitude}`]);
+  }, [typeof activeLocation === "string" ? activeLocation : `${activeLocation.latitude}_${activeLocation.longitude}`]);
 
   // Subtle breathing loop for weather card
   useEffect(() => {
@@ -134,7 +212,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
 
   const handleRefresh = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    loadWeatherData(true);
+    loadWeatherData(activeLocation, true);
   };
 
   // Determine gradient palette based on condition
@@ -185,6 +263,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 <Text style={styles.compactTemp}>{current.temperature}°C</Text>
                 <View style={styles.compactDot} />
                 <Text style={styles.compactCondition}>{current.condition}</Text>
+                <Text style={[styles.compactCondition, { opacity: 0.85, fontSize: 11 }]}> · {relativeUpdatedTime}</Text>
                 {data.cycloneSignal && (
                   <View style={styles.compactSignalBadge}>
                     <Text style={styles.compactSignalBadgeText}>Signal {data.cycloneSignal.signalNumber}</Text>
@@ -324,7 +403,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           ]}
         />
 
-        {/* ─── Top Header: Location, Refresh & DataSource ──────────────── */}
+        {/* ─── Top Header: Location, Actions & DataSource ──────────────── */}
         <View style={styles.cardHeader}>
           <View style={styles.headerLeft}>
             <View style={styles.locBadge}>
@@ -335,11 +414,10 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               {data.country ? <Text style={styles.countryName}>, {data.country}</Text> : null}
             </View>
             <View style={styles.statusRow}>
-              {data.dataSource === "cache" && (
-                <View style={styles.cachePill}>
-                  <Text style={styles.cachePillText}>Cached · 1h</Text>
-                </View>
-              )}
+              <View style={styles.cachePill}>
+                <Ionicons name="time-outline" size={11} color="#67E8F9" style={{ marginEnd: 3 }} />
+                <Text style={styles.cachePillText}>{relativeUpdatedTime}</Text>
+              </View>
               {data.dataSource === "offline_heuristic" && (
                 <View style={[styles.cachePill, { backgroundColor: "rgba(245, 158, 11, 0.2)" }]}>
                   <Text style={[styles.cachePillText, { color: "#FDE68A" }]}>Offline Mode</Text>
@@ -354,9 +432,45 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             </View>
           </View>
 
-          <TouchableOpacity style={styles.refreshBtn} onPress={handleRefresh} hitSlop={10}>
-            <Ionicons name="sync-outline" size={16} color="rgba(255, 255, 255, 0.85)" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.myLocationPill}
+              onPress={handleUseMyLocation}
+              disabled={isLocating}
+              activeOpacity={0.8}
+            >
+              {isLocating ? (
+                <ActivityIndicator size="small" color="#67E8F9" />
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Ionicons name="navigate-circle-outline" size={13} color="#67E8F9" style={{ marginEnd: 3 }} />
+                  <Text style={styles.myLocationText}>আমার লোকেশন</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cityPill}
+              onPress={() => setShowCityModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="search" size={12} color="#FFFFFF" style={{ marginEnd: 3 }} />
+              <Text style={styles.cityPillText}>শহর</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.refreshBtn}
+              onPress={handleRefresh}
+              hitSlop={10}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="sync-outline" size={15} color="rgba(255, 255, 255, 0.85)" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ─── Primary Meteorological Display ─────────────────────────── */}
@@ -656,6 +770,76 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           </View>
         )}
       </LinearGradient>
+
+      {/* City Search Fallback Modal */}
+      <Modal
+        visible={showCityModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCityModal(false)}
+      >
+        <View style={styles.cityModalOverlay}>
+          <View style={styles.cityModalCard}>
+            <View style={styles.cityModalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons name="location" size={20} color="#0284C7" style={{ marginEnd: 8 }} />
+                <Text style={styles.cityModalTitle}>শহর নির্বাচন করুন / City Search</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowCityModal(false)}>
+                <Ionicons name="close-circle" size={24} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.cityModalGpsBtn}
+              onPress={() => {
+                setShowCityModal(false);
+                handleUseMyLocation();
+              }}
+            >
+              <Ionicons name="navigate" size={16} color="#0284C7" style={{ marginEnd: 8 }} />
+              <Text style={styles.cityModalGpsText}>আমার বর্তমান জিপিএস লোকেশন ব্যবহার করুন</Text>
+            </TouchableOpacity>
+
+            <View style={styles.citySearchInputWrap}>
+              <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginEnd: 8 }} />
+              <TextInput
+                style={styles.citySearchInput}
+                placeholder="শহরের নাম খুঁজুন (যেমন ঢাকা, কক্সবাজার, সিলেট)..."
+                placeholderTextColor="#94A3B8"
+                value={citySearchQuery}
+                onChangeText={setCitySearchQuery}
+              />
+              {citySearchQuery ? (
+                <TouchableOpacity onPress={() => setCitySearchQuery("")}>
+                  <Ionicons name="close" size={16} color="#64748B" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            <Text style={styles.popularHubsLabel}>জনপ্রিয় পর্যটন শহর ও কেন্দ্রসমূহ:</Text>
+            <ScrollView style={styles.cityListScroll} keyboardShouldPersistTaps="handled">
+              {filteredCities.map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={styles.cityItemRow}
+                  onPress={() => handleSelectCity(c)}
+                >
+                  <View>
+                    <Text style={styles.cityNameText}>
+                      {c.nameBn} ({c.name})
+                    </Text>
+                    <Text style={styles.cityMetaText}>
+                      {c.country} • {c.tag}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </Animated.View>
   );
 };
@@ -711,7 +895,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#FFFFFF",
-    marginLeft: 4,
+    marginStart: 4,
   },
   countryName: {
     fontSize: 14,
@@ -730,7 +914,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cachePillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "rgba(255, 255, 255, 0.8)",
   },
@@ -746,14 +930,131 @@ const styles = StyleSheet.create({
     borderColor: "rgba(254, 240, 138, 0.4)",
   },
   goldenPillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#FEF08A",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  myLocationPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(103, 232, 249, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(103, 232, 249, 0.4)",
+  },
+  myLocationText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#67E8F9",
+  },
+  cityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  cityPillText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   refreshBtn: {
     padding: 6,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 16,
+  },
+
+  // City Selection Modal Styles
+  cityModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    justifyContent: "flex-end",
+  },
+  cityModalCard: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: "85%",
+  },
+  cityModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  cityModalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  cityModalGpsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginBottom: 14,
+  },
+  cityModalGpsText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0284C7",
+  },
+  citySearchInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  citySearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#0F172A",
+    padding: 0,
+  },
+  popularHubsLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  cityListScroll: {
+    maxHeight: 280,
+  },
+  cityItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  cityNameText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  cityMetaText: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
   },
 
   // Hero Row
@@ -781,7 +1082,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#67E8F9",
     marginTop: 6,
-    marginLeft: 2,
+    marginStart: 2,
   },
   feelsLikeText: {
     fontSize: 12,
@@ -801,7 +1102,7 @@ const styles = StyleSheet.create({
   heroIconCol: {
     alignItems: "center",
     justifyContent: "center",
-    paddingRight: 6,
+    paddingEnd: 6,
   },
   iconGlowWrapper: {
     width: 76,
@@ -848,7 +1149,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   metricLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "rgba(255, 255, 255, 0.75)",
   },
@@ -869,7 +1170,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   metricSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "rgba(255, 255, 255, 0.7)",
   },
 
@@ -891,7 +1192,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   signalNumText: {
     color: "#FFFFFF",
@@ -908,7 +1209,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   cycloneZone: {
-    fontSize: 11,
+    fontSize: 12,
     color: "rgba(255, 255, 255, 0.85)",
   },
   cycloneAdvisory: {
@@ -925,7 +1226,7 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(255, 255, 255, 0.15)",
   },
   cycloneMaritimeText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "rgba(255, 255, 255, 0.9)",
     lineHeight: 15,
   },
@@ -945,7 +1246,7 @@ const styles = StyleSheet.create({
   },
   alertRibbonText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#FEF08A",
   },
@@ -985,7 +1286,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   packingSummaryText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "rgba(255, 255, 255, 0.9)",
     fontWeight: "500",
   },
@@ -1007,7 +1308,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 9,
+    marginEnd: 9,
   },
   packingIconBoxEssential: {
     backgroundColor: "rgba(239, 68, 68, 0.4)",
@@ -1034,12 +1335,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   essentialPillText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#FCA5A5",
   },
   packingItemReason: {
-    fontSize: 10,
+    fontSize: 12,
     color: "rgba(255, 255, 255, 0.7)",
     marginTop: 1,
   },
@@ -1065,7 +1366,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.22)",
   },
   forecastTabBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "rgba(255, 255, 255, 0.65)",
   },
@@ -1090,7 +1391,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.08)",
   },
   hourlyTimeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "rgba(255, 255, 255, 0.8)",
   },
@@ -1109,12 +1410,12 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   hourlyRainText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "600",
     color: "#67E8F9",
   },
   hourlyUvText: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#FEF08A",
     marginTop: 2,
   },
@@ -1147,7 +1448,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   dailyRainPct: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#67E8F9",
     fontWeight: "600",
   },
@@ -1155,10 +1456,10 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 10,
+    marginStart: 10,
   },
   dailyMinTemp: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "rgba(255, 255, 255, 0.65)",
     width: 26,
@@ -1178,7 +1479,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   dailyMaxTemp: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#FFFFFF",
     width: 26,
@@ -1201,7 +1502,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   compactIconWrap: {
-    marginRight: 10,
+    marginEnd: 10,
   },
   compactInfo: {
     flex: 1,
@@ -1232,15 +1533,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 6,
-    marginLeft: 6,
+    marginStart: 6,
   },
   compactSignalBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
   },
   compactPacking: {
-    fontSize: 10,
+    fontSize: 12,
     color: "rgba(255, 255, 255, 0.75)",
     marginTop: 2,
   },
@@ -1255,7 +1556,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   microPillText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#FFFFFF",
   },
@@ -1286,7 +1587,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   bannerIconBadge: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   bannerTextWrap: {
     flex: 1,
@@ -1297,7 +1598,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   bannerSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: 1,
   },
@@ -1320,7 +1621,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   skeletonSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "rgba(255, 255, 255, 0.6)",
     marginTop: 2,
   },
@@ -1342,7 +1643,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#38BDF8",
   },

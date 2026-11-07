@@ -158,7 +158,9 @@ export const travelMatchingService = {
     try {
       const profile = await getSecureJson<TravelProfile>(MY_TRAVEL_PROFILE_KEY);
       if (profile) return profile;
-    } catch {}
+    } catch (storageErr) {
+      console.warn("[travelMatchingService] Error reading profile:", storageErr);
+    }
     return {
       id: "my-profile",
       name: "Travel Explorer",
@@ -289,7 +291,9 @@ export const travelMatchingService = {
 
     try {
       await supabase.from("match_requests").insert([newInvitation]);
-    } catch {}
+    } catch (syncErr) {
+      console.warn("[travelMatchingService] Remote match request sync failed:", syncErr);
+    }
 
     const existing: TripInvitation[] = (await getSecureJson<TripInvitation[]>(MATCH_INVITATIONS_KEY)) || [];
     const updated = [newInvitation, ...existing];

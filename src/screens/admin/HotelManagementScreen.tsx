@@ -1,3 +1,5 @@
+import { FocusAwareStatusBar } from "../../components/ui/AppStatusBar";
+import { showLocalizedAlert } from "../../utils/localizedAlert";
 /**
  * Hotel Management Screen - Admin Operations Panel
  * Enterprise System implementing 15 Dedicated Sub-Screens without popup Modals.
@@ -20,6 +22,7 @@
  */
 
 import React, { useState } from "react";
+import { openLink } from "../../utils/openLink";
 import {
   View,
   ScrollView,
@@ -29,11 +32,11 @@ import {
   TextInput,
   Alert,
   Dimensions,
-  SafeAreaView,
   StatusBar,
   Image,
   Linking,
-} from "react-native";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Ionicons,
   MaterialCommunityIcons,
@@ -43,6 +46,7 @@ import {
 import Svg, { Circle, G } from "react-native-svg";
 import { AdminUser } from "@/types/admin";
 import { supabase } from "@/utils/supabase";
+import { generateRealtimeChannelId, generateReferenceCode } from "@/utils/idGenerator";
 import { useEffect } from "react";
 import {
   executeAdminCommand,
@@ -52,7 +56,9 @@ import {
 } from "./commands";
 import { useRBAC } from "./rbac";
 
-const { width } = Dimensions.get("window");
+import { useResponsive } from "../../hooks/useResponsive";
+import { KeyboardAwareContainer } from "../../components/common";
+import { RTLIcon } from "../../components/ui";
 
 export type HotelSubScreenType =
   | "dashboard"
@@ -150,6 +156,7 @@ const SAMPLE_HOTEL_BOOKINGS: HotelBookingItem[] = [];
 export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
   admin: propAdmin,
 }) => {
+  const { width, isTablet, isDesktop } = useResponsive();
   const { admin: rbacAdmin } = useRBAC();
   const admin = propAdmin || rbacAdmin;
 
@@ -190,7 +197,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             cancellationRate: "1.2%",
             avgStay: "3.2 nights",
             contractStatus: "Active",
-            contractExpiry: "Dec 31, 2027",
+            contractExpiry: new Date(Date.now() + 365 * 24 * 3600 * 1000).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
             licenseVerified: true,
             insuranceValid: true,
             taxRegistrationVerified: true,
@@ -231,7 +238,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     loadHotelsFromSupabase();
 
     const channel = supabase
-      .channel(`admin-hotels-${Math.random().toString(36).substring(2, 7)}`)
+      .channel(generateRealtimeChannelId("admin-hotels"))
       .on("postgres_changes", { event: "*", schema: "public", table: "hotels" }, () => {
         loadHotelsFromSupabase();
       })
@@ -304,14 +311,12 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
   };
 
   const handleCall = (phone: string) => {
-    Linking.openURL(`tel:${phone}`).catch(() => {
-      Alert.alert("Dialing Phone", `Calling ${phone}...`);
-    });
+    openLink(`tel:${phone}`, { label: "ফোন নম্বর", copyValue: phone });
   };
 
   const handleConfirmSuspend = async () => {
     if (!admin) {
-      Alert.alert("Error", "No active administrative context.");
+      showLocalizedAlert("Error", "No active administrative context.");
       return;
     }
 
@@ -325,13 +330,13 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         prev.map((h) => (h.id === selectedHotel.id ? { ...h, status: "Suspended" } : h))
       );
       setSelectedHotel((prev) => ({ ...prev, status: "Suspended" }));
-      Alert.alert(
+      showLocalizedAlert(
         "Audit Logged",
         `${selectedHotel.name} placed under administrative suspension and logged to admin_activity_logs.`
       );
       goBack();
     } else {
-      Alert.alert("Governance Block", cmdResult.error || "Failed to suspend hotel property.");
+      showLocalizedAlert("Governance Block", cmdResult.error || "Failed to suspend hotel property.");
     }
   };
 
@@ -349,20 +354,20 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       if (selectedHotel?.id === hotel.id) {
         setSelectedHotel((prev) => ({ ...prev, status: "Active", verifiedPartner: true }));
       }
-      Alert.alert("Audit Logged", `${hotel.name} verified and logged to admin_activity_logs.`);
+      showLocalizedAlert("Audit Logged", `${hotel.name} verified and logged to admin_activity_logs.`);
     } else {
-      Alert.alert("Governance Block", cmdResult.error || "Failed to verify hotel property.");
+      showLocalizedAlert("Governance Block", cmdResult.error || "Failed to verify hotel property.");
     }
   };
 
   const handleAddHotelSubmit = () => {
     if (!formHotelName.trim()) {
-      Alert.alert("Required Field", "Please enter the property name.");
+      showLocalizedAlert("Required Field", "Please enter the property name.");
       return;
     }
     const newH: HotelItem = {
       id: `h-${Date.now()}`,
-      hotelCode: formHotelCode || `HTL-${Math.floor(1000 + Math.random() * 9000)}`,
+      hotelCode: formHotelCode || generateReferenceCode("HTL"),
       name: formHotelName.trim(),
       image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80",
       rating: 5.0,
@@ -417,7 +422,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     setFormHotelName("");
     setFormHotelCode("");
     setAddStep(1);
-    Alert.alert("Success", `'${newH.name}' registered and sent for admin verification.`);
+    showLocalizedAlert("Success", `'${newH.name}' registered and sent for admin verification.`);
     goBack();
   };
 
@@ -569,7 +574,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         {/* Search & Filter Section */}
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={16} color="#94a3b8" style={{ marginRight: 8 }} />
+            <Ionicons name="search-outline" size={16} color="#94a3b8" style={{ marginEnd: 8 }} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search hotels by name, city or country..."
@@ -613,7 +618,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 <Text style={styles.priorityBoldNumber}>58 </Text>
                 <Text style={styles.priorityLabelText}>Hotels Waiting Approval</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#cbd5e1" />
+              <RTLIcon name="chevron-forward" size={16} color="#cbd5e1" />
             </TouchableOpacity>
 
             <View style={styles.lineDivider} />
@@ -626,7 +631,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 <Text style={styles.priorityBoldNumber}>24 </Text>
                 <Text style={styles.priorityLabelText}>Contracts Expiring Soon</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#cbd5e1" />
+              <RTLIcon name="chevron-forward" size={16} color="#cbd5e1" />
             </TouchableOpacity>
 
             <View style={styles.lineDivider} />
@@ -639,7 +644,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 <Text style={styles.priorityBoldNumber}>17 </Text>
                 <Text style={styles.priorityLabelText}>Rate Updates Pending</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#cbd5e1" />
+              <RTLIcon name="chevron-forward" size={16} color="#cbd5e1" />
             </TouchableOpacity>
 
             <View style={styles.lineDivider} />
@@ -652,7 +657,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 <Text style={styles.priorityBoldNumber}>8 </Text>
                 <Text style={styles.priorityLabelText}>Quality Audits Due</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#cbd5e1" />
+              <RTLIcon name="chevron-forward" size={16} color="#cbd5e1" />
             </TouchableOpacity>
           </View>
         </View>
@@ -661,7 +666,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         <View style={styles.sectionBlock}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Top Performing Hotels</Text>
-            <TouchableOpacity onPress={() => Alert.alert("Hotel Directory", `Listing all ${hotelsList.length} partner properties.`)}>
+            <TouchableOpacity onPress={() => showLocalizedAlert("Hotel Directory", `Listing all ${hotelsList.length} partner properties.`)}>
               <Text style={styles.linkText}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -750,7 +755,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       {/* Header */}
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Hotel Details</Text>
         <TouchableOpacity style={styles.moreBtnCircle} onPress={() => navigateTo("edit_hotel")}>
@@ -901,7 +906,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             <Text style={styles.bizStatusLabel}>Contract</Text>
             <View style={styles.bizBadgeInline}>
               <Text style={[styles.bizBadgeText, { color: "#059669" }]}>Active</Text>
-              <Ionicons name="checkmark-circle" size={14} color="#059669" style={{ marginLeft: 4 }} />
+              <Ionicons name="checkmark-circle" size={14} color="#059669" style={{ marginStart: 4 }} />
             </View>
           </View>
 
@@ -909,7 +914,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             <Text style={styles.bizStatusLabel}>License</Text>
             <View style={styles.bizBadgeInline}>
               <Text style={[styles.bizBadgeText, { color: "#059669" }]}>Verified</Text>
-              <Ionicons name="checkmark-circle" size={14} color="#059669" style={{ marginLeft: 4 }} />
+              <Ionicons name="checkmark-circle" size={14} color="#059669" style={{ marginStart: 4 }} />
             </View>
           </View>
 
@@ -917,7 +922,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             <Text style={styles.bizStatusLabel}>Insurance</Text>
             <View style={styles.bizBadgeInline}>
               <Text style={[styles.bizBadgeText, { color: "#059669" }]}>Valid</Text>
-              <Ionicons name="checkmark-circle" size={14} color="#059669" style={{ marginLeft: 4 }} />
+              <Ionicons name="checkmark-circle" size={14} color="#059669" style={{ marginStart: 4 }} />
             </View>
           </View>
 
@@ -925,7 +930,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             <Text style={styles.bizStatusLabel}>Tax Registration</Text>
             <View style={styles.bizBadgeInline}>
               <Text style={[styles.bizBadgeText, { color: "#059669" }]}>Verified</Text>
-              <Ionicons name="checkmark-circle" size={14} color="#059669" style={{ marginLeft: 4 }} />
+              <Ionicons name="checkmark-circle" size={14} color="#059669" style={{ marginStart: 4 }} />
             </View>
           </View>
         </View>
@@ -966,7 +971,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Room Inventory</Text>
         <TouchableOpacity style={styles.moreBtnCircle} onPress={() => navigateTo("add_room")}>
@@ -1117,7 +1122,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Add Hotel Partner</Text>
         <View style={{ width: 24 }} />
@@ -1233,7 +1238,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               style={[styles.uploadBox, licenseUploaded && { borderColor: "#10b981", backgroundColor: "#ecfdf5" }]}
               onPress={() => {
                 setLicenseUploaded(!licenseUploaded);
-                Alert.alert("Compliance Upload", licenseUploaded ? "File removed." : "Trade license document attached.");
+                showLocalizedAlert("Compliance Upload", licenseUploaded ? "File removed." : "Trade license document attached.");
               }}
             >
               <FontAwesome5 name="file-contract" size={24} color={licenseUploaded ? "#10b981" : "#047857"} />
@@ -1303,13 +1308,13 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Edit Hotel Profile</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <KeyboardAwareContainer style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={styles.formCard}>
           <Text style={styles.inputLabel}>Property Name</Text>
           <TextInput style={styles.modalInput} value={editName} onChangeText={setEditName} />
@@ -1341,14 +1346,14 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 ownerName: editOwnerName,
                 ownerPhone: editOwnerPhone,
               }));
-              Alert.alert("Updated", "Hotel Profile updated successfully.");
+              showLocalizedAlert("Updated", "Hotel Profile updated successfully.");
               goBack();
             }}
           >
             <Text style={styles.modalSubmitBtnText}>Save Profile Changes</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </KeyboardAwareContainer>
     </View>
   );
 
@@ -1359,7 +1364,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Add Room Category</Text>
         <View style={{ width: 24 }} />
@@ -1390,7 +1395,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 iconName: "star",
               };
               setRoomCategories((prev) => [...prev, newCat]);
-              Alert.alert("Category Created", `'${newRoomType}' added with ${newRoomCount} rooms.`);
+              showLocalizedAlert("Category Created", `'${newRoomType}' added with ${newRoomCount} rooms.`);
               goBack();
             }}
           >
@@ -1408,7 +1413,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Bulk Rate & Surge Adjuster</Text>
         <View style={{ width: 24 }} />
@@ -1423,7 +1428,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           <TouchableOpacity
             style={styles.bulkOptionBtn}
             onPress={() => {
-              Alert.alert("Surge Applied", "+15% Peak Season Surge applied across all categories.");
+              showLocalizedAlert("Surge Applied", "+15% Peak Season Surge applied across all categories.");
               goBack();
             }}
           >
@@ -1434,7 +1439,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           <TouchableOpacity
             style={styles.bulkOptionBtn}
             onPress={() => {
-              Alert.alert("Surge Applied", "+25% Holiday Festival Surge applied.");
+              showLocalizedAlert("Surge Applied", "+25% Holiday Festival Surge applied.");
               goBack();
             }}
           >
@@ -1445,7 +1450,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           <TouchableOpacity
             style={styles.bulkOptionBtn}
             onPress={() => {
-              Alert.alert("Discount Applied", "-10% Off-Season Promotional Discount applied.");
+              showLocalizedAlert("Discount Applied", "-10% Off-Season Promotional Discount applied.");
               goBack();
             }}
           >
@@ -1464,7 +1469,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={[styles.screenSubHeaderTitle, { color: "#ef4444" }]}>Suspend Hotel Partner</Text>
         <View style={{ width: 24 }} />
@@ -1515,7 +1520,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Hotel Verification Center</Text>
         <View style={{ width: 24 }} />
@@ -1542,7 +1547,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             { name: "Azure Skyline Resort", code: "ASR-9021", location: "Bali, Indonesia", docs: "Property Lease, Insurance" },
             { name: "Emerald Oasis Suites", code: "EOS-4410", location: "Dubai, UAE", docs: "Fire Safety Audit, Commercial License" },
           ].map((item, idx) => (
-            <View key={idx} style={styles.hotelDirectoryCard}>
+            <View key={item.code || `hotel-doc-${idx}`} style={styles.hotelDirectoryCard}>
               <View style={styles.hotelCardTitleRow}>
                 <Text style={styles.hotelCardName}>{item.name}</Text>
                 <View style={[styles.statusTag, { backgroundColor: "#ffedd5" }]}>
@@ -1559,14 +1564,14 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               <View style={{ flexDirection: "row", gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#f8fafc" }}>
                 <TouchableOpacity
                   style={{ flex: 1, backgroundColor: "#047857", paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
-                  onPress={() => Alert.alert("Approved", `${item.name} is now a Verified Partner.`)}
+                  onPress={() => showLocalizedAlert("Approved", `${item.name} is now a Verified Partner.`)}
                 >
                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#ffffff" }}>Approve Partner</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={{ flex: 1, backgroundColor: "#f1f5f9", paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
-                  onPress={() => Alert.alert("Request Info", `Requested missing documents from ${item.name}.`)}
+                  onPress={() => showLocalizedAlert("Request Info", `Requested missing documents from ${item.name}.`)}
                 >
                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#334155" }}>Request Audit</Text>
                 </TouchableOpacity>
@@ -1585,7 +1590,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Hotel Contracts</Text>
         <View style={{ width: 24 }} />
@@ -1621,7 +1626,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             <View key={c.id} style={styles.hotelDirectoryCard}>
               <View style={styles.hotelCardTitleRow}>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <FontAwesome5 name="file-contract" size={16} color="#047857" style={{ marginRight: 8 }} />
+                  <FontAwesome5 name="file-contract" size={16} color="#047857" style={{ marginEnd: 8 }} />
                   <Text style={styles.hotelCardName}>{c.contractNo}</Text>
                 </View>
                 <View style={[styles.statusTag, { backgroundColor: c.status === "Active" ? "#d1fae5" : "#ffedd5" }]}>
@@ -1638,14 +1643,14 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               <View style={{ flexDirection: "row", gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#f8fafc" }}>
                 <TouchableOpacity
                   style={{ flex: 1, backgroundColor: "#047857", paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
-                  onPress={() => Alert.alert("Download Contract", `Downloading PDF for ${c.contractNo}`)}
+                  onPress={() => showLocalizedAlert("Download Contract", `Downloading PDF for ${c.contractNo}`)}
                 >
                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#ffffff" }}>Download Agreement</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={{ flex: 1, backgroundColor: "#f1f5f9", paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
-                  onPress={() => Alert.alert("Renew Contract", `Initiated renewal flow for ${c.hotelName}`)}
+                  onPress={() => showLocalizedAlert("Renew Contract", `Initiated renewal flow for ${c.hotelName}`)}
                 >
                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#334155" }}>Renew Contract</Text>
                 </TouchableOpacity>
@@ -1664,7 +1669,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Rates & Revenue Yield</Text>
         <TouchableOpacity style={styles.moreBtnCircle} onPress={() => navigateTo("bulk_rate")}>
@@ -1718,7 +1723,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Quality Audits Due (8)</Text>
         <View style={{ width: 24 }} />
@@ -1730,13 +1735,13 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           { name: "Royal Beach Resort", code: "RBH-4012", audit: "Pool & Spa Water Safety Certificate", status: "Due Today" },
           { name: "Marina Towers Hotel", code: "MTH-1088", audit: "HVAC & Electrical Inspection", status: "Pending Audit" },
         ].map((audit, idx) => (
-          <View key={idx} style={styles.hotelDirectoryCard}>
+          <View key={audit.code || `audit-${idx}`} style={styles.hotelDirectoryCard}>
             <Text style={{ fontSize: 15, fontWeight: "700", color: "#0f172a" }}>{audit.name}</Text>
             <Text style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{audit.audit}</Text>
 
             <TouchableOpacity
               style={[styles.modalSubmitBtn, { backgroundColor: "#6366f1", marginTop: 12 }]}
-              onPress={() => Alert.alert("Audit Inspection", `Marked ${audit.audit} as completed for ${audit.name}.`)}
+              onPress={() => showLocalizedAlert("Audit Inspection", `Marked ${audit.audit} as completed for ${audit.name}.`)}
             >
               <Text style={styles.modalSubmitBtnText}>Complete Inspection</Text>
             </TouchableOpacity>
@@ -1753,7 +1758,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Hotel Reservations</Text>
         <View style={{ width: 24 }} />
@@ -1807,7 +1812,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Operational Reports</Text>
         <View style={{ width: 24 }} />
@@ -1822,7 +1827,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
           <TouchableOpacity
             style={[styles.modalSubmitBtn, { marginTop: 14 }]}
-            onPress={() => Alert.alert("Export PDF", "Generating detailed PDF executive report...")}
+            onPress={() => showLocalizedAlert("Export PDF", "Generating detailed PDF executive report...")}
           >
             <Text style={styles.modalSubmitBtnText}>Export Executive PDF Report</Text>
           </TouchableOpacity>
@@ -1838,7 +1843,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.screenSubHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtnCircle}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.screenSubHeaderTitle}>Filter Directory</Text>
         <View style={{ width: 24 }} />
@@ -1869,7 +1874,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           <TouchableOpacity
             style={styles.modalSubmitBtn}
             onPress={() => {
-              Alert.alert("Filter Applied", `Showing properties for status: ${statusFilter}`);
+              showLocalizedAlert("Filter Applied", `Showing properties for status: ${statusFilter}`);
               goBack();
             }}
           >
@@ -1882,7 +1887,7 @@ export const HotelManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <FocusAwareStatusBar style="dark" backgroundColor="#ffffff" />
       {currentScreen === "dashboard" && renderDashboard()}
       {currentScreen === "details" && renderDetails()}
       {currentScreen === "rooms" && renderRoomInventory()}
@@ -1935,7 +1940,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#047857",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   topNavTitle: {
     fontSize: 18,
@@ -1943,7 +1948,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   topNavSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   topNavRight: {
@@ -1989,7 +1994,7 @@ const styles = StyleSheet.create({
   },
   quickActionItem: {
     alignItems: "center",
-    width: (width - 64) / 5,
+    width: "18.5%",
   },
   quickActionCircle: {
     width: 44,
@@ -2000,7 +2005,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   quickActionLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#334155",
     textAlign: "center",
@@ -2058,7 +2063,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statusGridLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     marginBottom: 2,
   },
@@ -2081,7 +2086,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 42,
-    marginRight: 8,
+    marginEnd: 8,
   },
   searchInput: {
     flex: 1,
@@ -2159,7 +2164,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   priorityBoldNumber: {
     fontSize: 14,
@@ -2191,7 +2196,7 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 12,
-    marginRight: 12,
+    marginEnd: 12,
     backgroundColor: "#e2e8f0",
   },
   hotelCardTitleRow: {
@@ -2204,7 +2209,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0f172a",
     flex: 1,
-    marginRight: 6,
+    marginEnd: 6,
   },
   statusTag: {
     paddingHorizontal: 8,
@@ -2212,7 +2217,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusTagText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   ratingInlineRow: {
@@ -2226,11 +2231,11 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   reviewCountText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   locationSubtext: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -2243,7 +2248,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#f8fafc",
   },
   miniMetricLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94a3b8",
     fontWeight: "500",
   },
@@ -2280,7 +2285,7 @@ const styles = StyleSheet.create({
   },
   actionStripBtn: {
     alignItems: "center",
-    width: (width - 64) / 5,
+    width: "18.5%",
   },
   actionIconBox: {
     width: 44,
@@ -2291,7 +2296,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   actionStripLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
     textAlign: "center",
@@ -2309,7 +2314,7 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 14,
-    marginRight: 14,
+    marginEnd: 14,
     backgroundColor: "#e2e8f0",
   },
   heroHotelInfoColumn: {
@@ -2330,7 +2335,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   verifiedPartnerText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#047857",
     textTransform: "uppercase",
@@ -2342,11 +2347,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   heroMetaText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   heroIdText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#94a3b8",
   },
@@ -2357,7 +2362,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   metricCard6: {
-    width: (width - 44) / 3,
+    width: "31%",
     backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 10,
@@ -2366,7 +2371,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   metricCard6Label: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   metricCard6Value: {
@@ -2376,7 +2381,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   metricCard6Trend: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#059669",
     marginTop: 2,
@@ -2499,7 +2504,7 @@ const styles = StyleSheet.create({
   donutWrapper: {
     width: 110,
     height: 110,
-    marginRight: 10,
+    marginEnd: 10,
   },
   legendColumn: {
     justifyContent: "center",
@@ -2513,15 +2518,15 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 6,
+    marginEnd: 6,
   },
   legendLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     width: 65,
   },
   legendVal: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0f172a",
   },
@@ -2543,7 +2548,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   categoryTitleRow: {
     flexDirection: "row",
@@ -2561,7 +2566,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   categoryRoomsSubtext: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginBottom: 4,
   },
@@ -2587,7 +2592,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   roomStatusLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   roomStatusVal: {

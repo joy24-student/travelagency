@@ -8,7 +8,9 @@ import {
   TextStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
+import { FONTS } from "../../theme/typography";
 import { Button, ButtonProps } from "./Button";
 
 export type EmptyStateType =
@@ -53,7 +55,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   titleStyle,
   descriptionStyle,
   testID,
-}) => {
+}: EmptyStateProps) => {
+  const { colors: themeColors } = useTheme();
   const defaultIcon = getEmptyStateIcon(type);
 
   return (
@@ -68,11 +71,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     >
       <View style={[styles.illustrationWrapper, compact && styles.compactIllustration]}>
         {illustration || (
-          <View style={[styles.iconCircle, compact && styles.compactIconCircle]}>
+          <View
+            style={[
+              styles.iconCircle,
+              { backgroundColor: themeColors.primaryLight },
+              compact && styles.compactIconCircle,
+            ]}
+          >
             <Ionicons
               name={defaultIcon.name as any}
               size={compact ? 28 : 44}
-              color={defaultIcon.color}
+              color={themeColors.primary}
             />
           </View>
         )}
@@ -81,6 +90,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       <Text
         style={[
           styles.title,
+          { color: themeColors.text, fontFamily: FONTS.bengali.bold },
           compact ? styles.compactTitle : styles.fullTitle,
           titleStyle,
         ]}
@@ -92,6 +102,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <Text
           style={[
             styles.description,
+            { color: themeColors.textSecondary, fontFamily: FONTS.bengali.regular },
             compact ? styles.compactDescription : styles.fullDescription,
             descriptionStyle,
           ]}
@@ -216,6 +227,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   secondaryButton: {
-    marginLeft: 10,
+    marginStart: 10,
   },
 });

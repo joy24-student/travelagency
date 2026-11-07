@@ -16,7 +16,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import { Video, ResizeMode } from "../utils/safeExpoAv";
+import { Video, ResizeMode, Audio } from "../utils/safeExpoAv";
+import { CallPermissionModal } from "../components/call/CallPermissionModal";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 
 import {
@@ -28,7 +29,6 @@ import {
 import { callsRepository } from "../services/repositories/calls";
 import { useAuthStore } from "../store/authStore";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface InCallMessage {
   id: string;
@@ -217,6 +217,7 @@ export function CallScreen() {
   const [cameraFacing, setCameraFacing] = useState<CameraType>("front");
   const [permission, requestPermission] = useCameraPermissions();
   const [activeCallId, setActiveCallId] = useState<string>(initialCallId);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   // Auto-hide controls in video mode
   const [showControls, setShowControls] = useState(true);
@@ -265,6 +266,26 @@ export function CallScreen() {
       setNotificationToast((cur) => (cur === msg ? null : cur));
     }, 2800);
   }, []);
+
+  // Verify Audio and Video call permissions before connecting
+  useEffect(() => {
+    let isMounted = true;
+    async function checkCallPermissions() {
+      try {
+        const mic = await Audio.checkMicrophonePermissionAsync();
+        const cam = initialCallType === "video" ? permission?.granted ?? false : true;
+        if ((!mic.granted || !cam) && isMounted) {
+          setShowPermissionModal(true);
+        }
+      } catch (e) {
+        console.warn("Permission check error:", e);
+      }
+    }
+    checkCallPermissions();
+    return () => {
+      isMounted = false;
+    };
+  }, [initialCallType, permission?.granted]);
 
   // 1. Initialize Signaling, Audible Ringback Tone, ICE Gathering & 45s Timeout
   useEffect(() => {
@@ -1254,6 +1275,20 @@ export function CallScreen() {
           </SafeAreaView>
         </LinearGradient>
       )}
+
+      {/* Pre-Call Permissions Modal */}
+      <CallPermissionModal
+        visible={showPermissionModal}
+        callType={callType}
+        onGranted={() => {
+          setShowPermissionModal(false);
+          showToast("অনুমতি অনুমোদিত হয়েছে");
+        }}
+        onDenied={() => {
+          setShowPermissionModal(false);
+          handleEndCall();
+        }}
+      />
     </View>
   );
 }
@@ -1310,7 +1345,7 @@ const styles = StyleSheet.create({
   },
   reconnectBannerSubtitle: {
     color: "rgba(255, 255, 255, 0.85)",
-    fontSize: 10,
+    fontSize: 12,
   },
   videoStreamContainer: {
     flex: 1,
@@ -1387,7 +1422,7 @@ const styles = StyleSheet.create({
   },
   badgeGatheringText: {
     color: "#F59E0B",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   badgeConnected: {
@@ -1397,7 +1432,7 @@ const styles = StyleSheet.create({
   },
   badgeConnectedText: {
     color: "#10B981",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   badgeTimeout: {
@@ -1407,7 +1442,7 @@ const styles = StyleSheet.create({
   },
   badgeTimeoutText: {
     color: "#EF4444",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   badgeRinging: {
@@ -1417,7 +1452,7 @@ const styles = StyleSheet.create({
   },
   badgeRingingText: {
     color: "#38BDF8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   badgeCalling: {
@@ -1427,7 +1462,7 @@ const styles = StyleSheet.create({
   },
   badgeCallingText: {
     color: "#60A5FA",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   greenLiveDot: {
@@ -1449,7 +1484,7 @@ const styles = StyleSheet.create({
   },
   encryptedText: {
     color: "#10B981",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   headerChatBtn: {
@@ -1480,7 +1515,7 @@ const styles = StyleSheet.create({
   },
   grantCameraText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
   },
@@ -1502,7 +1537,7 @@ const styles = StyleSheet.create({
   },
   pipCameraOffText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   diagnosticsPillRow: {
@@ -1532,7 +1567,7 @@ const styles = StyleSheet.create({
   },
   diagnosticChipText: {
     color: "#E2E8F0",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   inCallChatTray: {
@@ -1595,7 +1630,7 @@ const styles = StyleSheet.create({
   },
   quickChipText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
   },
   inCallInputRow: {
     flexDirection: "row",

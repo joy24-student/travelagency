@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { OptimizedImage, DEFAULT_BLURHASH } from "./common";
 import { sanitizeUserText, sanitizeMediaUrl } from "../utils/sanitizer";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -89,16 +90,60 @@ export function CommunityPost({
     onSave?.();
   };
 
+  const [isOptionsVisible, setIsOptionsVisible] = React.useState(false);
+  const [isReportVisible, setIsReportVisible] = React.useState(false);
+  const [isPostHidden, setIsPostHidden] = React.useState(false);
+
+  const handleOpenOptions = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsOptionsVisible(true);
+  };
+
+  const handleBlockUser = () => {
+    setIsOptionsVisible(false);
+    Alert.alert(
+      "ব্যবহারকারীকে ব্লক করবেন?",
+      `আপনি কি নিশ্চিত যে ${safeAuthorName}-কে ব্লক করতে চান? তাদের কোনো পোস্ট আর আপনার ফিডে প্রদর্শিত হবে না।`,
+      [
+        { text: "বাতিল", style: "cancel" },
+        {
+          text: "ব্লক করুন",
+          style: "destructive",
+          onPress: () => {
+            setIsPostHidden(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert("সফল", `${safeAuthorName}-কে সফলভাবে ব্লক করা হয়েছে।`);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReportReason = (reason: string) => {
+    setIsReportVisible(false);
+    setIsPostHidden(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(
+      "রিপোর্ট গৃহীত হয়েছে",
+      `ধন্যবাদ। "${reason}" কারণে পোস্টটি পর্যালোচনার জন্য জমা হয়েছে। অবিলম্বে এটি আপনার ফিড থেকে সরিয়ে নেওয়া হলো।`
+    );
+  };
+
+  if (isPostHidden) {
+    return null;
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable style={styles.authorInfo} onPress={onOpenProfile}>
           {safeAuthorImage ? (
-            <Image
+            <OptimizedImage
               source={{ uri: safeAuthorImage }}
               style={styles.avatar}
-              resizeMode="cover"
+              blurhash={DEFAULT_BLURHASH}
+              
             />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
@@ -126,7 +171,7 @@ export function CommunityPost({
             </View>
           </View>
         </Pressable>
-        <Pressable hitSlop={8} onPress={onShare}>
+        <Pressable hitSlop={8} onPress={handleOpenOptions} accessibilityLabel="Post Options">
           <Ionicons name="ellipsis-horizontal" size={20} color="#767683" />
         </Pressable>
       </View>
@@ -147,10 +192,11 @@ export function CommunityPost({
         </View>
       ) : safePostImage ? (
         <View style={styles.imageContainer}>
-          <Image
+          <OptimizedImage
             source={{ uri: safePostImage }}
             style={styles.postImage}
-            resizeMode="cover"
+            blurhash={DEFAULT_BLURHASH}
+            
           />
           {safeLocation && (
             <Pressable style={styles.explorePill} onPress={onExploreSpot}>
@@ -313,7 +359,7 @@ const styles = StyleSheet.create({
   },
   influencerBadgeText: {
     color: "#D97706",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   subMetaRow: {
@@ -328,7 +374,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   locationText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#0055F2",
   },
@@ -424,8 +470,88 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   viewMoreCommentsText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#0055F2",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+  },
+  modalHeader: {
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  modalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+  },
+  modalItemText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  reportItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 11,
+    paddingHorizontal: 8,
+    backgroundColor: "#FFF7ED",
+    borderRadius: 10,
+    marginBottom: 8,
+    gap: 10,
+  },
+  reportItemText: {
+    fontSize: 13,
+    color: "#9A3412",
+    fontWeight: "500",
+    flex: 1,
+  },
+  modalItemSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  modalCancelBtn: {
+    marginTop: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#475569",
   },
 });

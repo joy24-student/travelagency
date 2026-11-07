@@ -1,209 +1,154 @@
 """
-Search Service for Flights and Hotels with Redis Caching and PostgreSQL queries.
+Search Domain Service with Distributed Two-Tier Caching & Thundering-Herd Defense.
+Coordinates high-throughput queries between L1 (Memory), L2 (Redis Cluster),
+and the underlying PostgreSQL / GDS persistence layer.
 """
 
 import hashlib
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple
-from sqlalchemy import func, or_, select
+from typing import Any, Dict, Optional, Tuple, Union
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
+from app.core.cache import cache_service
 from app.core.config import settings
-from app.core.redis import CacheService
-from app.models.flight import Airline, Airport, Flight
-from app.models.hotel import Hotel, HotelRoom, HotelRoomAvailability
+from app.core.database import AsyncSessionLocal
+from app.repositories.flight_repository import FlightRepository
+from app.repositories.hotel_repository import HotelRepository
+from app.schemas.common import PaginatedResponse
 from app.schemas.flight import FlightResponse, FlightSearchQuery
 from app.schemas.hotel import HotelResponse, HotelSearchQuery
 
 logger = logging.getLogger(__name__)
 
 
-def generate_cache_key(prefix: str, params: Dict[str, Any]) -> str:
-    """Generate SHA256 hashed cache key from sorted query parameters."""
-    clean_params = {k: str(v) for k, v in sorted(params.items()) if v is not None}
-    param_str = json.dumps(clean_params, sort_keys=True)
-    digest = hashlib.sha256(param_str.encode("utf-8")).hexdigest()[:24]
-    return f"{prefix}:{digest}"
-
-
 class SearchService:
+
+    @staticmethod
+    def _generate_cache_key(prefix: str, params: Dict[str, Any]) -> str:
+        """Create deterministic SHA256 hashed cache key from query parameters."""
+        serialized = json.dumps(params, sort_keys=True, default=str)
+        hash_digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:16]
+        return f"cache:{prefix}:{hash_digest}"
 
     @staticmethod
     async def search_hotels(
         db: AsyncSession,
         query: HotelSearchQuery,
-    ) -> Tuple[List[Dict[str, Any]], int, bool]:
+        with_cache_meta: bool = False,
+    ) -> Union[PaginatedResponse[HotelResponse], Tuple[PaginatedResponse[HotelResponse], str, str]]:
         """
-        Search hotels with multi-criteria filters and Redis caching.
-        Returns: (items_data, total_count, is_cached)
+        Search hotels with Two-Tier Caching, Brotli Compression, and Thundering-Herd Defense.
+        Hot destinations (Cox's Bazar, Sylhet) utilize L1 15s TTL; L2 distributed TTL is 15 mins.
         """
-        cache_key = generate_cache_key("search:hotels", query.model_dump())
+        cache_key = SearchService._generate_cache_key("hotels", query.model_dump())
+        is_hot = cache_service.is_hot_hotel_city(query.city)
+        l1_ttl = settings.CACHE_L1_HOT_TTL_SECONDS if is_hot else settings.L1_CACHE_TTL_SECONDS
+        l2_ttl = settings.CACHE_L2_TTL_SECONDS  # 15 minutes = 900s
 
-        # 1. Check Redis Cache
-        cached_result = await CacheService.get_json(cache_key)
-        if cached_result:
-            logger.info(f"Cache HIT for hotel search: {cache_key}")
-            return cached_result.get("items", []), cached_result.get("total", 0), True
-
-        logger.info(f"Cache MISS for hotel search: {cache_key}. Executing PostgreSQL query.")
-
-        # 2. Build PostgreSQL Query
-        stmt = select(Hotel).options(selectinload(Hotel.rooms))
-        count_stmt = select(func.count(Hotel.id))
-
-        filters = []
-
-        if query.city:
-            filters.append(Hotel.city.ilike(f"%{query.city}%"))
-
-        if query.country:
-            filters.append(Hotel.country.ilike(f"%{query.country}%"))
-
-        if query.query:
-            term = f"%{query.query}%"
-            filters.append(
-                or_(
-                    Hotel.name.ilike(term),
-                    Hotel.city.ilike(term),
-                    Hotel.description.ilike(term),
+        async def _query_hotel_db() -> Dict[str, Any]:
+            async def _run(session: AsyncSession) -> Dict[str, Any]:
+                repo = HotelRepository(session)
+                offset = (query.page - 1) * query.page_size
+                hotels, total = await repo.search_hotels(
+                    city=query.city,
+                    min_star_rating=query.min_star_rating,
+                    min_price=query.min_price,
+                    max_price=query.max_price,
+                    amenities=query.amenities,
+                    sort_by=query.sort_by,
+                    offset=offset,
+                    limit=query.page_size,
                 )
-            )
+                items = [HotelResponse.model_validate(h).model_dump() for h in hotels]
+                total_pages = (total + query.page_size - 1) // query.page_size if total > 0 else 1
+                return {
+                    "items": items,
+                    "total": total,
+                    "page": query.page,
+                    "page_size": query.page_size,
+                    "total_pages": total_pages,
+                    "has_next": query.page < total_pages,
+                    "has_prev": query.page > 1,
+                }
 
-        if query.min_price is not None:
-            filters.append(Hotel.base_price >= query.min_price)
+            if db and db.is_active:
+                return await _run(db)
+            else:
+                async with AsyncSessionLocal() as session:
+                    return await _run(session)
 
-        if query.max_price is not None:
-            filters.append(Hotel.base_price <= query.max_price)
+        data, tier, status = await cache_service.get_or_compute_with_thundering_herd_defense(
+            key=cache_key,
+            compute_fn=_query_hotel_db,
+            ttl=l2_ttl,
+            l1_ttl=l1_ttl,
+            is_hot=is_hot,
+            swr_window=86400,
+        )
 
-        if query.min_rating is not None:
-            filters.append(Hotel.star_rating >= query.min_rating)
-
-        if filters:
-            stmt = stmt.where(*filters)
-            count_stmt = count_stmt.where(*filters)
-
-        # Get total matching records
-        total_res = await db.execute(count_stmt)
-        total = total_res.scalar_one()
-
-        # Apply pagination
-        offset = (query.page - 1) * query.page_size
-        stmt = stmt.order_by(Hotel.is_featured.desc(), Hotel.average_rating.desc()).offset(offset).limit(query.page_size)
-
-        res = await db.execute(stmt)
-        hotels = res.scalars().all()
-
-        # Convert to serialized dicts for caching
-        items_data = [
-            HotelResponse.model_validate(h).model_dump(mode="json")
-            for h in hotels
-        ]
-
-        # 3. Store in Redis
-        cache_payload = {"items": items_data, "total": total}
-        await CacheService.set_json(cache_key, cache_payload, ttl=settings.REDIS_CACHE_TTL_SECONDS)
-
-        return items_data, total, False
+        resp = PaginatedResponse[HotelResponse](**data)
+        if with_cache_meta:
+            return resp, tier, status
+        return resp
 
     @staticmethod
     async def search_flights(
         db: AsyncSession,
         query: FlightSearchQuery,
-    ) -> Tuple[List[Dict[str, Any]], int, bool]:
+        with_cache_meta: bool = False,
+    ) -> Union[PaginatedResponse[FlightResponse], Tuple[PaginatedResponse[FlightResponse], str, str]]:
         """
-        Search flights with airport, date, price, and seat filters with Redis caching.
-        Returns: (items_data, total_count, is_cached)
+        Search scheduled flights with Two-Tier Caching, Brotli Compression, and Thundering-Herd Defense.
+        Hot travel routes (e.g. DAC ➔ CXB, DAC ➔ SYL) utilize L1 15s TTL; L2 distributed TTL is 15 mins.
         """
-        cache_key = generate_cache_key("search:flights", query.model_dump())
+        cache_key = SearchService._generate_cache_key("flights", query.model_dump())
+        is_hot = cache_service.is_hot_flight_route(query.origin, query.destination)
+        l1_ttl = settings.CACHE_L1_HOT_TTL_SECONDS if is_hot else settings.L1_CACHE_TTL_SECONDS
+        l2_ttl = settings.CACHE_L2_TTL_SECONDS  # 15 minutes = 900s
 
-        # 1. Check Redis Cache
-        cached_result = await CacheService.get_json(cache_key)
-        if cached_result:
-            logger.info(f"Cache HIT for flight search: {cache_key}")
-            return cached_result.get("items", []), cached_result.get("total", 0), True
+        async def _query_flight_db() -> Dict[str, Any]:
+            async def _run(session: AsyncSession) -> Dict[str, Any]:
+                repo = FlightRepository(session)
+                offset = (query.page - 1) * query.page_size
+                flights, total = await repo.search_flights(
+                    origin=query.origin,
+                    destination=query.destination,
+                    departure_date=query.departure_date,
+                    cabin_class=query.cabin_class,
+                    max_price=query.max_price,
+                    airline_code=query.airline_code,
+                    offset=offset,
+                    limit=query.page_size,
+                )
+                items = [FlightResponse.model_validate(f).model_dump() for f in flights]
+                total_pages = (total + query.page_size - 1) // query.page_size if total > 0 else 1
+                return {
+                    "items": items,
+                    "total": total,
+                    "page": query.page,
+                    "page_size": query.page_size,
+                    "total_pages": total_pages,
+                    "has_next": query.page < total_pages,
+                    "has_prev": query.page > 1,
+                }
 
-        logger.info(f"Cache MISS for flight search: {cache_key}. Executing PostgreSQL query.")
+            if db and db.is_active:
+                return await _run(db)
+            else:
+                async with AsyncSessionLocal() as session:
+                    return await _run(session)
 
-        # 2. Build PostgreSQL Query
-        stmt = (
-            select(Flight)
-            .options(
-                selectinload(Flight.airline),
-                selectinload(Flight.departure_airport),
-                selectinload(Flight.arrival_airport),
-            )
+        data, tier, status = await cache_service.get_or_compute_with_thundering_herd_defense(
+            key=cache_key,
+            compute_fn=_query_flight_db,
+            ttl=l2_ttl,
+            l1_ttl=l1_ttl,
+            is_hot=is_hot,
+            swr_window=86400,
         )
-        count_stmt = select(func.count(Flight.id))
 
-        filters = []
-
-        # Available seats check
-        filters.append(Flight.available_seats >= query.passengers)
-
-        # Origin filter (by city or IATA)
-        if query.origin:
-            origin_term = f"%{query.origin}%"
-            filters.append(
-                Flight.departure_airport.has(
-                    or_(
-                        Airport.iata_code.ilike(query.origin),
-                        Airport.city.ilike(origin_term),
-                    )
-                )
-            )
-
-        # Destination filter (by city or IATA)
-        if query.destination:
-            dest_term = f"%{query.destination}%"
-            filters.append(
-                Flight.arrival_airport.has(
-                    or_(
-                        Airport.iata_code.ilike(query.destination),
-                        Airport.city.ilike(dest_term),
-                    )
-                )
-            )
-
-        # Departure date filter
-        if query.departure_date:
-            filters.append(func.date(Flight.departure_time) == query.departure_date)
-
-        # Cabin class filter
-        if query.cabin_class:
-            filters.append(Flight.cabin_class.ilike(query.cabin_class))
-
-        # Max stops filter
-        if query.max_stops is not None:
-            filters.append(Flight.stops <= query.max_stops)
-
-        # Price range filter
-        if query.min_price is not None:
-            filters.append(Flight.base_price >= query.min_price)
-        if query.max_price is not None:
-            filters.append(Flight.base_price <= query.max_price)
-
-        if filters:
-            stmt = stmt.where(*filters)
-            count_stmt = count_stmt.where(*filters)
-
-        total_res = await db.execute(count_stmt)
-        total = total_res.scalar_one()
-
-        offset = (query.page - 1) * query.page_size
-        stmt = stmt.order_by(Flight.departure_time.asc(), Flight.base_price.asc()).offset(offset).limit(query.page_size)
-
-        res = await db.execute(stmt)
-        flights = res.scalars().all()
-
-        items_data = [
-            FlightResponse.model_validate(f).model_dump(mode="json")
-            for f in flights
-        ]
-
-        # 3. Store in Redis
-        cache_payload = {"items": items_data, "total": total}
-        await CacheService.set_json(cache_key, cache_payload, ttl=settings.REDIS_CACHE_TTL_SECONDS)
-
-        return items_data, total, False
+        resp = PaginatedResponse[FlightResponse](**data)
+        if with_cache_meta:
+            return resp, tier, status
+        return resp

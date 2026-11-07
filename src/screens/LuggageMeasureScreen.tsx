@@ -1,3 +1,6 @@
+import { FocusAwareStatusBar } from "../components/ui/AppStatusBar";
+import { Platform, Dimensions } from "react-native";
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 /**
  * LuggageMeasureScreen.tsx - Pro Augmented Reality & Spatial Computing Tool
  * 
@@ -20,7 +23,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
   Animated,
   Modal,
   StatusBar,
@@ -63,7 +65,7 @@ import {
   defaultSmoother,
 } from "../services/vision/luggageEstimator";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+import { useResponsive } from "../hooks/useResponsive";
 
 // Default initial measured luggage size: 58 x 37 x 24 cm (oversized for Biman to demonstrate alert state)
 const INITIAL_DIMENSIONS: LuggageDimensions = {
@@ -75,6 +77,7 @@ const INITIAL_DIMENSIONS: LuggageDimensions = {
 type TrackingPhase = "SEARCHING_SURFACE" | "SURFACE_DETECTED" | "MEASURING";
 
 export function LuggageMeasureScreen() {
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useResponsive();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [torchEnabled, setTorchEnabled] = useState<boolean>(false);
@@ -136,6 +139,61 @@ export function LuggageMeasureScreen() {
     () => evaluateLuggageAllowance(measuredDimensions, selectedAirline, cabinClass),
     [measuredDimensions, selectedAirline, cabinClass]
   );
+
+  // Bengali Numeral Helper
+  const toBengaliNumber = useCallback((num: number | string): string => {
+    const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+    return String(num).replace(/[0-9]/g, (d) => bnDigits[Number(d)]);
+  }, []);
+
+  // Active airline max dimensions & exact excess calculation
+  const activeAllowed = useMemo(() => {
+    return cabinClass === "Business" && selectedAirline.businessMaxDimensions
+      ? selectedAirline.businessMaxDimensions
+      : selectedAirline.maxDimensions;
+  }, [selectedAirline, cabinClass]);
+
+  const dimDifferences = useMemo(() => {
+    const hDiff = Number((measuredDimensions.height - activeAllowed.height).toFixed(1));
+    const wDiff = Number((measuredDimensions.width - activeAllowed.width).toFixed(1));
+    const dDiff = Number((measuredDimensions.depth - activeAllowed.depth).toFixed(1));
+    const maxEx = Math.max(0, hDiff, wDiff, dDiff);
+
+    let mostExceededDimension: "height" | "width" | "depth" = "height";
+    if (hDiff >= wDiff && hDiff >= dDiff) mostExceededDimension = "height";
+    else if (wDiff >= dDiff) mostExceededDimension = "width";
+    else mostExceededDimension = "depth";
+
+    const banglaDimNames: Record<"height" | "width" | "depth", string> = {
+      height: "উচ্চতা",
+      width: "প্রস্থ",
+      depth: "গভীরতা",
+    };
+
+    const isWithinCabinLimit = compliance.status === "COMPLIANT";
+    const formattedExcess = maxEx % 1 === 0 ? maxEx.toFixed(0) : maxEx.toFixed(1);
+
+    const verdictBengali = isWithinCabinLimit
+      ? "✓ ক্যাবিন সীমার মধ্যে"
+      : `✗ ${toBengaliNumber(formattedExcess)} সেমি বেশি`;
+
+    const verdictEnglish = isWithinCabinLimit
+      ? "✓ Within Cabin Limit"
+      : `✗ ${formattedExcess} cm Over Limit`;
+
+    return {
+      hDiff,
+      wDiff,
+      dDiff,
+      maxEx,
+      formattedExcess,
+      mostExceededDimension,
+      mostExceededNameBangla: banglaDimNames[mostExceededDimension],
+      isWithinCabinLimit,
+      verdictBengali,
+      verdictEnglish,
+    };
+  }, [measuredDimensions, activeAllowed, compliance.status, toBengaliNumber]);
 
   // Calculate 3D Bounding Box in AR viewport with 3D rotation & sizing cage
   const boundingBox: BoundingBox3D = useMemo(() => {
@@ -360,7 +418,7 @@ export function LuggageMeasureScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" translucent />
+      <FocusAwareStatusBar style="light" backgroundColor="#000000" translucent />
 
       {/* ─── LIVE CAMERA FEED / AR VIEWPORT ───────────────────────────────────── */}
       <View style={StyleSheet.absoluteFillObject}>
@@ -385,7 +443,7 @@ export function LuggageMeasureScreen() {
                   onPress={() => requestPermission()}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="videocam" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Ionicons name="videocam" size={18} color="#FFFFFF" style={{ marginEnd: 8 }} />
                   <Text style={styles.grantPermText}>Enable Live AR Camera</Text>
                 </TouchableOpacity>
               )}
@@ -708,6 +766,15 @@ export function LuggageMeasureScreen() {
                   ? airline.businessMaxWeightKg
                   : airline.maxWeightKg;
 
+              // Real-time calculation for this airline allowance
+              const hD = Number((measuredDimensions.height - maxDim.height).toFixed(1));
+              const wD = Number((measuredDimensions.width - maxDim.width).toFixed(1));
+              const dD = Number((measuredDimensions.depth - maxDim.depth).toFixed(1));
+              const airlineMaxEx = Math.max(0, hD, wD, dD);
+              const isAirlineCompliant = airlineMaxEx <= 0.8;
+              const formattedAirlineExcess =
+                airlineMaxEx % 1 === 0 ? airlineMaxEx.toFixed(0) : airlineMaxEx.toFixed(1);
+
               return (
                 <TouchableOpacity
                   key={airline.id}
@@ -734,13 +801,32 @@ export function LuggageMeasureScreen() {
                     <Text style={styles.airlineChipLimits}>
                       {maxDim.height}×{maxDim.width}×{maxDim.depth} cm • {maxWeight}kg
                     </Text>
+                    <View
+                      style={[
+                        styles.airlineVerdictBadge,
+                        isAirlineCompliant
+                          ? styles.airlineVerdictBadgeOk
+                          : styles.airlineVerdictBadgeExceeded,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.airlineVerdictBadgeText,
+                          isAirlineCompliant ? styles.textVerdictOk : styles.textVerdictExceeded,
+                        ]}
+                      >
+                        {isAirlineCompliant
+                          ? "✓ ক্যাবিন সীমার মধ্যে"
+                          : `✗ ${toBengaliNumber(formattedAirlineExcess)} সেমি বেশি`}
+                      </Text>
+                    </View>
                   </View>
                   {isSelected && (
                     <Ionicons
                       name="checkmark-circle"
                       size={18}
                       color="#00E5FF"
-                      style={{ marginLeft: 6 }}
+                      style={{ marginStart: 6 }}
                     />
                   )}
                 </TouchableOpacity>
@@ -905,30 +991,73 @@ export function LuggageMeasureScreen() {
               : styles.statusCardOversized,
           ]}
         >
-          {/* Status Header */}
-          <View style={styles.statusHeaderRow}>
-            <View style={styles.statusIndicatorBadge}>
+          {/* Primary High-Visibility Airline Verdict Banner */}
+          <View
+            style={[
+              styles.primaryVerdictBanner,
+              dimDifferences.isWithinCabinLimit
+                ? styles.primaryVerdictBannerOk
+                : styles.primaryVerdictBannerExceeded,
+            ]}
+          >
+            <View style={styles.verdictIconRow}>
               <Ionicons
                 name={
-                  compliance.status === "COMPLIANT"
+                  dimDifferences.isWithinCabinLimit
                     ? "checkmark-circle"
-                    : "warning"
+                    : "close-circle"
                 }
-                size={22}
-                color={compliance.status === "COMPLIANT" ? "#10B981" : "#EF4444"}
+                size={26}
+                color={dimDifferences.isWithinCabinLimit ? "#10B981" : "#EF4444"}
               />
-              <Text
+              <View style={{ flex: 1, marginStart: 8 }}>
+                <Text
+                  style={[
+                    styles.primaryVerdictTitle,
+                    {
+                      color:
+                        dimDifferences.isWithinCabinLimit ? "#10B981" : "#EF4444",
+                    },
+                  ]}
+                >
+                  {dimDifferences.verdictBengali}
+                </Text>
+                <Text style={styles.primaryVerdictSubtitle}>
+                  {dimDifferences.isWithinCabinLimit
+                    ? `${selectedAirline.name} (${selectedAirline.iataCode}) ক্যাবিন সীমার সম্পূর্ণ উপযোগী`
+                    : `${selectedAirline.name}-এর তুলনায় ${dimDifferences.mostExceededNameBangla} ${toBengaliNumber(dimDifferences.formattedExcess)} সেমি অতিরিক্ত`}
+                </Text>
+              </View>
+
+              <View
                 style={[
-                  styles.statusBadgeText,
+                  styles.fitPill,
                   {
-                    color:
-                      compliance.status === "COMPLIANT" ? "#10B981" : "#EF4444",
+                    backgroundColor: dimDifferences.isWithinCabinLimit
+                      ? "rgba(16, 185, 129, 0.2)"
+                      : "rgba(239, 68, 68, 0.2)",
                   },
                 ]}
               >
-                {compliance.status === "COMPLIANT"
-                  ? "CABIN COMPLIANT"
-                  : "CABIN LIMIT EXCEEDED"}
+                <Text
+                  style={{
+                    color: dimDifferences.isWithinCabinLimit ? "#34D399" : "#F87171",
+                    fontWeight: "800",
+                    fontSize: 11,
+                  }}
+                >
+                  {dimDifferences.verdictEnglish}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Status Sub-Header with Volume and Weight */}
+          <View style={styles.statusHeaderRow}>
+            <View style={styles.selectedAirlineSubBadge}>
+              <MaterialCommunityIcons name="airplane" size={14} color="#38BDF8" />
+              <Text style={styles.selectedAirlineSubText}>
+                {selectedAirline.name} • {cabinClass}
               </Text>
             </View>
 
@@ -951,6 +1080,10 @@ export function LuggageMeasureScreen() {
             {(["height", "width", "depth"] as const).map((dim) => {
               const evalItem = compliance.dimensions[dim];
               const isExceeded = evalItem.status === "EXCEEDED";
+              const banglaName =
+                dim === "height" ? "উচ্চতা" : dim === "width" ? "প্রস্থ" : "গভীরতা";
+              const diffCm = Math.abs(evalItem.differenceCm);
+              const formattedDiff = diffCm % 1 === 0 ? diffCm.toFixed(0) : diffCm.toFixed(1);
 
               return (
                 <View
@@ -960,7 +1093,9 @@ export function LuggageMeasureScreen() {
                     isExceeded ? styles.dimEvalChipExceeded : styles.dimEvalChipOk,
                   ]}
                 >
-                  <Text style={styles.dimEvalTitle}>{dim.toUpperCase()}</Text>
+                  <Text style={styles.dimEvalTitle}>
+                    {banglaName} ({dim.toUpperCase()})
+                  </Text>
                   <Text
                     style={[
                       styles.dimEvalValue,
@@ -970,13 +1105,27 @@ export function LuggageMeasureScreen() {
                     {evalItem.measuredCm} cm
                   </Text>
                   <Text style={styles.dimEvalAllowed}>
-                    Max: {evalItem.allowedCm} cm
+                    অনুমোদিত: {evalItem.allowedCm} cm
                   </Text>
-                  {isExceeded && (
-                    <Text style={styles.dimEvalOverBadge}>
-                      +{evalItem.differenceCm} cm
+                  <View
+                    style={[
+                      styles.dimVerdictTag,
+                      isExceeded
+                        ? styles.dimVerdictTagExceeded
+                        : styles.dimVerdictTagOk,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dimVerdictTagText,
+                        isExceeded ? styles.textExceeded : styles.textOk,
+                      ]}
+                    >
+                      {isExceeded
+                        ? `✗ ${toBengaliNumber(formattedDiff)} সেমি বেশি`
+                        : "✓ সীমার মধ্যে"}
                     </Text>
-                  )}
+                  </View>
                 </View>
               );
             })}
@@ -1156,7 +1305,7 @@ export function LuggageMeasureScreen() {
                 {/* Visual Oversize Notice */}
                 <View style={styles.modalOversizeNotice}>
                   <Ionicons name="alert-circle" size={24} color="#EF4444" />
-                  <View style={{ flex: 1, marginLeft: 10 }}>
+                  <View style={{ flex: 1, marginStart: 10 }}>
                     <Text style={styles.modalNoticeTitle}>Your bag exceeds cabin limits</Text>
                     <Text style={styles.modalNoticeBody}>
                       Measured {measuredDimensions.height}×{measuredDimensions.width}×
@@ -1212,7 +1361,7 @@ export function LuggageMeasureScreen() {
                         ) : null}
                       </View>
 
-                      <View style={{ flex: 1, marginLeft: 12 }}>
+                      <View style={{ flex: 1, marginStart: 12 }}>
                         <View style={styles.tierHeaderLine}>
                           <Text style={styles.tierWeightText}>+{tier.weightKg} kg</Text>
                           {tier.badge && (
@@ -1259,7 +1408,7 @@ export function LuggageMeasureScreen() {
                         ? `৳${selectedTier?.preBookPriceBdt.toLocaleString() || "1,260"}`
                         : `$${selectedTier?.preBookPriceUsd || "11"}`}
                     </Text>
-                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginStart: 8 }} />
                   </LinearGradient>
                 </TouchableOpacity>
               </ScrollView>
@@ -1418,11 +1567,11 @@ const styles = StyleSheet.create({
     height: 7,
     borderRadius: 3.5,
     backgroundColor: "#00E5FF",
-    marginRight: 6,
+    marginEnd: 6,
   },
   headerSuperTitle: {
     color: "#00E5FF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1.2,
   },
@@ -1461,7 +1610,7 @@ const styles = StyleSheet.create({
   },
   classToggleText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   classToggleTextActive: {
@@ -1484,7 +1633,7 @@ const styles = StyleSheet.create({
   },
   sizingCageToggleText: {
     color: "#94A3B8",
-    fontSize: 10.5,
+    fontSize: 12.5,
     fontWeight: "700",
   },
 
@@ -1496,7 +1645,7 @@ const styles = StyleSheet.create({
   },
   sectionCaption: {
     color: "#94A3B8",
-    fontSize: 9.5,
+    fontSize: 12.5,
     fontWeight: "700",
     letterSpacing: 0.8,
     paddingHorizontal: 16,
@@ -1525,11 +1674,11 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 5,
     paddingVertical: 2,
-    marginRight: 6,
+    marginEnd: 6,
   },
   airlineIataText: {
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   airlineChipTextWrap: {
@@ -1546,8 +1695,102 @@ const styles = StyleSheet.create({
   },
   airlineChipLimits: {
     color: "#94A3B8",
-    fontSize: 9.5,
+    fontSize: 12.5,
     marginTop: 1,
+  },
+  airlineVerdictBadge: {
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
+  airlineVerdictBadgeOk: {
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+  },
+  airlineVerdictBadgeExceeded: {
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.4)",
+  },
+  airlineVerdictBadgeText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+  },
+  textVerdictOk: {
+    color: "#34D399",
+  },
+  textVerdictExceeded: {
+    color: "#F87171",
+  },
+
+  // Primary High-Visibility Airline Verdict Banner
+  primaryVerdictBanner: {
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1.5,
+  },
+  primaryVerdictBannerOk: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderColor: "#10B981",
+  },
+  primaryVerdictBannerExceeded: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "#EF4444",
+  },
+  verdictIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  primaryVerdictTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+  },
+  primaryVerdictSubtitle: {
+    color: "#CBD5E1",
+    fontSize: 11.5,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  fitPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    alignSelf: "flex-start",
+  },
+  selectedAirlineSubBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+  },
+  selectedAirlineSubText: {
+    color: "#38BDF8",
+    fontSize: 11.5,
+    fontWeight: "700",
+  },
+  dimVerdictTag: {
+    marginTop: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  dimVerdictTagOk: {
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+  },
+  dimVerdictTagExceeded: {
+    backgroundColor: "rgba(239, 68, 68, 0.25)",
+  },
+  dimVerdictTagText: {
+    fontSize: 10.5,
+    fontWeight: "800",
   },
 
   // Tracking HUD
@@ -1573,7 +1816,7 @@ const styles = StyleSheet.create({
   },
   trackingPillText: {
     color: "#F8FAFC",
-    fontSize: 11.5,
+    fontSize: 12.5,
     fontWeight: "600",
   },
   trackingConfidenceBadge: {
@@ -1584,7 +1827,7 @@ const styles = StyleSheet.create({
   },
   trackingConfidenceText: {
     color: "#00E5FF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   orbitPill: {
@@ -1604,7 +1847,7 @@ const styles = StyleSheet.create({
   },
   orbitText: {
     color: "#E2E8F0",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
 
@@ -1654,11 +1897,11 @@ const styles = StyleSheet.create({
   },
   stepperDimName: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   stepperDiffText: {
-    fontSize: 9.5,
+    fontSize: 12.5,
     fontWeight: "600",
   },
   stepperValueText: {
@@ -1692,7 +1935,7 @@ const styles = StyleSheet.create({
   },
   presetLabel: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   presetChip: {
@@ -1706,7 +1949,7 @@ const styles = StyleSheet.create({
   },
   presetChipText: {
     color: "#E2E8F0",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
 
@@ -1729,6 +1972,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px -4px 10px rgba(15, 23, 42, 0.35)" } : {}),
   },
   statusCardCompliant: {
     borderColor: "#10B981",
@@ -1776,7 +2020,7 @@ const styles = StyleSheet.create({
   },
   volumeText: {
     color: "#CBD5E1",
-    fontSize: 10.5,
+    fontSize: 12.5,
     fontWeight: "600",
   },
 
@@ -1804,7 +2048,7 @@ const styles = StyleSheet.create({
   },
   dimEvalTitle: {
     color: "#94A3B8",
-    fontSize: 9.5,
+    fontSize: 12.5,
     fontWeight: "800",
   },
   dimEvalValue: {
@@ -1814,11 +2058,11 @@ const styles = StyleSheet.create({
   },
   dimEvalAllowed: {
     color: "#64748B",
-    fontSize: 9.5,
+    fontSize: 12.5,
   },
   dimEvalOverBadge: {
     color: "#EF4444",
-    fontSize: 9.5,
+    fontSize: 12.5,
     fontWeight: "bold",
     marginTop: 2,
   },
@@ -1834,11 +2078,11 @@ const styles = StyleSheet.create({
   },
   linearLabel: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   linearValue: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   linearTrack: {
@@ -1853,7 +2097,7 @@ const styles = StyleSheet.create({
   },
   summaryCaptionText: {
     color: "#CBD5E1",
-    fontSize: 11.5,
+    fontSize: 12.5,
     lineHeight: 16,
     marginBottom: 12,
   },
@@ -1867,6 +2111,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 6,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.4)" } : {}),
   },
   addonGradient: {
     flexDirection: "row",
@@ -1891,7 +2136,7 @@ const styles = StyleSheet.create({
   },
   addonBtnSubText: {
     color: "rgba(255, 255, 255, 0.8)",
-    fontSize: 10.5,
+    fontSize: 12.5,
     marginTop: 1,
   },
   addonSaveBadge: {
@@ -1899,7 +2144,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    marginLeft: 8,
+    marginStart: 8,
   },
   addonSaveBadgeText: {
     color: "#DC2626",
@@ -1952,7 +2197,7 @@ const styles = StyleSheet.create({
   },
   modalDiscountTagText: {
     color: "#EF4444",
-    fontSize: 9.5,
+    fontSize: 12.5,
     fontWeight: "800",
   },
   modalTitle: {
@@ -1989,7 +2234,7 @@ const styles = StyleSheet.create({
   },
   modalNoticeBody: {
     color: "#CBD5E1",
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 15,
     marginTop: 2,
   },
@@ -2001,7 +2246,7 @@ const styles = StyleSheet.create({
   },
   tierSectionTitle: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.8,
   },
@@ -2013,7 +2258,7 @@ const styles = StyleSheet.create({
   },
   currencyToggleText: {
     color: "#00E5FF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   tierOptionCard: {
@@ -2063,17 +2308,17 @@ const styles = StyleSheet.create({
   },
   tierPopularBadgeText: {
     color: "#FFFFFF",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
   },
   tierDescText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 1,
   },
   tierSavingsText: {
     color: "#10B981",
-    fontSize: 10.5,
+    fontSize: 12.5,
     fontWeight: "600",
     marginTop: 2,
   },
@@ -2082,7 +2327,7 @@ const styles = StyleSheet.create({
   },
   tierGatePriceStrike: {
     color: "#64748B",
-    fontSize: 11,
+    fontSize: 12,
     textDecorationLine: "line-through",
   },
   tierPrebookPrice: {
@@ -2101,7 +2346,7 @@ const styles = StyleSheet.create({
   },
   guaranteeText: {
     color: "#93C5FD",
-    fontSize: 11,
+    fontSize: 12,
     flex: 1,
     lineHeight: 15,
   },
@@ -2230,7 +2475,7 @@ const styles = StyleSheet.create({
   },
   certSubtitle: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   certBody: {
@@ -2247,11 +2492,11 @@ const styles = StyleSheet.create({
   },
   certLabel: {
     color: "#94A3B8",
-    fontSize: 11.5,
+    fontSize: 12.5,
   },
   certValue: {
     color: "#FFFFFF",
-    fontSize: 11.5,
+    fontSize: 12.5,
     fontWeight: "600",
   },
   certValueHighlight: {

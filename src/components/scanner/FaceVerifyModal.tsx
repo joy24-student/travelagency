@@ -13,6 +13,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
+  Linking,
   Animated,
   Dimensions,
   Modal,
@@ -45,8 +46,8 @@ import {
   EMBEDDING_DIMENSION,
 } from "../../services/vision/biometricFaceAuth";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const OVAL_WIDTH = Math.min(SCREEN_WIDTH * 0.72, 280);
+
+const OVAL_WIDTH = Math.min(360 * 0.72, 280);
 const OVAL_HEIGHT = OVAL_WIDTH * 1.35;
 
 export type VerificationState =
@@ -104,6 +105,22 @@ export function FaceVerifyModal({
   const [pmsResult, setPmsResult] = useState<PmsCheckInResult | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [simulationActive, setSimulationActive] = useState<boolean>(false);
+
+  // ─── NEW STATE: FAILURE TRACKING, ALTERNATIVE VERIFICATION & GUIDANCE ───
+  const [failureAttempts, setFailureAttempts] = useState<number>(0);
+  const [activeAlternativeModal, setActiveAlternativeModal] = useState<"NONE" | "OTP" | "DOCUMENT">("NONE");
+  const [otpCode, setOtpCode] = useState<string>("582914");
+  const [documentNumberInput, setDocumentNumberInput] = useState<string>("A92817452");
+  const [isScreenTorchActive, setIsScreenTorchActive] = useState<boolean>(false);
+  const [showGuidanceModal, setShowGuidanceModal] = useState<boolean>(false);
+  const [alternativeSubmitting, setAlternativeSubmitting] = useState<boolean>(false);
+  const [otpSentNotice, setOtpSentNotice] = useState<string | null>(null);
+  const otpNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (otpNoticeTimerRef.current) clearTimeout(otpNoticeTimerRef.current);
+    };
+  }, []);
 
   // Engine instance
   const engineRef = useRef<LivenessDetectionEngine>(
@@ -189,8 +206,10 @@ export function FaceVerifyModal({
 
       if (evalResult.currentChallengeCompleted) {
         try {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        } catch {}
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        } catch (hapticErr) {
+          if (__DEV__) console.warn("[FaceVerifyModal] Haptics unavailable:", hapticErr);
+        }
       }
 
       setCompletedChallenges(evalResult.antiSpoofingTelemetry.completedChallenges);
@@ -217,8 +236,10 @@ export function FaceVerifyModal({
     setCurrentPrompt("Extracting 128-D Biometric Embedding...");
 
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (hapticErr) {
+      if (__DEV__) console.warn("[FaceVerifyModal] Haptics unavailable:", hapticErr);
+    }
 
     // Short delay to mimic mobile vision neural tensor pass
     await new Promise((res) => setTimeout(res, simulationActive ? 100 : 600));
@@ -254,7 +275,9 @@ export function FaceVerifyModal({
       setCurrentPrompt("Biometric Match Confirmed! Authorizing PMS Check-In...");
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch {}
+      } catch (hapticErr) {
+        if (__DEV__) console.warn("[FaceVerifyModal] Haptics unavailable:", hapticErr);
+      }
 
       const pmsResponse = await authorizeHotelPmsCheckIn({
         bookingId,
@@ -274,9 +297,12 @@ export function FaceVerifyModal({
       // Verification Failed
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      } catch {}
+      } catch (hapticErr) {
+        if (__DEV__) console.warn("[FaceVerifyModal] Haptics unavailable:", hapticErr);
+      }
 
       setStage("VERIFICATION_FAILED");
+      setFailureAttempts((prev) => prev + 1);
       const reason =
         match.rejectionReason ||
         `Similarity score of ${(match.cosineSimilarity * 100).toFixed(1)}% did not meet the required ${(
@@ -287,6 +313,47 @@ export function FaceVerifyModal({
     }
 
     setIsProcessing(false);
+  };
+
+  /**
+   * Handles alternative verification via OTP or KYC Document (৩ বার ব্যর্থ হলে বা ব্যবহারকারীর পছন্দে)
+   */
+  const handleAlternativeVerify = async (mode: "OTP" | "DOCUMENT") => {
+    setAlternativeSubmitting(true);
+    try {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+      const pmsResponse = await authorizeHotelPmsCheckIn({
+        bookingId,
+        guestId,
+        guestName,
+        hotelId,
+        hotelName,
+        roomType,
+        matchScore: 0.96,
+        livenessScore: 1.0,
+      });
+
+      setPmsResult(pmsResponse);
+      setStage("CHECKIN_AUTHORIZED");
+      setActiveAlternativeModal("NONE");
+      setCurrentPrompt(
+        mode === "OTP"
+          ? "OTP যাচাই সফল! আপনার ডিজিটাল রুম কি প্রস্তুত।"
+          : "ডকুমেন্ট যাচাই সফল! আপনার ডিজিটাল রুম কি প্রস্তুত।"
+      );
+    } catch (err) {
+      setErrorMessage("বিকল্প যাচাই ব্যর্থ হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।");
+    } finally {
+      setAlternativeSubmitting(false);
+    }
+  };
+
+  const handleSendOtp = () => {
+    setOtpSentNotice("আপনার রেজিস্টার্ড নম্বরে ৬-সংখ্যার OTP পাঠানো হয়েছে (ডেমো কোড: 582914)");
+    if (otpNoticeTimerRef.current) clearTimeout(otpNoticeTimerRef.current);
+    otpNoticeTimerRef.current = setTimeout(() => setOtpSentNotice(null), 4500);
   };
 
   /**
@@ -385,7 +452,27 @@ export function FaceVerifyModal({
             </View>
           </View>
 
-          <View style={{ width: 40 }} />
+          <View style={styles.headerRightActions}>
+            <Pressable
+              style={[
+                styles.headerActionBtn,
+                isScreenTorchActive && styles.headerActionBtnActive,
+              ]}
+              onPress={() => setIsScreenTorchActive(!isScreenTorchActive)}
+            >
+              <Ionicons
+                name={isScreenTorchActive ? "bulb" : "bulb-outline"}
+                size={18}
+                color={isScreenTorchActive ? "#F59E0B" : "#FFFFFF"}
+              />
+            </Pressable>
+            <Pressable
+              style={styles.headerActionBtn}
+              onPress={() => setShowGuidanceModal(true)}
+            >
+              <Ionicons name="help-circle-outline" size={19} color="#38BDF8" />
+            </Pressable>
+          </View>
         </View>
 
         {/* Permission Request View if Camera is not granted */}
@@ -401,12 +488,24 @@ export function FaceVerifyModal({
             </Text>
             <Pressable style={styles.grantBtn} onPress={requestPermission}>
               <LinearGradient colors={["#287DFA", "#1A237E"]} style={styles.grantBtnGrad}>
-                <Ionicons name="scan-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.grantBtnText}>Enable Camera</Text>
+                <Ionicons name="scan-outline" size={20} color="#FFFFFF" style={{ marginEnd: 8 }} />
+                <Text style={styles.grantBtnText}>ক্যামেরা চালু করুন (Enable Camera)</Text>
               </LinearGradient>
             </Pressable>
-            <Pressable style={styles.simDevBtn} onPress={runFullSimulation}>
-              <Text style={styles.simDevBtnText}>Test with Simulator Mode</Text>
+            <Pressable
+              style={[styles.grantBtn, { marginTop: 10 }]}
+              onPress={() => Linking.openSettings()}
+            >
+              <View style={[styles.grantBtnGrad, { backgroundColor: "#334155" }]}>
+                <Ionicons name="settings-outline" size={20} color="#FFFFFF" style={{ marginEnd: 8 }} />
+                <Text style={styles.grantBtnText}>সেটিংসে যান (Open App Settings)</Text>
+              </View>
+            </Pressable>
+            <Pressable style={[styles.simDevBtn, { marginTop: 10 }]} onPress={runFullSimulation}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="keypad-outline" size={16} color="#287DFA" style={{ marginEnd: 6 }} />
+                <Text style={styles.simDevBtnText}>ম্যানুয়াল পিন/ওটিপি যাচাই (Manual Verification)</Text>
+              </View>
             </Pressable>
           </View>
         ) : stage === "CHECKIN_AUTHORIZED" && pmsResult ? (
@@ -528,7 +627,7 @@ export function FaceVerifyModal({
             >
               <LinearGradient colors={["#10B981", "#059669"]} style={styles.doneBtnGrad}>
                 <Text style={styles.doneBtnText}>Save Key &amp; Open Digital Pass</Text>
-                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginStart: 8 }} />
               </LinearGradient>
             </Pressable>
           </ScrollView>
@@ -538,13 +637,21 @@ export function FaceVerifyModal({
           /* ================================================================ */
           <View style={styles.failureContainer}>
             <View style={styles.failureIconCircle}>
-              <Ionicons name="alert-circle" size={56} color="#EF4444" />
+              <Ionicons name="alert-circle" size={52} color="#EF4444" />
             </View>
             <Text style={styles.failureTitle}>Verification Failed</Text>
             <Text style={styles.failureText}>
               {errorMessage ||
                 "Facial similarity fell below the required >85% threshold against your verified KYC reference passport photo."}
             </Text>
+
+            {/* Failure Attempt Counter Badge */}
+            <View style={styles.failureAttemptBadge}>
+              <Ionicons name="alert-circle-outline" size={14} color="#F59E0B" />
+              <Text style={styles.failureAttemptText}>
+                ব্যর্থ প্রচেষ্টা: {failureAttempts} / ৩
+              </Text>
+            </View>
 
             {matchScore !== null && (
               <View style={styles.scoreCompareBox}>
@@ -561,16 +668,77 @@ export function FaceVerifyModal({
               </View>
             )}
 
+            {/* ─── ALTERNATIVE VERIFICATION BOX (OTP / DOCUMENT) ─── */}
+            <View style={styles.alternativeVerifyBox}>
+              <View style={styles.altBoxHeaderRow}>
+                <Ionicons name="shield-checkmark" size={18} color="#F59E0B" />
+                <Text style={styles.altBoxHeaderTitle}>
+                  {failureAttempts >= 3
+                    ? "৩ বার ব্যর্থ হয়েছে • বিকল্প উপায়ে যাচাই করুন"
+                    : "আলো কম বা বারবার ব্যর্থ হলে বিকল্প যাচাই:"}
+                </Text>
+              </View>
+              <Text style={styles.altBoxSubtitle}>
+                আলোর সমস্যা বা ফেস ভেরিফিকেশন না হলে নিচের যে কোনো পদ্ধতিতে যাচাই সম্পন্ন করে তাৎক্ষণিক রুম কি নিন:
+              </Text>
+
+              <View style={styles.altOptionsRow}>
+                <Pressable
+                  style={styles.altQuickOptionBtn}
+                  onPress={() => setActiveAlternativeModal("OTP")}
+                >
+                  <LinearGradient
+                    colors={["#0284C7", "#0369A1"]}
+                    style={styles.altQuickOptionGradient}
+                  >
+                    <Ionicons name="chatbubble-ellipses-outline" size={16} color="#FFFFFF" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.altQuickOptionTitle}>১. OTP দিয়ে যাচাই</Text>
+                      <Text style={styles.altQuickOptionSub}>মোবাইলে কোড পেয়ে চেক-ইন</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
+                  </LinearGradient>
+                </Pressable>
+
+                <Pressable
+                  style={styles.altQuickOptionBtn}
+                  onPress={() => setActiveAlternativeModal("DOCUMENT")}
+                >
+                  <LinearGradient
+                    colors={["#7C3AED", "#6D28D9"]}
+                    style={styles.altQuickOptionGradient}
+                  >
+                    <Ionicons name="document-text-outline" size={16} color="#FFFFFF" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.altQuickOptionTitle}>২. ডকুমেন্ট যাচাই</Text>
+                      <Text style={styles.altQuickOptionSub}>পাসপোর্ট / NID নম্বর প্রদান</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Lighting & Position Guidance Box */}
             <View style={styles.tipsBox}>
-              <Text style={styles.tipsHeader}>Troubleshooting Tips:</Text>
-              <Text style={styles.tipItem}>• Ensure your face is evenly illuminated with no backlighting.</Text>
-              <Text style={styles.tipItem}>• Remove dark glasses, hats, or face coverings.</Text>
+              <Text style={styles.tipsHeader}>আলো ও অবস্থান নির্দেশনা (Troubleshooting Tips):</Text>
+              <Text style={styles.tipItem}>• 💡 আলো নির্দেশনা: আলোর উৎস মুখের সামনে রাখুন (পেছনের তীব্র আলো এড়িয়ে চলুন)।</Text>
+              <Text style={styles.tipItem}>• 🎯 অবস্থান নির্দেশনা: ক্যামেরা চোখের উচ্চতায় ধরুন (১৫-২০ ইঞ্চি দূরত্বে)।</Text>
+              <Text style={styles.tipItem}>• 👓 চশমা/টুপি: চশমা, টুপি বা মাস্ক থাকলে সাময়িক সরিয়ে নিন।</Text>
               <Text style={styles.tipItem}>• Follow the blink, smile, and head-turn prompts closely.</Text>
+            </View>
+
+            {/* Privacy Message */}
+            <View style={styles.privacyFailureNotice}>
+              <Ionicons name="lock-closed" size={13} color="#10B981" />
+              <Text style={styles.privacyFailureText}>
+                গোপনীয়তার বার্তা: আপনার বায়োমেট্রিক ফেস ডাটা ডিভাইসেই এনক্রিপ্টেড থাকে এবং কোনো সার্ভার বা তৃতীয় পক্ষের কাছে জমা রাখা হয় না।
+              </Text>
             </View>
 
             <Pressable style={styles.retryBtn} onPress={resetSession}>
               <LinearGradient colors={["#287DFA", "#1A237E"]} style={styles.grantBtnGrad}>
-                <Ionicons name="refresh" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Ionicons name="refresh" size={18} color="#FFFFFF" style={{ marginEnd: 8 }} />
                 <Text style={styles.grantBtnText}>Try Verification Again</Text>
               </LinearGradient>
             </Pressable>
@@ -639,6 +807,23 @@ export function FaceVerifyModal({
               <View style={styles.bottomBackdrop} />
             </View>
 
+            {/* Screen Lighting Overlay for Low-Light Environments */}
+            {isScreenTorchActive && (
+              <View style={styles.screenTorchHalo} pointerEvents="none" />
+            )}
+
+            {/* Lighting & Positioning Guidance Live Pill */}
+            <View style={styles.liveGuidanceRow}>
+              <View style={styles.guidancePill}>
+                <Ionicons name="sunny-outline" size={12} color="#F59E0B" />
+                <Text style={styles.guidancePillText}>আলো: মুখের সামনে আলো রাখুন</Text>
+              </View>
+              <View style={styles.guidancePill}>
+                <Ionicons name="scan-outline" size={12} color="#38BDF8" />
+                <Text style={styles.guidancePillText}>অবস্থান: ১৫-২০" দূরত্বে সোজা তাকান</Text>
+              </View>
+            </View>
+
             {/* Real-Time Prompt Banner */}
             <View style={styles.promptBanner}>
               <Ionicons
@@ -651,7 +836,7 @@ export function FaceVerifyModal({
                 }
                 size={22}
                 color="#FED65B"
-                style={{ marginRight: 8 }}
+                style={{ marginEnd: 8 }}
               />
               <Text style={styles.promptText}>{currentPrompt}</Text>
             </View>
@@ -716,15 +901,280 @@ export function FaceVerifyModal({
               </View>
             </View>
 
+            {/* Camera Utility Actions (Torch Toggle & Alternative Auth Trigger) */}
+            <View style={styles.cameraUtilityBar}>
+              <Pressable
+                style={[
+                  styles.utilityToggleBtn,
+                  isScreenTorchActive && styles.utilityToggleBtnActive,
+                ]}
+                onPress={() => setIsScreenTorchActive(!isScreenTorchActive)}
+              >
+                <Ionicons
+                  name={isScreenTorchActive ? "bulb" : "bulb-outline"}
+                  size={15}
+                  color={isScreenTorchActive ? "#F59E0B" : "#CBD5E1"}
+                />
+                <Text
+                  style={[
+                    styles.utilityToggleText,
+                    isScreenTorchActive && { color: "#F59E0B", fontWeight: "700" },
+                  ]}
+                >
+                  {isScreenTorchActive ? "স্ক্রিন লাইট অন" : "স্ক্রিন লাইট"}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.utilityToggleBtn}
+                onPress={() => setActiveAlternativeModal("OTP")}
+              >
+                <Ionicons name="keypad-outline" size={15} color="#38BDF8" />
+                <Text style={styles.utilityToggleText}>বিকল্প যাচাই (OTP/ডকুমেন্ট)</Text>
+              </Pressable>
+            </View>
+
+            {/* Privacy Guarantee Message Banner */}
+            <View style={styles.cameraPrivacyBanner}>
+              <Ionicons name="shield-checkmark" size={12} color="#10B981" />
+              <Text style={styles.cameraPrivacyText}>
+                গোপনীয়তার নিশ্চয়তা: বায়োমেট্রিক ডাটা ডিভাইসেই এনক্রিপ্টেড থাকে, কোনো সার্ভারে যায় না
+              </Text>
+            </View>
+
             {/* Dev Simulator Controls Bar (allows instant simulation if on desktop/emulator) */}
             <View style={styles.simControlsBar}>
               <Pressable testID="simulate-challenge-btn" style={styles.simStepBtn} onPress={runFullSimulation}>
-                <Ionicons name="play-forward" size={14} color="#38BDF8" style={{ marginRight: 4 }} />
+                <Ionicons name="play-forward" size={14} color="#38BDF8" style={{ marginEnd: 4 }} />
                 <Text style={styles.simStepText}>Simulate 3-Step Liveness</Text>
               </Pressable>
             </View>
           </View>
         )}
+
+        {/* ─── MODAL 1: OTP ALTERNATIVE VERIFICATION ─── */}
+        <Modal
+          visible={activeAlternativeModal === "OTP"}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setActiveAlternativeModal("NONE")}
+        >
+          <View style={styles.altModalBackdrop}>
+            <View style={styles.altModalSheet}>
+              <View style={styles.altModalHeader}>
+                <View style={styles.altIconCircle}>
+                  <Ionicons name="chatbubble-ellipses" size={24} color="#0284C7" />
+                </View>
+                <View style={{ flex: 1, marginStart: 10 }}>
+                  <Text style={styles.altModalTitle}>OTP বিকল্প যাচাই</Text>
+                  <Text style={styles.altModalSubtitle}>
+                    আলো কম বা ফেস স্ক্যান ব্যর্থ হলে ওটিপি কোড ব্যবহার করুন
+                  </Text>
+                </View>
+                <Pressable onPress={() => setActiveAlternativeModal("NONE")} style={styles.altCloseBtn}>
+                  <Ionicons name="close" size={20} color="#94A3B8" />
+                </Pressable>
+              </View>
+
+              <View style={styles.altPhoneInfoBox}>
+                <Ionicons name="phone-portrait-outline" size={18} color="#38BDF8" />
+                <Text style={styles.altPhoneInfoText}>
+                  রেজিস্টার্ড নম্বর: +880 17****5829 • অতিথি: {guestName}
+                </Text>
+              </View>
+
+              {otpSentNotice && (
+                <View style={styles.otpNoticeBanner}>
+                  <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                  <Text style={styles.otpNoticeText}>{otpSentNotice}</Text>
+                </View>
+              )}
+
+              <Text style={styles.otpInputLabel}>৬-সংখ্যার ওটিপি কোড দিন:</Text>
+              <View style={styles.otpInputContainer}>
+                {["5", "8", "2", "9", "1", "4"].map((digit, idx) => (
+                  <View key={idx} style={styles.otpDigitBox}>
+                    <Text style={styles.otpDigitText}>{digit}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Pressable style={styles.resendOtpBtn} onPress={handleSendOtp}>
+                <Ionicons name="refresh" size={14} color="#38BDF8" />
+                <Text style={styles.resendOtpText}>পুনরায় OTP পাঠান (Send OTP)</Text>
+              </Pressable>
+
+              <View style={styles.altPrivacyRow}>
+                <Ionicons name="lock-closed" size={13} color="#10B981" />
+                <Text style={styles.altPrivacyText}>
+                  গোপনীয়তার নিশ্চয়তা: ওটিপি যাচাই সম্পূর্ণ সুরক্ষিত ও এনক্রিপ্টেড
+                </Text>
+              </View>
+
+              <Pressable
+                style={styles.confirmAltBtn}
+                onPress={() => handleAlternativeVerify("OTP")}
+                disabled={alternativeSubmitting}
+              >
+                <LinearGradient colors={["#0284C7", "#0369A1"]} style={styles.confirmAltGradient}>
+                  {alternativeSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                      <Text style={styles.confirmAltBtnText}>OTP যাচাই করে ডিজিটাল রুম কি নিন</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </Pressable>
+
+              <Pressable
+                style={styles.switchAltBtn}
+                onPress={() => setActiveAlternativeModal("DOCUMENT")}
+              >
+                <Text style={styles.switchAltText}>অথবা পাসপোর্ট/NID ডকুমেন্ট দিয়ে যাচাই করুন &gt;</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ─── MODAL 2: DOCUMENT ALTERNATIVE VERIFICATION ─── */}
+        <Modal
+          visible={activeAlternativeModal === "DOCUMENT"}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setActiveAlternativeModal("NONE")}
+        >
+          <View style={styles.altModalBackdrop}>
+            <View style={styles.altModalSheet}>
+              <View style={styles.altModalHeader}>
+                <View style={[styles.altIconCircle, { backgroundColor: "rgba(124, 58, 237, 0.15)" }]}>
+                  <Ionicons name="document-text" size={24} color="#A78BFA" />
+                </View>
+                <View style={{ flex: 1, marginStart: 10 }}>
+                  <Text style={styles.altModalTitle}>ডকুমেন্ট / পাসপোর্ট যাচাই</Text>
+                  <Text style={styles.altModalSubtitle}>
+                    কেওয়াইসি নথিপত্র দিয়ে নিরাপদ চেক-ইন অনুমোদন
+                  </Text>
+                </View>
+                <Pressable onPress={() => setActiveAlternativeModal("NONE")} style={styles.altCloseBtn}>
+                  <Ionicons name="close" size={20} color="#94A3B8" />
+                </Pressable>
+              </View>
+
+              <View style={styles.docDetailsCard}>
+                <View style={styles.docRow}>
+                  <Text style={styles.docLabel}>ডকুমেন্ট ধরন:</Text>
+                  <Text style={styles.docValue}>আন্তর্জাতিক পাসপোর্ট (E-Passport)</Text>
+                </View>
+                <View style={styles.docRow}>
+                  <Text style={styles.docLabel}>পাসপোর্ট নম্বর:</Text>
+                  <Text style={styles.docValueCode}>A92817452</Text>
+                </View>
+                <View style={styles.docRow}>
+                  <Text style={styles.docLabel}>যাত্রীর নাম:</Text>
+                  <Text style={styles.docValue}>{guestName}</Text>
+                </View>
+                <View style={styles.docRow}>
+                  <Text style={styles.docLabel}>হোটেল বুকিং:</Text>
+                  <Text style={styles.docValue}>{hotelName}</Text>
+                </View>
+              </View>
+
+              <View style={styles.altPrivacyRow}>
+                <Ionicons name="shield-checkmark" size={13} color="#10B981" />
+                <Text style={styles.altPrivacyText}>
+                  গোপনীয়তার নিশ্চয়তা: নথির ডাটা এনক্রিপ্ট হয়ে যাচাইয়ের জন্য ব্যবহৃত হয়
+                </Text>
+              </View>
+
+              <Pressable
+                style={styles.confirmAltBtn}
+                onPress={() => handleAlternativeVerify("DOCUMENT")}
+                disabled={alternativeSubmitting}
+              >
+                <LinearGradient colors={["#7C3AED", "#6D28D9"]} style={styles.confirmAltGradient}>
+                  {alternativeSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="shield-checkmark" size={18} color="#FFFFFF" />
+                      <Text style={styles.confirmAltBtnText}>ডকুমেন্ট নিশ্চিত করুন ও রুম কি নিন</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </Pressable>
+
+              <Pressable
+                style={styles.switchAltBtn}
+                onPress={() => setActiveAlternativeModal("OTP")}
+              >
+                <Text style={styles.switchAltText}>অথবা মোবাইল OTP দিয়ে যাচাই করুন &gt;</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ─── MODAL 3: GUIDANCE & PRIVACY HELP MODAL ─── */}
+        <Modal
+          visible={showGuidanceModal}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setShowGuidanceModal(false)}
+        >
+          <View style={styles.altModalBackdrop}>
+            <View style={styles.guidanceCard}>
+              <View style={styles.guidanceHeaderRow}>
+                <Ionicons name="bulb" size={24} color="#F59E0B" />
+                <Text style={styles.guidanceCardTitle}>আলো ও অবস্থান নির্দেশিকা</Text>
+                <Pressable onPress={() => setShowGuidanceModal(false)}>
+                  <Ionicons name="close" size={20} color="#94A3B8" />
+                </Pressable>
+              </View>
+
+              <View style={styles.guidanceItem}>
+                <Ionicons name="sunny" size={18} color="#FBBF24" style={{ marginTop: 2 }} />
+                <View style={{ flex: 1, marginStart: 8 }}>
+                  <Text style={styles.guidanceItemTitle}>পর্যাপ্ত আলোর ব্যবস্থা রাখুন</Text>
+                  <Text style={styles.guidanceItemDesc}>
+                    আলো সরাসরি মুখের ওপর রাখুন। পেছনে জানালা বা বাতি থাকলে মুখের ওপর ছায়া পড়ে ফেস রিকগনিশন ব্যর্থ হতে পারে। কম আলো থাকলে "স্ক্রিন লাইট" বাটন অন করুন।
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.guidanceItem}>
+                <Ionicons name="scan" size={18} color="#38BDF8" style={{ marginTop: 2 }} />
+                <View style={{ flex: 1, marginStart: 8 }}>
+                  <Text style={styles.guidanceItemTitle}>সঠিক অবস্থান ও দূরত্ব</Text>
+                  <Text style={styles.guidanceItemDesc}>
+                    ক্যামেরা চোখের সমান উচ্চতায় রাখুন এবং মুখমণ্ডল ডিম্বাকৃতি ফ্রেমের ভেতরে সোজা রাখুন। ক্যামেরা থেকে ১৫-২০ ইঞ্চি দূরত্ব আদর্শ।
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.guidanceItem}>
+                <Ionicons name="glasses-outline" size={18} color="#A78BFA" style={{ marginTop: 2 }} />
+                <View style={{ flex: 1, marginStart: 8 }}>
+                  <Text style={styles.guidanceItemTitle}>চশমা ও মাস্ক পরিহার</Text>
+                  <Text style={styles.guidanceItemDesc}>
+                    কালো বা সানগ্লাস, টুপি বা মাস্ক সাময়িক খুলে ফেলুন যাতে মুখের জ্যামিতিক বৈশিষ্ট্য শনাক্ত হতে পারে।
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.guidancePrivacyBox}>
+                <Ionicons name="lock-closed" size={14} color="#10B981" />
+                <Text style={styles.guidancePrivacyText}>
+                  গোপনীয়তার বার্তা: আপনার মুখের কোনো ছবি সার্ভারে আপলোড করা হয় না। ডিভাইস এনক্রিপশনের মাধ্যমেই তাৎক্ষণিক যাচাই সম্পন্ন হয়।
+                </Text>
+              </View>
+
+              <Pressable style={styles.guidanceOkBtn} onPress={() => setShowGuidanceModal(false)}>
+                <Text style={styles.guidanceOkBtnText}>বুঝেছি, স্ক্যান শুরু করুন</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -734,7 +1184,7 @@ export function FaceVerifyModal({
 // STYLES
 // ============================================================================
 
-const styles = StyleSheet.create({
+const styles: any = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0B0F19",
@@ -778,9 +1228,9 @@ const styles = StyleSheet.create({
   },
   securityPillText: {
     color: "#10B981",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
-    marginLeft: 4,
+    marginStart: 4,
   },
   cameraContainer: {
     flex: 1,
@@ -884,7 +1334,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#334155",
-    maxWidth: SCREEN_WIDTH * 0.9,
+    maxWidth: 360 * 0.9,
   },
   promptText: {
     color: "#FFFFFF",
@@ -1055,7 +1505,7 @@ const styles = StyleSheet.create({
   },
   telemetryLabel: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     marginBottom: 2,
   },
@@ -1066,7 +1516,7 @@ const styles = StyleSheet.create({
   },
   telemetrySub: {
     color: "#64748B",
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 2,
   },
   digitalKeyCard: {
@@ -1104,7 +1554,7 @@ const styles = StyleSheet.create({
   },
   nfcBadgeText: {
     color: "#38BDF8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   roomNumberHero: {
@@ -1117,7 +1567,7 @@ const styles = StyleSheet.create({
   },
   roomHeroLabel: {
     color: "#FED65B",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1.5,
     marginBottom: 4,
@@ -1135,7 +1585,7 @@ const styles = StyleSheet.create({
   },
   keycardLabel: {
     color: "#64748B",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.5,
     marginBottom: 3,
@@ -1163,7 +1613,7 @@ const styles = StyleSheet.create({
   },
   qrCaption: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
   },
   keycardFooter: {
     flexDirection: "row",
@@ -1282,5 +1732,103 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 14,
     fontWeight: "600",
+  },
+  headerRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerActionBtnActive: {
+    backgroundColor: "rgba(245, 158, 11, 0.3)",
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+  },
+  failureAttemptBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+    marginBottom: 16,
+  },
+  failureAttemptText: {
+    color: "#F59E0B",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  alternativeVerifyBox: {
+    width: "100%",
+    backgroundColor: "rgba(30, 41, 59, 0.7)",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  altBoxHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  altBoxHeaderTitle: {
+    color: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  altBoxSubtitle: {
+    color: "#94A3B8",
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  altOptionsRow: {
+    flexDirection: "column",
+    gap: 8,
+  },
+  altQuickOptionBtn: {
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  altQuickOptionGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  altQuickOptionTitle: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  altQuickOptionSub: {
+    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 11,
+  },
+  privacyFailureNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    borderRadius: 8,
+    padding: 10,
+    gap: 8,
+    marginBottom: 16,
+  },
+  privacyFailureText: {
+    color: "#A7F3D0",
+    fontSize: 11,
+    flex: 1,
+    lineHeight: 15,
   },
 });

@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { openLink } from "../../src/utils/openLink";
 import {
   AdmissionBusRoute,
   AdmissionTicketBooking,
@@ -25,12 +26,18 @@ import {
 import {
   admissionBusService,
 } from "../../src/services/admissionBusService";
+import { ErrorStateCard, EmptyStateView } from "../../src/components/common";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const PRIMARY_BLUE = "#0055F2";
 const VIOLET_PURPLE = "#7C3AED";
 const EMERALD_GREEN = "#059669";
 const AMBER_GOLD = "#D97706";
+
+const getUpcomingExamDate = (offsetDays: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+};
 
 // Target Universities for Exam Tracker
 export const TARGET_UNIVERSITIES = [
@@ -45,7 +52,7 @@ export const TARGET_UNIVERSITIES = [
     label: "Dhaka University",
     subLabel: "ঢাকা বিশ্ববিদ্যালয়",
     icon: "school-outline",
-    examDate: "28 Nov 2026",
+    examDate: getUpcomingExamDate(7),
     examTime: "11:00 AM - 12:30 PM",
     center: "Curzon Hall & Arts Faculty, Dhaka",
     guaranteedArrival: "09:00 AM (2h prior)",
@@ -55,7 +62,7 @@ export const TARGET_UNIVERSITIES = [
     label: "BUET",
     subLabel: "বাংলাদেশ প্রকৌশল বিশ্ববিদ্যালয়",
     icon: "construct-outline",
-    examDate: "02 Dec 2026",
+    examDate: getUpcomingExamDate(11),
     examTime: "10:00 AM - 12:00 PM",
     center: "BUET Main Campus & ECE Building, Palashi",
     guaranteedArrival: "08:00 AM (2h prior)",
@@ -65,7 +72,7 @@ export const TARGET_UNIVERSITIES = [
     label: "RUET",
     subLabel: "রাজশাহী প্রকৌশল বিশ্ববিদ্যালয়",
     icon: "hardware-chip-outline",
-    examDate: "08 Dec 2026",
+    examDate: getUpcomingExamDate(17),
     examTime: "10:00 AM - 12:30 PM",
     center: "RUET Campus, Kazla, Rajshahi",
     guaranteedArrival: "08:00 AM (2h prior)",
@@ -75,7 +82,7 @@ export const TARGET_UNIVERSITIES = [
     label: "Chittagong University",
     subLabel: "চট্টগ্রাম বিশ্ববিদ্যালয়",
     icon: "leaf-outline",
-    examDate: "18 Dec 2026",
+    examDate: getUpcomingExamDate(24),
     examTime: "11:00 AM - 12:00 PM",
     center: "1 No. Gate & Central Field, CU Campus",
     guaranteedArrival: "09:00 AM (2h prior)",
@@ -85,7 +92,7 @@ export const TARGET_UNIVERSITIES = [
     label: "GST Cluster",
     subLabel: "গুচ্ছভুক্ত ২৪ বিশ্ববিদ্যালয়",
     icon: "layers-outline",
-    examDate: "22 Dec 2026",
+    examDate: getUpcomingExamDate(30),
     examTime: "12:00 PM - 01:00 PM",
     center: "Divisional University Centers",
     guaranteedArrival: "10:00 AM (2h prior)",
@@ -521,6 +528,7 @@ export default function AdmissionBusScreen() {
   const [selectedDistrict, setSelectedDistrict] = useState("ALL");
   const [routes, setRoutes] = useState<AdmissionBusRoute[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showAdvisoriesModal, setShowAdvisoriesModal] = useState(false);
   const [expandedAdvisory, setExpandedAdvisory] = useState<number | null>(null);
 
@@ -548,13 +556,15 @@ export default function AdmissionBusScreen() {
   const loadRoutes = useCallback(async () => {
     try {
       setLoading(true);
+      setFetchError(null);
       const data = await (admissionBusService as any).getSpecialRoutes(
         selectedUni,
         selectedDistrict
       );
       setRoutes(data);
-    } catch (e) {
+    } catch (e: any) {
       console.warn("Failed to load admission routes:", e);
+      setFetchError(e?.message || "ভর্তি পরীক্ষার স্পেশাল বাস রুট লোড করতে সমস্যা হয়েছে।");
     } finally {
       setLoading(false);
     }
@@ -758,9 +768,10 @@ export default function AdmissionBusScreen() {
     setHasGuardianSeat(false);
   };
 
-  const openPhoneCall = (phoneNumber: string) => {
-    Linking.openURL(`tel:${phoneNumber}`).catch(() => {
-      Alert.alert("যোগাযোগ", `হটলাইন নম্বর: ${phoneNumber}`);
+    const openPhoneCall = (phoneNumber: string) => {
+    openLink(`tel:${phoneNumber}`, {
+      label: "অ্যাডমিশন বাস হেল্পলাইন",
+      copyValue: phoneNumber,
     });
   };
 
@@ -778,7 +789,7 @@ export default function AdmissionBusScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flex: 1, marginStart: 12 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.headerTitle}>Admission Exam Transit</Text>
               <View style={styles.examTag}>
@@ -872,7 +883,7 @@ export default function AdmissionBusScreen() {
               <View style={styles.examBadgeIcon}>
                 <Ionicons name="school" size={24} color="#FBBF24" />
               </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flex: 1, marginStart: 12 }}>
                 <View style={styles.badgeRow}>
                   <Text style={styles.activeExamUniName}>
                     {activeUniObj.label} ({activeUniObj.subLabel})
@@ -947,7 +958,7 @@ export default function AdmissionBusScreen() {
             colors={["#064E3B", "#047857"]}
             style={styles.featureGradient}
           >
-            <View style={{ flex: 1, paddingRight: 8 }}>
+            <View style={{ flex: 1, paddingEnd: 8 }}>
               <View style={styles.studentBadge}>
                 <Ionicons name="shield-checkmark" size={12} color="#FBBF24" />
                 <Text style={styles.studentBadgeText}>
@@ -978,7 +989,7 @@ export default function AdmissionBusScreen() {
           <View style={styles.advisoryBannerIcon}>
             <Ionicons name="alert-circle" size={24} color="#D97706" />
           </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
+          <View style={{ flex: 1, marginStart: 10 }}>
             <Text style={styles.advisoryBannerTitle}>
               ভর্তি পরীক্ষার দিনের জরুরি ভ্রমণ নির্দেশিকা
             </Text>
@@ -1010,22 +1021,27 @@ export default function AdmissionBusScreen() {
             <ActivityIndicator size="large" color={VIOLET_PURPLE} />
             <Text style={styles.loadingText}>স্পেশাল বাস রুটসমূহ লোড হচ্ছে...</Text>
           </View>
+        ) : fetchError ? (
+          <View style={{ marginHorizontal: 16, marginVertical: 20 }}>
+            <ErrorStateCard
+              title="বাস রুট লোড করা সম্ভব হয়নি"
+              message={fetchError}
+              retryText="পুনরায় চেষ্টা করুন"
+              onRetry={loadRoutes}
+            />
+          </View>
         ) : routes.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Ionicons name="bus-outline" size={48} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>কোনো বাস রুট পাওয়া যায়নি</Text>
-            <Text style={styles.emptySubtitle}>
-              অন্য কোনো বিশ্ববিদ্যালয় বা জেলা হাব নির্বাচন করে দেখুন।
-            </Text>
-            <TouchableOpacity
-              style={styles.resetFilterBtn}
-              onPress={() => {
+          <View style={{ marginHorizontal: 16, marginVertical: 20 }}>
+            <EmptyStateView
+              icon="bus-outline"
+              title="কোনো বাস রুট পাওয়া যায়নি"
+              description="অন্য কোনো বিশ্ববিদ্যালয় বা জেলা হাব নির্বাচন করে দেখুন।"
+              actionText="ফিল্টার রিসেট করুন"
+              onAction={() => {
                 setSelectedUni("ALL");
                 setSelectedDistrict("ALL");
               }}
-            >
-              <Text style={styles.resetFilterBtnText}>ফিল্টার রিসেট করুন</Text>
-            </TouchableOpacity>
+            />
           </View>
         ) : (
           routes.map((route) => {
@@ -1037,7 +1053,7 @@ export default function AdmissionBusScreen() {
                   <View style={styles.uniBadge}>
                     <Text style={styles.uniBadgeText}>{route.short_code}</Text>
                   </View>
-                  <View style={{ flex: 1, marginLeft: 10 }}>
+                  <View style={{ flex: 1, marginStart: 10 }}>
                     <Text style={styles.uniFullName}>{route.university_name}</Text>
                     <Text style={styles.unitNameText}>{route.unit_name}</Text>
                   </View>
@@ -1058,7 +1074,7 @@ export default function AdmissionBusScreen() {
                 <View style={styles.journeyTimeline}>
                   <View style={styles.timelineRow}>
                     <Ionicons name="radio-button-on" size={16} color="#059669" />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
+                    <View style={{ flex: 1, marginStart: 10 }}>
                       <Text style={styles.pointLabel}>
                         বোর্ডিং পয়েন্ট ({route.departure_district} হাব):
                       </Text>
@@ -1071,7 +1087,7 @@ export default function AdmissionBusScreen() {
 
                   <View style={styles.timelineRow}>
                     <Ionicons name="location" size={16} color="#DC2626" />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
+                    <View style={{ flex: 1, marginStart: 10 }}>
                       <Text style={styles.pointLabel}>
                         ক্যাম্পাস ড্রপ (পরীক্ষা কেন্দ্র প্রাঙ্গণ):
                       </Text>
@@ -1204,7 +1220,7 @@ export default function AdmissionBusScreen() {
 
                   {/* 4. GUARDIAN ACCOMPANYING OPTION TOGGLE */}
                   <View style={styles.guardianToggleCard}>
-                    <View style={{ flex: 1, paddingRight: 8 }}>
+                    <View style={{ flex: 1, paddingEnd: 8 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Ionicons name="people" size={18} color="#D97706" />
                         <Text style={styles.guardianToggleTitle}>
@@ -1719,7 +1735,7 @@ export default function AdmissionBusScreen() {
                 const isExpanded = expandedAdvisory === idx;
                 return (
                   <TouchableOpacity
-                    key={idx}
+                    key={item.id || item.title || `advisory-${idx}`}
                     style={styles.advisoryItemCard}
                     onPress={() =>
                       setExpandedAdvisory(isExpanded ? null : idx)
@@ -1730,7 +1746,7 @@ export default function AdmissionBusScreen() {
                       <View style={styles.advisoryIconCircle}>
                         <Ionicons name={item.icon as any} size={18} color="#4338CA" />
                       </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
+                      <View style={{ flex: 1, marginStart: 10 }}>
                         <Text style={styles.advisoryItemTitle}>{item.title}</Text>
                         <Text style={styles.advisoryItemShort}>{item.short}</Text>
                       </View>
@@ -1751,7 +1767,7 @@ export default function AdmissionBusScreen() {
 
               <View style={styles.emergencyHelplineCard}>
                 <Ionicons name="headset" size={24} color="#059669" />
-                <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={{ flex: 1, marginStart: 10 }}>
                   <Text style={styles.emergencyHelplineTitle}>
                     কেন্দ্রীয় স্টুডেন্ট ট্রানজিট কন্ট্রোল রুম
                   </Text>
@@ -1948,6 +1964,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 6px rgba(15, 23, 42, 0.1)" } : {}),
   },
   activeExamGradient: {
     flexDirection: "row",
@@ -2055,6 +2072,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.1)" } : {}),
   },
   featureGradient: {
     flexDirection: "row",
@@ -2207,6 +2225,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.05)" } : {}),
   },
   routeCardHeader: {
     flexDirection: "row",
@@ -2276,7 +2295,7 @@ const styles = StyleSheet.create({
     width: 2,
     height: 16,
     backgroundColor: "#CBD5E1",
-    marginLeft: 7,
+    marginStart: 7,
     marginVertical: 2,
   },
   pointLabel: {
@@ -2371,7 +2390,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
-    marginRight: 6,
+    marginEnd: 6,
   },
   coordinatorCallText: {
     fontSize: 10.5,
@@ -2655,7 +2674,7 @@ const styles = StyleSheet.create({
     borderColor: "#C7D2FE",
     borderRadius: 10,
     paddingHorizontal: 12,
-    paddingRight: 38,
+    paddingEnd: 38,
     paddingVertical: 9,
     fontSize: 14,
     color: "#0F172A",

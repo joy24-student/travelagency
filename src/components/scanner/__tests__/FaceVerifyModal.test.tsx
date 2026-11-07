@@ -91,6 +91,24 @@ describe("FaceVerifyModal Component", () => {
     expect(flattened).toContain("1. Blink");
     expect(flattened).toContain("2. Smile");
     expect(flattened).toContain("3. Head Turn");
+    expect(flattened).toContain("আলো: মুখের সামনে আলো রাখুন");
+    expect(flattened).toContain("বিকল্প যাচাই (OTP/ডকুমেন্ট)");
+  });
+
+  it("provides alternative verification (OTP/Document) options and displays privacy notice", async () => {
+    let tree: any;
+    await act(async () => {
+      tree = renderer.create(<FaceVerifyModal {...defaultProps} />);
+    });
+
+    const root = tree.root;
+    const texts = root.findAllByType("Text").map((t: any) => t.props.children);
+    const flattened = texts.flat().filter(Boolean);
+
+    // Verify privacy guarantee message is present
+    expect(
+      flattened.some((t: string) => typeof t === "string" && t.includes("গোপনীয়তার নিশ্চয়তা"))
+    ).toBe(true);
   });
 
   it(

@@ -56,6 +56,7 @@ export const paymentService = {
 
     const nonce = generateSecureNonce();
     const timestamp = Date.now();
+    const idempotencyKey = request.metadata?.idempotencyKey || `idem_${nonce}`;
 
     // Strip any raw PAN or CVV from request metadata (PCI-DSS)
     const sanitizedMetadata = sanitizePaymentPayload(request.metadata || {});
@@ -64,6 +65,7 @@ export const paymentService = {
       ...request,
       metadata: {
         ...sanitizedMetadata,
+        idempotencyKey,
         nonce,
         initiatedAt: timestamp,
       },

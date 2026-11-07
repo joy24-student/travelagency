@@ -24,7 +24,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { marketingService, adminService } from "@/services/adminService";
 import { PromoCode, MarketingCampaign, AdminUser } from "@/types/admin";
 
-const { width } = Dimensions.get("window");
+
 
 /**
  * Promo Code Card Component
@@ -407,7 +407,7 @@ export const MarketingScreen: React.FC<{ admin: AdminUser | null }> = ({
               />
             )
           }
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => item?.id ? String(item.id) : (item?.code ? String(item.code) : `promo-${index}`)}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -508,10 +508,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardIcon: {
-    marginRight: 12,
+    marginEnd: 12,
   },
   campaignIcon: {
-    marginRight: 12,
+    marginEnd: 12,
   },
   iconGradient: {
     width: 48,
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   statusText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   cardContent: {
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#e5e7eb",
   },
   label: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     marginBottom: 2,
   },
@@ -635,7 +635,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     marginBottom: 2,
   },

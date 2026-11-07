@@ -1,3 +1,4 @@
+import { generateRealtimeChannelId, generateReferenceCode } from "../utils/idGenerator";
 import React, { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import {
   ActivityIndicator,
@@ -22,12 +23,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import { showLocalizedAlert } from "../utils/localizedAlert";
 
 import type { UIScreen } from "../data/screens";
 import { TopBar } from "./TopBar";
-import { BottomNav, AiPill } from "./Navigation";
 import { CommunityPost } from "../components/CommunityPost";
+import { OptimizedImage, DEFAULT_BLURHASH } from "../components/common";
 import { DirectChatModal } from "../components/DirectChatModal";
 import { ConversationItem } from "../services/repositories/messenger";
 import { useAuth } from "../hooks/useAuth";
@@ -36,8 +38,9 @@ import { supabase } from "../utils/supabase";
 import { r2Service, UploadProgress, compressClientImage } from "../services/r2";
 import { sanitizeUserText, sanitizeMediaUrl } from "../utils/sanitizer";
 import { colors } from "../theme/colors";
+import { useTheme } from "../context/ThemeContext";
+import { FONTS } from "../theme/typography";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Design system tokens
 const PRIMARY = colors.primary.DEFAULT;
@@ -182,7 +185,7 @@ const PostFeedItem = memo(function PostFeedItem({
           try {
             await Share.share({
               title: post.title,
-              message: `Explore "${post.title}" by ${author.display_name || "Traveler"} on Shopnojatra Travel! ✈️\n${post.location || ""}`,
+              message: `Explore "${post.title}" by ${author.display_name || "Traveler"} on Shopno Jatra Travel! ✈️\n${post.location || ""}`,
             });
           } catch (e) {
             console.warn(e);
@@ -200,6 +203,7 @@ const PostFeedItem = memo(function PostFeedItem({
 });
 
 export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
+  const { colors: themeColors, isDark } = useTheme();
   const themeColor = screen.theme === "luxe" ? LUXE_NAVY : PRIMARY;
 
   // Authenticated User Context
@@ -233,7 +237,10 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
   const [loading, setLoading] = useState(true);
 
   // Modals & User Input Form States
-  const [showCreatePostModal, setShowCreatePostModal] = useState(false);
+  const params = useLocalSearchParams();
+  const [showCreatePostModal, setShowCreatePostModal] = useState(
+    params?.composer === "open" || params?.createPost === "true"
+  );
   const [postTitle, setPostTitle] = useState("");
   const [postContent, setPostContent] = useState("");
   const [postImage, setPostImage] = useState("");
@@ -396,7 +403,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
 
   // Realtime Subscriptions with Auto-Cleanup
   useEffect(() => {
-    const channelId = `community-realtime-${Math.random().toString(36).substring(2, 9)}`;
+    const channelId = generateRealtimeChannelId("community-realtime");
     const liveChannel = supabase
       .channel(channelId)
       .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, () => {
@@ -577,7 +584,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
       setPosts((prev) =>
         prev.map((p) => (p.id === post.id ? { ...p, likes_count: prevLikesCount } : p))
       );
-      Alert.alert("Network Failure", "Could not sync like. Rolled back to previous state.");
+      showLocalizedAlert("Network Failure", "Could not sync like. Rolled back to previous state.");
     }
   };
 
@@ -616,7 +623,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
         else rollback.delete(post.id);
         return rollback;
       });
-      Alert.alert("Bookmark Error", "Could not update bookmark. Changes rolled back.");
+      showLocalizedAlert("Bookmark Error", "Could not update bookmark. Changes rolled back.");
     }
   };
 
@@ -628,7 +635,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
     // Strict XSS Sanitization
     const sanitizedText = sanitizeUserText(rawText);
     if (!sanitizedText) {
-      Alert.alert("Invalid Input", "Comment contains disallowed script or markup.");
+      showLocalizedAlert("Invalid Input", "Comment contains disallowed script or markup.");
       return;
     }
 
@@ -636,7 +643,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     const postId = activeCommentPost.id;
-    const tempId = `temp_comment_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const tempId = `temp_comment_${generateReferenceCode("CMT")}`;
     const prevComments = commentsMap[postId] || [];
     const prevCommentsCount = activeCommentPost.comments_count || prevComments.length;
 
@@ -698,7 +705,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
         )
       );
       setCommentInputText(rawText);
-      Alert.alert("Comment Error", e.message || "Failed to publish comment.");
+      showLocalizedAlert("Comment Error", e.message || "Failed to publish comment.");
     } finally {
       setIsSubmittingComment(false);
     }
@@ -712,7 +719,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Permission Required", "Media library access is needed to select files.");
+        showLocalizedAlert("Permission Required", "Media library access is needed to select files.");
         setPostUploadProgress(null);
         return;
       }
@@ -767,7 +774,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
       }
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Upload Error", err.message || "Failed to upload file to R2 cloud.");
+      showLocalizedAlert("Upload Error", err.message || "Failed to upload file to R2 cloud.");
     } finally {
       setPostUploadProgress(null);
     }
@@ -779,7 +786,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Permission Required", "Camera permission is required to capture photos.");
+        showLocalizedAlert("Permission Required", "Camera permission is required to capture photos.");
         return;
       }
 
@@ -815,7 +822,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
         throw new Error(uploadRes.error || "Camera photo upload failed.");
       }
     } catch (e: any) {
-      Alert.alert("Camera Error", e.message || "Could not take photo.");
+      showLocalizedAlert("Camera Error", e.message || "Could not take photo.");
     } finally {
       setPostUploadProgress(null);
     }
@@ -829,7 +836,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Permission Required", "Media library access required.");
+        showLocalizedAlert("Permission Required", "Media library access required.");
         setStoryUploadProgress(null);
         return;
       }
@@ -869,7 +876,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
       }
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Story Upload Error", err.message || "Failed to upload story photo.");
+      showLocalizedAlert("Story Upload Error", err.message || "Failed to upload story photo.");
     } finally {
       setStoryUploadProgress(null);
     }
@@ -883,7 +890,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
     const safeImage = sanitizeMediaUrl(postImage);
 
     if (!safeTitle) {
-      Alert.alert("Required", "Please provide a valid trip title.");
+      showLocalizedAlert("Required", "Please provide a valid trip title.");
       return;
     }
     setIsPosting(true);
@@ -928,7 +935,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
       setPostMediaType("image");
       await loadCommunityData();
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Could not publish post.");
+      showLocalizedAlert("Error", e.message || "Could not publish post.");
     } finally {
       setIsPosting(false);
     }
@@ -941,7 +948,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
     const safeLocation = sanitizeUserText(storyLocation);
 
     if (!safeImage) {
-      Alert.alert("Required", "Please select or upload a story photo.");
+      showLocalizedAlert("Required", "Please select or upload a story photo.");
       return;
     }
 
@@ -966,7 +973,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
       setStoryLocation("");
       await loadCommunityData();
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Could not share story.");
+      showLocalizedAlert("Error", e.message || "Could not share story.");
     }
   };
 
@@ -1050,12 +1057,13 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
             }}
           >
             <View style={styles.addStoryRing}>
-              <Image
+              <OptimizedImage
                 source={{
                   uri:
                     currentUser?.user_metadata?.avatar_url || DEFAULT_AVATAR,
                 }}
                 style={styles.addStoryUserAvatar}
+                blurhash={DEFAULT_BLURHASH}
               />
               <View style={styles.addStoryBadge}>
                 <Ionicons name="add" size={16} color="#FFFFFF" />
@@ -1083,20 +1091,22 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                     style={styles.storyGradientRing}
                   >
                     <View style={styles.storyInnerBorder}>
-                      <Image
+                      <OptimizedImage
                         source={{ uri: story.image || story.media_url }}
                         style={styles.storyAvatar}
-                        resizeMode="cover"
+                        
+                        blurhash={DEFAULT_BLURHASH}
                       />
                     </View>
                   </LinearGradient>
                 ) : (
                   <View style={styles.storyViewedRing}>
                     <View style={styles.storyInnerBorder}>
-                      <Image
+                      <OptimizedImage
                         source={{ uri: story.image || story.media_url }}
                         style={styles.storyAvatar}
-                        resizeMode="cover"
+                        
+                        blurhash={DEFAULT_BLURHASH}
                       />
                     </View>
                   </View>
@@ -1158,12 +1168,12 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={["top", "bottom"]}>
       {/* Top Header Bar */}
-      <View style={styles.communityHeader}>
+      <View style={[styles.communityHeader, { backgroundColor: themeColors.headerBg, borderBottomColor: themeColors.borderSubtle }]}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Travel Community</Text>
-          <Text style={styles.headerSubtitle}>Discover stories, creators & trips</Text>
+          <Text style={[styles.headerTitle, { color: themeColors.text }]}>Travel Community</Text>
+          <Text style={[styles.headerSubtitle, { color: themeColors.textMuted }]}>Discover stories, creators & trips</Text>
         </View>
 
         <View style={styles.headerActions}>
@@ -1207,7 +1217,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
       )}
 
       {/* Main Segmented Tabs */}
-      <View style={styles.tabsSegment}>
+      <View style={[styles.tabsSegment, { backgroundColor: themeColors.card, borderBottomColor: themeColors.borderSubtle }]}>
         <Pressable
           style={[styles.tabSegmentBtn, activeTab === "feed" && styles.tabSegmentBtnActive]}
           onPress={() => {
@@ -1361,9 +1371,10 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                     })
                   }
                 >
-                  <Image
+                  <OptimizedImage
                     source={{ uri: inf.avatar_url || DEFAULT_AVATAR }}
                     style={styles.influencerBigAvatar}
+                    blurhash={DEFAULT_BLURHASH}
                   />
                   <View style={styles.influencerHeaderInfo}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -1469,9 +1480,10 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                     setSelectedGroupId(g.id);
                   }}
                 >
-                  <Image
+                  <OptimizedImage
                     source={{ uri: g.avatar_url || DEFAULT_AVATAR }}
                     style={styles.groupPillAvatar}
+                    blurhash={DEFAULT_BLURHASH}
                   />
                   <View>
                     <Text style={[styles.groupPillName, isSelected && styles.groupPillNameActive]}>
@@ -1517,9 +1529,10 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                         ]}
                       >
                         {!isMe && (
-                          <Image
+                          <OptimizedImage
                             source={{ uri: msg.author?.avatar_url || DEFAULT_AVATAR }}
                             style={styles.chatAuthorAvatar}
+                            blurhash={DEFAULT_BLURHASH}
                           />
                         )}
                         <View
@@ -1617,10 +1630,11 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
       >
         {currentViewingStory && (
           <View style={styles.storyViewerContainer}>
-            <Image
+            <OptimizedImage
               source={{ uri: currentViewingStory.media_url }}
               style={styles.storyViewerImage}
-              resizeMode="cover"
+              
+              blurhash={DEFAULT_BLURHASH}
             />
             <LinearGradient
               colors={["rgba(0,0,0,0.75)", "transparent", "rgba(0,0,0,0.85)"]}
@@ -1682,9 +1696,10 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                       });
                     }}
                   >
-                    <Image
+                    <OptimizedImage
                       source={{ uri: currentViewingStory.image || DEFAULT_AVATAR }}
                       style={styles.storyViewerAvatar}
+                      blurhash={DEFAULT_BLURHASH}
                     />
                     <View>
                       <Text style={styles.storyViewerAuthorName}>
@@ -1698,12 +1713,54 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                     </View>
                   </Pressable>
 
-                  <Pressable
-                    style={styles.storyCloseBtn}
-                    onPress={() => setIsStoryViewerOpen(false)}
-                  >
-                    <Ionicons name="close" size={26} color="#FFFFFF" />
-                  </Pressable>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Pressable
+                      style={styles.storyCloseBtn}
+                      hitSlop={8}
+                      onPress={() => {
+                        handleStoryPressIn();
+                        Alert.alert(
+                          "Story Safety & Options",
+                          `What would you like to do with @${currentViewingStory.name}'s story?`,
+                          [
+                            {
+                              text: "Cancel",
+                              style: "cancel",
+                              onPress: () => {
+                                isPausedRef.current = false;
+                                startStoryProgress(activeStoryIndex, currentProgressRef.current);
+                              },
+                            },
+                            {
+                              text: "Report Story",
+                              style: "destructive",
+                              onPress: () => {
+                                setIsStoryViewerOpen(false);
+                                Alert.alert("Report Received", "Thank you. This story has been flagged for moderation.");
+                              },
+                            },
+                            {
+                              text: `Block @${currentViewingStory.name}`,
+                              style: "destructive",
+                              onPress: () => {
+                                setIsStoryViewerOpen(false);
+                                Alert.alert("User Blocked", `@${currentViewingStory.name} has been blocked.`);
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={20} color="#FFFFFF" />
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.storyCloseBtn}
+                      onPress={() => setIsStoryViewerOpen(false)}
+                    >
+                      <Ionicons name="close" size={26} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
                 </View>
               </SafeAreaView>
             )}
@@ -1735,7 +1792,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                     style={styles.storyHeartBtn}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      Alert.alert("Liked Story", `Sent a ❤️ to ${currentViewingStory.name}!`);
+                      showLocalizedAlert("Liked Story", `Sent a ❤️ to ${currentViewingStory.name}!`);
                     }}
                   >
                     <Ionicons name="heart" size={24} color={DANGER} />
@@ -1858,7 +1915,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
               {postImage ? (
                 <View style={styles.uploadedPreviewBox}>
                   <Image source={{ uri: postImage }} style={styles.uploadedThumb} />
-                  <View style={{ flex: 1, marginLeft: 10 }}>
+                  <View style={{ flex: 1, marginStart: 10 }}>
                     <Text style={styles.uploadedSuccessText}>Media Compressed & Ready</Text>
                     <Text style={styles.uploadedUrlText} numberOfLines={1}>
                       {postImage}
@@ -2041,11 +2098,12 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                 ) : (
                   (commentsMap[activeCommentPost.id] || []).map((c: any) => (
                     <View key={c.id} style={styles.fullCommentItem}>
-                      <Image
+                      <OptimizedImage
                         source={{
                           uri: c.author?.avatar_url || DEFAULT_AVATAR,
                         }}
                         style={styles.fullCommentAvatar}
+                        blurhash={DEFAULT_BLURHASH}
                       />
                       <View style={styles.fullCommentBody}>
                         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -2135,7 +2193,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                 const safeDesc = sanitizeUserText(newGroupDesc) || "Community travel tribe.";
 
                 if (!safeName) {
-                  Alert.alert("Required", "Please provide a valid group name.");
+                  showLocalizedAlert("Required", "Please provide a valid group name.");
                   return;
                 }
                 try {
@@ -2163,7 +2221,7 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
                   if (data?.id) setSelectedGroupId(data.id);
                   await loadCommunityData();
                 } catch (e: any) {
-                  Alert.alert("Error", e.message || "Could not create group.");
+                  showLocalizedAlert("Error", e.message || "Could not create group.");
                 }
               }}
             >
@@ -2197,8 +2255,6 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
         }}
       />
 
-      <AiPill color={themeColor} />
-      <BottomNav active={screen.activeTab ?? "Post"} color={themeColor} />
     </SafeAreaView>
   );
 }
@@ -2398,11 +2454,11 @@ const styles = StyleSheet.create({
   },
   unreadStatusPillText: {
     color: "#FFFFFF",
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "900",
   },
   storyNameText: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.text.secondary,
     fontWeight: "500",
     textAlign: "center",
@@ -2508,7 +2564,7 @@ const styles = StyleSheet.create({
   },
   badgePillAmberText: {
     color: colors.status.warning.dark,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   influencerBio: {
@@ -2526,7 +2582,7 @@ const styles = StyleSheet.create({
   },
   statBox: { flex: 1, alignItems: "center" },
   statBoxValue: { fontSize: 15, fontWeight: "800", color: TEXT_PRIMARY },
-  statBoxLabel: { fontSize: 10, color: TEXT_MUTED, marginTop: 1 },
+  statBoxLabel: { fontSize: 12, color: TEXT_MUTED, marginTop: 1 },
   followActionBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -2564,7 +2620,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 14,
   },
-  newGroupBtnText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+  newGroupBtnText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   groupsChipList: { gap: 10, paddingBottom: 16 },
   groupCardPill: {
     flexDirection: "row",
@@ -2581,7 +2637,7 @@ const styles = StyleSheet.create({
   groupPillAvatar: { width: 40, height: 40, borderRadius: 10 },
   groupPillName: { fontSize: 13, fontWeight: "700", color: colors.neutral[800] },
   groupPillNameActive: { color: PRIMARY },
-  groupPillSub: { fontSize: 10, color: TEXT_MUTED, marginTop: 2 },
+  groupPillSub: { fontSize: 12, color: TEXT_MUTED, marginTop: 2 },
   groupChatContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -2599,7 +2655,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   groupChatTitle: { fontSize: 16, fontWeight: "800", color: TEXT_PRIMARY },
-  groupChatDesc: { fontSize: 11, color: TEXT_MUTED, marginTop: 2 },
+  groupChatDesc: { fontSize: 12, color: TEXT_MUTED, marginTop: 2 },
   destinationBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -2609,7 +2665,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 10,
   },
-  destinationBadgeText: { color: PRIMARY, fontSize: 10, fontWeight: "700" },
+  destinationBadgeText: { color: PRIMARY, fontSize: 12, fontWeight: "700" },
   messagesFeed: { minHeight: 180, maxHeight: 280, gap: 10, marginBottom: 12 },
   emptyMessagesText: {
     textAlign: "center",
@@ -2624,10 +2680,10 @@ const styles = StyleSheet.create({
   messageBubble: { maxWidth: "80%", padding: 10, borderRadius: 12 },
   messageBubbleMe: { backgroundColor: PRIMARY, borderBottomRightRadius: 2 },
   messageBubbleOther: { backgroundColor: colors.surface.muted, borderBottomLeftRadius: 2 },
-  chatAuthorName: { fontSize: 10, fontWeight: "700", color: PRIMARY, marginBottom: 2 },
+  chatAuthorName: { fontSize: 12, fontWeight: "700", color: PRIMARY, marginBottom: 2 },
   messageContentText: { fontSize: 13, color: colors.neutral[800] },
   messageContentTextMe: { color: "#FFFFFF" },
-  messageTimeText: { fontSize: 9, color: TEXT_MUTED, alignSelf: "flex-end", marginTop: 4 },
+  messageTimeText: { fontSize: 12, color: TEXT_MUTED, alignSelf: "flex-end", marginTop: 4 },
   messageTimeTextMe: { color: "rgba(255, 255, 255, 0.7)" },
   messageComposerRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   messageComposerInput: {
@@ -2696,7 +2752,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
   },
   storyViewerAuthorName: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
-  storyViewerLocation: { color: "rgba(255, 255, 255, 0.8)", fontSize: 11 },
+  storyViewerLocation: { color: "rgba(255, 255, 255, 0.8)", fontSize: 12 },
   storyCloseBtn: { padding: 6 },
   storyViewerBottomCaption: {
     zIndex: 10,
@@ -2810,7 +2866,7 @@ const styles = StyleSheet.create({
   modalProgressText: {
     position: "absolute",
     alignSelf: "center",
-    fontSize: 10,
+    fontSize: 12,
     color: "#fff",
     fontWeight: "700",
   },
@@ -2826,7 +2882,7 @@ const styles = StyleSheet.create({
   },
   uploadedThumb: { width: 44, height: 44, borderRadius: 8 },
   uploadedSuccessText: { fontSize: 13, fontWeight: "700", color: SUCCESS },
-  uploadedUrlText: { fontSize: 11, color: TEXT_MUTED },
+  uploadedUrlText: { fontSize: 12, color: TEXT_MUTED },
   modalInputLabel: {
     fontSize: 12,
     fontWeight: "700",
@@ -2854,7 +2910,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary[100],
   },
-  presetTagText: { fontSize: 11, color: PRIMARY, fontWeight: "600" },
+  presetTagText: { fontSize: 12, color: PRIMARY, fontWeight: "600" },
   modalSubmitBtn: {
     backgroundColor: PRIMARY,
     borderRadius: 12,
@@ -2863,13 +2919,13 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   modalSubmitBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
-  commentsPostTitle: { fontSize: 11, color: TEXT_MUTED, maxWidth: 240 },
+  commentsPostTitle: { fontSize: 12, color: TEXT_MUTED, maxWidth: 240 },
   emptyCommentsText: { textAlign: "center", color: TEXT_MUTED, marginVertical: 20 },
   fullCommentItem: { flexDirection: "row", gap: 10, marginBottom: 12 },
   fullCommentAvatar: { width: 32, height: 32, borderRadius: 16 },
   fullCommentBody: { flex: 1, backgroundColor: BG_SUBTLE, padding: 10, borderRadius: 12 },
   fullCommentAuthorName: { fontSize: 12, fontWeight: "700", color: TEXT_PRIMARY },
-  fullCommentTime: { fontSize: 10, color: TEXT_MUTED },
+  fullCommentTime: { fontSize: 12, color: TEXT_MUTED },
   fullCommentText: { fontSize: 13, color: colors.neutral[700], marginTop: 2 },
   addCommentInputRow: {
     flexDirection: "row",

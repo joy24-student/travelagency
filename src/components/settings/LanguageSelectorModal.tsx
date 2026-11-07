@@ -200,6 +200,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 20px rgba(15, 23, 42, 0.25)" } : {}),
   },
   header: {
     flexDirection: "row",
@@ -233,7 +234,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginStart: 8,
     fontSize: 14,
   },
   listContent: {
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
   },
   flagText: {
     fontSize: 26,
-    marginRight: 12,
+    marginEnd: 12,
   },
   nameBlock: {
     justifyContent: "center",

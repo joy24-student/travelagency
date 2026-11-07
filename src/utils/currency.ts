@@ -1,4 +1,5 @@
-import { CurrencyCode } from "../store/settingsStore";
+import { CurrencyCode, useSettingsStore } from "../store/settingsStore";
+import { formatLocalizedCurrency, formatLocalizedNumber, toLatinDigits } from "./formatters";
 
 export interface CurrencyMetadata {
   code: CurrencyCode;
@@ -145,9 +146,21 @@ export const convertCurrency = (
 };
 
 /**
+ * Get active user currency from settings or fallback to BDT
+ */
+export const getActiveCurrency = (): CurrencyCode => {
+  try {
+    return useSettingsStore.getState()?.currency || "BDT";
+  } catch {
+    return "BDT";
+  }
+};
+
+/**
  * Universal Price Formatter
  * Formats an amount in BDT into the target currency with correct symbols,
  * precision, and localized number separators.
+ * If targetCurrency is omitted, dynamically uses the user's selected active currency.
  *
  * Example outputs:
  * - formatPrice(5200, "BDT") => "৳ 5,200"
@@ -155,40 +168,50 @@ export const convertCurrency = (
  */
 export const formatPrice = (
   amountInBDT: number | string,
-  targetCurrency: CurrencyCode = "BDT"
+  targetCurrency?: CurrencyCode,
+  options?: { locale?: string; useBengaliDigits?: boolean; showSymbol?: boolean }
 ): string => {
-  const numAmount = typeof amountInBDT === "string" ? parseFloat(amountInBDT) : amountInBDT;
+  const activeCurr = targetCurrency || getActiveCurrency();
+  const numAmount = typeof amountInBDT === "string" ? parseFloat(toLatinDigits(amountInBDT)) : amountInBDT;
 
   if (isNaN(numAmount) || numAmount === 0) {
-    const meta = CURRENCY_METADATA[targetCurrency] || CURRENCY_METADATA.BDT;
-    return `${meta.symbol} 0`;
+    const meta = CURRENCY_METADATA[activeCurr] || CURRENCY_METADATA.BDT;
+    return options?.showSymbol === false ? "0" : `${meta.symbol} 0`;
   }
 
-  const meta = CURRENCY_METADATA[targetCurrency] || CURRENCY_METADATA.BDT;
-  const converted = convertFromBDT(numAmount, targetCurrency);
+  const converted = convertFromBDT(numAmount, activeCurr);
+  return formatLocalizedCurrency(converted, activeCurr, options);
+};
 
-  const formattedNum = converted.toLocaleString("en-US", {
-    minimumFractionDigits: meta.decimals,
-    maximumFractionDigits: meta.decimals,
-  });
-
-  return `${meta.symbol} ${formattedNum}`;
+export const formatDisplayPrice = (
+  amountInBDT: number | string,
+  targetCurrency?: CurrencyCode,
+  options?: { locale?: string; useBengaliDigits?: boolean; showSymbol?: boolean }
+): string => {
+  return formatPrice(amountInBDT, targetCurrency, options);
 };
 
 // ==========================================
 // Backwards Compatibility Functions
 // ==========================================
 
-export const formatBDTCurrency = (amount: number | string): string => {
-  return formatPrice(amount, "BDT");
+export const formatBDTCurrency = (
+  amount: number | string,
+  options?: { locale?: string; useBengaliDigits?: boolean }
+): string => {
+  return formatPrice(amount, "BDT", options);
 };
 
-export const formatBDTCurrencyWithoutSymbol = (amount: number | string): string => {
-  const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
+export const formatBDTCurrencyWithoutSymbol = (
+  amount: number | string,
+  options?: { locale?: string; useBengaliDigits?: boolean }
+): string => {
+  const numAmount = typeof amount === "string" ? parseFloat(toLatinDigits(amount)) : amount;
   if (isNaN(numAmount)) return "0.00";
-  return numAmount.toLocaleString("bn-BD", {
+  return formatLocalizedNumber(numAmount, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+    ...options,
   });
 };
 

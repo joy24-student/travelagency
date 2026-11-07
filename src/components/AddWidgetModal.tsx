@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import {
+import { Platform,
   Animated,
   Dimensions,
   Modal,
@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 const TRIP_BLUE = "#0055F2";
 
 interface AddWidgetModalProps {
@@ -22,7 +22,7 @@ interface AddWidgetModalProps {
 }
 
 export function AddWidgetModal({ visible, onClose, onAddWidget }: AddWidgetModalProps) {
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const translateY = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export function AddWidgetModal({ visible, onClose, onAddWidget }: AddWidgetModal
           useNativeDriver: true,
         }),
         Animated.timing(translateY, {
-          toValue: SCREEN_HEIGHT,
+          toValue: 600,
           duration: 200,
           useNativeDriver: true,
         }),
@@ -65,7 +65,7 @@ export function AddWidgetModal({ visible, onClose, onAddWidget }: AddWidgetModal
         useNativeDriver: true,
       }),
       Animated.timing(translateY, {
-        toValue: SCREEN_HEIGHT,
+        toValue: 600,
         duration: 220,
         useNativeDriver: true,
       }),
@@ -267,7 +267,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 20,
-    maxHeight: SCREEN_HEIGHT * 0.9,
+    ...(Platform.OS === "web" ? { boxShadow: "0px -4px 16px rgba(15, 23, 42, 0.15)" } : {}),
+    maxHeight: 600 * 0.9,
   },
   topHeaderRow: {
     flexDirection: "row",
@@ -316,6 +317,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.05)" } : {}),
   },
   widgetHeaderRow: {
     flexDirection: "row",
@@ -324,7 +326,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   widgetDateDay: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
@@ -341,7 +343,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   widgetLocationText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
@@ -361,7 +363,7 @@ const styles = StyleSheet.create({
     width: 60,
   },
   toolLabel: {
-    fontSize: 7,
+    fontSize: 12,
     fontWeight: "700",
     color: "#334155",
     textAlign: "center",
@@ -379,7 +381,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   widgetSearchText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#334155",
     fontWeight: "600",
   },
@@ -398,6 +400,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.05)" } : {}),
   },
   smallHeaderRow: {
     flexDirection: "row",
@@ -405,7 +408,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   widgetDateDaySmall: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
@@ -444,7 +447,7 @@ const styles = StyleSheet.create({
     borderColor: "#BFDBFE",
   },
   miniAskGenieText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: TRIP_BLUE,
   },

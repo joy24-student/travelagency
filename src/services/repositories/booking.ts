@@ -47,6 +47,28 @@ export const bookingRepository = {
     return data;
   },
 
+  async getBookingById(bookingId: string) {
+    return this.getBooking(bookingId);
+  },
+
+  async getBookingItems(bookingId: string) {
+    const { data, error } = await supabase
+      .from("booking_items")
+      .select("*")
+      .eq("booking_id", bookingId);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getBookingInvoices(bookingId: string) {
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("*")
+      .eq("booking_id", bookingId);
+    if (error) throw error;
+    return data || [];
+  },
+
   // Create booking
   async createBooking(userId: string, booking: any) {
     const finalPrice =
@@ -156,7 +178,7 @@ export const bookingRepository = {
   },
 
   // Cancel booking
-  async cancelBooking(bookingId: string, reason: string) {
+  async cancelBooking(bookingId: string, reason?: string) {
     const { data: booking, error: getError } = await supabase
       .from("bookings")
       .select("id, user_id")

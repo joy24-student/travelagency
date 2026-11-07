@@ -1,3 +1,5 @@
+import { FocusAwareStatusBar } from "../../components/ui/AppStatusBar";
+import { showLocalizedAlert } from "../../utils/localizedAlert";
 /**
  * Agency Management Screen - Admin Panel
  * Executive Slate Typography & 100% Pixel-Perfect HTML Alignment
@@ -18,6 +20,7 @@
  */
 
 import React, { useState } from "react";
+import { openLink } from "../../utils/openLink";
 import {
   View,
   ScrollView,
@@ -28,12 +31,12 @@ import {
   Modal,
   Alert,
   Dimensions,
-  SafeAreaView,
   StatusBar,
   Linking,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Ionicons,
   MaterialCommunityIcons,
@@ -66,7 +69,8 @@ import { useRBAC } from "./rbac";
 import { AdminPagination } from "./AdminPagination";
 import { DestructiveConfirmModal } from "./DestructiveConfirmModal";
 
-const { width } = Dimensions.get("window");
+import { useResponsive } from "../../hooks/useResponsive";
+import { RTLIcon } from "../../components/ui";
 
 export type SubScreenType =
   | "dashboard"
@@ -231,7 +235,7 @@ const INITIAL_PAYOUT_REQUESTS: AgencyPayoutItem[] = [
     net_amount: "৳83,600",
     commission_balance: "৳120,000",
     status: "paid_out",
-    requested_at: "02 Nov 2026",
+    requested_at: new Date(Date.now() - 3 * 86400000).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
     reference: "PAY-2026-8938",
   },
 ];
@@ -239,6 +243,7 @@ const INITIAL_PAYOUT_REQUESTS: AgencyPayoutItem[] = [
 export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
   admin: propAdmin,
 }) => {
+  const { width, isTablet, isDesktop } = useResponsive();
   const { admin: rbacAdmin } = useRBAC();
   const admin = propAdmin || rbacAdmin;
   const [agenciesList, setAgenciesList] = useState<AgencyItem[]>(INITIAL_AGENCIES);
@@ -478,7 +483,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     if (!agency || !admin) return;
 
     if (!reason.trim() || reason.trim().length < 5) {
-      Alert.alert(
+      showLocalizedAlert(
         "Reason Required",
         "Please provide a detailed compliance/regulatory rationale (at least 5 characters)."
       );
@@ -486,12 +491,12 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     }
 
     if (!acknowledged) {
-      Alert.alert("Acknowledgement Required", "You must confirm compliance governance responsibility.");
+      showLocalizedAlert("Acknowledgement Required", "You must confirm compliance governance responsibility.");
       return;
     }
 
     if (confirmationPhrase.trim().toUpperCase() !== "CONFIRM") {
-      Alert.alert("Confirmation Phrase Required", "Please type 'CONFIRM' to authorize this critical action.");
+      showLocalizedAlert("Confirmation Phrase Required", "Please type 'CONFIRM' to authorize this critical action.");
       return;
     }
 
@@ -542,7 +547,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         }
 
         closeSecurityModal();
-        Alert.alert(
+        showLocalizedAlert(
           "Agency Suspended",
           `${agency.name} operational privileges suspended. Atomic audit event logged to admin_activity_logs.`
         );
@@ -597,7 +602,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         }
 
         closeSecurityModal();
-        Alert.alert(
+        showLocalizedAlert(
           "Trade License Revoked",
           `Trade license for ${agency.name} has been REVOKED under compliance governance. Audit record persisted in admin_activity_logs.`
         );
@@ -641,10 +646,10 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         }
 
         closeSecurityModal();
-        Alert.alert("Agency Banned", `${agency.name} permanently banned and logged to admin_activity_logs.`);
+        showLocalizedAlert("Agency Banned", `${agency.name} permanently banned and logged to admin_activity_logs.`);
       }
     } catch (err: any) {
-      Alert.alert("Mutation Error", err.message || "Failed to execute security mutation.");
+      showLocalizedAlert("Mutation Error", err.message || "Failed to execute security mutation.");
     } finally {
       setSecurityModal((prev) => ({ ...prev, isSubmitting: false }));
     }
@@ -653,7 +658,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
   // Commission Tier Manager Handlers (Requirement 3)
   const handleSaveCommissionSplits = async () => {
     if (!admin) {
-      Alert.alert("Governance Block", "No administrative session.");
+      showLocalizedAlert("Governance Block", "No administrative session.");
       return;
     }
     const timestamp = new Date().toISOString();
@@ -689,12 +694,12 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         admin
       );
 
-      Alert.alert(
+      showLocalizedAlert(
         "Commission Splits Saved",
         `Custom split ${commissionRate.toFixed(1)}% applied (${commissionScope === "global" ? "All Agencies" : selectedAgency?.name}) and logged to admin_activity_logs.`
       );
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to persist commission configuration.");
+      showLocalizedAlert("Error", err.message || "Failed to persist commission configuration.");
     }
   };
 
@@ -719,12 +724,12 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         prev.map((p) => (p.id === payout.id ? { ...p, status: "paid_out" } : p))
       );
 
-      Alert.alert(
+      showLocalizedAlert(
         "Payout Disbursed",
         `Settlement of ${payout.net_amount} for ${payout.agency_name} approved for ${payout.bank_name} transfer. Logged to admin_activity_logs.`
       );
     } catch (err: any) {
-      Alert.alert("Payout Error", err.message || "Failed to process bank settlement.");
+      showLocalizedAlert("Payout Error", err.message || "Failed to process bank settlement.");
     }
   };
 
@@ -767,9 +772,9 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 prev.map((p) => (p.id === payout.id ? { ...p, status: "rejected" } : p))
               );
 
-              Alert.alert("Payout Rejected", `Request marked rejected and logged to admin_activity_logs.`);
+              showLocalizedAlert("Payout Rejected", `Request marked rejected and logged to admin_activity_logs.`);
             } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed to record rejection.");
+              showLocalizedAlert("Error", err.message || "Failed to record rejection.");
             }
           },
         },
@@ -825,18 +830,16 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
   };
 
   const handleCall = (phone: string) => {
-    Linking.openURL(`tel:${phone}`).catch(() => {
-      Alert.alert("Call Agency", `Dialing ${phone}`);
-    });
+    openLink(`tel:${phone}`, { label: "ফোন নম্বর", copyValue: phone });
   };
 
   const handleConfirmSuspend = async () => {
     if (!suspendReason.trim()) {
-      Alert.alert("Required", "Please provide a reason for suspension.");
+      showLocalizedAlert("Required", "Please provide a reason for suspension.");
       return;
     }
     if (!admin) {
-      Alert.alert("Error", "No active administrative context.");
+      showLocalizedAlert("Error", "No active administrative context.");
       return;
     }
 
@@ -852,9 +855,9 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       setSelectedAgency((prev) => ({ ...prev, status: "Suspended" }));
       setSuspendModalVisible(false);
       setSuspendReason("");
-      Alert.alert("Audit Logged", `${selectedAgency.name} suspended and logged to admin_activity_logs.`);
+      showLocalizedAlert("Audit Logged", `${selectedAgency.name} suspended and logged to admin_activity_logs.`);
     } else {
-      Alert.alert("Governance Block", cmdResult.error || "Failed to suspend agency.");
+      showLocalizedAlert("Governance Block", cmdResult.error || "Failed to suspend agency.");
     }
   };
 
@@ -872,9 +875,9 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       if (selectedAgency?.id === agency.id) {
         setSelectedAgency((prev) => ({ ...prev, status: "Verified" }));
       }
-      Alert.alert("Audit Logged", `${agency.name} verified and logged to admin_activity_logs.`);
+      showLocalizedAlert("Audit Logged", `${agency.name} verified and logged to admin_activity_logs.`);
     } else {
-      Alert.alert("Governance Block", cmdResult.error || "Failed to verify agency.");
+      showLocalizedAlert("Governance Block", cmdResult.error || "Failed to verify agency.");
     }
   };
 
@@ -892,15 +895,15 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       if (selectedAgency?.id === agency.id) {
         setSelectedAgency((prev) => ({ ...prev, status: "Verified" }));
       }
-      Alert.alert("Audit Logged", `${agency.name} reactivated and logged to admin_activity_logs.`);
+      showLocalizedAlert("Audit Logged", `${agency.name} reactivated and logged to admin_activity_logs.`);
     } else {
-      Alert.alert("Governance Block", cmdResult.error || "Failed to reactivate agency.");
+      showLocalizedAlert("Governance Block", cmdResult.error || "Failed to reactivate agency.");
     }
   };
 
   const handleCreateAdCampaign = () => {
     if (!newAdTitle.trim()) {
-      Alert.alert("Required", "Please enter a campaign title.");
+      showLocalizedAlert("Required", "Please enter a campaign title.");
       return;
     }
 
@@ -922,7 +925,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     setCreateAdModalVisible(false);
     setNewAdTitle("");
     setNewAdTargetPackage("");
-    Alert.alert("Ad Campaign Created", `'${newAd.title}' is now active for ${selectedAgency.name}.`);
+    showLocalizedAlert("Ad Campaign Created", `'${newAd.title}' is now active for ${selectedAgency.name}.`);
   };
 
   const handleToggleAdStatus = (adId: string) => {
@@ -955,7 +958,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             style={styles.primaryAddBtnHeader}
             onPress={() => navigateTo("add_agency")}
           >
-            <FontAwesome5 name="plus" size={12} color="#ffffff" style={{ marginRight: 6 }} />
+            <FontAwesome5 name="plus" size={12} color="#ffffff" style={{ marginEnd: 6 }} />
             <Text style={styles.primaryAddBtnHeaderText}>Add Agency</Text>
           </TouchableOpacity>
         </View>
@@ -1001,7 +1004,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
           <View style={[styles.statsGrid, { marginTop: 10 }]}>
             <TouchableOpacity
-              style={[styles.smallStatCard, { flex: 1, marginRight: 6 }]}
+              style={[styles.smallStatCard, { flex: 1, marginEnd: 6 }]}
               onPress={() => setStatusFilter("Suspended")}
             >
               <View style={styles.statIconRow}>
@@ -1012,7 +1015,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.smallStatCard, { flex: 1, marginLeft: 6 }]}
+              style={[styles.smallStatCard, { flex: 1, marginStart: 6 }]}
               onPress={() => setStatusFilter("All")}
             >
               <View style={styles.statIconRow}>
@@ -1109,7 +1112,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 </Text>
                 <Text style={styles.priorityText}>Agency Bank Payouts Awaiting Review</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              <RTLIcon name="chevron-forward" size={18} color="#94a3b8" />
             </TouchableOpacity>
 
             <View style={styles.divider} />
@@ -1127,7 +1130,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 </Text>
                 <Text style={styles.priorityText}>Agencies Waiting Trade License Vetting</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              <RTLIcon name="chevron-forward" size={18} color="#94a3b8" />
             </TouchableOpacity>
 
             <View style={styles.divider} />
@@ -1136,7 +1139,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               style={styles.priorityItem}
               onPress={() => {
                 if (selectedAgency) openSecurityModal("suspend", selectedAgency);
-                else Alert.alert("Select Agency", "Select an agency from the directory.");
+                else showLocalizedAlert("Select Agency", "Select an agency from the directory.");
               }}
             >
               <View style={styles.priorityLeft}>
@@ -1148,7 +1151,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 </Text>
                 <Text style={styles.priorityText}>Suspended Agencies Monitored</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              <RTLIcon name="chevron-forward" size={18} color="#94a3b8" />
             </TouchableOpacity>
           </View>
         </View>
@@ -1160,7 +1163,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           {/* Search & Filter */}
           <View style={styles.searchFilterRow}>
             <View style={styles.searchContainer}>
-              <Ionicons name="search-outline" size={18} color="#94a3b8" style={{ marginRight: 8 }} />
+              <Ionicons name="search-outline" size={18} color="#94a3b8" style={{ marginEnd: 8 }} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search by name, email, or trade license #..."
@@ -1245,7 +1248,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     </View>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+                <RTLIcon name="chevron-forward" size={18} color="#94a3b8" />
               </View>
 
               <View style={styles.agencyCardMetricsRow}>
@@ -1282,7 +1285,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             onPress={() => {
               setStatusFilter("All");
               setSearchQuery("");
-              Alert.alert("Agencies Directory", `Showing all ${agenciesList.length} partner agencies.`);
+              showLocalizedAlert("Agencies Directory", `Showing all ${agenciesList.length} partner agencies.`);
             }}
           >
             <Text style={styles.viewAllDarkBtnText}>View All Agencies</Text>
@@ -1309,11 +1312,11 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         {/* Header */}
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <View>
             <Text style={styles.subHeaderTitle}>Platform Advertisements</Text>
-            <Text style={{ fontSize: 11, color: "#64748b" }}>Overall All Partner Agencies</Text>
+            <Text style={{ fontSize: 12, color: "#64748b" }}>Overall All Partner Agencies</Text>
           </View>
           <TouchableOpacity
             style={styles.moreBtn}
@@ -1392,7 +1395,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                   </View>
 
                   <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-                    <Ionicons name="business" size={12} color="#047857" style={{ marginRight: 4 }} />
+                    <Ionicons name="business" size={12} color="#047857" style={{ marginEnd: 4 }} />
                     <Text style={{ fontSize: 12, fontWeight: "600", color: "#047857" }}>
                       {ad.agencyName}
                     </Text>
@@ -1450,7 +1453,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     borderRadius: 8,
                     alignItems: "center",
                   }}
-                  onPress={() => Alert.alert("Edit Ad", `Editing parameters for ${ad.title}`)}
+                  onPress={() => showLocalizedAlert("Edit Ad", `Editing parameters for ${ad.title}`)}
                 >
                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#334155" }}>
                     Edit Ad
@@ -1480,7 +1483,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
       <View style={styles.subHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.subHeaderTitle}>Support Center Flow</Text>
         <TouchableOpacity style={styles.moreBtn}>
@@ -1500,13 +1503,13 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <View style={styles.subHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.subHeaderTitle}>Agency Details</Text>
         <TouchableOpacity
           style={styles.moreBtn}
           onPress={() =>
-            Alert.alert("Agency Actions", `Manage settings for ${selectedAgency.name}`, [
+            showLocalizedAlert("Agency Actions", `Manage settings for ${selectedAgency.name}`, [
               { text: "Edit Profile", onPress: () => setAddAgencyModalVisible(true) },
               { text: "View Documents", onPress: () => navigateTo("documents") },
               { text: "View Advertisements", onPress: () => navigateTo("agency_ads") },
@@ -1753,7 +1756,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           >
             <Text style={styles.bizLabel}>Agreement</Text>
             <Text style={styles.bizValueText}>
-              Until Dec 2027 <Ionicons name="chevron-forward" size={12} color="#94a3b8" />
+              Until Dec 2027 <RTLIcon name="chevron-forward" size={12} color="#94a3b8" />
             </Text>
           </TouchableOpacity>
         </View>
@@ -1763,7 +1766,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       <View style={styles.section}>
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Contacts</Text>
-          <TouchableOpacity onPress={() => Alert.alert("Contacts List", "All contacts active.")}>
+          <TouchableOpacity onPress={() => showLocalizedAlert("Contacts List", "All contacts active.")}>
             <Text style={styles.linkText}>View All</Text>
           </TouchableOpacity>
         </View>
@@ -1829,11 +1832,11 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         {/* Header */}
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <View>
             <Text style={styles.subHeaderTitle}>Advertisements & Campaigns</Text>
-            <Text style={{ fontSize: 11, color: "#64748b" }}>{selectedAgency.name}</Text>
+            <Text style={{ fontSize: 12, color: "#64748b" }}>{selectedAgency.name}</Text>
           </View>
           <TouchableOpacity
             style={styles.moreBtn}
@@ -1964,7 +1967,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                       borderRadius: 8,
                       alignItems: "center",
                     }}
-                    onPress={() => Alert.alert("Edit Ad", `Editing parameters for ${ad.title}`)}
+                    onPress={() => showLocalizedAlert("Edit Ad", `Editing parameters for ${ad.title}`)}
                   >
                     <Text style={{ fontSize: 12, fontWeight: "600", color: "#334155" }}>
                       Edit Ad
@@ -2025,7 +2028,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           }}
         >
           <TouchableOpacity onPress={goBack} style={{ padding: 4 }}>
-            <Ionicons name="arrow-back" size={20} color="#1f2937" />
+            <RTLIcon name="arrow-back" size={20} color="#1f2937" />
           </TouchableOpacity>
 
           <Text style={{ fontSize: 17, fontWeight: "600", color: "#111827", letterSpacing: -0.3 }}>
@@ -2071,7 +2074,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     1
                   </Text>
                 </View>
-                <Text style={{ fontSize: 11, fontWeight: "500", color: addStep >= 1 ? "#114b3d" : "#9ca3af" }}>
+                <Text style={{ fontSize: 12, fontWeight: "500", color: addStep >= 1 ? "#114b3d" : "#9ca3af" }}>
                   Basic Info
                 </Text>
               </TouchableOpacity>
@@ -2095,7 +2098,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     2
                   </Text>
                 </View>
-                <Text style={{ fontSize: 11, fontWeight: "500", color: addStep >= 2 ? "#114b3d" : "#9ca3af" }}>
+                <Text style={{ fontSize: 12, fontWeight: "500", color: addStep >= 2 ? "#114b3d" : "#9ca3af" }}>
                   Documents
                 </Text>
               </TouchableOpacity>
@@ -2119,7 +2122,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     3
                   </Text>
                 </View>
-                <Text style={{ fontSize: 11, fontWeight: "500", color: addStep >= 3 ? "#114b3d" : "#9ca3af" }}>
+                <Text style={{ fontSize: 12, fontWeight: "500", color: addStep >= 3 ? "#114b3d" : "#9ca3af" }}>
                   Review
                 </Text>
               </TouchableOpacity>
@@ -2129,7 +2132,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           {addStep === 1 && (
             <View style={{ paddingHorizontal: 20 }}>
               <View style={{ marginBottom: 18 }}>
-                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginLeft: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginStart: 4 }}>
                   Agency Name
                 </Text>
                 <TextInput
@@ -2152,7 +2155,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               </View>
 
               <View style={{ marginBottom: 18 }}>
-                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginLeft: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginStart: 4 }}>
                   Email Address
                 </Text>
                 <TextInput
@@ -2176,7 +2179,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               </View>
 
               <View style={{ marginBottom: 18 }}>
-                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginLeft: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginStart: 4 }}>
                   Contact Number
                 </Text>
                 <TextInput
@@ -2200,7 +2203,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               </View>
 
               <View style={{ marginBottom: 18 }}>
-                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginLeft: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginStart: 4 }}>
                   Country
                 </Text>
                 <TouchableOpacity
@@ -2226,7 +2229,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               </View>
 
               <View style={{ marginBottom: 18 }}>
-                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginLeft: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginStart: 4 }}>
                   Type
                 </Text>
                 <TouchableOpacity
@@ -2273,11 +2276,11 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 }}
                 onPress={() => {
                   setLicenseUploaded(!licenseUploaded);
-                  Alert.alert("File Upload", licenseUploaded ? "File removed." : "Trade License uploaded successfully.");
+                  showLocalizedAlert("File Upload", licenseUploaded ? "File removed." : "Trade License uploaded successfully.");
                 }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <FontAwesome5 name="file-contract" size={18} color="#114b3d" style={{ marginRight: 12 }} />
+                  <FontAwesome5 name="file-contract" size={18} color="#114b3d" style={{ marginEnd: 12 }} />
                   <View>
                     <Text style={{ fontSize: 14, fontWeight: "600", color: "#111827" }}>
                       Trade License / Registration
@@ -2374,7 +2377,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 alignItems: "center",
               }}
               onPress={() => {
-                Alert.alert("Success", "Agency created!");
+                showLocalizedAlert("Success", "Agency created!");
                 goBack();
               }}
             >
@@ -2406,7 +2409,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       <View style={{ flex: 1, backgroundColor: "#fff" }}>
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <Text style={styles.subHeaderTitle}>Verification Center</Text>
           <TouchableOpacity style={styles.moreBtn}>
@@ -2473,7 +2476,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     </Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+                <RTLIcon name="chevron-forward" size={18} color="#cbd5e1" />
               </TouchableOpacity>
             ))
           )}
@@ -2482,7 +2485,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         <View style={styles.bottomFixedBtnContainer}>
           <TouchableOpacity
             style={styles.bottomFixedBtn}
-            onPress={() => Alert.alert("Review All", `Processing ${pendingCount} pending verifications...`)}
+            onPress={() => showLocalizedAlert("Review All", `Processing ${pendingCount} pending verifications...`)}
           >
             <Text style={styles.bottomFixedBtnText}>Review All</Text>
           </TouchableOpacity>
@@ -2512,7 +2515,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       <View style={{ flex: 1, backgroundColor: "#fff" }}>
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <Text style={styles.subHeaderTitle}>Contracts</Text>
           <TouchableOpacity style={styles.moreBtn}>
@@ -2583,7 +2586,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         <View style={styles.bottomFixedBtnContainer}>
           <TouchableOpacity
             style={styles.bottomFixedBtn}
-            onPress={() => Alert.alert("New Contract", "Opening new agency contract wizard...")}
+            onPress={() => showLocalizedAlert("New Contract", "Opening new agency contract wizard...")}
           >
             <Text style={styles.bottomFixedBtnText}>Add New Contract</Text>
           </TouchableOpacity>
@@ -2599,7 +2602,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.subHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.subHeaderTitle}>Agency Analytics</Text>
         <TouchableOpacity style={styles.moreBtn}>
@@ -2751,7 +2754,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       <View style={styles.bottomFixedBtnContainer}>
         <TouchableOpacity
           style={styles.bottomFixedBtn}
-          onPress={() => Alert.alert("Full Report", "Generating detailed PDF analytics report...")}
+          onPress={() => showLocalizedAlert("Full Report", "Generating detailed PDF analytics report...")}
         >
           <Text style={styles.bottomFixedBtnText}>View Full Report</Text>
         </TouchableOpacity>
@@ -2780,7 +2783,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       <View style={{ flex: 1, backgroundColor: "#fff" }}>
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <Text style={styles.subHeaderTitle}>Documents ({selectedAgency?.name || "Agency"})</Text>
           <TouchableOpacity style={styles.moreBtn}>
@@ -2885,7 +2888,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <TouchableOpacity onPress={goBack} style={{ padding: 6, marginRight: 10 }}>
+            <TouchableOpacity onPress={goBack} style={{ padding: 6, marginEnd: 10 }}>
               <FontAwesome5 name="arrow-left" size={18} color="#0b1c30" />
             </TouchableOpacity>
             <Text style={{ fontSize: 20, fontWeight: "700", color: "#0b1c30" }}>Payments</Text>
@@ -2905,7 +2908,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                   paddingVertical: 8,
                   borderRadius: 20,
                   backgroundColor: globalPaymentTab === tab.key ? "#003527" : "#eff4ff",
-                  marginRight: 8,
+                  marginEnd: 8,
                 }}
                 onPress={() => setGlobalPaymentTab(tab.key)}
               >
@@ -2937,7 +2940,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               height: 42,
             }}
           >
-            <FontAwesome5 name="search" size={14} color="#707974" style={{ marginRight: 8 }} />
+            <FontAwesome5 name="search" size={14} color="#707974" style={{ marginEnd: 8 }} />
             <TextInput
               style={{ flex: 1, fontSize: 13, color: "#0b1c30" }}
               placeholder="Search payments..."
@@ -2957,7 +2960,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               alignItems: "center",
               justifyContent: "center",
             }}
-            onPress={() => Alert.alert("Filter", "Filter parameters active.")}
+            onPress={() => showLocalizedAlert("Filter", "Filter parameters active.")}
           >
             <FontAwesome5 name="sliders-h" size={16} color="#404944" />
           </TouchableOpacity>
@@ -2993,7 +2996,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                       backgroundColor: "#d3e4fe",
                       alignItems: "center",
                       justifyContent: "center",
-                      marginRight: 14,
+                      marginEnd: 14,
                     }}
                   >
                     <FontAwesome5 name={item.iconName} size={18} color="#003527" />
@@ -3034,7 +3037,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                   >
                     <Text
                       style={{
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: "700",
                         color:
                           item.status === "Completed" || item.status === "Success"
@@ -3070,11 +3073,11 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.subHeader}>
         <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#0f172a" />
+          <RTLIcon name="arrow-back" size={20} color="#0f172a" />
         </TouchableOpacity>
         <View>
           <Text style={styles.subHeaderTitle}>Payment Analysis</Text>
-          <Text style={{ fontSize: 11, color: "#64748b" }}>{selectedAgency.name}</Text>
+          <Text style={{ fontSize: 12, color: "#64748b" }}>{selectedAgency.name}</Text>
         </View>
         <TouchableOpacity style={styles.moreBtn}>
           <Ionicons name="ellipsis-horizontal" size={20} color="#0f172a" />
@@ -3128,7 +3131,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             { ref: "PY-84918", date: "Dec 15, 2026", amt: "$5,150.00", st: "Hold" },
             { ref: "PY-84917", date: "Dec 01, 2026", amt: "$15,300.00", st: "Completed" },
           ].map((item, idx) => (
-            <View key={idx} style={styles.contractItemRow}>
+            <View key={item.ref || `payout-${idx}`} style={styles.contractItemRow}>
               <View style={styles.contractItemLeft}>
                 <View
                   style={[
@@ -3168,7 +3171,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 </Text>
                 <Text
                   style={{
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: "600",
                     color:
                       item.st === "Completed"
@@ -3189,7 +3192,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       <View style={styles.bottomFixedBtnContainer}>
         <TouchableOpacity
           style={styles.bottomFixedBtn}
-          onPress={() => Alert.alert("Initiate Payout", `Processing manual payout for ${selectedAgency.name}...`)}
+          onPress={() => showLocalizedAlert("Initiate Payout", `Processing manual payout for ${selectedAgency.name}...`)}
         >
           <Text style={styles.bottomFixedBtnText}>Initiate Agency Payout</Text>
         </TouchableOpacity>
@@ -3210,7 +3213,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       <View style={{ flex: 1, backgroundColor: "#fff" }}>
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <Text style={styles.subHeaderTitle}>Agency Bookings</Text>
           <TouchableOpacity style={styles.moreBtn}>
@@ -3305,7 +3308,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         <View style={styles.bottomFixedBtnContainer}>
           <TouchableOpacity
             style={styles.bottomFixedBtn}
-            onPress={() => Alert.alert("Manual Booking", "Opening manual booking entry form...")}
+            onPress={() => showLocalizedAlert("Manual Booking", "Opening manual booking entry form...")}
           >
             <Text style={styles.bottomFixedBtnText}>Create Manual Booking</Text>
           </TouchableOpacity>
@@ -3332,18 +3335,18 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         {/* Header */}
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.subHeaderTitle}>Commission & Payout Manager</Text>
-            <Text style={{ fontSize: 11, color: "#64748b" }}>
+            <Text style={{ fontSize: 12, color: "#64748b" }}>
               Configure custom splits (5% - 12%) & review bank payouts
             </Text>
           </View>
           <TouchableOpacity
             style={styles.moreBtn}
             onPress={() =>
-              Alert.alert(
+              showLocalizedAlert(
                 "Export Statement",
                 "Exported full agency commission ledger and bank statement as CSV."
               )
@@ -3520,7 +3523,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 <View style={styles.verticalSplitCard}>
                   <View style={styles.verticalRow}>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <FontAwesome5 name="plane" size={14} color="#2563eb" style={{ marginRight: 8 }} />
+                      <FontAwesome5 name="plane" size={14} color="#2563eb" style={{ marginEnd: 8 }} />
                       <Text style={styles.verticalName}>Flight Bookings</Text>
                     </View>
                     <TextInput
@@ -3532,7 +3535,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
                   <View style={styles.verticalRow}>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <FontAwesome5 name="hotel" size={14} color="#047857" style={{ marginRight: 8 }} />
+                      <FontAwesome5 name="hotel" size={14} color="#047857" style={{ marginEnd: 8 }} />
                       <Text style={styles.verticalName}>Hotel Reservations</Text>
                     </View>
                     <TextInput
@@ -3544,7 +3547,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
                   <View style={styles.verticalRow}>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <FontAwesome5 name="map-marked-alt" size={14} color="#7e22ce" style={{ marginRight: 8 }} />
+                      <FontAwesome5 name="map-marked-alt" size={14} color="#7e22ce" style={{ marginEnd: 8 }} />
                       <Text style={styles.verticalName}>Tour Packages</Text>
                     </View>
                     <TextInput
@@ -3556,7 +3559,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
                   <View style={[styles.verticalRow, { borderBottomWidth: 0 }]}>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <FontAwesome5 name="train" size={14} color="#c2410c" style={{ marginRight: 8 }} />
+                      <FontAwesome5 name="train" size={14} color="#c2410c" style={{ marginEnd: 8 }} />
                       <Text style={styles.verticalName}>Intercity Transit & Rail</Text>
                     </View>
                     <TextInput
@@ -3624,7 +3627,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 style={styles.saveCommissionBtn}
                 onPress={handleSaveCommissionSplits}
               >
-                <Ionicons name="save-outline" size={18} color="#ffffff" style={{ marginRight: 8 }} />
+                <Ionicons name="save-outline" size={18} color="#ffffff" style={{ marginEnd: 8 }} />
                 <Text style={styles.saveCommissionBtnText}>
                   Save & Apply Commission Configuration
                 </Text>
@@ -3695,7 +3698,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     <View style={styles.payoutBankDetailsBox}>
                       <View style={styles.payoutBankRow}>
                         <View style={{ flexDirection: "row", alignItems: "center" }}>
-                          <FontAwesome5 name="university" size={14} color="#0f172a" style={{ marginRight: 6 }} />
+                          <FontAwesome5 name="university" size={14} color="#0f172a" style={{ marginEnd: 6 }} />
                           <Text style={styles.payoutBankName}>{payout.bank_name}</Text>
                         </View>
                         <Text style={styles.payoutAccountNum}>{payout.account_number}</Text>
@@ -3731,7 +3734,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                           style={styles.payoutRejectBtn}
                           onPress={() => handleRejectPayout(payout)}
                         >
-                          <Ionicons name="close-circle-outline" size={16} color="#b91c1c" style={{ marginRight: 4 }} />
+                          <Ionicons name="close-circle-outline" size={16} color="#b91c1c" style={{ marginEnd: 4 }} />
                           <Text style={styles.payoutRejectBtnText}>Reject Payout</Text>
                         </TouchableOpacity>
 
@@ -3739,7 +3742,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                           style={styles.payoutApproveBtn}
                           onPress={() => handleApprovePayout(payout)}
                         >
-                          <Ionicons name="checkmark-done" size={16} color="#ffffff" style={{ marginRight: 4 }} />
+                          <Ionicons name="checkmark-done" size={16} color="#ffffff" style={{ marginEnd: 4 }} />
                           <Text style={styles.payoutApproveBtnText}>Approve Settlement</Text>
                         </TouchableOpacity>
                       </View>
@@ -3756,7 +3759,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <FocusAwareStatusBar style="dark" backgroundColor="#ffffff" />
       {currentScreen === "dashboard" && renderDashboard()}
       {currentScreen === "add_agency" && renderAddAgency()}
       {currentScreen === "details" && renderDetails()}
@@ -3783,7 +3786,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <FontAwesome5 name="headset" size={18} color="#4338ca" style={{ marginRight: 8 }} />
+                <FontAwesome5 name="headset" size={18} color="#4338ca" style={{ marginEnd: 8 }} />
                 <Text style={styles.modalTitle}>Partner Support & Help</Text>
               </View>
               <TouchableOpacity onPress={() => setSupportModalVisible(false)}>
@@ -3810,7 +3813,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                   <Text style={styles.supportOptionTitle}>Open Support Center Workspace</Text>
                   <Text style={styles.supportOptionSub}>Full Live Feed & Response Editor</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                <RTLIcon name="chevron-forward" size={16} color="#94a3b8" />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -3827,7 +3830,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                   <Text style={styles.supportOptionTitle}>24/7 Phone Support Hotline</Text>
                   <Text style={styles.supportOptionSub}>Dial 01863054816 directly</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                <RTLIcon name="chevron-forward" size={16} color="#94a3b8" />
               </TouchableOpacity>
             </View>
           </View>
@@ -3880,7 +3883,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     }}
                     onPress={() => setNewAdType(t)}
                   >
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: newAdType === t ? "#7e22ce" : "#475569" }}>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: newAdType === t ? "#7e22ce" : "#475569" }}>
                       {t}
                     </Text>
                   </TouchableOpacity>
@@ -4000,7 +4003,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     ? "#b91c1c"
                     : "#c2410c"
                 }
-                style={{ marginRight: 10 }}
+                style={{ marginEnd: 10 }}
               />
               <View style={{ flex: 1 }}>
                 <Text
@@ -4041,7 +4044,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
               {/* Consequence Box */}
               <View style={styles.consequenceBox}>
-                <Ionicons name="information-circle-outline" size={18} color="#475569" style={{ marginRight: 8 }} />
+                <Ionicons name="information-circle-outline" size={18} color="#475569" style={{ marginEnd: 8 }} />
                 <Text style={styles.consequenceText}>
                   {securityModal.actionType === "revoke_license"
                     ? "Revoking trade license invalidates certified partner status, freezes pending settlement payouts, delists published packages, and mandates full regulatory re-vetting."
@@ -4077,7 +4080,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                   name={securityModal.acknowledged ? "checkbox" : "square-outline"}
                   size={20}
                   color={securityModal.acknowledged ? "#0f172a" : "#94a3b8"}
-                  style={{ marginRight: 8 }}
+                  style={{ marginEnd: 8 }}
                 />
                 <Text style={styles.checkboxLabel}>
                   I confirm that I have verified the operational breach and authorize this sanction
@@ -4188,7 +4191,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                       paddingVertical: 8,
                       borderRadius: 10,
                       backgroundColor: statusFilter === st ? "#047857" : "#f1f5f9",
-                      marginRight: 8,
+                      marginEnd: 8,
                       marginBottom: 8,
                     }}
                     onPress={() => setStatusFilter(st)}
@@ -4220,7 +4223,7 @@ export const AgencyManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles: any = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#ffffff",
@@ -4299,7 +4302,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 16,
-    marginRight: 6,
+    marginEnd: 6,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     justifyContent: "space-between",
@@ -4328,7 +4331,7 @@ const styles = StyleSheet.create({
   },
   smallStatsColumn: {
     flex: 1,
-    marginLeft: 6,
+    marginStart: 6,
     justifyContent: "space-between",
   },
   smallStatCard: {
@@ -4350,7 +4353,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748b",
     fontWeight: "500",
-    marginLeft: 6,
+    marginStart: 6,
   },
   smallStatValue: {
     fontSize: 14,
@@ -4383,7 +4386,7 @@ const styles = StyleSheet.create({
   },
   quickActionBtn: {
     alignItems: "center",
-    width: (width - 60) / 5,
+    width: "18.5%",
   },
   quickActionIconCircle: {
     width: 44,
@@ -4394,7 +4397,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   quickActionLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "500",
     color: "#334155",
     textAlign: "center",
@@ -4421,13 +4424,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   priorityBoldCount: {
     fontSize: 14,
     fontWeight: "600",
     color: "#0f172a",
-    marginRight: 6,
+    marginEnd: 6,
   },
   priorityText: {
     fontSize: 13,
@@ -4452,7 +4455,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 42,
-    marginRight: 8,
+    marginEnd: 8,
   },
   searchInput: {
     flex: 1,
@@ -4512,7 +4515,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f1f5f9",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   agencyAvatarChar: {
     fontSize: 18,
@@ -4527,7 +4530,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#0f172a",
-    marginRight: 6,
+    marginEnd: 6,
   },
   statusBadge: {
     paddingHorizontal: 6,
@@ -4535,7 +4538,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   ratingRow: {
@@ -4544,7 +4547,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   ratingText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     fontWeight: "600",
   },
@@ -4554,7 +4557,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   locationText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   agencyCardMetricsRow: {
@@ -4566,7 +4569,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#f8fafc",
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginBottom: 2,
   },
@@ -4604,7 +4607,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#d1fae5",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
+    marginEnd: 14,
   },
   profileAvatarText: {
     fontSize: 22,
@@ -4638,7 +4641,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   verifiedBadgeInlineText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   profileLocation: {
@@ -4647,7 +4650,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   profileIdText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 2,
   },
@@ -4678,7 +4681,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   keyMetricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   keyMetricValue: {
@@ -4688,7 +4691,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   keyMetricTrend: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#047857",
     fontWeight: "500",
     marginTop: 4,
@@ -4707,7 +4710,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   perfLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginBottom: 2,
   },
@@ -4732,7 +4735,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   quickAction4Text: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     color: "#334155",
   },
@@ -4841,7 +4844,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   verificationTitle: {
     fontSize: 15,
@@ -4877,7 +4880,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   contractStatusCard: {
-    width: (width - 44) / 2,
+    width: "48%",
     padding: 14,
     borderRadius: 14,
     marginBottom: 10,
@@ -4914,7 +4917,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f1f5f9",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   contractAvatarText: {
     fontSize: 16,
@@ -4937,7 +4940,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   contractStatusPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   filterChip: {
@@ -4945,7 +4948,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 6,
     backgroundColor: "#f1f5f9",
-    marginRight: 8,
+    marginEnd: 8,
   },
   filterChipText: {
     fontSize: 12,
@@ -4997,7 +5000,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   revenueTrendText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#047857",
     fontWeight: "500",
   },
@@ -5027,7 +5030,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#0f172a",
-    marginRight: 8,
+    marginEnd: 8,
   },
   metricTrendBadge: {
     flexDirection: "row",
@@ -5038,7 +5041,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   metricTrendBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#047857",
     fontWeight: "600",
   },
@@ -5062,7 +5065,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#d1fae5",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   docTitle: {
     fontSize: 14,
@@ -5146,7 +5149,7 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   supportOptionTitle: {
     fontSize: 14,
@@ -5157,6 +5160,132 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748b",
     marginTop: 2,
+  },
+  securityInputLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 6,
+  },
+  securityInput: {
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 12,
+    color: "#0f172a",
+    backgroundColor: "#ffffff",
+    minHeight: 65,
+    textAlignVertical: "top",
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 14,
+    paddingEnd: 10,
+  },
+  checkboxLabel: {
+    fontSize: 12,
+    color: "#475569",
+    flex: 1,
+    lineHeight: 16,
+  },
+  confirmTextInput: {
+    borderWidth: 1,
+    borderColor: "#ef4444",
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 13,
+    color: "#b91c1c",
+    fontWeight: "700",
+    backgroundColor: "#fff5f5",
+  },
+  securityModalFooter: {
+    flexDirection: "row",
+    padding: 16,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    backgroundColor: "#ffffff",
+  },
+  securityCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+  },
+  securityCancelBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  securityExecuteBtn: {
+    flex: 1.5,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  securityExecuteBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  securityModalBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  securityModalBannerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  securityModalBannerSub: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  targetAccountBox: {
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  targetAccountLabel: {
+    fontSize: 11,
+    color: "#64748b",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  targetAccountName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  targetAccountDetails: {
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  consequenceBox: {
+    backgroundColor: "#fff1f2",
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#ef4444",
+    marginBottom: 12,
+  },
+  consequenceText: {
+    fontSize: 12,
+    color: "#991b1b",
+    lineHeight: 18,
   },
 });
 

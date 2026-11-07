@@ -9,21 +9,24 @@
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { Platform } from "react-native";
+import { Platform, AppState, AppStateStatus } from "react-native";
 import {
   createSecureStoreAdapter,
   withTokenRefreshLock,
 } from "../services/secureStorage";
 
 const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL || "https://htkpmrfhoijznigwimwj.supabase.co";
+  process.env.EXPO_PUBLIC_SUPABASE_URL ||
+  (process.env.NODE_ENV === "test" ? "https://placeholder.supabase.co" : "");
 const supabaseAnonKey =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
   process.env.EXPO_PUBLIC_SUPABASE_KEY ||
-  "sb_publishable_L-imfE-H1FnYefIOH6_cdQ_nOO2PImv";
+  (process.env.NODE_ENV === "test" ? "placeholder-anon-key" : "");
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing required Supabase environment configuration");
+  throw new Error(
+    "Missing required Supabase environment configuration! Please ensure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are defined in your .env file."
+  );
 }
 
 // ============================================================================
@@ -102,8 +105,22 @@ const hardenedFetch: typeof fetch = async (input, init) => {
   const method = init?.method || "GET";
   const startTime = Date.now();
 
+  const controller = new AbortController();
+  const timeoutMs = 12000;
+  let didTimeout = false;
+  const timeoutId = setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const fetchInit: RequestInit = {
+    ...init,
+    signal: init?.signal || controller.signal,
+  };
+
   try {
-    const response = await fetch(input, init);
+    const response = await fetch(input, fetchInit);
+    clearTimeout(timeoutId);
 
     // If an unexpected server error occurred (5xx) or unauthorized (401)
     if (!response.ok && response.status >= 400) {
@@ -131,6 +148,12 @@ const hardenedFetch: typeof fetch = async (input, init) => {
 
     return response;
   } catch (error: any) {
+    clearTimeout(timeoutId);
+
+    if (didTimeout || error?.name === "AbortError") {
+      throw new Error("নেটওয়ার্ক ধীর, আবার চেষ্টা করবেন?");
+    }
+
     if (isDev) {
       console.error("[Supabase Dev Network Error]", {
         method,
@@ -253,12 +276,20 @@ export const setupTokenRefreshInterceptor = () => {
     }
   });
 
+  // Proactively refresh session whenever the app comes back to the foreground
+  const appStateSub = AppState.addEventListener("change", (state: AppStateStatus) => {
+    if (state === "active") {
+      safeRefreshSession().catch(() => {});
+    }
+  });
+
   // Initial schedule run
   scheduleRefresh();
 
   return () => {
     if (refreshTimeout) clearTimeout(refreshTimeout);
     if (subscription) subscription.unsubscribe();
+    appStateSub.remove();
   };
 };
 

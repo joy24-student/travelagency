@@ -1,6 +1,8 @@
+import { formatCurrency, formatNumber } from "../../src/utils/formatters";
+import { showLocalizedAlert } from "../../src/utils/localizedAlert";
 import * as React from "react";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import {
+import { Platform,
   View,
   Text,
   StyleSheet,
@@ -17,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { CopyableText } from "../../src/components/common/CopyableText";
 import {
   TransportType,
   BusTrip,
@@ -29,8 +32,10 @@ import {
   INITIAL_BUS_TRIPS,
   INITIAL_LAUNCH_TRIPS,
 } from "../../src/services/busAndLaunchService";
+import { ErrorStateCard, EmptyStateView } from "../../src/components/common";
+import { BoardingPointMapCard } from "../../src/components/busLaunch/BoardingPointMapCard";
+import { RTLIcon } from "../../src/components/ui";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Colors & Design Tokens
 const PRIMARY_BLUE = "#0055F2";
@@ -572,6 +577,7 @@ export default function BusLaunchScreen() {
   const [busTrips, setBusTrips] = useState<BusTrip[]>([]);
   const [launchTrips, setLaunchTrips] = useState<LaunchTrip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // My Tickets modal
   const [myTickets, setMyTickets] = useState<TransportBooking[]>([]);
@@ -651,6 +657,7 @@ export default function BusLaunchScreen() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      setFetchError(null);
       if (activeTab === "bus") {
         const trips = await (busAndLaunchService as any).getAvailableTrips({
           type: "bus",
@@ -729,18 +736,18 @@ export default function BusLaunchScreen() {
   // Bus seat toggle
   const toggleBusSeat = (seat: BusSeat) => {
     if (seat.isBooked) {
-      Alert.alert("সিট সংরক্ষিত", `সিট ${seat.label} ইতিমধ্যে অন্য যাত্রী বুক করে নিয়েছেন।`);
+      showLocalizedAlert("সিট সংরক্ষিত", `সিট ${seat.label} ইতিমধ্যে অন্য যাত্রী বুক করে নিয়েছেন।`);
       return;
     }
     if (selectedBusSeats.includes(seat.id)) {
       if (selectedBusSeats.length === 1) {
-        Alert.alert("ন্যূনতম ১টি সিট", "বুকিং নিশ্চিত করতে কমপক্ষে ১টি সিট নির্বাচন করুন।");
+        showLocalizedAlert("ন্যূনতম ১টি সিট", "বুকিং নিশ্চিত করতে কমপক্ষে ১টি সিট নির্বাচন করুন।");
         return;
       }
       setSelectedBusSeats(selectedBusSeats.filter((s) => s !== seat.id));
     } else {
       if (selectedBusSeats.length >= 6) {
-        Alert.alert("সর্বোচ্চ সীমা", "এক বুকিংয়ে সর্বোচ্চ ৬টি সিট নেওয়া সম্ভব।");
+        showLocalizedAlert("সর্বোচ্চ সীমা", "এক বুকিংয়ে সর্বোচ্চ ৬টি সিট নেওয়া সম্ভব।");
         return;
       }
       setSelectedBusSeats([...selectedBusSeats, seat.id]);
@@ -750,19 +757,19 @@ export default function BusLaunchScreen() {
   // Launch cabin toggle
   const toggleLaunchCabin = (cabin: LaunchDeckCabinUnit) => {
     if (cabin.isBooked) {
-      Alert.alert("কেবিন সংরক্ষিত", `${cabin.cabinNumber} ইতিমধ্যে নিশ্চিত হয়ে গেছে।`);
+      showLocalizedAlert("কেবিন সংরক্ষিত", `${cabin.cabinNumber} ইতিমধ্যে নিশ্চিত হয়ে গেছে।`);
       return;
     }
     const isAlreadySelected = selectedCabins.some((c) => c.id === cabin.id);
     if (isAlreadySelected) {
       if (selectedCabins.length === 1) {
-        Alert.alert("ন্যূনতম ১টি কেবিন", "কমপক্ষে ১টি কেবিন বা ডেক স্পেস নির্বাচন করুন।");
+        showLocalizedAlert("ন্যূনতম ১টি কেবিন", "কমপক্ষে ১টি কেবিন বা ডেক স্পেস নির্বাচন করুন।");
         return;
       }
       setSelectedCabins(selectedCabins.filter((c) => c.id !== cabin.id));
     } else {
       if (selectedCabins.length >= 4) {
-        Alert.alert("সর্বোচ্চ সীমা", "একসাথে সর্বোচ্চ ৪টি কেবিন নির্বাচন করা যাবে।");
+        showLocalizedAlert("সর্বোচ্চ সীমা", "একসাথে সর্বোচ্চ ৪টি কেবিন নির্বাচন করা যাবে।");
         return;
       }
       setSelectedCabins([...selectedCabins, cabin]);
@@ -786,11 +793,11 @@ export default function BusLaunchScreen() {
   const handleBusBookingSubmit = async () => {
     if (!bookingBus) return;
     if (!passengerName.trim() || !passengerPhone.trim()) {
-      Alert.alert("প্রয়োজনীয় তথ্য পূরণ করুন", "দয়া করে যাত্রীর নাম এবং মোবাইল নম্বর প্রদান করুন।");
+      showLocalizedAlert("প্রয়োজনীয় তথ্য পূরণ করুন", "দয়া করে যাত্রীর নাম এবং মোবাইল নম্বর প্রদান করুন।");
       return;
     }
     if (selectedBusSeats.length === 0) {
-      Alert.alert("সিট নির্বাচন করুন", "কমপক্ষে ১টি সিট সিলেক্ট করুন।");
+      showLocalizedAlert("সিট নির্বাচন করুন", "কমপক্ষে ১টি সিট সিলেক্ট করুন।");
       return;
     }
 
@@ -801,7 +808,7 @@ export default function BusLaunchScreen() {
       await (busAndLaunchService as any).reserveSeats({
         transport_type: "bus",
         trip_id: bookingBus.id,
-        operator_or_vessel: bookingBus.operator_name,
+        operator_or_vessel: bookingBus?.operator_name,
         from: bookingBus.from_city,
         to: bookingBus.to_city,
         departure_date: travelDate,
@@ -815,9 +822,9 @@ export default function BusLaunchScreen() {
 
       const reportingTime = calculateReportingTime(bookingBus.departure_time, 30);
 
-      Alert.alert(
+      showLocalizedAlert(
         "🎉 বাস টিকিট সফলভাবে নিশ্চিত হয়েছে!",
-        `ধন্যবাদ ${passengerName}! ${bookingBus.operator_name}-এ আপনার সিট [${selectedBusSeats.join(", ")}] কনফার্ম করা হয়েছে।\n\n• মোট ভাড়া: ৳${busTotalFare.toLocaleString("en-BD")}\n• যাত্রার তারিখ: ${travelDate}\n• বোর্ডিং পয়েন্ট: ${chosenBoarding}\n• রিপোর্টিং: ${reportingTime}-এ নির্দিষ্ট কাউন্টারে পৌঁছান।`,
+        `ধন্যবাদ ${passengerName}! ${bookingBus.operator_name}-এ আপনার সিট [${selectedBusSeats.join(", ")}] কনফার্ম করা হয়েছে।\n\n• মোট ভাড়া: ${formatCurrency(busTotalFare, "BDT")}\n• যাত্রার তারিখ: ${travelDate}\n• বোর্ডিং পয়েন্ট: ${chosenBoarding}\n• রিপোর্টিং: ${reportingTime}-এ নির্দিষ্ট কাউন্টারে পৌঁছান।`,
         [
           {
             text: "বুকিং নিশ্চিত",
@@ -832,7 +839,7 @@ export default function BusLaunchScreen() {
         ]
       );
     } catch {
-      Alert.alert("ত্রুটি", "টিকিট সংরক্ষণ ব্যর্থ হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।");
+      showLocalizedAlert("ত্রুটি", "টিকিট সংরক্ষণ ব্যর্থ হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।");
     } finally {
       setSubmittingBooking(false);
     }
@@ -841,7 +848,7 @@ export default function BusLaunchScreen() {
   const handleLaunchBookingSubmit = async () => {
     if (!bookingLaunch || selectedCabins.length === 0) return;
     if (!passengerName.trim() || !passengerPhone.trim()) {
-      Alert.alert("প্রয়োজনীয় তথ্য পূরণ করুন", "দয়া করে যাত্রীর নাম এবং মোবাইল নম্বর দিন।");
+      showLocalizedAlert("প্রয়োজনীয় তথ্য পূরণ করুন", "দয়া করে যাত্রীর নাম এবং মোবাইল নম্বর দিন।");
       return;
     }
 
@@ -868,9 +875,9 @@ export default function BusLaunchScreen() {
 
       const reportingTime = calculateReportingTime(bookingLaunch.departure_time, 45);
 
-      Alert.alert(
+      showLocalizedAlert(
         "🚢 লঞ্চ কেবিন বুকিং কনফার্ম হয়েছে!",
-        `অভিনন্দন ${passengerName}! ${bookingLaunch.vessel_name}-এ আপনার নির্বাচিত কেবিন:\n[${selectedCabins.map((c) => c.cabinNumber).join(", ")}] নিশ্চিত করা হয়েছে।\n\n• মোট প্রদেয়: ৳${launchTotalFare.toLocaleString("en-BD")}\n• যাত্রার তারিখ: ${travelDate}\n• টার্মিনাল: ঢাকা সদরঘাট (পন্টুন ৩ ও ৪)\n• রিপোর্টিং: ${reportingTime}-এর মধ্যে পন্টুনে পৌঁছান।`,
+        `অভিনন্দন ${passengerName}! ${bookingLaunch.vessel_name}-এ আপনার নির্বাচিত কেবিন:\n[${selectedCabins.map((c) => c.cabinNumber).join(", ")}] নিশ্চিত করা হয়েছে।\n\n• মোট প্রদেয়: ${formatCurrency(launchTotalFare, "BDT")}\n• যাত্রার তারিখ: ${travelDate}\n• টার্মিনাল: ঢাকা সদরঘাট (পন্টুন ৩ ও ৪)\n• রিপোর্টিং: ${reportingTime}-এর মধ্যে পন্টুনে পৌঁছান।`,
         [
           {
             text: "টিকিট নিশ্চিত",
@@ -885,7 +892,7 @@ export default function BusLaunchScreen() {
         ]
       );
     } catch {
-      Alert.alert("ত্রুটি", "লঞ্চ বুকিং সম্পন্ন করা সম্ভব হয়নি।");
+      showLocalizedAlert("ত্রুটি", "লঞ্চ বুকিং সম্পন্ন করা সম্ভব হয়নি।");
     } finally {
       setSubmittingBooking(false);
     }
@@ -913,10 +920,10 @@ export default function BusLaunchScreen() {
             onPress={() => router.back()}
             activeOpacity={0.8}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <RTLIcon name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flex: 1, marginStart: 12 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.headerTitle}>Bangladesh Transit</Text>
               <View style={styles.verifiedBadge}>
@@ -1068,7 +1075,7 @@ export default function BusLaunchScreen() {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 6, paddingLeft: 4 }}
+                contentContainerStyle={{ gap: 6, paddingStart: 4 }}
               >
                 {dynamicBusBoardingPoints.map((counter) => {
                   const sel = selectedBusBoarding === counter;
@@ -1156,7 +1163,7 @@ export default function BusLaunchScreen() {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 6, paddingLeft: 4 }}
+                contentContainerStyle={{ gap: 6, paddingStart: 4 }}
               >
                 {dynamicCabinClasses.map((cabinClass) => {
                   const sel = selectedCabinFilter === cabinClass;
@@ -1212,7 +1219,7 @@ export default function BusLaunchScreen() {
               style={styles.policyDetailsBtn}
             >
               <Text style={styles.policyDetailsBtnText}>বিস্তারিত নিয়মাবলী</Text>
-              <Ionicons name="chevron-forward" size={12} color={PRIMARY_BLUE} />
+              <RTLIcon name="chevron-forward" size={12} color={PRIMARY_BLUE} />
             </TouchableOpacity>
           </View>
 
@@ -1288,7 +1295,7 @@ export default function BusLaunchScreen() {
                     <View style={styles.operatorLogoBox}>
                       <Ionicons name="bus" size={26} color={PRIMARY_BLUE} />
                     </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <Text style={styles.operatorName}>{bus.operator_name}</Text>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
                         <View style={styles.busTypeTag}>
@@ -1316,7 +1323,7 @@ export default function BusLaunchScreen() {
                     <View style={styles.durationMiddle}>
                       <Text style={styles.durationVal}>{bus.duration}</Text>
                       <View style={styles.durationLine} />
-                      <Ionicons name="arrow-forward" size={14} color="#94A3B8" />
+                      <RTLIcon name="arrow-forward" size={14} color="#94A3B8" />
                     </View>
 
                     <View style={[styles.timeCol, { alignItems: "flex-end" }]}>
@@ -1325,24 +1332,24 @@ export default function BusLaunchScreen() {
                     </View>
                   </View>
 
-                  {/* Boarding & Dropping Points */}
-                  <View style={styles.boardingPointRow}>
-                    <Ionicons name="location" size={14} color="#0284C7" />
-                    <Text style={styles.boardingText} numberOfLines={1}>
-                      বোর্ডিং: <Text style={{ fontWeight: "600", color: "#0F172A" }}>{bus.boarding_point}</Text>
-                    </Text>
-                  </View>
+                  {/* Boarding Point with Map Link & 30-min Arrival Warning */}
+                  <BoardingPointMapCard
+                    boardingPoint={bus.boarding_point}
+                    departureTime={bus.departure_time}
+                    transportType="bus"
+                  />
+
                   <View style={[styles.boardingPointRow, { marginTop: 4 }]}>
                     <Ionicons name="flag-outline" size={14} color="#64748B" />
                     <Text style={styles.boardingText} numberOfLines={1}>
-                      ড্রপিং: {bus.dropping_point}
+                      ড্রপিং পয়েন্ট: {bus.dropping_point}
                     </Text>
                   </View>
 
                   {/* Amenities Wrap */}
                   <View style={styles.amenitiesWrap}>
                     {bus.amenities.map((a, i) => (
-                      <View key={i} style={styles.amenityPill}>
+                      <View key={`bus-am-${bus.id}-${a}`} style={styles.amenityPill}>
                         <Ionicons name="checkmark-circle-outline" size={11} color="#059669" />
                         <Text style={styles.amenityPillText}>{a}</Text>
                       </View>
@@ -1395,7 +1402,7 @@ export default function BusLaunchScreen() {
                     <View style={[styles.operatorLogoBox, { backgroundColor: "#CCFBF1" }]}>
                       <Ionicons name="boat" size={26} color={TEAL_WATER} />
                     </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <Text style={styles.operatorName}>{launch.vessel_name}</Text>
                       <Text style={styles.launchRouteText}>
                         {launch.terminal_from} ⇄ {launch.terminal_to}
@@ -1435,6 +1442,13 @@ export default function BusLaunchScreen() {
                     </View>
                   </View>
 
+                  {/* Launch Ghat Boarding with Map Link & 30-min Arrival Warning */}
+                  <BoardingPointMapCard
+                    boardingPoint={launch.terminal_from}
+                    departureTime={launch.departure_time}
+                    transportType="launch"
+                  />
+
                   {/* River Launch Cabin Grid Preview */}
                   <Text style={styles.cabinOptionsTitle}>
                     উপলব্ধ কেবিনসমূহ ও আসল ভাড়া:
@@ -1468,7 +1482,7 @@ export default function BusLaunchScreen() {
                   {/* Amenities */}
                   <View style={styles.amenitiesWrap}>
                     {launch.amenities.map((a, i) => (
-                      <View key={i} style={styles.amenityPillLaunch}>
+                      <View key={`launch-am-${launch.id}-${a}`} style={styles.amenityPillLaunch}>
                         <Ionicons name="shield-checkmark" size={11} color={TEAL_WATER} />
                         <Text style={styles.amenityPillTextLaunch}>{a}</Text>
                       </View>
@@ -1528,7 +1542,7 @@ export default function BusLaunchScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={styles.modalTitle}>বাস সিট নির্বাচন ও বুকিং</Text>
                       <View style={styles.busTypeTag}>
-                        <Text style={styles.busTypeTagText}>{bookingBus.bus_type}</Text>
+                        <Text style={styles.busTypeTagText}>{bookingBus?.bus_type}</Text>
                       </View>
                     </View>
                     <Text style={styles.modalSubHeader}>
@@ -1765,7 +1779,12 @@ export default function BusLaunchScreen() {
                     })}
                   </View>
 
-                  {/* DYNAMIC TRAVEL DATE SELECTOR */}
+                  {/* Selected Boarding Map & Reporting Time Guidance */}
+                  <BoardingPointMapCard
+                    boardingPoint={busSelectedBoardingPoint || bookingBus?.boarding_point || ""}
+                    departureTime={bookingBus?.departure_time || ""}
+                    transportType="bus"
+                  />
                   <Text style={styles.inputLabel}>যাত্রার তারিখ নির্বাচন করুন</Text>
                   <View style={styles.quickDateRow}>
                     {quickDates.map((qd) => {
@@ -1840,7 +1859,7 @@ export default function BusLaunchScreen() {
                         </Text>
                       </View>
                       <Text style={styles.totalVal}>
-                        ৳{busTotalFare.toLocaleString("en-BD")}
+                        {formatCurrency(busTotalFare, "BDT")}
                       </Text>
                     </View>
                   </View>
@@ -1860,7 +1879,7 @@ export default function BusLaunchScreen() {
                         <ActivityIndicator color="#FFFFFF" />
                       ) : (
                         <Text style={styles.confirmBtnText}>
-                          টিকিট নিশ্চিত করুন • ৳{busTotalFare.toLocaleString("en-BD")}
+                          টিকিট নিশ্চিত করুন • {formatCurrency(busTotalFare, "BDT")}
                         </Text>
                       )}
                     </LinearGradient>
@@ -2039,7 +2058,12 @@ export default function BusLaunchScreen() {
                       })}
                   </View>
 
-                  {/* DYNAMIC TRAVEL DATE SELECTOR */}
+                  {/* Selected Boarding Map & Reporting Time Guidance */}
+                  <BoardingPointMapCard
+                    boardingPoint={busSelectedBoardingPoint || bookingBus?.boarding_point || ""}
+                    departureTime={bookingBus?.departure_time || ""}
+                    transportType="bus"
+                  />
                   <Text style={styles.inputLabel}>যাত্রার তারিখ নির্বাচন করুন</Text>
                   <View style={styles.quickDateRow}>
                     {quickDates.map((qd) => {
@@ -2106,7 +2130,7 @@ export default function BusLaunchScreen() {
                           • {c.cabinNumber} ({c.type} - {c.deckLevel.split(" ")[0]})
                         </Text>
                         <Text style={styles.selectedCabinLineFare}>
-                          ৳{c.fare.toLocaleString("en-BD")}
+                          {formatCurrency(c.fare, "BDT")}
                         </Text>
                       </View>
                     ))}
@@ -2122,7 +2146,7 @@ export default function BusLaunchScreen() {
                         </Text>
                       </View>
                       <Text style={[styles.totalVal, { color: TEAL_DARK }]}>
-                        ৳{launchTotalFare.toLocaleString("en-BD")}
+                        {formatCurrency(launchTotalFare, "BDT")}
                       </Text>
                     </View>
                   </View>
@@ -2142,7 +2166,7 @@ export default function BusLaunchScreen() {
                         <ActivityIndicator color="#FFFFFF" />
                       ) : (
                         <Text style={styles.confirmBtnText}>
-                          কেবিন নিশ্চিত করুন • ৳{launchTotalFare.toLocaleString("en-BD")}
+                          কেবিন নিশ্চিত করুন • {formatCurrency(launchTotalFare, "BDT")}
                         </Text>
                       )}
                     </LinearGradient>
@@ -2353,7 +2377,7 @@ export default function BusLaunchScreen() {
                         তারিখ: {t.departure_date} ({t.departure_time})
                       </Text>
                       <Text style={styles.myTicketFare}>
-                        ৳{t.total_fare.toLocaleString("en-BD")}
+                        {formatCurrency(t.total_fare, "BDT")}
                       </Text>
                     </View>
 
@@ -2469,6 +2493,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.15)" } : {}),
   },
   dualModeSegmentBtnActiveLaunch: {
     backgroundColor: "#FFFFFF",
@@ -2477,6 +2502,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.15)" } : {}),
   },
   iconCircle: {
     width: 32,
@@ -2525,7 +2551,7 @@ const styles = StyleSheet.create({
   },
   filterChipsRow: {
     gap: 8,
-    paddingRight: 12,
+    paddingEnd: 12,
   },
   filterChip: {
     flexDirection: "row",
@@ -2597,6 +2623,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 3px rgba(15, 23, 42, 0.04)" } : {}),
   },
   policyBannerHeader: {
     flexDirection: "row",
@@ -2681,6 +2708,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 5,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 5px rgba(15, 23, 42, 0.04)" } : {}),
   },
   tripCardLaunch: {
     backgroundColor: "#FFFFFF",
@@ -2694,6 +2722,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 5px rgba(15, 23, 42, 0.05)" } : {}),
   },
   tripCardHeader: {
     flexDirection: "row",

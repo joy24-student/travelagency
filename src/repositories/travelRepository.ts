@@ -623,6 +623,56 @@ export class TravelRepository
     }
   }
 
+  async getFeaturedDestinations(limit: number = 8): Promise<any[]> {
+    const cacheKey = `featured_destinations_${limit}`;
+    const cached = this.memoryCache.get<any[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const { data, error } = await this.client
+        .from("destinations")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        throw this.normalizeError(error, "getFeaturedDestinations");
+      }
+      const result = data || [];
+      if (result.length > 0) {
+        this.memoryCache.set(cacheKey, result);
+      }
+      return result;
+    } catch (err) {
+      throw this.normalizeError(err, "getFeaturedDestinations");
+    }
+  }
+
+  async getPromotionalBanners(): Promise<any[]> {
+    const cacheKey = "promotional_banners";
+    const cached = this.memoryCache.get<any[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const { data, error } = await this.client
+        .from("advertisements")
+        .select("*")
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw this.normalizeError(error, "getPromotionalBanners");
+      }
+      const result = data || [];
+      if (result.length > 0) {
+        this.memoryCache.set(cacheKey, result);
+      }
+      return result;
+    } catch (err) {
+      throw this.normalizeError(err, "getPromotionalBanners");
+    }
+  }
+
   clearCache(): void {
     this.memoryCache.clear();
     this.debouncer.cancel();

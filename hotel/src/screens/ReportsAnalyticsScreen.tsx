@@ -4,9 +4,9 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -17,7 +17,7 @@ export function ReportsAnalyticsScreen() {
       <Text className="text-lg font-bold text-white">{value}</Text>
       <View className="flex-row items-center mt-1">
         <MaterialIcons name="arrow-upward" size={12} color="#4ade80" />
-        <Text className="text-[10px] text-emerald-400 ml-0.5">{trend}</Text>
+        <Text className="text-[10px] text-emerald-400 ms-0.5">{trend}</Text>
       </View>
     </View>
   );
@@ -56,7 +56,7 @@ export function ReportsAnalyticsScreen() {
         {/* Time Selector */}
         <View className="mb-6">
           <TouchableOpacity className="inline-flex flex-row items-center bg-slate-800/50 px-3 py-1.5 rounded-lg border border-white/5 self-start">
-            <Text className="text-sm font-medium text-gray-300 mr-2">This Month</Text>
+            <Text className="text-sm font-medium text-gray-300 me-2">This Month</Text>
             <MaterialIcons name="keyboard-arrow-down" size={20} color="#94a3b8" />
           </TouchableOpacity>
         </View>

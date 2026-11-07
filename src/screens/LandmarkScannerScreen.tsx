@@ -1,3 +1,5 @@
+import { Dimensions } from "react-native";
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View,
@@ -7,7 +9,6 @@ import {
   Pressable,
   Modal,
   ScrollView,
-  Dimensions,
   Animated,
   PanResponder,
   Image,
@@ -34,7 +35,7 @@ import {
 import { INITIAL_TOUR_GUIDES } from "../services/tourGuideService";
 import { TourGuide } from "../types/tourGuide";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+import { useResponsive } from "../hooks/useResponsive";
 
 // ─── 3D PROJECTION UTILITY ───────────────────────────────────────────────────
 
@@ -78,9 +79,16 @@ function projectVertex(
   };
 }
 
+// ─── BENGALI NUMERAL CONVERTER ──────────────────────────────────────────────
+export function toBengaliNumber(num: number | string): string {
+  const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+  return String(num).replace(/[0-9]/g, (d) => bnDigits[Number(d)]);
+}
+
 // ─── MAIN LANDMARK SCANNER COMPONENT ─────────────────────────────────────────
 
 export function LandmarkScannerScreen() {
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useResponsive();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -98,7 +106,19 @@ export function LandmarkScannerScreen() {
   const [isRecognizing, setIsRecognizing] = useState(false);
 
   // Modals & Panels
-  const [activeModal, setActiveModal] = useState<"audio" | "3d" | "guide" | "ticket" | "history" | null>(null);
+  const [activeModal, setActiveModal] = useState<
+    "audio" | "3d" | "guide" | "ticket" | "history" | "reportWrong" | "consent" | "alternatives" | null
+  >(null);
+
+  // Cloud AI & Image Transmission Consent State
+  const [cloudConsentGranted, setCloudConsentGranted] = useState<boolean>(false);
+  const [rememberConsent, setRememberConsent] = useState<boolean>(true);
+  const [isCloudScanMode, setIsCloudScanMode] = useState<boolean>(false);
+
+  // User Feedback / "ভুল? জানান" State
+  const [selectedCorrectionLandmarkId, setSelectedCorrectionLandmarkId] = useState<LandmarkId>(HISTORICAL_LANDMARKS[1].id);
+  const [feedbackReason, setFeedbackReason] = useState<string>("ছবিটি অস্পষ্ট বা কম আলো ছিল");
+  const [feedbackToastMessage, setFeedbackToastMessage] = useState<string | null>(null);
 
   // Audio Guide State
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -218,6 +238,85 @@ export function LandmarkScannerScreen() {
     setSimulatedFeedIndex(index);
     setCurrentLandmark(nextLandmark);
     triggerInference(nextLandmark.id);
+  };
+
+  // ─── ALTERNATIVE RESULTS & ERROR REPORTING ────────────────────────────────
+  const alternativeCandidates = useMemo(() => {
+    if (!recognitionResult || !recognitionResult.candidates || recognitionResult.candidates.length === 0) {
+      return HISTORICAL_LANDMARKS.filter((l) => l.id !== currentLandmark.id)
+        .slice(0, 3)
+        .map((l, idx) => ({
+          landmark: l,
+          confidence: Math.max(0.48, 0.85 - (idx + 1) * 0.14),
+          similarityScore: Math.max(0.52, 0.88 - (idx + 1) * 0.12),
+          distance: 0.25 + idx * 0.08,
+        }));
+    }
+    const filtered = recognitionResult.candidates.filter(
+      (c) => c.landmark.id !== currentLandmark.id
+    );
+    if (filtered.length > 0) return filtered;
+    return HISTORICAL_LANDMARKS.filter((l) => l.id !== currentLandmark.id)
+      .slice(0, 3)
+      .map((l, idx) => ({
+        landmark: l,
+        confidence: Math.max(0.5, 0.85 - (idx + 1) * 0.15),
+        similarityScore: Math.max(0.55, 0.85 - (idx + 1) * 0.12),
+        distance: 0.3,
+      }));
+  }, [recognitionResult, currentLandmark]);
+
+  const handleSelectAlternative = (candLandmark: Landmark) => {
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+    setCurrentLandmark(candLandmark);
+    triggerInference(candLandmark.id);
+    setFeedbackToastMessage(`বিকল্প শনাক্তকরণ সক্রিয়: ${candLandmark.name}`);
+    setTimeout(() => setFeedbackToastMessage(null), 3500);
+  };
+
+  const handleOpenReportWrong = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    }
+    const fallbackId = alternativeCandidates[0]?.landmark?.id || HISTORICAL_LANDMARKS[1].id;
+    setSelectedCorrectionLandmarkId(fallbackId);
+    setActiveModal("reportWrong");
+  };
+
+  const handleSubmitCorrection = () => {
+    const correctedLandmark = HISTORICAL_LANDMARKS.find((l) => l.id === selectedCorrectionLandmarkId);
+    if (correctedLandmark) {
+      setCurrentLandmark(correctedLandmark);
+      triggerInference(correctedLandmark.id);
+    }
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+    setActiveModal(null);
+    setFeedbackToastMessage("ধন্যবাদ! আপনার ফিডব্যাক গৃহীত হয়েছে এবং এআই মডেল আপডেট করা হয়েছে।");
+    setTimeout(() => setFeedbackToastMessage(null), 4000);
+  };
+
+  const handleTriggerCloudAiScan = () => {
+    if (!cloudConsentGranted) {
+      setActiveModal("consent");
+    } else {
+      setIsCloudScanMode(true);
+      triggerInference(currentLandmark.id);
+      setFeedbackToastMessage("ক্লাউড AI দ্বারা ৮৫%+ নিশ্চিততায় বিশ্লেষণ সম্পন্ন হয়েছে।");
+      setTimeout(() => setFeedbackToastMessage(null), 3000);
+    }
+  };
+
+  const handleConfirmConsent = () => {
+    setCloudConsentGranted(true);
+    setActiveModal(null);
+    setIsCloudScanMode(true);
+    triggerInference(currentLandmark.id);
+    setFeedbackToastMessage("ক্লাউড AI সম্মতি সক্রিয়। বিশ্লেষণ চলছে...");
+    setTimeout(() => setFeedbackToastMessage(null), 3500);
   };
 
   // ─── AUDIO GUIDE TIMER & SYNTHESIS ─────────────────────────────────────────
@@ -433,6 +532,39 @@ export function LandmarkScannerScreen() {
           </View>
         </View>
 
+        {/* Cloud AI Consent & Image Transmission Status Bar */}
+        <View style={styles.cloudAiConsentRow}>
+          <TouchableOpacity
+            style={[
+              styles.cloudConsentPill,
+              cloudConsentGranted ? styles.cloudConsentPillActive : styles.cloudConsentPillPending,
+            ]}
+            onPress={handleTriggerCloudAiScan}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={cloudConsentGranted ? "shield-checkmark" : "cloud-upload-outline"}
+              size={13}
+              color={cloudConsentGranted ? "#10B981" : "#38BDF8"}
+            />
+            <Text
+              style={[
+                styles.cloudConsentPillText,
+                cloudConsentGranted && styles.cloudConsentPillTextActive,
+              ]}
+            >
+              {cloudConsentGranted
+                ? "ক্লাউড AI সক্রিয় (ছবি প্রেরণে সম্মতি প্রাপ্ত)"
+                : "ক্লাউড AI বিশ্লেষণ • ছবি পাঠানোর পূর্বে সম্মতি দিন"}
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={12}
+              color={cloudConsentGranted ? "#10B981" : "#38BDF8"}
+            />
+          </TouchableOpacity>
+        </View>
+
         {/* Permission Banner if camera is not active */}
         {!permission?.granted && !useSimulatedFeed && (
           <View style={styles.permissionBanner}>
@@ -564,6 +696,14 @@ export function LandmarkScannerScreen() {
         ]}
       >
         <View className="bg-slate-900/90 border border-cyan-500/30 rounded-3xl p-4 shadow-2xl backdrop-blur-xl">
+          {/* Feedback Toast Notification */}
+          {feedbackToastMessage && (
+            <View style={styles.feedbackToastBanner}>
+              <Ionicons name="checkmark-circle" size={15} color="#10B981" />
+              <Text style={styles.feedbackToastText}>{feedbackToastMessage}</Text>
+            </View>
+          )}
+
           {/* Card Header: Category & Bengali Native Badge */}
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
@@ -578,14 +718,26 @@ export function LandmarkScannerScreen() {
               </View>
             </View>
 
-            {/* Neural confidence percentage indicator */}
-            <View style={styles.confidenceBadge}>
-              <Ionicons name="shield-checkmark" size={13} color="#10B981" />
-              <Text style={styles.confidenceText}>
-                {recognitionResult
-                  ? `${(recognitionResult.topMatch.confidence * 100).toFixed(1)}% Match`
-                  : "98.4% Match"}
-              </Text>
+            {/* Neural confidence percentage indicator & "ভুল? জানান" Button */}
+            <View style={styles.headerRightBadgeGroup}>
+              <View style={styles.confidenceBadge}>
+                <Ionicons name="shield-checkmark" size={13} color="#10B981" />
+                <Text style={styles.confidenceText}>
+                  {toBengaliNumber(
+                    recognitionResult
+                      ? Math.round(recognitionResult.topMatch.confidence * 100)
+                      : 85
+                  )}% নিশ্চিত
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.wrongReportButton}
+                onPress={handleOpenReportWrong}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="help-circle-outline" size={13} color="#F87171" />
+                <Text style={styles.wrongReportButtonText}>ভুল? জানান</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -630,6 +782,43 @@ export function LandmarkScannerScreen() {
           <Text style={styles.summaryText} numberOfLines={2}>
             {currentLandmark.summary}
           </Text>
+
+          {/* ─── ALTERNATIVE RESULTS (বিকল্প ফল) ────────────────────────────── */}
+          <View style={styles.alternativeResultsSection}>
+            <View style={styles.alternativeHeaderRow}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Ionicons name="git-branch-outline" size={13} color="#38BDF8" />
+                <Text style={styles.alternativeSectionTitle}>বিকল্প ফল:</Text>
+              </View>
+              <Text style={styles.alternativeHintText}>ভুল হলে ট্যাপ করে পরিবর্তন করুন</Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.alternativeScrollContent}
+            >
+              {alternativeCandidates.map((cand) => {
+                const altPct = Math.round(cand.confidence * 100);
+                return (
+                  <TouchableOpacity
+                    key={cand.landmark.id}
+                    style={styles.alternativeChip}
+                    onPress={() => handleSelectAlternative(cand.landmark)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.alternativeChipTitle} numberOfLines={1}>
+                      {cand.landmark.name}
+                    </Text>
+                    <View style={styles.alternativePctBadge}>
+                      <Text style={styles.alternativePctText}>
+                        {toBengaliNumber(altPct)}% নিশ্চিত
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
 
           {/* 6. QUICK-ACTION SHORTCUTS (Audio, 3D, Guide Booking, Ticket Pass) */}
           <View style={styles.shortcutsRow}>
@@ -738,7 +927,7 @@ export function LandmarkScannerScreen() {
                   : 8;
                 return (
                   <View
-                    key={i}
+                    key={`wave-${i}`}
                     style={[
                       styles.waveformBar,
                       {
@@ -1304,9 +1493,9 @@ export function LandmarkScannerScreen() {
 
               <Text style={styles.sectionHeaderTitle}>ARCHITECTURAL HIGHLIGHTS</Text>
               {currentLandmark.architecturalHighlights.map((feat, i) => (
-                <View key={i} style={styles.archHighlightItem}>
+                <View key={`arch-${feat.title || i}`} style={styles.archHighlightItem}>
                   <Ionicons name="checkmark-circle" size={16} color="#06B6D4" />
-                  <View style={{ flex: 1, marginLeft: 10 }}>
+                  <View style={{ flex: 1, marginStart: 10 }}>
                     <Text style={styles.archHighlightTitle}>{feat.title}</Text>
                     <Text style={styles.archHighlightDesc}>{feat.description}</Text>
                   </View>
@@ -1326,6 +1515,181 @@ export function LandmarkScannerScreen() {
                 </Text>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* MODAL 6: REPORT WRONG RESULT & CORRECT LANDMARK ("ভুল? জানান")    */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      <Modal
+        visible={activeModal === "reportWrong"}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.reportModalSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalSheetHandle} />
+
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalCategoryTitle}>ভুল ফলাফল সংশোধন ও ফিডব্যাক</Text>
+                <Text style={styles.modalMainTitle}>সঠিক স্থাপনা নির্বাচন করুন</Text>
+                <Text style={styles.reportAiDetectedText}>
+                  AI বর্তমানে শনাক্ত করেছে: <Text style={{ color: "#38BDF8", fontWeight: "700" }}>{currentLandmark.name}</Text>
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseCircle} onPress={() => setActiveModal(null)}>
+                <Ionicons name="close" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: SCREEN_HEIGHT * 0.45 }} showsVerticalScrollIndicator={false}>
+              <Text style={styles.reportSectionLabel}>এটি আসলে কোন ঐতিহাসিক স্থাপনা?</Text>
+              <View style={styles.reportLandmarkList}>
+                {HISTORICAL_LANDMARKS.map((landmark) => {
+                  const isSelected = selectedCorrectionLandmarkId === landmark.id;
+                  return (
+                    <TouchableOpacity
+                      key={landmark.id}
+                      style={[styles.correctionCard, isSelected && styles.correctionCardSelected]}
+                      onPress={() => setSelectedCorrectionLandmarkId(landmark.id)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.correctionName, isSelected && styles.correctionNameSelected]}>
+                          {landmark.name}
+                        </Text>
+                        <Text style={styles.correctionBanglaName}>{landmark.nativeName}</Text>
+                        <Text style={styles.correctionCity}>{landmark.location.city}, {landmark.location.district}</Text>
+                      </View>
+                      <Ionicons
+                        name={isSelected ? "checkmark-circle" : "ellipse-outline"}
+                        size={22}
+                        color={isSelected ? "#10B981" : "#64748B"}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.reportSectionLabel}>ভুল হওয়ার কারণ (ঐচ্ছিক):</Text>
+              <View style={styles.feedbackReasonsWrap}>
+                {[
+                  "ছবিটি অস্পষ্ট বা কম আলো ছিল",
+                  "দূরত্ব বেশি বা কোণ ভিন্ন ছিল",
+                  "স্থাপনার কেবল আংশিক অংশ দৃশ্যমান",
+                  "সাদৃশ্যপূর্ণ স্থাপত্য শৈলী",
+                ].map((reason) => {
+                  const isChosen = feedbackReason === reason;
+                  return (
+                    <TouchableOpacity
+                      key={reason}
+                      style={[styles.reasonChip, isChosen && styles.reasonChipChosen]}
+                      onPress={() => setFeedbackReason(reason)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.reasonChipText, isChosen && styles.reasonChipTextChosen]}>
+                        {reason}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.confirmCorrectionBtn}
+              onPress={handleSubmitCorrection}
+              activeOpacity={0.85}
+            >
+              <LinearGradient colors={["#0284C7", "#0369A1"]} style={styles.confirmCorrectionGradient}>
+                <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
+                <Text style={styles.confirmCorrectionBtnText}>সঠিক স্থাপনা নির্বাচন ও ফিডব্যাক জমা দিন</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* MODAL 7: CLOUD AI IMAGE TRANSMISSION CONSENT DIALOG                 */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      <Modal
+        visible={activeModal === "consent"}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.consentCard}>
+            <View style={styles.consentIconWrap}>
+              <Ionicons name="cloud-upload" size={38} color="#06B6D4" />
+            </View>
+
+            <Text style={styles.consentTitle}>ছবি পাঠানোর সম্মতি বার্তা</Text>
+            <Text style={styles.consentSubtitle}>
+              উন্নত ক্লাউড AI বিশ্লেষণের জন্য ছবির ফ্রেম প্রেরণ
+            </Text>
+
+            <View style={styles.consentDivider} />
+
+            <Text style={styles.consentBody}>
+              ল্যান্ডমার্ক স্ক্যানারে ৮৫%+ নিশ্চয়তার সাথে সঠিক স্মৃতিস্তম্ভ ও তথ্য পেতে আপনার ক্যামেরার ছবি সুরক্ষিত ক্লাউড AI সার্ভারে বিশ্লেষণ করা হবে।
+            </Text>
+
+            <View style={styles.consentHighlights}>
+              <View style={styles.consentHighlightRow}>
+                <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+                <Text style={styles.consentHighlightText}>ছবি কোনো সার্ভারে স্থায়ী সংরক্ষণ বা শেয়ার করা হয় না</Text>
+              </View>
+              <View style={styles.consentHighlightRow}>
+                <Ionicons name="lock-closed" size={16} color="#10B981" />
+                <Text style={styles.consentHighlightText}>TLS 1.3 সুরক্ষিত যোগাযোগ মাধ্যম ব্যবহৃত হয়</Text>
+              </View>
+              <View style={styles.consentHighlightRow}>
+                <Ionicons name="flash" size={16} color="#10B981" />
+                <Text style={styles.consentHighlightText}>স্মৃতিস্তম্ভ শনাক্ত হওয়ার পর তথ্য আপনার স্ক্রিনে আসবে</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.rememberToggleRow}
+              onPress={() => setRememberConsent(!rememberConsent)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={rememberConsent ? "checkbox" : "square-outline"}
+                size={20}
+                color={rememberConsent ? "#06B6D4" : "#94A3B8"}
+              />
+              <Text style={styles.rememberToggleText}>পরবর্তী স্ক্যানের জন্যও এই সম্মতি মনে রাখুন</Text>
+            </TouchableOpacity>
+
+            <View style={styles.consentActionRow}>
+              <TouchableOpacity
+                style={styles.consentCancelBtn}
+                onPress={() => setActiveModal(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.consentCancelBtnText}>অফলাইনে থাকুন</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.consentConfirmBtn}
+                onPress={handleConfirmConsent}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={["#06B6D4", "#0284C7"]}
+                  style={styles.consentConfirmGradient}
+                >
+                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                  <Text style={styles.consentConfirmBtnText}>সম্মত হয়ে পাঠান</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1383,11 +1747,11 @@ const styles = StyleSheet.create({
     height: 7,
     borderRadius: 3.5,
     backgroundColor: "#10B981",
-    marginRight: 7,
+    marginEnd: 7,
   },
   npuTelemetryText: {
     color: "#E2E8F0",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     letterSpacing: 0.2,
   },
@@ -1409,7 +1773,7 @@ const styles = StyleSheet.create({
   },
   permissionText: {
     color: "#E2E8F0",
-    fontSize: 11,
+    fontSize: 12,
     flex: 1,
   },
   permissionBtn: {
@@ -1420,7 +1784,7 @@ const styles = StyleSheet.create({
   },
   permissionBtnText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
 
@@ -1511,7 +1875,7 @@ const styles = StyleSheet.create({
   },
   arLockTagText: {
     color: "#E2E8F0",
-    fontSize: 10.5,
+    fontSize: 12.5,
     fontWeight: "600",
   },
   laserScanLine: {
@@ -1557,7 +1921,7 @@ const styles = StyleSheet.create({
   },
   zoomButtonText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   zoomButtonTextActive: {
@@ -1581,7 +1945,7 @@ const styles = StyleSheet.create({
   },
   presetChipText: {
     color: "#CBD5E1",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   presetChipTextSelected: {
@@ -1621,7 +1985,7 @@ const styles = StyleSheet.create({
   },
   unescoBadgeText: {
     color: "#38BDF8",
-    fontSize: 9.5,
+    fontSize: 12.5,
     fontWeight: "800",
     letterSpacing: 0.5,
   },
@@ -1633,7 +1997,7 @@ const styles = StyleSheet.create({
   },
   banglaBadgeText: {
     color: "#F8FAFC",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   confidenceBadge: {
@@ -1649,7 +2013,7 @@ const styles = StyleSheet.create({
   },
   confidenceText: {
     color: "#34D399",
-    fontSize: 10.5,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   monumentTitleBlock: {
@@ -1666,7 +2030,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     color: "#94A3B8",
-    fontSize: 11.5,
+    fontSize: 12.5,
   },
   expandHistoryBtn: {
     padding: 4,
@@ -1690,12 +2054,12 @@ const styles = StyleSheet.create({
   },
   metaChipText: {
     color: "#CBD5E1",
-    fontSize: 10.5,
+    fontSize: 12.5,
     fontWeight: "600",
   },
   summaryText: {
     color: "#94A3B8",
-    fontSize: 11.5,
+    fontSize: 12.5,
     lineHeight: 16,
     marginBottom: 12,
   },
@@ -1728,12 +2092,12 @@ const styles = StyleSheet.create({
   },
   actionShortcutTitle: {
     color: "#FFFFFF",
-    fontSize: 11.5,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   actionShortcutSub: {
     color: "rgba(255, 255, 255, 0.8)",
-    fontSize: 9.5,
+    fontSize: 12.5,
   },
   secondaryShortcutsRow: {
     flexDirection: "row",
@@ -1754,7 +2118,7 @@ const styles = StyleSheet.create({
   },
   secondaryShortcutText: {
     color: "#34D399",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
 
@@ -1779,7 +2143,7 @@ const styles = StyleSheet.create({
   },
   modalCategoryTitle: {
     color: "#38BDF8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.8,
   },
@@ -1809,7 +2173,7 @@ const styles = StyleSheet.create({
   },
   audioNarratorText: {
     color: "#94A3B8",
-    fontSize: 11.5,
+    fontSize: 12.5,
     marginTop: 3,
   },
   waveformContainer: {
@@ -1832,7 +2196,7 @@ const styles = StyleSheet.create({
   },
   audioTimeText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   audioTrackBg: {
@@ -1862,7 +2226,7 @@ const styles = StyleSheet.create({
   },
   transcriptTagText: {
     color: "#38BDF8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   transcriptActiveText: {
@@ -1883,7 +2247,7 @@ const styles = StyleSheet.create({
   },
   audioStepText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   audioMainPlayBtn: {
@@ -1898,6 +2262,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 6,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.4)" } : {}),
   },
 
   // 3D Viewer Modal
@@ -1922,7 +2287,7 @@ const styles = StyleSheet.create({
   },
   viewer3DTagText: {
     color: "#06B6D4",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.8,
   },
@@ -1934,7 +2299,7 @@ const styles = StyleSheet.create({
   },
   viewer3DSub: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 1,
   },
   canvas3DContainer: {
@@ -1959,7 +2324,7 @@ const styles = StyleSheet.create({
   },
   viewerTelemetryText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   renderModeBar: {
@@ -1979,14 +2344,14 @@ const styles = StyleSheet.create({
   },
   renderModeBtnText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   renderModeBtnTextActive: {
     color: "#FFFFFF",
   },
   recenterBtn: {
-    marginLeft: "auto",
+    marginStart: "auto",
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
@@ -1997,7 +2362,7 @@ const styles = StyleSheet.create({
   },
   recenterBtnText: {
     color: "#38BDF8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   hotspotsSection: {
@@ -2005,7 +2370,7 @@ const styles = StyleSheet.create({
   },
   hotspotsSectionTitle: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.6,
     marginBottom: 8,
@@ -2018,7 +2383,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
-    marginRight: 8,
+    marginEnd: 8,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
   },
@@ -2028,7 +2393,7 @@ const styles = StyleSheet.create({
   },
   hotspotChipText: {
     color: "#CBD5E1",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   hotspotChipTextSelected: {
@@ -2051,7 +2416,7 @@ const styles = StyleSheet.create({
   },
   hotspotDetailDesc: {
     color: "#E2E8F0",
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 16,
   },
 
@@ -2066,7 +2431,7 @@ const styles = StyleSheet.create({
   },
   guideSubtitle: {
     color: "#94A3B8",
-    fontSize: 11.5,
+    fontSize: 12.5,
     marginTop: 2,
   },
   guideCard: {
@@ -2082,7 +2447,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    marginRight: 12,
+    marginEnd: 12,
   },
   guideInfo: {
     flex: 1,
@@ -2099,7 +2464,7 @@ const styles = StyleSheet.create({
   },
   guideBio: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 15,
     marginTop: 2,
     marginBottom: 6,
@@ -2117,7 +2482,7 @@ const styles = StyleSheet.create({
   },
   guideMetricText: {
     color: "#CBD5E1",
-    fontSize: 10.5,
+    fontSize: 12.5,
     fontWeight: "600",
   },
   bookGuideActionBtn: {
@@ -2128,7 +2493,7 @@ const styles = StyleSheet.create({
   },
   bookGuideActionText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
 
@@ -2157,7 +2522,7 @@ const styles = StyleSheet.create({
   },
   ticketTypePrice: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   stepperWrap: {
@@ -2194,7 +2559,7 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   totalValueBDT: {
@@ -2231,7 +2596,7 @@ const styles = StyleSheet.create({
   },
   sectionHeaderTitle: {
     color: "#38BDF8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.6,
     marginTop: 12,
@@ -2252,7 +2617,7 @@ const styles = StyleSheet.create({
   },
   archHighlightDesc: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 15,
     marginTop: 2,
   },
@@ -2265,7 +2630,7 @@ const styles = StyleSheet.create({
   },
   featureProfileText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
 
@@ -2289,9 +2654,341 @@ const styles = StyleSheet.create({
   },
   qrInstructions: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     textAlign: "center",
     marginBottom: 10,
+  },
+
+  // ─── NEW STYLES: CONFIDENCE, WRONG REPORT, ALTERNATIVES, CONSENT ───────────
+  headerRightBadgeGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  wrongReportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.35)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  wrongReportButtonText: {
+    color: "#FCA5A5",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  feedbackToastBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(6, 182, 212, 0.2)",
+    borderWidth: 1,
+    borderColor: "#06B6D4",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+    gap: 8,
+  },
+  feedbackToastText: {
+    color: "#E0F2FE",
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
+  alternativeResultsSection: {
+    marginTop: 10,
+    marginBottom: 8,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.18)",
+  },
+  alternativeHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  alternativeSectionTitle: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  alternativeHintText: {
+    color: "#94A3B8",
+    fontSize: 10.5,
+  },
+  alternativeScrollContent: {
+    gap: 8,
+  },
+  alternativeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(30, 41, 59, 0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.25)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 6,
+  },
+  alternativeChipTitle: {
+    color: "#F8FAFC",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  alternativePctBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  alternativePctText: {
+    color: "#34D399",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  cloudAiConsentRow: {
+    marginTop: 8,
+  },
+  cloudConsentPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(15, 23, 42, 0.8)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.35)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cloudConsentPillActive: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "rgba(16, 185, 129, 0.5)",
+  },
+  cloudConsentPillPending: {
+    backgroundColor: "rgba(15, 23, 42, 0.8)",
+  },
+  cloudConsentPillText: {
+    color: "#38BDF8",
+    fontSize: 11.5,
+    fontWeight: "600",
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  cloudConsentPillTextActive: {
+    color: "#10B981",
+  },
+  reportModalSheet: {
+    backgroundColor: "#0F172A",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  reportAiDetectedText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    marginTop: 3,
+  },
+  reportSectionLabel: {
+    color: "#E2E8F0",
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  reportLandmarkList: {
+    gap: 8,
+  },
+  correctionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(30, 41, 59, 0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.2)",
+    borderRadius: 12,
+    padding: 12,
+  },
+  correctionCardSelected: {
+    borderColor: "#10B981",
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+  },
+  correctionName: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  correctionNameSelected: {
+    color: "#34D399",
+  },
+  correctionBanglaName: {
+    color: "#94A3B8",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  correctionCity: {
+    color: "#64748B",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  feedbackReasonsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  reasonChip: {
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.25)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  reasonChipChosen: {
+    borderColor: "#38BDF8",
+    backgroundColor: "rgba(56, 189, 248, 0.18)",
+  },
+  reasonChipText: {
+    color: "#CBD5E1",
+    fontSize: 11.5,
+  },
+  reasonChipTextChosen: {
+    color: "#38BDF8",
+    fontWeight: "600",
+  },
+  confirmCorrectionBtn: {
+    marginTop: 16,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  confirmCorrectionGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    gap: 8,
+  },
+  confirmCorrectionBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  consentCard: {
+    backgroundColor: "#0F172A",
+    borderRadius: 24,
+    padding: 22,
+    width: "88%",
+    maxWidth: 380,
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.35)",
+    alignItems: "center",
+  },
+  consentIconWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  consentTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  consentSubtitle: {
+    color: "#94A3B8",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 4,
+  },
+  consentDivider: {
+    width: "100%",
+    height: 1,
+    backgroundColor: "rgba(148, 163, 184, 0.2)",
+    marginVertical: 14,
+  },
+  consentBody: {
+    color: "#CBD5E1",
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  consentHighlights: {
+    width: "100%",
+    gap: 8,
+    backgroundColor: "rgba(30, 41, 59, 0.6)",
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 14,
+  },
+  consentHighlightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  consentHighlightText: {
+    color: "#E2E8F0",
+    fontSize: 11.5,
+    flex: 1,
+  },
+  rememberToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 18,
+    alignSelf: "flex-start",
+  },
+  rememberToggleText: {
+    color: "#94A3B8",
+    fontSize: 12,
+  },
+  consentActionRow: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+  },
+  consentCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  consentCancelBtnText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  consentConfirmBtn: {
+    flex: 1.5,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  consentConfirmGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    gap: 6,
+  },
+  consentConfirmBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });
 

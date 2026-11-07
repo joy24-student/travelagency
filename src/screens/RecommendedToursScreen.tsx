@@ -1,7 +1,9 @@
+import { AppImage } from "../components/ui/AppImage";
+import { Dimensions } from "react-native";
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Alert,
-  Dimensions,
   Image,
   Modal,
   Platform,
@@ -25,9 +27,9 @@ import { travelRepository } from "../repositories";
 import { useBookingStore } from "../store/bookingStore";
 import { EmptyStateView, ErrorStateCard, ListSkeleton } from "../components/common";
 import { WeatherWidget } from "../components/weather/WeatherWidget";
-import { AiPill, BottomNav } from "./Navigation";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+import { useResponsive } from "../hooks/useResponsive";
 const TRIP_BLUE = "#287dfa";
 const TRIP_PURPLE = "#7C3AED";
 const TRIP_EMERALD = "#059669";
@@ -148,9 +150,12 @@ if (typeof (travelRepository as any).getTourPackages !== "function") {
 
     try {
       const featured = await travelRepository.getFeaturedTours(options?.limit || 20, options);
-      return featured || [];
-    } catch (e) {
+      if (featured && featured.length > 0) {
+        return featured;
+      }
       return [];
+    } catch (e) {
+      throw e;
     }
   };
 }
@@ -239,7 +244,9 @@ function parseArrayField(val: any, fallback: string[]): string[] {
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.map((s) => String(s).trim()).filter(Boolean);
       }
-    } catch {}
+    } catch (parseErr) {
+      // Fall back to delimiter splitting
+    }
     if (val.includes("·")) {
       return val.split("·").map((s) => s.trim()).filter(Boolean);
     }
@@ -286,7 +293,9 @@ function parseItineraryField(rawItinerary: any, city: string, durationDays: numb
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parseItineraryField(parsed, city, durationDays);
       }
-    } catch {}
+    } catch (parseErr) {
+      // Fall back to empty itinerary
+    }
   }
   return null;
 }
@@ -400,7 +409,9 @@ function FullScreenImageModal({ visible, images, initialIndex, title, onClose }:
         message: `Check out this tour photo from "${title}":\n${currentImage}`,
         url: currentImage,
       });
-    } catch {}
+    } catch (shareErr) {
+      console.warn("[RecommendedToursScreen] Share error:", shareErr);
+    }
   };
 
   const handleDoubleTap = () => {
@@ -509,14 +520,14 @@ function FullScreenImageModal({ visible, images, initialIndex, title, onClose }:
               const isSelected = idx === currentIndex;
               return (
                 <Pressable
-                  key={idx}
+                  key={`tour-thumb-${imgUrl}-${idx}`}
                   onPress={() => {
                     Haptics.selectionAsync();
                     setCurrentIndex(idx);
                   }}
                   style={[zoomStyles.thumbWrapper, isSelected && zoomStyles.thumbWrapperSelected]}
                 >
-                  <Image source={{ uri: imgUrl }} style={zoomStyles.thumbImage} />
+                  <AppImage source={{ uri: imgUrl }} placeholderCategory="destination" style={zoomStyles.thumbImage} />
                   {isSelected && <View style={zoomStyles.thumbSelectedIndicator} />}
                 </Pressable>
               );
@@ -580,8 +591,8 @@ const zoomStyles = StyleSheet.create({
     width: SCREEN_WIDTH,
   },
   zoomImage: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT * 0.65,
+    width: "100%",
+    height: "65%",
   },
   pinchHintPill: {
     position: "absolute",
@@ -598,7 +609,7 @@ const zoomStyles = StyleSheet.create({
   },
   pinchHintText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   quickZoomRow: {
@@ -620,7 +631,7 @@ const zoomStyles = StyleSheet.create({
   },
   zoomActionBtnText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   thumbnailStripContainer: {
@@ -703,8 +714,8 @@ function TourImageCarousel({
         style={tourCarouselStyles.scrollView}
       >
         {images.map((img, i) => (
-          <Pressable key={i} onPress={() => onOpenZoom(i)} style={tourCarouselStyles.slide}>
-            <Image source={{ uri: img }} style={tourCarouselStyles.image} />
+          <Pressable key={`slide-${img}-${i}`} onPress={() => onOpenZoom(i)} style={tourCarouselStyles.slide}>
+            <AppImage source={{ uri: img }} placeholderCategory="destination" style={tourCarouselStyles.image} />
             <LinearGradient colors={["rgba(15, 23, 42, 0.45)", "transparent", "rgba(15, 23, 42, 0.75)"]} style={StyleSheet.absoluteFill} />
           </Pressable>
         ))}
@@ -764,7 +775,7 @@ const tourCarouselStyles = StyleSheet.create({
     height: "100%",
   },
   slide: {
-    width: SCREEN_WIDTH - 32,
+    width: "100%",
     height: 200,
   },
   image: {
@@ -788,7 +799,7 @@ const tourCarouselStyles = StyleSheet.create({
   },
   categoryBadgeText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   zoomBtn: {
@@ -804,7 +815,7 @@ const tourCarouselStyles = StyleSheet.create({
   },
   zoomBtnText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   bottomRow: {
@@ -827,7 +838,7 @@ const tourCarouselStyles = StyleSheet.create({
   },
   destinationBadgeText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   ratingBadge: {
@@ -845,7 +856,7 @@ const tourCarouselStyles = StyleSheet.create({
     color: "#0F172A",
   },
   ratingBadgeCount: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
   },
   dotsContainer: {
@@ -872,6 +883,7 @@ const tourCarouselStyles = StyleSheet.create({
 // ============================================================================
 
 export function RecommendedToursScreen() {
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useResponsive();
   const insets = useSafeAreaInsets();
   const [activeFilter, setActiveFilter] = useState("All");
   const [tours, setTours] = useState<TourItem[]>([]);
@@ -1272,7 +1284,7 @@ export function RecommendedToursScreen() {
       {/* Sticky Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable style={styles.backBtn} onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}>
+          <Pressable style={styles.backBtn} onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}>
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </Pressable>
           <View>
@@ -1545,7 +1557,7 @@ export function RecommendedToursScreen() {
                     <View style={styles.guideCard}>
                       <Pressable style={styles.guideLeftInfo} onPress={() => handleOpenGuideProfile(tour.guide.id)}>
                         <View style={styles.guideAvatarWrapper}>
-                          <Image source={{ uri: tour.guide.avatar }} style={styles.guideAvatar} />
+                          <AppImage source={{ uri: tour.guide.avatar }} placeholderCategory="avatar" style={styles.guideAvatar} />
                           <View style={styles.onlineDot} />
                         </View>
 
@@ -1842,7 +1854,7 @@ export function RecommendedToursScreen() {
 
                     {/* Guide Card in Pass */}
                     <View style={styles.ticketGuideCard}>
-                      <Image source={{ uri: digitalPass.guide.avatar }} style={styles.ticketGuideAvatar} />
+                      <AppImage source={{ uri: digitalPass.guide.avatar }} placeholderCategory="avatar" style={styles.ticketGuideAvatar} />
                       <View style={styles.ticketGuideInfo}>
                         <Text style={styles.ticketGuideHeaderLabel}>ASSIGNED TOUR GUIDE</Text>
                         <Text style={styles.ticketGuideName}>{digitalPass.guide.name}</Text>
@@ -1865,7 +1877,7 @@ export function RecommendedToursScreen() {
                       <Text style={styles.ticketLabel}>HIGH-CONTRAST INCLUSIONS</Text>
                       <View style={styles.passTagsWrap}>
                         {digitalPass.inclusions.slice(0, 3).map((item, i) => (
-                          <View key={i} style={styles.passInclusionChip}>
+                          <View key={`pass-inc-${item}-${i}`} style={styles.passInclusionChip}>
                             <Ionicons name="checkmark-circle" size={13} color="#059669" />
                             <Text style={styles.passInclusionChipText}>{item}</Text>
                           </View>
@@ -1916,9 +1928,7 @@ export function RecommendedToursScreen() {
         </Modal>
       )}
 
-      {/* Floating AI Pill & Bottom Navigation */}
-      <AiPill color={TRIP_BLUE} />
-      <BottomNav active="Home" color={TRIP_BLUE} />
+
     </SafeAreaView>
   );
 }
@@ -1958,7 +1968,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   headerSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -2026,7 +2036,7 @@ const styles = StyleSheet.create({
     borderColor: "#DBEAFE",
   },
   inventoryCountText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#2563EB",
   },
@@ -2044,6 +2054,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.05)" } : {}),
   },
   cardBody: {
     padding: 16,
@@ -2074,7 +2085,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   durationText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#334155",
   },
@@ -2088,7 +2099,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeInstantText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#059669",
   },
@@ -2104,7 +2115,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   tierStatusBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#7C3AED",
   },
@@ -2122,13 +2133,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   inclusionsSectionTitle: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     color: "#065F46",
     letterSpacing: 0.5,
   },
   exclusionsSectionTitle: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     color: "#991B1B",
     letterSpacing: 0.5,
@@ -2150,7 +2161,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   inclusionHighContrastText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#065F46",
   },
@@ -2171,7 +2182,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   exclusionHighContrastText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#991B1B",
   },
@@ -2197,7 +2208,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   itineraryCountBadge: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
@@ -2222,7 +2233,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   dayPillText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     color: "#2563EB",
   },
@@ -2239,7 +2250,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#F1F5F9",
   },
   daySummary: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     marginTop: 6,
     lineHeight: 16,
@@ -2260,12 +2271,12 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   timelineLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#334155",
   },
   timelineDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     marginTop: 1,
     lineHeight: 15,
@@ -2277,7 +2288,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#F1F5F9",
   },
   mealBarLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     color: "#64748B",
     marginBottom: 4,
@@ -2304,7 +2315,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
   },
   mealBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#94A3B8",
   },
@@ -2365,7 +2376,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   guideRole: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -2376,7 +2387,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   guideRatingText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -2394,7 +2405,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   guideProfileBtnText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#2563EB",
   },
@@ -2425,7 +2436,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sectionBlockTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#334155",
   },
@@ -2447,7 +2458,7 @@ const styles = StyleSheet.create({
     borderColor: "#2563EB",
   },
   dateOptionText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
@@ -2488,7 +2499,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   timeSlotTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#1E293B",
   },
@@ -2496,12 +2507,12 @@ const styles = StyleSheet.create({
     color: "#1D4ED8",
   },
   timeSlotTime: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
   timeSlotCheck: {
-    marginLeft: 2,
+    marginStart: 2,
   },
 
   // Group Tier Pricing Box
@@ -2524,7 +2535,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   groupTierSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#2563EB",
     fontWeight: "600",
     marginTop: 1,
@@ -2541,7 +2552,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   groupTierActiveBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#065F46",
   },
@@ -2569,12 +2580,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563EB",
   },
   tierStepNum: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     color: "#FFFFFF",
   },
   tierStepLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
@@ -2607,7 +2618,7 @@ const styles = StyleSheet.create({
     borderColor: "#2563EB",
   },
   quickTierBtnText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -2651,7 +2662,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   stepperSubText: {
-    fontSize: 8,
+    fontSize: 12,
     color: "#64748B",
   },
   priceCalculationRow: {
@@ -2668,7 +2679,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   oldSubtotalText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94A3B8",
     textDecorationLine: "line-through",
   },
@@ -2678,11 +2689,11 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   rateGuestLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
   },
   totalForGuestsSummary: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#475569",
     marginTop: 2,
   },
@@ -2731,7 +2742,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   passVerifiedText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "900",
     color: "#059669",
     letterSpacing: 0.5,
@@ -2773,7 +2784,7 @@ const styles = StyleSheet.create({
   },
   ticketIdBadge: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   ticketBody: {
@@ -2805,7 +2816,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   ticketLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     color: "#94A3B8",
     marginBottom: 3,
@@ -2817,12 +2828,12 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   ticketValSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
   ticketDiscountTag: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#059669",
     marginTop: 2,
@@ -2844,7 +2855,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   ticketGuideHeaderLabel: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "900",
     color: "#64748B",
   },
@@ -2854,7 +2865,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   ticketGuideRole: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#2563EB",
     fontWeight: "700",
   },
@@ -2886,7 +2897,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   passInclusionChipText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#065F46",
   },
@@ -2903,7 +2914,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   qrInstruction: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "500",
     textAlign: "center",
@@ -2925,7 +2936,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   passIssuedLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
@@ -2950,6 +2961,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.3)" } : {}),
   },
   proceedPaymentBtnText: {
     color: "#FFFFFF",

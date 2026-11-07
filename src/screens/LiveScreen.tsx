@@ -23,7 +23,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 
-import { BottomNav, AiPill } from "./Navigation";
+
 import { TopBar } from "./TopBar";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -33,7 +33,6 @@ import { sanitizeUserText, sanitizeMediaUrl } from "../utils/sanitizer";
 import { colors } from "../theme/colors";
 import type { UIScreen } from "../data/screens";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Design system tokens
 const PRIMARY = colors.primary.DEFAULT;
@@ -1105,8 +1104,7 @@ export function LiveScreen({ screen }: { screen: UIScreen }) {
         </View>
       </Modal>
 
-      <AiPill color={PRIMARY} />
-      <BottomNav active="Messages" color={PRIMARY} />
+
     </SafeAreaView>
   );
 }
@@ -1215,11 +1213,11 @@ const s = StyleSheet.create({
   },
   liveBadgePillText: {
     color: "#FFFFFF",
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "900",
   },
   storyName: {
-    fontSize: 11,
+    fontSize: 12,
     color: TEXT_MUTED,
     fontWeight: "600",
     textAlign: "center",
@@ -1237,7 +1235,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.neutral[200],
   },
   filterTabActive: { backgroundColor: PRIMARY },
-  filterTabText: { fontSize: 11, fontWeight: "800", color: colors.text.secondary },
+  filterTabText: { fontSize: 12, fontWeight: "800", color: colors.text.secondary },
   filterTabTextActive: { color: "#fff" },
   sectionTitle: {
     fontSize: 16,
@@ -1250,7 +1248,7 @@ const s = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     marginBottom: 14,
-    height: 200,
+    minHeight: 200,
     backgroundColor: colors.neutral[900],
   },
   streamThumb: { width: "100%", height: "100%" },
@@ -1274,14 +1272,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  livePillText: { color: "#fff", fontSize: 11, fontWeight: "900" },
+  livePillText: { color: "#fff", fontSize: 12, fontWeight: "900" },
   streamCardBadge: {
     backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  streamCardBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  streamCardBadgeText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   streamQuickActions: {
     flex: 1,
     flexDirection: "row",
@@ -1315,7 +1313,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  viewerPillText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  viewerPillText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   callGrid: { flexDirection: "row", gap: 10 },
   callCard: {
     flex: 1,
@@ -1335,7 +1333,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   callCardLabel: { fontSize: 12, fontWeight: "900", color: TEXT_PRIMARY },
-  callCardDesc: { fontSize: 10, color: TEXT_MUTED, textAlign: "center" },
+  callCardDesc: { fontSize: 12, color: TEXT_MUTED, textAlign: "center" },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -1488,7 +1486,7 @@ const s = StyleSheet.create({
     borderColor: "#FFFFFF",
   },
   storyViewerAuthorName: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
-  storyViewerLocation: { color: "rgba(255, 255, 255, 0.8)", fontSize: 11 },
+  storyViewerLocation: { color: "rgba(255, 255, 255, 0.8)", fontSize: 12 },
   storyCloseBtn: { padding: 6 },
   storyViewerBottomCaption: {
     zIndex: 10,
@@ -1550,7 +1548,7 @@ const s = StyleSheet.create({
   progressText: {
     position: "absolute",
     alignSelf: "center",
-    fontSize: 10,
+    fontSize: 12,
     color: "#fff",
     fontWeight: "700",
   },

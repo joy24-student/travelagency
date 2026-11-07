@@ -23,6 +23,14 @@ DROP POLICY IF EXISTS stories_anon_delete ON public.stories;
 DROP POLICY IF EXISTS groups_anon_insert ON public.groups;
 DROP POLICY IF EXISTS group_members_anon_all ON public.group_members;
 
+-- Drop insecure policies from 20260608h and 20260608i
+DROP POLICY IF EXISTS "Public device tokens policy" ON public.user_device_tokens;
+DROP POLICY IF EXISTS user_settings_all ON public.user_settings;
+DROP POLICY IF EXISTS user_addresses_all ON public.user_addresses;
+REVOKE ALL ON public.user_device_tokens FROM anon;
+REVOKE ALL ON public.user_settings FROM anon;
+REVOKE ALL ON public.user_addresses FROM anon;
+
 -- Drop insecure "FOR ALL USING (true)" policies from 20260608_comprehensive_travel_platform_schema.sql
 DROP POLICY IF EXISTS "Users can view own profile" ON public.user_profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON public.user_profiles;
@@ -257,14 +265,24 @@ CREATE POLICY "User coupons isolated" ON public.user_coupons
   WITH CHECK (user_id = auth.uid() OR public.is_admin());
 
 -- User Settings & Addresses
+DROP POLICY IF EXISTS user_settings_all ON public.user_settings;
 DROP POLICY IF EXISTS "User settings isolated" ON public.user_settings;
 CREATE POLICY "User settings isolated" ON public.user_settings
   FOR ALL TO authenticated
   USING (user_id = auth.uid() OR public.is_admin())
   WITH CHECK (user_id = auth.uid() OR public.is_admin());
 
+DROP POLICY IF EXISTS user_addresses_all ON public.user_addresses;
 DROP POLICY IF EXISTS "User addresses isolated" ON public.user_addresses;
 CREATE POLICY "User addresses isolated" ON public.user_addresses
+  FOR ALL TO authenticated
+  USING (user_id = auth.uid() OR public.is_admin())
+  WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+-- User Device Tokens (FCM)
+DROP POLICY IF EXISTS "Public device tokens policy" ON public.user_device_tokens;
+DROP POLICY IF EXISTS "User device tokens isolated" ON public.user_device_tokens;
+CREATE POLICY "User device tokens isolated" ON public.user_device_tokens
   FOR ALL TO authenticated
   USING (user_id = auth.uid() OR public.is_admin())
   WITH CHECK (user_id = auth.uid() OR public.is_admin());

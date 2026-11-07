@@ -123,7 +123,7 @@ export const CurrencySelectorModal: React.FC<CurrencySelectorModalProps> = ({
               name="checkmark-circle"
               size={20}
               color={colors.primary}
-              style={{ marginLeft: 6 }}
+              style={{ marginStart: 6 }}
             />
           )}
         </View>
@@ -228,6 +228,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 20px rgba(15, 23, 42, 0.25)" } : {}),
   },
   header: {
     flexDirection: "row",
@@ -261,7 +262,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginStart: 8,
     fontSize: 14,
   },
   listContent: {
@@ -287,7 +288,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   symbolText: {
     fontSize: 18,
@@ -302,7 +303,7 @@ const styles = StyleSheet.create({
   },
   flag: {
     fontSize: 16,
-    marginRight: 6,
+    marginEnd: 6,
   },
   currencyCode: {
     fontSize: 15,

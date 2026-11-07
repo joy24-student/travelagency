@@ -219,7 +219,9 @@ export const admissionBusService = {
           metadata: newBooking,
         },
       ]);
-    } catch {}
+    } catch (syncErr) {
+      console.warn("[admissionBusService] Remote booking sync failed, saving locally:", syncErr);
+    }
 
     const raw = await AsyncStorage.getItem(ADMISSION_BOOKINGS_KEY);
     const existing: AdmissionTicketBooking[] = raw ? JSON.parse(raw) : [];

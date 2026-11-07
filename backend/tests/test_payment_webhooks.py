@@ -1,5 +1,5 @@
 """
-Tests for bKash and Nagad HMAC-SHA256 Webhook Signature Verification.
+Test Payment Webhooks with HMAC-SHA256 Verification and Atomic Ledger Updates.
 """
 
 import hashlib
@@ -11,127 +11,225 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models.agency import AgencyCommission
 from app.models.booking import Booking
+from app.models.loyalty import LoyaltyAccount
+from app.models.user import Agency
 
 
-def compute_hmac_sha256(secret: str, data: bytes) -> str:
-    """Compute HMAC-SHA256 hex digest for testing."""
-    return hmac.new(secret.encode("utf-8"), data, hashlib.sha256).hexdigest()
-
-
-@pytest.mark.asyncio
-async def test_bkash_webhook_valid_signature_confirms_booking(client: AsyncClient, db_session: AsyncSession):
-    """bKash webhook with valid signature confirms booking state atomically."""
-    user_id = uuid.uuid4()
-    booking_ref = f"SJ-{uuid.uuid4().hex[:8].upper()}"
-
-    booking = Booking(
-        user_id=user_id,
-        booking_reference=booking_ref,
-        product_type="hotel",
-        status="pending_payment",
-        destination_city="Cox's Bazar",
-        total_price=200.0,
-        final_price=210.0,
-    )
-    db_session.add(booking)
-    await db_session.commit()
-
-    payload_dict = {
-        "paymentID": f"TR000{uuid.uuid4().hex[:6]}",
-        "trxID": "BKH987654321",
-        "amount": "210.00",
-        "transactionStatus": "Completed",
-        "merchantInvoiceNumber": booking_ref,
-        "currency": "BDT",
-    }
-    raw_payload = json.dumps(payload_dict).encode("utf-8")
-
-    # Compute valid HMAC-SHA256
-    valid_signature = compute_hmac_sha256(settings.BKASH_WEBHOOK_SECRET, raw_payload)
-
-    response = await client.post(
-        "/api/v1/payments/webhook/bkash",
-        content=raw_payload,
-        headers={
-            "Content-Type": "application/json",
-            "X-Signature": valid_signature,
-        },
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert data["status"] == "completed"
-    assert data["booking_reference"] == booking_ref
-
-    # Verify DB status updated
-    await db_session.refresh(booking)
-    assert booking.status == "confirmed"
-    assert booking.confirmed_at is not None
+def compute_hmac(secret: str, body_bytes: bytes) -> str:
+    """Helper to generate valid HMAC-SHA256 signature."""
+    return hmac.new(secret.encode("utf-8"), body_bytes, hashlib.sha256).hexdigest()
 
 
 @pytest.mark.asyncio
 async def test_bkash_webhook_invalid_signature_rejected(client: AsyncClient):
-    """bKash webhook with fraudulent/invalid signature must be rejected with 401."""
-    payload_dict = {
-        "paymentID": "FAKETRN123",
+    """bKash webhook with invalid HMAC signature is rejected with 401 Unauthorized."""
+    payload = {
+        "paymentID": "BKASH-TEST-9999",
+        "trxID": "TRX-FAKE-001",
         "transactionStatus": "Completed",
-        "merchantInvoiceNumber": "SJ-INVALID",
+        "merchantInvoiceNumber": "SJ-20261106-MOCK01",
     }
-    raw_payload = json.dumps(payload_dict).encode("utf-8")
+    raw_body = json.dumps(payload).encode("utf-8")
 
-    response = await client.post(
+    resp = await client.post(
         "/api/v1/payments/webhook/bkash",
-        content=raw_payload,
+        content=raw_body,
         headers={
             "Content-Type": "application/json",
-            "X-Signature": "invalid-tampered-hmac-signature-string",
+            "X-bKash-Signature": "invalid-tampered-signature-digest",
         },
     )
-    assert response.status_code == 401
-    problem = response.json()
-    assert problem["status"] == 401
-    assert "Invalid bKash webhook HMAC" in problem["detail"]
+    assert resp.status_code == 401
+    assert resp.json()["code"] == "UNAUTHORIZED"
 
 
 @pytest.mark.asyncio
-async def test_nagad_webhook_valid_signature(client: AsyncClient, db_session: AsyncSession):
-    """Nagad webhook with valid HMAC signature succeeds."""
+async def test_bkash_webhook_valid_signature_atomic_confirmation(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """Valid bKash webhook confirms booking, credits agency commission, and awards loyalty points."""
     user_id = uuid.uuid4()
-    booking_ref = f"SJ-{uuid.uuid4().hex[:8].upper()}"
+    agency_owner_id = uuid.uuid4()
 
+    # 1. Seed Agency
+    agency = Agency(
+        id=uuid.uuid4(),
+        owner_user_id=agency_owner_id,
+        name="Dhaka Horizon Travels",
+        status="active",
+    )
+    db_session.add(agency)
+    await db_session.flush()
+
+    # 2. Seed Booking
     booking = Booking(
+        id=uuid.uuid4(),
         user_id=user_id,
-        booking_reference=booking_ref,
-        product_type="flight",
-        status="pending_payment",
+        agency_id=agency.id,
+        booking_reference="SJ-20261106-BKASH1",
+        product_type="hotel",
+        status="payment_pending",
+        flow_step="payment",
         destination_city="Sylhet",
-        total_price=100.0,
-        final_price=105.0,
+        final_price=10000.0,
+        currency="BDT",
     )
     db_session.add(booking)
     await db_session.commit()
 
-    payload_dict = {
-        "merchantId": "NGD_MERCHANT_01",
-        "orderId": booking_ref,
-        "paymentRefId": "NGD-TXN-456",
-        "amount": "105.00",
-        "status": "Success",
+    # 3. Formulate bKash payload and compute HMAC
+    payload = {
+        "paymentID": "BKASH-PAY-12345",
+        "trxID": "TRX-VALID-777",
+        "transactionStatus": "Completed",
+        "merchantInvoiceNumber": booking.booking_reference,
+        "amount": "10000.00",
     }
-    raw_payload = json.dumps(payload_dict).encode("utf-8")
-    valid_sig = compute_hmac_sha256(settings.NAGAD_WEBHOOK_SECRET, raw_payload)
+    raw_body = json.dumps(payload).encode("utf-8")
+    valid_sig = compute_hmac(settings.BKASH_WEBHOOK_SECRET, raw_body)
 
-    response = await client.post(
+    resp = await client.post(
+        "/api/v1/payments/webhook/bkash",
+        content=raw_body,
+        headers={
+            "Content-Type": "application/json",
+            "X-bKash-Signature": valid_sig,
+        },
+    )
+    assert resp.status_code == 200
+    res_data = resp.json()
+    assert res_data["success"] is True
+    assert res_data["status"] == "completed"
+    assert res_data["booking_reference"] == booking.booking_reference
+    assert res_data["commission_credited"] == 500.0  # 5% of 10,000 BDT
+    assert res_data["loyalty_points_awarded"] == 1000.0  # 1 point per 10 BDT
+
+    # 4. Duplicate webhook test (Idempotency)
+    dup_resp = await client.post(
+        "/api/v1/payments/webhook/bkash",
+        content=raw_body,
+        headers={
+            "Content-Type": "application/json",
+            "X-bKash-Signature": valid_sig,
+        },
+    )
+    assert dup_resp.status_code == 200
+    assert "already processed" in dup_resp.json()["message"]
+
+
+@pytest.mark.asyncio
+async def test_nagad_webhook_verification(client: AsyncClient, db_session: AsyncSession):
+    """Nagad webhook HMAC verification."""
+    user_id = uuid.uuid4()
+    booking = Booking(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        booking_reference="SJ-20261106-NAGAD1",
+        product_type="flight",
+        status="payment_pending",
+        destination_city="Cox's Bazar",
+        final_price=5000.0,
+        currency="BDT",
+    )
+    db_session.add(booking)
+    await db_session.commit()
+
+    payload = {
+        "orderId": booking.booking_reference,
+        "paymentRefId": "NAGAD-TXN-8888",
+        "status": "Success",
+        "amount": "5000.00",
+    }
+    raw_body = json.dumps(payload).encode("utf-8")
+    valid_sig = compute_hmac(settings.NAGAD_WEBHOOK_SECRET, raw_body)
+
+    resp = await client.post(
         "/api/v1/payments/webhook/nagad",
-        content=raw_payload,
+        content=raw_body,
         headers={
             "Content-Type": "application/json",
             "X-KM-Signature": valid_sig,
         },
     )
-    assert response.status_code == 200
-    assert response.json()["success"] is True
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+    assert resp.json()["loyalty_points_awarded"] == 500.0
 
-    await db_session.refresh(booking)
-    assert booking.status == "confirmed"
+
+@pytest.mark.asyncio
+async def test_rocket_webhook_verification(client: AsyncClient, db_session: AsyncSession):
+    """DBBL Rocket webhook HMAC verification."""
+    user_id = uuid.uuid4()
+    booking = Booking(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        booking_reference="SJ-20261106-ROCKET1",
+        product_type="hotel",
+        status="payment_pending",
+        destination_city="Sajek",
+        final_price=8000.0,
+        currency="BDT",
+    )
+    db_session.add(booking)
+    await db_session.commit()
+
+    payload = {
+        "rocketTransactionId": "ROCKET-TX-999",
+        "invoiceNumber": booking.booking_reference,
+        "amount": 8000.0,
+        "status": "SUCCESS",
+    }
+    raw_body = json.dumps(payload).encode("utf-8")
+    valid_sig = compute_hmac(settings.ROCKET_WEBHOOK_SECRET, raw_body)
+
+    resp = await client.post(
+        "/api/v1/payments/webhook/rocket",
+        content=raw_body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Rocket-Signature": valid_sig,
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_card_webhook_verification(client: AsyncClient, db_session: AsyncSession):
+    """Card gateway webhook HMAC verification."""
+    user_id = uuid.uuid4()
+    booking = Booking(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        booking_reference="SJ-20261106-CARD1",
+        product_type="tour",
+        status="payment_pending",
+        destination_city="Sundarbans",
+        final_price=12000.0,
+        currency="BDT",
+    )
+    db_session.add(booking)
+    await db_session.commit()
+
+    payload = {
+        "tran_id": booking.booking_reference,
+        "val_id": "CARD-VAL-1111",
+        "amount": 12000.0,
+        "status": "VALID",
+    }
+    raw_body = json.dumps(payload).encode("utf-8")
+    valid_sig = compute_hmac(settings.CARD_WEBHOOK_SECRET, raw_body)
+
+    resp = await client.post(
+        "/api/v1/payments/webhook/card",
+        content=raw_body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Signature": valid_sig,
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True

@@ -4,12 +4,12 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   Modal,
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useHotelRBAC, HOTEL_ROLES_META } from '../context/HotelRBACContext';
@@ -108,7 +108,7 @@ export function DashboardScreen() {
             }}
             onPress={() => setRoleModalVisible(true)}
           >
-            <Text style={{ fontSize: 10, fontWeight: '800', color: roleMeta.color, marginRight: 4 }}>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: roleMeta.color, marginEnd: 4 }}>
               {roleMeta.badge}
             </Text>
             <Ionicons name="chevron-down" size={12} color={roleMeta.color} />

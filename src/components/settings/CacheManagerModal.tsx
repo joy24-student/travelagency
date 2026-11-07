@@ -71,7 +71,9 @@ export const CacheManagerModal: React.FC<CacheManagerModalProps> = ({
                 docs += sz;
               }
             }
-          } catch {}
+          } catch (szErr) {
+            console.warn("[CacheManagerModal] File size query warning:", szErr);
+          }
         }
 
         // Keep realistic minimums if system is empty
@@ -306,7 +308,7 @@ export const CacheManagerModal: React.FC<CacheManagerModalProps> = ({
                     name="checkmark-circle"
                     size={18}
                     color="#10b981"
-                    style={{ marginRight: 6 }}
+                    style={{ marginEnd: 6 }}
                   />
                   <Text style={styles.successText}>
                     {t("cacheClearedSuccess")}
@@ -335,7 +337,7 @@ export const CacheManagerModal: React.FC<CacheManagerModalProps> = ({
                       name="trash-outline"
                       size={18}
                       color="#ffffff"
-                      style={{ marginRight: 8 }}
+                      style={{ marginEnd: 8 }}
                     />
                     <Text style={styles.clearButtonText}>
                       {t("clearCacheAction")}
@@ -370,6 +372,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 20px rgba(15, 23, 42, 0.25)" } : {}),
   },
   header: {
     flexDirection: "row",
@@ -381,7 +384,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginRight: 10,
+    marginEnd: 10,
   },
   headerIconWrapper: {
     width: 38,
@@ -389,7 +392,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   title: {
     fontSize: 17,
@@ -457,7 +460,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    marginRight: 8,
+    marginEnd: 8,
   },
   legendName: {
     fontSize: 13,

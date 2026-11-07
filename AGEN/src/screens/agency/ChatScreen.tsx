@@ -6,6 +6,9 @@
 import React, { useState, useRef } from "react";
 import {
   View,
+  Clipboard,
+  Modal,
+  Pressable,
   Text,
   StyleSheet,
   ScrollView,
@@ -14,8 +17,8 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
-} from "react-native";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { COLORS } from "../../App";
 
@@ -24,7 +27,7 @@ interface Message {
   text: string;
   time: string;
   isStaff: boolean;
-  status?: "sent" | "read";
+  status?: "sending" | "sent" | "delivered" | "read" | "failed";
 }
 
 export default function ChatScreen({ navigation, route }: any) {
@@ -32,12 +35,13 @@ export default function ChatScreen({ navigation, route }: any) {
   const [inputText, setTextInput] = useState("");
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const messages: Message[] = [
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       text: "Thank you for the quick check-in! Is it possible to get extra towels sent to room 302?",
       time: "10:24 AM",
       isStaff: false,
+      status: "read",
     },
     {
       id: "2",
@@ -51,8 +55,43 @@ export default function ChatScreen({ navigation, route }: any) {
       text: "Perfect, thanks!",
       time: "10:27 AM",
       isStaff: false,
+      status: "read",
     },
-  ];
+  ]);
+
+  const [selectedActionMsg, setSelectedActionMsg] = useState<Message | null>(null);
+  const [replyTarget, setReplyTarget] = useState<Message | null>(null);
+
+  const handleLongPressMsg = (msg: Message) => {
+    setSelectedActionMsg(msg);
+  };
+
+  const handleCopyMsg = (msg: Message) => {
+    Clipboard.setString(msg.text);
+    setSelectedActionMsg(null);
+  };
+
+  const handleReplyMsg = (msg: Message) => {
+    setReplyTarget(msg);
+    setSelectedActionMsg(null);
+  };
+
+  const handleDeleteMsg = (id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    setSelectedActionMsg(null);
+  };
+
+  const handleRetryMsg = (id: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, status: "sending" } : m))
+    );
+    setSelectedActionMsg(null);
+    setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, status: "read" } : m))
+      );
+    }, 1000);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -135,10 +174,13 @@ export default function ChatScreen({ navigation, route }: any) {
                 msg.isStaff ? styles.staffRow : styles.guestRow,
               ]}
             >
-              <View
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onLongPress={() => handleLongPressMsg(msg)}
                 style={[
                   styles.bubble,
                   msg.isStaff ? styles.staffBubble : styles.guestBubble,
+                  msg.status === "failed" && { borderColor: "#EF4444", borderWidth: 1.5 },
                 ]}
               >
                 <Text
@@ -151,16 +193,30 @@ export default function ChatScreen({ navigation, route }: any) {
                 >
                   {msg.text}
                 </Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.metaRow}>
                 <Text style={styles.timeText}>{msg.time}</Text>
-                {msg.isStaff && msg.status === "read" && (
-                  <MaterialCommunityIcons
-                    name="check-all"
-                    size={14}
-                    color={COLORS.secondary}
-                    style={{ marginLeft: 4 }}
-                  />
+                {msg.isStaff && (
+                  <View style={{ flexDirection: "row", alignItems: "center", marginStart: 4 }}>
+                    {msg.status === "read" && (
+                      <MaterialCommunityIcons name="check-all" size={14} color={COLORS.secondary} />
+                    )}
+                    {msg.status === "delivered" && (
+                      <MaterialCommunityIcons name="check-all" size={14} color="#94A3B8" />
+                    )}
+                    {msg.status === "sent" && (
+                      <MaterialCommunityIcons name="check" size={14} color="#94A3B8" />
+                    )}
+                    {msg.status === "sending" && (
+                      <MaterialCommunityIcons name="clock-outline" size={13} color="#94A3B8" />
+                    )}
+                    {msg.status === "failed" && (
+                      <TouchableOpacity onPress={() => handleRetryMsg(msg.id)} style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+                        <MaterialCommunityIcons name="alert-circle" size={14} color="#EF4444" />
+                        <Text style={{ fontSize: 11, color: "#EF4444", fontWeight: "600" }}>আবার পাঠান</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
               </View>
             </View>
@@ -214,6 +270,54 @@ export default function ChatScreen({ navigation, route }: any) {
             </TouchableOpacity>
           </View>
         </View>
+        {/* Context Action Menu Modal */}
+        <Modal
+          visible={!!selectedActionMsg}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedActionMsg(null)}
+        >
+          <Pressable
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 }}
+            onPress={() => setSelectedActionMsg(null)}
+          >
+            <View style={{ width: "100%", maxWidth: 320, backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16 }}>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: "#0F172A", marginBottom: 12 }}>
+                মেসেজ অ্যাকশন
+              </Text>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10 }}
+                onPress={() => selectedActionMsg && handleCopyMsg(selectedActionMsg)}
+              >
+                <MaterialCommunityIcons name="content-copy" size={18} color="#2563EB" />
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#1E293B" }}>কপি করুন (Copy)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10 }}
+                onPress={() => selectedActionMsg && handleReplyMsg(selectedActionMsg)}
+              >
+                <MaterialCommunityIcons name="reply" size={18} color="#0D9488" />
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#1E293B" }}>উত্তর দিন (Reply)</Text>
+              </TouchableOpacity>
+              {selectedActionMsg?.isStaff && (
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10 }}
+                  onPress={() => selectedActionMsg && handleRetryMsg(selectedActionMsg.id)}
+                >
+                  <MaterialCommunityIcons name="refresh" size={18} color="#D97706" />
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: "#1E293B" }}>আবার পাঠান (Retry)</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9", marginTop: 4 }}
+                onPress={() => selectedActionMsg && handleDeleteMsg(selectedActionMsg.id)}
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EF4444" />
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#EF4444" }}>মুছুন (Delete)</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

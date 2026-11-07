@@ -1,3 +1,5 @@
+import { Platform, FocusAwareStatusBar } from "../../components/ui/AppStatusBar";
+import { showLocalizedAlert } from "../../utils/localizedAlert";
 /**
  * Admin User Management Screen - Executive Compliance & Governance Edition
  * 
@@ -21,12 +23,12 @@ import {
   TextInput,
   Alert,
   Dimensions,
-  SafeAreaView,
   StatusBar,
   Image,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Ionicons,
   MaterialCommunityIcons,
@@ -46,7 +48,8 @@ import {
 } from "./commands";
 import { useRBAC } from "./rbac";
 
-const { width } = Dimensions.get("window");
+import { useResponsive } from "../../hooks/useResponsive";
+import { RTLIcon } from "../../components/ui";
 const PAGE_SIZE = 25;
 
 export type UserSubScreen =
@@ -148,6 +151,7 @@ const mapProfileToExtendedUser = (p: any, idx: number = 0): ExtendedUserItem => 
 export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
   admin: propAdmin,
 }) => {
+  const { width, isTablet, isDesktop } = useResponsive();
   const { admin: rbacAdmin } = useRBAC();
   const admin = propAdmin || rbacAdmin;
 
@@ -326,7 +330,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     customNotes: string = ""
   ) => {
     if (!admin) {
-      Alert.alert("Governance Block", "No authorized administrator session active.");
+      showLocalizedAlert("Governance Block", "No authorized administrator session active.");
       return;
     }
 
@@ -393,7 +397,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       }
 
       setKycReviewNotes("");
-      Alert.alert(
+      showLocalizedAlert(
         approved ? "KYC Approved" : "KYC Rejected",
         `User ${targetUser.name}'s identity has been ${approved ? "verified and approved" : "rejected"} with immutable audit record logged to admin_activity_logs.`,
         [
@@ -409,7 +413,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       );
     } catch (err: any) {
       console.error("KYC Mutation failed:", err);
-      Alert.alert("Mutation Error", err.message || "Failed to update KYC status.");
+      showLocalizedAlert("Mutation Error", err.message || "Failed to update KYC status.");
     }
   };
 
@@ -450,18 +454,18 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     if (!user || !admin) return;
 
     if (!reason.trim() || reason.trim().length < 5) {
-      Alert.alert("Reason Required", "Please enter a substantive administrative reason (at least 5 characters).");
+      showLocalizedAlert("Reason Required", "Please enter a substantive administrative reason (at least 5 characters).");
       return;
     }
 
     if (!acknowledged) {
-      Alert.alert("Acknowledgement Required", "You must verify the compliance acknowledgement checkbox.");
+      showLocalizedAlert("Acknowledgement Required", "You must verify the compliance acknowledgement checkbox.");
       return;
     }
 
     const isBanAction = actionType === "ban" || actionType === "unban";
     if (isBanAction && confirmationPhrase.trim().toUpperCase() !== "CONFIRM") {
-      Alert.alert("Confirmation Phrase Mismatch", "Please enter 'CONFIRM' to authorize this critical account ban.");
+      showLocalizedAlert("Confirmation Phrase Mismatch", "Please enter 'CONFIRM' to authorize this critical account ban.");
       return;
     }
 
@@ -492,12 +496,12 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           setSelectedUser((prev) => (prev ? { ...prev, is_suspended: isSuspending } : null));
 
           closeSecurityModal();
-          Alert.alert(
+          showLocalizedAlert(
             "Account Security Updated",
             `${user.name} has been ${isSuspending ? "SUSPENDED" : "UNSUSPENDED"}. Immutable security event logged to admin_activity_logs.`
           );
         } else {
-          Alert.alert("Governance Block", result.error || "Failed to execute suspension.");
+          showLocalizedAlert("Governance Block", result.error || "Failed to execute suspension.");
         }
       } else {
         // Ban or Unban action
@@ -523,16 +527,16 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           setSelectedUser((prev) => (prev ? { ...prev, is_banned: isBanning } : null));
 
           closeSecurityModal();
-          Alert.alert(
+          showLocalizedAlert(
             "Permanent Sanction Applied",
             `${user.name} has been ${isBanning ? "PERMANENTLY BANNED" : "UNBANNED"}. Audit record logged into admin_activity_logs.`
           );
         } else {
-          Alert.alert("Governance Block", result.error || "Failed to execute ban.");
+          showLocalizedAlert("Governance Block", result.error || "Failed to execute ban.");
         }
       }
     } catch (err: any) {
-      Alert.alert("Execution Error", err?.message || "Failed to perform security mutation.");
+      showLocalizedAlert("Execution Error", err?.message || "Failed to perform security mutation.");
     } finally {
       setSecurityModal((prev) => ({ ...prev, isSubmitting: false }));
     }
@@ -541,7 +545,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
   // Quick Account Creator
   const handleCreateUser = () => {
     if (!newUserName.trim() || !newUserEmail.trim()) {
-      Alert.alert("Required Fields", "Please enter a name and email address.");
+      showLocalizedAlert("Required Fields", "Please enter a name and email address.");
       return;
     }
     const newUser: ExtendedUserItem = {
@@ -578,7 +582,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     setNewUserName("");
     setNewUserEmail("");
     setNewUserLocation("");
-    Alert.alert("Success", `User account ${newUser.name} created successfully.`);
+    showLocalizedAlert("Success", `User account ${newUser.name} created successfully.`);
   };
 
   // --------------------------------------------------------------------------
@@ -597,7 +601,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
     >
       {/* Page Title & Add CTA */}
       <View style={styles.pageHeader}>
-        <View style={{ flex: 1, marginRight: 10 }}>
+        <View style={{ flex: 1, marginEnd: 10 }}>
           <Text style={styles.pageTitle}>User Directory</Text>
           <Text style={styles.pageSubtitle}>
             Compliance, KYC review, and zero-trust account security
@@ -608,7 +612,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             style={styles.primaryAddBtn}
             onPress={() => setAddUserModalVisible(true)}
           >
-            <FontAwesome5 name="user-plus" size={12} color="#FFFFFF" style={{ marginRight: 5 }} />
+            <FontAwesome5 name="user-plus" size={12} color="#FFFFFF" style={{ marginEnd: 5 }} />
             <Text style={styles.primaryAddBtnText}>Add User</Text>
           </TouchableOpacity>
         </View>
@@ -665,7 +669,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             style={styles.quickActionBtn}
             onPress={() => {
               if (selectedUser) openSecurityModal("suspend", selectedUser);
-              else Alert.alert("Select User", "Please select a user from the directory first.");
+              else showLocalizedAlert("Select User", "Please select a user from the directory first.");
             }}
           >
             <View style={[styles.quickActionIconCircle, { backgroundColor: "#fee2e2" }]}>
@@ -677,7 +681,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
           <TouchableOpacity
             style={styles.quickActionBtn}
             onPress={() =>
-              Alert.alert(
+              showLocalizedAlert(
                 "Export Directory",
                 `Exporting page ${serverPage + 1} (${usersList.length} users) as compliance CSV.`
               )
@@ -708,7 +712,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 Pending Document Review
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            <RTLIcon name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
 
           <View style={styles.divider} />
@@ -725,7 +729,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 {usersList.filter((u) => u.is_suspended || u.is_banned).length} Sanctioned Accounts Monitored
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            <RTLIcon name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
         </View>
       </View>
@@ -741,7 +745,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
         {/* Server Search Input */}
         <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={18} color="#94a3b8" style={{ marginRight: 8 }} />
+          <Ionicons name="search-outline" size={18} color="#94a3b8" style={{ marginEnd: 8 }} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search by name, email, or username..."
@@ -889,7 +893,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               onPress={handlePrevPage}
               disabled={!hasPrevPage || loading}
             >
-              <Ionicons
+              <RTLIcon
                 name="chevron-back"
                 size={16}
                 color={!hasPrevPage ? "#94a3b8" : "#0f172a"}
@@ -907,7 +911,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
               <Text style={[styles.pageNavBtnText, !hasNextPage && styles.pageNavBtnTextDisabled]}>
                 Next
               </Text>
-              <Ionicons
+              <RTLIcon
                 name="chevron-forward"
                 size={16}
                 color={!hasNextPage ? "#94a3b8" : "#0f172a"}
@@ -947,11 +951,11 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         {/* Sub-Header */}
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <View>
             <Text style={styles.subHeaderTitle}>User KYC Review Queue</Text>
-            <Text style={{ fontSize: 11, color: "#64748b" }}>
+            <Text style={{ fontSize: 12, color: "#64748b" }}>
               Identity verification & document comparison
             </Text>
           </View>
@@ -1034,7 +1038,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                         },
                       ]}
                     >
-                      <Ionicons name="scan-outline" size={11} color="#047857" style={{ marginRight: 3 }} />
+                      <Ionicons name="scan-outline" size={11} color="#047857" style={{ marginEnd: 3 }} />
                       <Text style={styles.faceMatchText}>
                         {item.face_match_score?.toFixed(1) || "98.4"}% Match
                       </Text>
@@ -1049,7 +1053,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     style={styles.kycInspectBtn}
                     onPress={() => navigateTo("kyc_split_viewer", item)}
                   >
-                    <Ionicons name="open-outline" size={14} color="#0f172a" style={{ marginRight: 4 }} />
+                    <Ionicons name="open-outline" size={14} color="#0f172a" style={{ marginEnd: 4 }} />
                     <Text style={styles.kycInspectBtnText}>Open Split-Screen Reviewer</Text>
                   </TouchableOpacity>
 
@@ -1099,7 +1103,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
         {/* Split-Screen Header Bar */}
         <View style={styles.splitViewerHeader}>
           <TouchableOpacity onPress={goBack} style={styles.splitBackBtn}>
-            <Ionicons name="arrow-back" size={20} color="#ffffff" />
+            <RTLIcon name="arrow-back" size={20} color="#ffffff" />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.splitViewerTitle}>Split-Screen KYC Verification</Text>
@@ -1140,7 +1144,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     name={isPassport ? "passport" : "id-card"}
                     size={16}
                     color="#10b981"
-                    style={{ marginRight: 8 }}
+                    style={{ marginEnd: 8 }}
                   />
                   <Text style={styles.paneTitle}>
                     {isPassport ? "Government Passport" : "Smart National ID"}
@@ -1176,7 +1180,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                   </View>
 
                   {/* OCR Extracted Text Fields */}
-                  <View style={{ flex: 1, paddingLeft: 12 }}>
+                  <View style={{ flex: 1, paddingStart: 12 }}>
                     <View style={styles.docFieldRow}>
                       <Text style={styles.docFieldLabel}>DOCUMENT TYPE</Text>
                       <Text style={styles.docFieldValue}>
@@ -1240,7 +1244,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             <View style={styles.splitPaneRight}>
               <View style={styles.paneHeader}>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons name="person-circle-outline" size={18} color="#60a5fa" style={{ marginRight: 8 }} />
+                  <Ionicons name="person-circle-outline" size={18} color="#60a5fa" style={{ marginEnd: 8 }} />
                   <Text style={styles.paneTitle}>Account Metadata</Text>
                 </View>
                 <View style={[styles.paneHeaderBadge, { backgroundColor: "#1e3a8a" }]}>
@@ -1254,7 +1258,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                   <Text style={styles.metaLabel}>Account Display Name</Text>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <Text style={styles.metaValue}>{user.name}</Text>
-                    <Ionicons name="checkmark-circle" size={14} color="#10b981" style={{ marginLeft: 6 }} />
+                    <Ionicons name="checkmark-circle" size={14} color="#10b981" style={{ marginStart: 6 }} />
                   </View>
                 </View>
 
@@ -1270,7 +1274,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
                 <View style={styles.metaRow}>
                   <Text style={styles.metaLabel}>User UUID</Text>
-                  <Text style={[styles.metaValue, { fontSize: 11, color: "#94a3b8" }]}>
+                  <Text style={[styles.metaValue, { fontSize: 12, color: "#94a3b8" }]}>
                     {user.id}
                   </Text>
                 </View>
@@ -1340,7 +1344,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             style={styles.footerRejectBtn}
             onPress={() => handleKycDecision(user, false, kycReviewNotes)}
           >
-            <Ionicons name="close-circle-outline" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+            <Ionicons name="close-circle-outline" size={18} color="#ffffff" style={{ marginEnd: 6 }} />
             <Text style={styles.footerRejectBtnText}>Reject KYC</Text>
           </TouchableOpacity>
 
@@ -1348,7 +1352,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
             style={styles.footerApproveBtn}
             onPress={() => handleKycDecision(user, true, kycReviewNotes)}
           >
-            <Ionicons name="checkmark-done" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+            <Ionicons name="checkmark-done" size={18} color="#ffffff" style={{ marginEnd: 6 }} />
             <Text style={styles.footerApproveBtnText}>Approve & Verify KYC</Text>
           </TouchableOpacity>
         </View>
@@ -1376,7 +1380,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <Text style={styles.subHeaderTitle}>User Profile</Text>
           <TouchableOpacity
@@ -1563,7 +1567,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
       <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color="#0f172a" />
+            <RTLIcon name="arrow-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <Text style={styles.subHeaderTitle}>Security & Audit Logs</Text>
           <TouchableOpacity style={styles.moreBtn}>
@@ -1609,7 +1613,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                 <Text style={styles.logUserIp}>
                   User: {log.user} • {log.details}
                 </Text>
-                <Text style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
+                <Text style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>
                   Logged to admin_activity_logs • IP: {log.ip}
                 </Text>
               </View>
@@ -1623,7 +1627,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <FocusAwareStatusBar style="dark" backgroundColor="#ffffff" />
       {currentScreen === "dashboard" && renderDashboard()}
       {currentScreen === "user_details" && renderUserDetails()}
       {currentScreen === "kyc_queue" && renderKycQueue()}
@@ -1669,7 +1673,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                     ? "#047857"
                     : "#c2410c"
                 }
-                style={{ marginRight: 10 }}
+                style={{ marginEnd: 10 }}
               />
               <View style={{ flex: 1 }}>
                 <Text
@@ -1714,7 +1718,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
 
               {/* Consequence Description */}
               <View style={styles.consequenceBox}>
-                <Ionicons name="information-circle-outline" size={18} color="#475569" style={{ marginRight: 8 }} />
+                <Ionicons name="information-circle-outline" size={18} color="#475569" style={{ marginEnd: 8 }} />
                 <Text style={styles.consequenceText}>
                   {securityModal.actionType === "ban"
                     ? "Banning permanently revokes session tokens, invalidates current bookings, and blacklists the user's phone, email, and NID credentials."
@@ -1755,7 +1759,7 @@ export const UserManagementScreen: React.FC<{ admin?: AdminUser | null }> = ({
                   name={securityModal.acknowledged ? "checkbox" : "square-outline"}
                   size={20}
                   color={securityModal.acknowledged ? "#0f172a" : "#94a3b8"}
-                  style={{ marginRight: 8 }}
+                  style={{ marginEnd: 8 }}
                 />
                 <Text style={styles.checkboxLabel}>
                   I confirm this executive action conforms to compliance policy and will be attributed
@@ -1958,7 +1962,7 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     padding: 6,
-    marginRight: 6,
+    marginEnd: 6,
   },
   moreBtn: {
     padding: 6,
@@ -1978,7 +1982,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     fontWeight: "500",
   },
@@ -1989,7 +1993,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   metricTrend: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#047857",
     fontWeight: "500",
     marginTop: 4,
@@ -2015,7 +2019,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   paginationBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#1e40af",
   },
@@ -2025,7 +2029,7 @@ const styles = StyleSheet.create({
   },
   quickActionBtn: {
     alignItems: "center",
-    width: (width - 60) / 4,
+    width: "23%",
   },
   quickActionIconCircle: {
     width: 46,
@@ -2036,7 +2040,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   quickActionLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     color: "#334155",
     textAlign: "center",
@@ -2057,7 +2061,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginRight: 8,
+    marginEnd: 8,
   },
   priorityIconCircle: {
     width: 34,
@@ -2065,7 +2069,7 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   priorityText: {
     fontSize: 13,
@@ -2098,7 +2102,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     backgroundColor: "#f1f5f9",
-    marginRight: 8,
+    marginEnd: 8,
   },
   filterChipActive: {
     backgroundColor: "#0f172a",
@@ -2125,7 +2129,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    marginRight: 12,
+    marginEnd: 12,
   },
   userInfo: {
     flex: 1,
@@ -2147,7 +2151,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   userRoleLoc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 2,
   },
@@ -2157,7 +2161,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   vipBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
   },
   statusBadge: {
@@ -2166,11 +2170,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   lastActiveText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 4,
   },
@@ -2190,7 +2194,7 @@ const styles = StyleSheet.create({
     color: "#64748b",
   },
   paginationCursorText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 2,
   },
@@ -2262,7 +2266,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ecfdf5",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   kycName: {
     fontSize: 14,
@@ -2283,12 +2287,12 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   faceMatchText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#047857",
   },
   kycDate: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#2563eb",
     fontWeight: "500",
   },
@@ -2307,7 +2311,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   kycInspectBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#0f172a",
   },
@@ -2346,7 +2350,7 @@ const styles = StyleSheet.create({
   },
   splitBackBtn: {
     padding: 6,
-    marginRight: 10,
+    marginEnd: 10,
   },
   splitViewerTitle: {
     fontSize: 16,
@@ -2354,7 +2358,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
   splitViewerSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 1,
   },
@@ -2364,7 +2368,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   splitStatusBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#ffffff",
   },
@@ -2403,7 +2407,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   paneHeaderBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#6ee7b7",
   },
@@ -2421,13 +2425,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   documentCountryText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#94a3b8",
     letterSpacing: 0.5,
   },
   documentSubtitleText: {
-    fontSize: 8,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -2457,7 +2461,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   faceMatchTag: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "700",
     color: "#ffffff",
   },
@@ -2465,12 +2469,12 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   docFieldLabel: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
   docFieldValue: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#f8fafc",
     fontWeight: "500",
   },
@@ -2484,7 +2488,7 @@ const styles = StyleSheet.create({
   },
   mrzText: {
     fontFamily: "monospace",
-    fontSize: 8,
+    fontSize: 12,
     color: "#10b981",
     letterSpacing: 1,
   },
@@ -2506,7 +2510,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   securityTagText: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#cbd5e1",
     fontWeight: "500",
   },
@@ -2526,7 +2530,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1e293b",
   },
   metaLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
   },
   metaValue: {
@@ -2541,7 +2545,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   riskScoreText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#34d399",
   },
@@ -2554,7 +2558,7 @@ const styles = StyleSheet.create({
     borderColor: "#334155",
   },
   discrepancyTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#cbd5e1",
     marginBottom: 8,
@@ -2566,12 +2570,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   checklistText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
     flex: 1,
   },
   notesLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
     marginBottom: 4,
     fontWeight: "500",
@@ -2641,7 +2645,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginRight: 14,
+    marginEnd: 14,
   },
   profileName: {
     fontSize: 16,
@@ -2664,7 +2668,7 @@ const styles = StyleSheet.create({
   },
   quickAction4Btn: {
     alignItems: "center",
-    width: (width - 64) / 4,
+    width: "23%",
   },
   quickAction4Icon: {
     width: 44,
@@ -2675,7 +2679,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   quickAction4Text: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     color: "#334155",
   },
@@ -2718,7 +2722,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   logAction: {
     fontSize: 13,
@@ -2731,7 +2735,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   logTime: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
   },
   modalOverlay: {
@@ -2809,7 +2813,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   securityModalBannerSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -2822,7 +2826,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   targetAccountLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
@@ -2833,7 +2837,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   targetAccountDetails: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -2845,7 +2849,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   consequenceText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#334155",
     flex: 1,
     lineHeight: 16,
@@ -2871,10 +2875,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 14,
-    paddingRight: 10,
+    paddingEnd: 10,
   },
   checkboxLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     flex: 1,
     lineHeight: 16,

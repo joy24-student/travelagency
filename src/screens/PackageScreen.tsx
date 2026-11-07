@@ -1,5 +1,8 @@
+import { AppImage } from "../components/ui/AppImage";
+import { generateReferenceCode } from "../utils/idGenerator";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
+  Alert,
   ActivityIndicator,
   Animated,
   Dimensions,
@@ -26,10 +29,15 @@ import { bookingRepository } from "../services/repositories/booking";
 import { travelRepository } from "../repositories";
 import { useBookingStore } from "../store/bookingStore";
 import { supabase } from "../utils/supabase";
-import { AiPill, BottomNav } from "./Navigation";
 import { TopBar } from "./TopBar";
+import { savedItemsService } from "../services/savedItemsService";
 import { screens, type UIScreen } from "../data/screens";
 import { WeatherWidget } from "../components/weather/WeatherWidget";
+import { ErrorStateCard, EmptyStateView, StickyHeader, ResultsSummaryHeader, ComparisonModal, ComparisonItem } from "../components/common";
+
+import { useResponsive } from "../hooks/useResponsive";
+import { useTheme } from "../context/ThemeContext";
+import { FONTS } from "../theme/typography";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TRIP_BLUE = "#0055F2";
@@ -238,9 +246,12 @@ if (typeof (travelRepository as any).getTourPackages !== "function") {
 
     try {
       const featured = await travelRepository.getFeaturedTours(options?.limit || 20, options);
-      return featured || [];
-    } catch (e) {
+      if (featured && featured.length > 0) {
+        return featured;
+      }
       return [];
+    } catch (e) {
+      throw e;
     }
   };
 }
@@ -255,7 +266,9 @@ function parseArrayField(val: any, fallback: string[]): string[] {
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.map((s) => String(s).trim()).filter(Boolean);
       }
-    } catch {}
+    } catch (parseErr) {
+      // Fall back to delimiter splitting
+    }
     if (val.includes("·")) {
       return val.split("·").map((s) => s.trim()).filter(Boolean);
     }
@@ -302,7 +315,9 @@ function parseItineraryField(rawItinerary: any, city: string, durationDays: numb
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parseItineraryField(parsed, city, durationDays);
       }
-    } catch {}
+    } catch (parseErr) {
+      // Fall back to empty itinerary
+    }
   }
   return null;
 }
@@ -456,7 +471,7 @@ function mapTourToPackage(t: any, defaultOriginCity = "Dhaka"): VacationPackage 
   const currency = t.currency || "USD";
 
   return {
-    id: t.id || `pkg-${Math.random().toString(36).substring(2, 9)}`,
+    id: t.id || `pkg-${generateReferenceCode("PKG")}`,
     name: t.title || `${city} Escape: Luxury Flight + 5-Star Hotel Bundle`,
     slug: t.slug || t.id,
     destinationCity: city,
@@ -476,7 +491,7 @@ function mapTourToPackage(t: any, defaultOriginCity = "Dhaka"): VacationPackage 
     flight: {
       airline: t.airline || "Partner Airline Express",
       airlineLogo: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=100",
-      flightNumber: t.flight_number || `FL-${city.slice(0, 3).toUpperCase()}${Math.floor(100 + Math.random() * 900)}`,
+      flightNumber: t.flight_number || `FL-${city.slice(0, 3).toUpperCase()}-101`,
       route: `${departureCity.slice(0, 3).toUpperCase()} ➔ ${city.slice(0, 3).toUpperCase()}`,
       departureAirport: `${departureCity} International Airport`,
       arrivalAirport: `${city} International Airport`,
@@ -531,7 +546,7 @@ function mapTourToPackage(t: any, defaultOriginCity = "Dhaka"): VacationPackage 
       },
     ],
     cancellationPolicy: t.cancellation_policy || "100% Free Cancellation up to 7 days before departure. Instant automated refund.",
-    seatsLeft: t.max_participants ? Math.max(2, t.max_participants - 8) : 6,
+    seatsLeft: typeof t.seats_left === "number" ? Math.max(0, t.seats_left) : t.max_participants ? Math.max(0, t.max_participants - (t.current_participants || 0)) : (t.is_available === false ? 0 : 8),
     provider: t.guide_name ? `${t.guide_name} Holidays` : "Trip.com Certified Luxury Partner",
   };
 }
@@ -568,7 +583,9 @@ function FullScreenImageModal({ visible, images, initialIndex, title, onClose }:
         message: `Check out this photo from "${title}":\n${currentImage}`,
         url: currentImage,
       });
-    } catch {}
+    } catch (shareErr) {
+      console.warn("[PackageScreen] Share error:", shareErr);
+    }
   };
 
   const handleDoubleTap = () => {
@@ -677,14 +694,14 @@ function FullScreenImageModal({ visible, images, initialIndex, title, onClose }:
               const isSelected = idx === currentIndex;
               return (
                 <Pressable
-                  key={idx}
+                  key={`zoom-thumb-${imgUrl}-${idx}`}
                   onPress={() => {
                     Haptics.selectionAsync();
                     setCurrentIndex(idx);
                   }}
                   style={[zoomStyles.thumbWrapper, isSelected && zoomStyles.thumbWrapperSelected]}
                 >
-                  <Image source={{ uri: imgUrl }} style={zoomStyles.thumbImage} />
+                  <AppImage source={{ uri: imgUrl }} placeholderCategory="package" style={zoomStyles.thumbImage} />
                   {isSelected && <View style={zoomStyles.thumbSelectedIndicator} />}
                 </Pressable>
               );
@@ -766,7 +783,7 @@ const zoomStyles = StyleSheet.create({
   },
   pinchHintText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   quickZoomRow: {
@@ -788,7 +805,7 @@ const zoomStyles = StyleSheet.create({
   },
   zoomActionBtnText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   thumbnailStripContainer: {
@@ -862,8 +879,8 @@ function ImageGalleryCarousel({ images, title, badge, onOpenZoom, isFav, onToggl
         style={carouselStyles.scrollView}
       >
         {images.map((img, i) => (
-          <Pressable key={i} onPress={() => onOpenZoom(i)} style={carouselStyles.slide}>
-            <Image source={{ uri: img }} style={carouselStyles.image} />
+          <Pressable key={`slide-${img}-${i}`} onPress={() => onOpenZoom(i)} style={carouselStyles.slide}>
+            <AppImage source={{ uri: img }} placeholderCategory="package" style={carouselStyles.image} />
             <LinearGradient colors={["rgba(0,0,0,0.55)", "transparent", "rgba(0,0,0,0.75)"]} style={StyleSheet.absoluteFill} />
           </Pressable>
         ))}
@@ -937,7 +954,7 @@ const carouselStyles = StyleSheet.create({
     height: "100%",
   },
   slide: {
-    width: SCREEN_WIDTH - 32,
+    width: "100%",
     height: 200,
   },
   image: {
@@ -964,7 +981,7 @@ const carouselStyles = StyleSheet.create({
   },
   badgeText: {
     color: "#FACC15",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
@@ -981,7 +998,7 @@ const carouselStyles = StyleSheet.create({
   },
   zoomTriggerText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   heartBtn: {
@@ -1027,7 +1044,7 @@ const carouselStyles = StyleSheet.create({
   },
   counterBadgeText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
 });
@@ -1037,6 +1054,7 @@ const carouselStyles = StyleSheet.create({
 // ============================================================================
 
 export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
+  const { colors, isDark } = useTheme();
   const activeScreen = screen ?? screens.find((s) => s.slug === "packages") ?? screens[0];
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -1044,6 +1062,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
   // Core package state
   const [packages, setPackages] = useState<VacationPackage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Search & Filter state
@@ -1060,6 +1079,44 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
 
   // Group size state
   const [travelersCount, setTravelersCount] = useState<number>(2);
+
+  // Comparison State
+  const [comparePackageIds, setComparePackageIds] = useState<string[]>([]);
+  const [showCompareModal, setShowCompareModal] = useState(false);
+
+  const toggleComparePackage = useCallback((pkgId: string) => {
+    Haptics.selectionAsync();
+    setComparePackageIds((prev) => {
+      if (prev.includes(pkgId)) return prev.filter((id) => id !== pkgId);
+      if (prev.length >= 4) {
+        Alert.alert("তুলনা সীমা", "সর্বোচ্চ ৪টি প্যাকেজ একসাথে তুলনা করতে পারবেন।");
+        return prev;
+      }
+      return [...prev, pkgId];
+    });
+  }, []);
+
+  const packageComparisonItems: ComparisonItem[] = useMemo(() => {
+    return packages
+      .filter((p) => comparePackageIds.includes(p.id))
+      .map((p) => ({
+        id: p.id,
+        title: p.name,
+        subtitle: `${p.durationDays} দিন / ${p.durationNights} রাত • ${p.destination}`,
+        price: p.basePrice,
+        priceUnit: "/জন",
+        rating: p.rating,
+        reviewsCount: p.reviewsCount,
+        specs: [
+          { label: "গন্তব্য", value: p.destination },
+          { label: "হোটেল", value: p.hotel?.name || "পার্টনার হোটেল" },
+          { label: "খাবার", value: p.mealsIncluded ? "অন্তর্ভুক্ত" : "ব্যক্তিগত" },
+          { label: "সিট বাকি", value: `${p.seatsLeft}টি` },
+        ],
+        features: p.inclusions || [],
+        policies: [p.cancellationPolicy || "শর্ত প্রযোজ্য"],
+      }));
+  }, [packages, comparePackageIds]);
 
   // Modals state
   const [showOriginModal, setShowOriginModal] = useState(false);
@@ -1099,6 +1156,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
   const fetchPackages = async () => {
     try {
       setLoading(true);
+      setFetchError(null);
 
       const repo = travelRepository as typeof travelRepository & ITravelRepositoryWithPackages;
       const rawData = await repo.getTourPackages({ limit: 50 });
@@ -1109,8 +1167,9 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
       } else {
         setPackages([]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Error fetching tour packages from travelRepository:", err);
+      setFetchError(err?.message || "Failed to load packages. Please check your network connection.");
       setPackages([]);
     } finally {
       setLoading(false);
@@ -1327,6 +1386,21 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
   const toggleWishlist = (id: string) => {
     Haptics.selectionAsync();
     setWishlist((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    const pkg = packages.find((p) => p.id === id);
+    if (pkg) {
+      savedItemsService.toggleSaveItem({
+        id: pkg.id,
+        type: "package",
+        title: pkg.name,
+        subtitle: `${pkg.duration} · ${pkg.destinationCity}`,
+        destination: pkg.destinationCity,
+        price: pkg.pricePerPerson,
+        totalPriceWithTax: Math.round(pkg.pricePerPerson * 1.05),
+        rating: pkg.rating,
+        image_url: pkg.galleryImages?.[0],
+        route: `/screens/packages?packageId=${pkg.id}`,
+      });
+    }
   };
 
   const toggleAddon = (addonId: string) => {
@@ -1376,11 +1450,23 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
   // --------------------------------------------------------------------------
 
   const handleBookNow = async (pkg: VacationPackage) => {
+    if (pkg.seatsLeft <= 0 || travelersCount > pkg.seatsLeft) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        "প্যাকেজ বুকিং বন্ধ (Sold Out)",
+        pkg.seatsLeft <= 0
+          ? "এই প্যাকেজের সকল আসন বুক হয়ে গেছে (Sold Out)। অনুগ্রহ করে অন্য প্যাকেজ বা তারিখ বেছে নিন।"
+          : `এই প্যাকেজে মাত্র ${pkg.seatsLeft}টি আসন বাকি আছে, কিন্তু আপনি ${travelersCount} জন ভ্রমণকারী নির্বাচন করেছেন। অনুগ্রহ করে ভ্রমণকারীর সংখ্যা কমান।`,
+        [{ text: "ঠিক আছে", style: "default" }]
+      );
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setIsBooking(true);
 
     try {
-      const ref = `PKG-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const ref = generateReferenceCode("PKG");
       const { tierPricing, finalTotal } = calculateTotalWithAddons(pkg, travelersCount);
 
       cachePackageIntoBookingStore(pkg, travelersCount, finalTotal);
@@ -1441,11 +1527,13 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
         message: `🌴 Check out this Flight + Hotel Bundle: "${pkg.name}" for ${formatCurrency(pkg.pricePerPerson, pkg.currency)}/person on Trip.com!\nIncludes ${pkg.flight.airline} flights & 5-Star ${pkg.hotel.name}. Group discounts available!`,
         title: pkg.name,
       });
-    } catch (e) {}
+    } catch (shareErr) {
+      console.warn("[PackageScreen] Share package error:", shareErr);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.shell} edges={["top"]}>
+    <SafeAreaView style={[styles.shell, { backgroundColor: colors.background }]} edges={["top"]}>
       <TopBar screen={activeScreen} />
 
       <ScrollView
@@ -1469,7 +1557,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
           <Text style={styles.heroSubtitle}>Flights, 5-Star Resorts, Guided Excursions & Group Tier Pricing in one place.</Text>
 
           {/* Search Box Card */}
-          <View style={styles.searchBox}>
+          <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.borderSubtle, borderWidth: 1 }]}>
             <View style={styles.searchRow}>
               {/* Departure Airport Button */}
               <Pressable
@@ -1577,7 +1665,8 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
           </View>
         </LinearGradient>
 
-        {/* Dynamic Category Tabs */}
+        <StickyHeader backgroundColor="#FFFFFF" elevation={3} style={{ paddingVertical: 4 }}>
+{/* Dynamic Category Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
           {categoryTabs.map((cat) => (
             <Pressable
@@ -1593,12 +1682,26 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
           ))}
         </ScrollView>
 
-        {/* Results Counter & Search Filter Bar */}
-        <View style={styles.resultsBar}>
-          <Text style={styles.resultsCountText}>
-            Showing <Text style={{ fontWeight: "800", color: "#111827" }}>{filteredPackages.length}</Text> vacation packages
-          </Text>
-          <View style={styles.searchPillInput}>
+        {/* Results Summary Header & Search Input */}
+        <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 8 }}>
+          <ResultsSummaryHeader
+            count={filteredPackages.length}
+            entityName="ভ্যাকেশন প্যাকেজ"
+            sortLabel={activeCategory !== "All Packages" ? activeCategory : "জনপ্রিয়তা"}
+            filterCount={
+              (activeCategory !== "All Packages" ? 1 : 0) +
+              (activeDuration !== "All" ? 1 : 0) +
+              (selectedDestination !== "All Destinations" ? 1 : 0) +
+              (searchQuery.trim() ? 1 : 0)
+            }
+            onClearFilters={() => {
+              setSelectedDestination("All Destinations");
+              setActiveCategory("All Packages");
+              setActiveDuration("All");
+              setSearchQuery("");
+            }}
+          />
+          <View style={[styles.searchPillInput, { marginTop: 8 }]}>
             <Ionicons name="search" size={14} color="#6B7280" />
             <TextInput
               style={styles.inlineSearchInput}
@@ -1615,6 +1718,8 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
           </View>
         </View>
 
+        
+</StickyHeader>
         {/* Loading Spinner */}
         {loading && (
           <View style={styles.loadingContainer}>
@@ -1623,23 +1728,33 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
           </View>
         )}
 
+        {/* Error State */}
+        {!loading && fetchError && (
+          <View style={{ marginHorizontal: 16, marginVertical: 20 }}>
+            <ErrorStateCard
+              title="Unable to load packages"
+              message={fetchError}
+              retryText="Retry Packages"
+              onRetry={fetchPackages}
+            />
+          </View>
+        )}
+
         {/* Empty State */}
-        {!loading && filteredPackages.length === 0 && (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="airplane-outline" size={56} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No Packages Found</Text>
-            <Text style={styles.emptySubtitle}>Try changing your destination, category tab, or duration filter.</Text>
-            <Pressable
-              style={styles.resetBtn}
-              onPress={() => {
+        {!loading && !fetchError && filteredPackages.length === 0 && (
+          <View style={{ marginHorizontal: 16, marginVertical: 20 }}>
+            <EmptyStateView
+              icon="airplane-outline"
+              title="No Packages Found"
+              description="Try changing your destination, category tab, or duration filter."
+              actionText="Reset All Filters"
+              onAction={() => {
                 setSelectedDestination("All Destinations");
                 setActiveCategory("All Packages");
                 setActiveDuration("All");
                 setSearchQuery("");
               }}
-            >
-              <Text style={styles.resetBtnText}>Reset All Filters</Text>
-            </Pressable>
+            />
           </View>
         )}
 
@@ -1650,7 +1765,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
             const { tierPricing, finalTotal } = calculateTotalWithAddons(pkg, travelersCount);
 
             return (
-              <View key={pkg.id} style={styles.card}>
+              <View key={pkg.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}>
                 {/* 1. Image Carousel with Pinch-to-Zoom & Full-Screen Trigger */}
                 <ImageGalleryCarousel
                   images={pkg.galleryImages}
@@ -1679,6 +1794,17 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                         <Text style={styles.ratingText}>{pkg.rating.toFixed(1)}</Text>
                       </View>
                       <Text style={styles.reviewCountText}>({pkg.reviewsCount} reviews)</Text>
+                      {pkg.seatsLeft <= 0 ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FFE4E6", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginStart: 6 }}>
+                          <Ionicons name="close-circle" size={11} color="#E11D48" />
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#E11D48", marginStart: 2 }}>বিক্রি শেষ</Text>
+                        </View>
+                      ) : pkg.seatsLeft <= 3 ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FEF3C7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginStart: 6 }}>
+                          <Ionicons name="flame" size={11} color="#D97706" />
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#D97706", marginStart: 2 }}>{pkg.seatsLeft}টি বাকি</Text>
+                        </View>
+                      ) : null}
                       <Text style={styles.durationBullet}>·</Text>
                       <Text style={styles.durationText}>{pkg.duration}</Text>
                       <Text style={styles.durationBullet}>·</Text>
@@ -1711,7 +1837,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                       </View>
                       <View style={styles.inclusionsWrap}>
                         {pkg.inclusions.slice(0, 3).map((inc, i) => (
-                          <View key={i} style={styles.inclusionHighContrastTag}>
+                          <View key={`inc-${inc}-${i}`} style={styles.inclusionHighContrastTag}>
                             <Ionicons name="checkmark-circle" size={14} color="#059669" />
                             <Text style={styles.inclusionHighContrastText} numberOfLines={1}>
                               {inc}
@@ -1728,7 +1854,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                       </View>
                       <View style={styles.exclusionsWrap}>
                         {pkg.exclusions.slice(0, 2).map((exc, i) => (
-                          <View key={i} style={styles.exclusionHighContrastTag}>
+                          <View key={`exc-${exc}-${i}`} style={styles.exclusionHighContrastTag}>
                             <Ionicons name="close-circle" size={14} color="#DC2626" />
                             <Text style={styles.exclusionHighContrastText} numberOfLines={1}>
                               {exc}
@@ -1890,10 +2016,43 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                         </Text>
                       </View>
 
-                      <Pressable style={styles.viewDetailBtn} onPress={() => openDrawer(pkg)}>
-                        <Text style={styles.viewDetailBtnText}>Reserve</Text>
-                        <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
-                      </Pressable>
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Pressable
+                          onPress={() => toggleComparePackage(pkg.id)}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 10,
+                            paddingVertical: 7,
+                            borderRadius: 10,
+                            backgroundColor: comparePackageIds.includes(pkg.id) ? "#EFF6FF" : "#F3F4F6",
+                            borderWidth: 1,
+                            borderColor: comparePackageIds.includes(pkg.id) ? "#2563EB" : "#E5E7EB",
+                            marginEnd: 8,
+                          }}
+                        >
+                          <Ionicons
+                            name={comparePackageIds.includes(pkg.id) ? "checkbox" : "square-outline"}
+                            size={14}
+                            color={comparePackageIds.includes(pkg.id) ? "#2563EB" : "#6B7280"}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              fontWeight: "700",
+                              color: comparePackageIds.includes(pkg.id) ? "#2563EB" : "#374151",
+                              marginStart: 4,
+                            }}
+                          >
+                            তুলনা
+                          </Text>
+                        </Pressable>
+
+                        <Pressable style={styles.viewDetailBtn} onPress={() => openDrawer(pkg)}>
+                          <Text style={styles.viewDetailBtnText}>Reserve</Text>
+                          <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -1917,7 +2076,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
             <Animated.View style={[styles.drawerSheet, { transform: [{ translateY: drawerSlideAnim }] }]}>
               <View style={styles.drawerHandleBar} />
               <View style={styles.drawerHeader}>
-                <View style={{ flex: 1, paddingRight: 8 }}>
+                <View style={{ flex: 1, paddingEnd: 8 }}>
                   <Text style={styles.drawerHeaderTitle} numberOfLines={1}>
                     {selectedPackage.name}
                   </Text>
@@ -1969,7 +2128,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                         });
                       }}
                     >
-                      <Image source={{ uri: selectedPackage.image }} style={styles.drawerHeroImage} />
+                      <AppImage source={{ uri: selectedPackage.image }} placeholderCategory="package" style={styles.drawerHeroImage} />
                       <View style={styles.drawerZoomPill}>
                         <Ionicons name="scan" size={13} color="#FFFFFF" />
                         <Text style={styles.drawerZoomPillText}>Pinch-to-Zoom Gallery ({selectedPackage.galleryImages.length})</Text>
@@ -2004,7 +2163,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                     <Text style={styles.drawerSectionTitle}>Package Highlights & Inclusions</Text>
                     <View style={styles.inclusionsCard}>
                       {selectedPackage.inclusions.map((item, idx) => (
-                        <View key={idx} style={styles.checkItemRow}>
+                        <View key={`pkg-inc-${item}-${idx}`} style={styles.checkItemRow}>
                           <Ionicons name="checkmark-circle" size={18} color="#059669" />
                           <Text style={styles.checkItemText}>{item}</Text>
                         </View>
@@ -2186,7 +2345,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                       </View>
                       <View style={styles.inclusionsTagsGrid}>
                         {selectedPackage.inclusions.map((item, idx) => (
-                          <View key={idx} style={styles.inclusionCardTag}>
+                          <View key={`tab-inc-${item}-${idx}`} style={styles.inclusionCardTag}>
                             <Ionicons name="checkmark-circle" size={16} color="#059669" />
                             <Text style={styles.inclusionCardTagText}>{item}</Text>
                           </View>
@@ -2201,7 +2360,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                       </View>
                       <View style={styles.exclusionsTagsGrid}>
                         {selectedPackage.exclusions.map((item, idx) => (
-                          <View key={idx} style={styles.exclusionCardTag}>
+                          <View key={`tab-exc-${item}-${idx}`} style={styles.exclusionCardTag}>
                             <Ionicons name="close-circle" size={16} color="#DC2626" />
                             <Text style={styles.exclusionCardTagText}>{item}</Text>
                           </View>
@@ -2270,7 +2429,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
 
                     <Text style={[styles.drawerSectionTitle, { marginTop: 14 }]}>Accommodations & Resort</Text>
                     <View style={styles.hotelDetailsCard}>
-                      <Image source={{ uri: selectedPackage.hotel.image }} style={styles.hotelPreviewImg} />
+                      <AppImage source={{ uri: selectedPackage.hotel.image }} placeholderCategory="hotel" style={styles.hotelPreviewImg} />
                       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                         <Text style={styles.hotelNameTitle}>{selectedPackage.hotel.name}</Text>
                         <View style={styles.hotelStarsRow}>
@@ -2439,20 +2598,42 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                   );
                 })()}
 
-                <Pressable
-                  style={[styles.bookNowBtn, isBooking && { opacity: 0.7 }]}
-                  disabled={isBooking}
-                  onPress={() => handleBookNow(selectedPackage)}
-                >
-                  {isBooking ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Text style={styles.bookNowBtnText}>Reserve Package</Text>
-                      <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                    </>
-                  )}
-                </Pressable>
+                {(() => {
+                  const isSoldOut = selectedPackage.seatsLeft <= 0;
+                  const isInsufficient = selectedPackage.seatsLeft < travelersCount;
+                  const isActionDisabled = isBooking || isSoldOut || isInsufficient;
+
+                  return (
+                    <Pressable
+                      style={[
+                        styles.bookNowBtn,
+                        isActionDisabled && !isBooking && { backgroundColor: "#94A3B8" },
+                        isBooking && { opacity: 0.7 },
+                      ]}
+                      disabled={isActionDisabled}
+                      onPress={() => handleBookNow(selectedPackage)}
+                    >
+                      {isBooking ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : isSoldOut ? (
+                        <>
+                          <Ionicons name="ban" size={18} color="#FFFFFF" style={{ marginEnd: 6 }} />
+                          <Text style={styles.bookNowBtnText}>প্যাকেজ পূর্ণ (Sold Out)</Text>
+                        </>
+                      ) : isInsufficient ? (
+                        <>
+                          <Ionicons name="alert-circle" size={18} color="#FFFFFF" style={{ marginEnd: 6 }} />
+                          <Text style={styles.bookNowBtnText}>আসন অপর্যাপ্ত ({selectedPackage.seatsLeft}টি বাকি)</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.bookNowBtnText}>Reserve Package</Text>
+                          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                        </>
+                      )}
+                    </Pressable>
+                  );
+                })()}
               </View>
             </Animated.View>
           </View>
@@ -2510,7 +2691,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                     <View style={styles.airportCodeBadge}>
                       <Text style={styles.airportCodeBadgeText}>{airport.code}</Text>
                     </View>
-                    <View style={{ flex: 1, paddingLeft: 12 }}>
+                    <View style={{ flex: 1, paddingStart: 12 }}>
                       <Text style={styles.pickerItemCity}>{airport.city}</Text>
                       <Text style={styles.pickerItemAirport}>{airport.airport}</Text>
                     </View>
@@ -2558,7 +2739,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
                     }}
                   >
                     <Ionicons name="location" size={20} color={TRIP_PURPLE} />
-                    <View style={{ flex: 1, paddingLeft: 12 }}>
+                    <View style={{ flex: 1, paddingStart: 12 }}>
                       <Text style={styles.pickerItemCity}>{dest.name}</Text>
                       <Text style={styles.pickerItemAirport}>{dest.country}</Text>
                     </View>
@@ -2570,8 +2751,65 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
         </View>
       </Modal>
 
-      <AiPill color={TRIP_PURPLE} />
-      <BottomNav active="Home" color={TRIP_PURPLE} />
+      {/* Package Compare Floating Bar */}
+      {comparePackageIds.length > 0 && (
+        <View
+          style={{
+            position: "absolute",
+            bottom: 24,
+            left: 16,
+            right: 16,
+            backgroundColor: "#0F172A",
+            borderRadius: 16,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
+          <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13 }}>
+            {comparePackageIds.length}টি প্যাকেজ নির্বাচিত
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Pressable onPress={() => setComparePackageIds([])} style={{ marginEnd: 12 }}>
+              <Text style={{ color: "#EF4444", fontWeight: "700", fontSize: 13 }}>মুছুন</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowCompareModal(true)}
+              style={{
+                backgroundColor: "#7C3AED",
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 10,
+              }}
+            >
+              <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13 }}>
+                তুলনা দেখুন ({comparePackageIds.length})
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Package Comparison Modal */}
+      <ComparisonModal
+        visible={showCompareModal}
+        onClose={() => setShowCompareModal(false)}
+        title="ভ্যাকেশন প্যাকেজ তুলনা"
+        items={packageComparisonItems}
+        onSelect={(item) => {
+          setShowCompareModal(false);
+          const pkg = packages.find((p) => p.id === item.id);
+          if (pkg) openDrawer(pkg);
+        }}
+        selectButtonLabel="বুকিং ও বিবরণ দেখুন"
+      />
     </SafeAreaView>
   );
 }
@@ -2614,7 +2852,7 @@ const styles = StyleSheet.create({
   },
   heroBadgeText: {
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
@@ -2626,7 +2864,7 @@ const styles = StyleSheet.create({
   },
   saveBadgeText: {
     color: "#1E1B4B",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 0.3,
   },
@@ -2653,6 +2891,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 5,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.1)" } : {}),
   },
   searchRow: {
     flexDirection: "row",
@@ -2670,7 +2909,7 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   fieldLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#6B7280",
     letterSpacing: 0.5,
@@ -2722,7 +2961,7 @@ const styles = StyleSheet.create({
     backgroundColor: TRIP_PURPLE,
   },
   miniDurationText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4B5563",
   },
@@ -2784,7 +3023,7 @@ const styles = StyleSheet.create({
     width: 170,
   },
   inlineSearchInput: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#111827",
     padding: 0,
     flex: 1,
@@ -2846,6 +3085,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.06)" } : {}),
   },
   cardBody: {
     padding: 16,
@@ -2876,20 +3116,20 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   ratingText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#92400E",
   },
   reviewCountText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
   },
   durationBullet: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
   },
   durationText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#4B5563",
     fontWeight: "600",
   },
@@ -2913,7 +3153,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   flightPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#1D4ED8",
     flex: 1,
@@ -2931,7 +3171,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   hotelPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#6D28D9",
     flex: 1,
@@ -2950,13 +3190,13 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   inclusionsSectionTitle: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     color: "#065F46",
     letterSpacing: 0.5,
   },
   exclusionsSectionTitle: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     color: "#991B1B",
     letterSpacing: 0.5,
@@ -2978,7 +3218,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   inclusionHighContrastText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#065F46",
   },
@@ -2999,7 +3239,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   exclusionHighContrastText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#991B1B",
   },
@@ -3025,7 +3265,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   seeFullItineraryText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: TRIP_PURPLE,
   },
@@ -3050,7 +3290,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   dayMiniBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     color: TRIP_PURPLE,
   },
@@ -3067,7 +3307,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#F3F4F6",
   },
   daySummaryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#4B5563",
     marginTop: 6,
     lineHeight: 16,
@@ -3080,7 +3320,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   mealIndicatorLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     color: "#6B7280",
   },
@@ -3101,7 +3341,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
   },
   mealChipText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   mealChipTextActive: {
@@ -3131,7 +3371,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   groupTierSubtitle: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#6D28D9",
     fontWeight: "600",
     marginTop: 1,
@@ -3148,7 +3388,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   groupTierBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     color: "#065F46",
   },
@@ -3176,12 +3416,12 @@ const styles = StyleSheet.create({
     backgroundColor: TRIP_PURPLE,
   },
   tierStepNum: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     color: "#FFFFFF",
   },
   tierStepLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#6B7280",
   },
@@ -3214,7 +3454,7 @@ const styles = StyleSheet.create({
     borderColor: TRIP_PURPLE,
   },
   tierPillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4B5563",
   },
@@ -3231,7 +3471,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   strikethroughPrice: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
     textDecorationLine: "line-through",
   },
@@ -3241,12 +3481,12 @@ const styles = StyleSheet.create({
     color: TRIP_PURPLE,
   },
   rateUnitText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#6B7280",
     fontWeight: "600",
   },
   groupTotalSummary: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#4B5563",
     marginTop: 2,
   },
@@ -3279,12 +3519,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    maxHeight: SCREEN_HEIGHT * 0.9,
+    maxHeight: "90%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 20,
+    ...(Platform.OS === "web" ? { boxShadow: "0px -4px 16px rgba(15, 23, 42, 0.15)" } : {}),
   },
   drawerHandleBar: {
     width: 44,
@@ -3379,7 +3620,7 @@ const styles = StyleSheet.create({
   },
   drawerZoomPillText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   overviewQuickSpecs: {
@@ -3403,7 +3644,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   specLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 2,
   },
@@ -3462,12 +3703,12 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   addonDesc: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 1,
   },
   addonPrice: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: TRIP_PURPLE,
     marginTop: 3,
@@ -3494,7 +3735,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   itinerarySub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 2,
   },
@@ -3505,7 +3746,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   expandAllBtnText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4B5563",
   },
@@ -3529,7 +3770,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   dayBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     color: TRIP_PURPLE,
   },
@@ -3551,7 +3792,7 @@ const styles = StyleSheet.create({
   timelineSpine: {
     width: 20,
     alignItems: "center",
-    marginRight: 8,
+    marginEnd: 8,
   },
   nodeDot: {
     width: 10,
@@ -3575,12 +3816,12 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   timeTagText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#4B5563",
   },
   eventText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#1F2937",
     lineHeight: 16,
   },
@@ -3591,7 +3832,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#F3F4F6",
   },
   drawerMealBarLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     color: "#6B7280",
     marginBottom: 6,
@@ -3619,7 +3860,7 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   drawerMealChipText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#6B7280",
   },
@@ -3707,7 +3948,7 @@ const styles = StyleSheet.create({
     color: "#065F46",
   },
   policyCardBody: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#166534",
     lineHeight: 16,
   },
@@ -3737,7 +3978,7 @@ const styles = StyleSheet.create({
     color: "#1E3A8A",
   },
   flightNumberText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#6B7280",
   },
@@ -3757,7 +3998,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   airportCitySub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 2,
   },
@@ -3775,7 +4016,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   flightDurationLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#2563EB",
     fontWeight: "700",
   },
@@ -3788,11 +4029,11 @@ const styles = StyleSheet.create({
     width: "47%",
   },
   specSubHeading: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#6B7280",
   },
   specSubVal: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#111827",
     marginTop: 1,
@@ -3821,7 +4062,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   hotelAddress: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 2,
     marginBottom: 8,
@@ -3839,7 +4080,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   roomTypePillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#6D28D9",
   },
@@ -3860,7 +4101,7 @@ const styles = StyleSheet.create({
     borderColor: "#DCFCE7",
   },
   amenityTagText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#166534",
   },
@@ -3885,7 +4126,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   calcStepperSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
   },
   calcStepperControls: {
@@ -3935,7 +4176,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   tierRowDesc: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#6B7280",
   },
   tierRowDiscount: {
@@ -3985,7 +4226,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   savingsPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#065F46",
   },
@@ -4002,7 +4243,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   footerTotalLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#6B7280",
   },

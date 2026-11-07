@@ -22,8 +22,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { adService, adminService } from "@/services/adminService";
 import { Advertisement, AdminUser } from "@/types/admin";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { withErrorBoundary } from "@/components/common";
+import { DestructiveConfirmModal } from "./DestructiveConfirmModal";
 
-const { width } = Dimensions.get("window");
+
 
 /**
  * Ad Status Badge
@@ -181,13 +184,16 @@ const AdCard: React.FC<{
 /**
  * Advertisement Management Screen
  */
-export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
+const AdvertisementScreenComponent: React.FC<{ admin: AdminUser | null }> = ({
   admin,
 }) => {
   const [ads, setAds] = useState<Advertisement[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [deleteTargetAd, setDeleteTargetAd] = useState<Advertisement | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBannerUrl, setNewBannerUrl] = useState("");
@@ -199,11 +205,13 @@ export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
 
   const loadAds = async () => {
     setLoading(true);
+    setError(null);
     try {
       const allAds = await adService.getAllAds(filterStatus);
-      setAds(allAds);
-    } catch (error) {
-      console.error("Error loading ads:", error);
+      setAds(allAds || []);
+    } catch (err: any) {
+      console.error("Error loading ads:", err);
+      setError(err?.message || "Failed to load advertisements.");
     } finally {
       setLoading(false);
     }
@@ -225,25 +233,21 @@ export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
   };
 
   const handleDelete = (ad: Advertisement) => {
-    Alert.alert(
-      "Confirm Delete",
-      `Delete ad "${ad.ad_name}"?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await adService.deleteAd(ad.id);
-              setAds(prev => prev.filter(a => a.id !== ad.id));
-            } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed to delete ad");
-            }
-          }
-        }
-      ]
-    );
+    setDeleteTargetAd(ad);
+  };
+
+  const handleConfirmDeleteAd = async (reason?: string) => {
+    if (!deleteTargetAd) return;
+    setIsDeleting(true);
+    try {
+      await adService.deleteAd(deleteTargetAd.id);
+      setAds(prev => prev.filter(a => a.id !== deleteTargetAd.id));
+      setDeleteTargetAd(null);
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to delete ad");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleCreateAd = async () => {
@@ -349,20 +353,19 @@ export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
               onDelete={handleDelete}
             />
           )}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => item?.id ? String(item.id) : `ad-${index}`}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons
-                name="bullhorn"
-                size={64}
-                color="#d1d5db"
-              />
-              <Text style={styles.emptyText}>No advertisements found</Text>
-            </View>
+            <EmptyState
+              type="generic"
+              title="No Advertisements Found"
+              description="No ad campaigns are active for the selected filter."
+              actionLabel="Refresh Ads"
+              onAction={loadAds}
+            />
           }
         />
       )}
@@ -418,6 +421,26 @@ export const AdvertisementScreen: React.FC<{ admin: AdminUser | null }> = ({
           </View>
         </View>
       </Modal>
+      {/* High-Governance Destructive Deletion Modal */}
+      {deleteTargetAd && (
+        <DestructiveConfirmModal
+          visible={!!deleteTargetAd}
+          title="Delete Advertisement Campaign"
+          description={`Permanently removing "${deleteTargetAd.ad_name}". This will remove all ad placements and impression metrics across the mobile app.`}
+          targetName={deleteTargetAd.ad_name}
+          targetId={deleteTargetAd.id}
+          confirmLabel="Delete Campaign"
+          severity="danger"
+          requireTypedConfirmation={true}
+          confirmationWord="DELETE"
+          requireReason={true}
+          reasonPlaceholder="Specify governance justification for campaign deletion..."
+          auditLogRef={`AUD-AD-DEL-${deleteTargetAd.id.slice(-6).toUpperCase()}`}
+          isLoading={isDeleting}
+          onConfirm={handleConfirmDeleteAd}
+          onCancel={() => setDeleteTargetAd(null)}
+        />
+      )}
     </View>
   );
 };
@@ -489,7 +512,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardIcon: {
-    marginRight: 12,
+    marginEnd: 12,
   },
   iconGradient: {
     width: 48,
@@ -545,7 +568,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     marginBottom: 2,
   },
@@ -566,7 +589,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   detailLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     marginBottom: 2,
   },
@@ -695,6 +718,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+});
+
+export const AdvertisementScreen = withErrorBoundary(AdvertisementScreenComponent, {
+  screenName: "AdvertisementScreen",
 });
 
 export default AdvertisementScreen;

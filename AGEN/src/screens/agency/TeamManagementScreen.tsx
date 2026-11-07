@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#ffffff",
     flex: 1,
-    marginLeft: 10,
+    marginStart: 10,
   },
   personaChip: {
     flexDirection: "row",
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: "#ffffff",
     fontSize: 13,
-    marginLeft: 8,
+    marginStart: 8,
   },
   section: {
     marginBottom: 20,
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: "relative",
-    marginRight: 12,
+    marginEnd: 12,
   },
   avatarPlaceholder: {
     width: 42,

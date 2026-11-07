@@ -1,3 +1,7 @@
+import { withErrorBoundary } from "../../components/common/ErrorBoundaryView";
+import { ErrorStateCard } from "../../components/common/ErrorStateCard";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { EmptyState } from "../../components/ui/EmptyState";
 /**
  * Payment Management Screen - Admin Panel
  * Platform Payment Reconciliations & Commission Settlements
@@ -24,9 +28,9 @@ import { walletAdminService, reportService } from "@/services/adminService";
 import { useRBAC } from "./rbac";
 import { executeAdminCommand, VerifyPaymentCommand } from "./commands";
 
-const { width } = Dimensions.get("window");
 
-export const PaymentManagementScreen: React.FC = () => {
+const PaymentManagementScreenComponent: React.FC = () => {
+  const [error, setError] = useState<string | null>(null);
   const { admin, hasPermission } = useRBAC();
   const [payments, setPayments] = useState<any[]>([]);
   const [filteredPayments, setFilteredPayments] = useState<any[]>([]);
@@ -40,11 +44,13 @@ export const PaymentManagementScreen: React.FC = () => {
   const loadPayments = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await walletAdminService.getWalletTransactions();
-      setPayments(data);
-      setFilteredPayments(data);
-    } catch (error) {
-      console.error("Error loading payments:", error);
+      setPayments(data || []);
+      setFilteredPayments(data || []);
+    } catch (err: any) {
+      console.error("Error loading payments:", err);
+      setError(err?.message || "Failed to load payment transactions.");
     } finally {
       setLoading(false);
     }
@@ -197,7 +203,12 @@ export const PaymentManagementScreen: React.FC = () => {
         />
       )}
 
-      <Modal visible={detailsModalVisible} animationType="slide" transparent>
+      <Modal
+        visible={detailsModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDetailsModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -258,7 +269,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   searchIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   searchInput: {
     flex: 1,
@@ -275,13 +286,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: "#f1f5f9",
-    marginRight: 8,
+    marginEnd: 8,
   },
   filterPillActive: {
     backgroundColor: "#4f46e5",
   },
   filterText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
   },
@@ -320,7 +331,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   cardContent: {
@@ -370,7 +381,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   statValue: {
@@ -410,4 +421,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+});
+
+
+export const PaymentManagementScreen = withErrorBoundary(PaymentManagementScreenComponent, {
+  screenName: "PaymentManagementScreen",
 });

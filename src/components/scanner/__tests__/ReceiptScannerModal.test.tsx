@@ -18,6 +18,12 @@ jest.mock("@expo/vector-icons", () => ({
   Ionicons: "Ionicons",
   MaterialCommunityIcons: "MaterialCommunityIcons",
 }));
+jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
+jest.mock("@expo/vector-icons/MaterialCommunityIcons", () => "MaterialCommunityIcons");
+jest.mock("expo-font", () => ({
+  isLoaded: () => true,
+  loadAsync: jest.fn().mockResolvedValue(true),
+}));
 
 // Mock expo-camera
 jest.mock("expo-camera", () => ({

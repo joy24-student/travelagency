@@ -1,3 +1,5 @@
+import { FocusAwareStatusBar } from "../../components/ui/AppStatusBar";
+import { showLocalizedAlert } from "../../utils/localizedAlert";
 /**
  * Support Center / Operational Live Feed & Ticket Workspace Screen
  * Built according to exact HTML & UI design specifications.
@@ -17,17 +19,15 @@ import {
   Image,
   Alert,
   Dimensions,
-  SafeAreaView,
   StatusBar,
-} from "react-native";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Ionicons,
   MaterialCommunityIcons,
   FontAwesome5,
 } from "@expo/vector-icons";
 import { supabase } from "@/utils/supabase";
-
-const { width } = Dimensions.get("window");
 
 export interface SupportTicketItem {
   id: string; // e.g. TKT-4587
@@ -123,7 +123,7 @@ export const SupportCenterScreen: React.FC = () => {
 
   const handleSendResponse = () => {
     if (!responseMessage.trim()) {
-      Alert.alert("Empty Response", "Please type a message before sending.");
+      showLocalizedAlert("Empty Response", "Please type a message before sending.");
       return;
     }
     setSendingState("sending");
@@ -132,13 +132,13 @@ export const SupportCenterScreen: React.FC = () => {
       setTimeout(() => {
         setSendingState("idle");
         setResponseMessage("");
-        Alert.alert("Response Delivered", `Reply dispatched for ticket ${selectedTicket?.id || ""}`);
+        showLocalizedAlert("Response Delivered", `Reply dispatched for ticket ${selectedTicket?.id || ""}`);
       }, 1500);
     }, 1200);
   };
 
   const handleUpdateInvestigation = () => {
-    Alert.alert(
+    showLocalizedAlert(
       "Investigation Updated",
       `Ticket ${selectedTicket?.id || ""} status updated to ${investigationStatus}.`
     );
@@ -196,7 +196,7 @@ export const SupportCenterScreen: React.FC = () => {
             <Text style={styles.feedSubheading}>OPERATIONAL LIVE FEED</Text>
             <Text style={styles.feedHeading}>Active Ticket Monitoring</Text>
           </View>
-          <TouchableOpacity onPress={() => Alert.alert("Archive Log", "Showing all historical ticket logs.")}>
+          <TouchableOpacity onPress={() => showLocalizedAlert("Archive Log", "Showing all historical ticket logs.")}>
             <Text style={styles.archiveLink}>Archive Log</Text>
           </TouchableOpacity>
         </View>
@@ -224,7 +224,7 @@ export const SupportCenterScreen: React.FC = () => {
           ))}
           <TouchableOpacity
             style={styles.filterIconPill}
-            onPress={() => Alert.alert("Filter Settings", "Displaying active monitoring filters.")}
+            onPress={() => showLocalizedAlert("Filter Settings", "Displaying active monitoring filters.")}
           >
             <Ionicons name="options-outline" size={16} color="#475569" />
           </TouchableOpacity>
@@ -252,7 +252,7 @@ export const SupportCenterScreen: React.FC = () => {
                   <View style={[styles.ticketIconBox, { backgroundColor: item.iconBg }]}>
                     <FontAwesome5 name={item.icon} size={16} color={item.iconColor} />
                   </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
+                  <View style={{ flex: 1, marginStart: 12 }}>
                     <Text style={styles.ticketTitle}>{item.title}</Text>
                     <Text style={styles.ticketMetaText}>
                       {item.id} •{" "}
@@ -370,7 +370,7 @@ export const SupportCenterScreen: React.FC = () => {
         {/* Top AppBar */}
         <View style={styles.appHeader}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <TouchableOpacity onPress={() => setViewMode("overview")} style={{ paddingRight: 10 }}>
+            <TouchableOpacity onPress={() => setViewMode("overview")} style={{ paddingEnd: 10 }}>
               <Ionicons name="arrow-back" size={20} color="#003527" />
             </TouchableOpacity>
           <View>
@@ -430,7 +430,7 @@ export const SupportCenterScreen: React.FC = () => {
             onPress={() => setDetailsExpanded(!detailsExpanded)}
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons name="information-circle-outline" size={18} color="#475569" style={{ marginRight: 8 }} />
+              <Ionicons name="information-circle-outline" size={18} color="#475569" style={{ marginEnd: 8 }} />
               <Text style={styles.detailsExpandTitle}>Ticket Details</Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -441,7 +441,7 @@ export const SupportCenterScreen: React.FC = () => {
                 name={detailsExpanded ? "chevron-up" : "chevron-down"}
                 size={18}
                 color="#64748b"
-                style={{ marginLeft: 8 }}
+                style={{ marginStart: 8 }}
               />
             </View>
           </TouchableOpacity>
@@ -472,7 +472,7 @@ export const SupportCenterScreen: React.FC = () => {
         <View style={styles.inquiryCard}>
           <View style={styles.inquiryHeader}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons name="person-outline" size={14} color="#003527" style={{ marginRight: 6 }} />
+              <Ionicons name="person-outline" size={14} color="#003527" style={{ marginEnd: 6 }} />
               <Text style={styles.inquiryHeaderLabel}>USER INQUIRY</Text>
             </View>
             <Text style={styles.inquiryTime}>OCT 24 • 09:12 AM</Text>
@@ -480,7 +480,7 @@ export const SupportCenterScreen: React.FC = () => {
           <Text style={styles.inquiryText}>"{selectedTicket.inquiryText}"</Text>
 
           <View style={styles.userBadgeRow}>
-            <Ionicons name="person-circle-outline" size={16} color="#003527" style={{ marginRight: 6 }} />
+            <Ionicons name="person-circle-outline" size={16} color="#003527" style={{ marginEnd: 6 }} />
             <Text style={styles.userBadgeText}>USER: {selectedTicket.user}</Text>
           </View>
         </View>
@@ -488,7 +488,7 @@ export const SupportCenterScreen: React.FC = () => {
         {/* Investigation Progress Control Card */}
         <View style={styles.investigationCard}>
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-            <Ionicons name="chatbox-ellipses-outline" size={16} color="#003527" style={{ marginRight: 6 }} />
+            <Ionicons name="chatbox-ellipses-outline" size={16} color="#003527" style={{ marginEnd: 6 }} />
             <Text style={styles.inquiryHeaderLabel}>INVESTIGATION PROGRESS</Text>
           </View>
 
@@ -525,7 +525,7 @@ export const SupportCenterScreen: React.FC = () => {
 
           <TouchableOpacity style={styles.updateStatusBtn} onPress={handleUpdateInvestigation}>
             <Text style={styles.updateStatusBtnText}>Update Status & Comment</Text>
-            <Ionicons name="sparkles" size={16} color="#ffffff" style={{ marginLeft: 6 }} />
+            <Ionicons name="sparkles" size={16} color="#ffffff" style={{ marginStart: 6 }} />
           </TouchableOpacity>
         </View>
 
@@ -606,12 +606,12 @@ export const SupportCenterScreen: React.FC = () => {
         {/* Recommended Resources Section */}
         <View style={{ marginBottom: 20 }}>
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-            <Ionicons name="journal-outline" size={16} color="#003527" style={{ marginRight: 6 }} />
+            <Ionicons name="journal-outline" size={16} color="#003527" style={{ marginEnd: 6 }} />
             <Text style={styles.macroHeaderLabel}>RECOMMENDED RESOURCES</Text>
           </View>
 
           <View style={styles.resourceSearchBox}>
-            <Ionicons name="search-outline" size={16} color="#94a3b8" style={{ marginRight: 8 }} />
+            <Ionicons name="search-outline" size={16} color="#94a3b8" style={{ marginEnd: 8 }} />
             <TextInput
               style={{ flex: 1, fontSize: 13, color: "#0f172a" }}
               placeholder="Search resources..."
@@ -624,7 +624,7 @@ export const SupportCenterScreen: React.FC = () => {
           <View style={{ gap: 8 }}>
             <TouchableOpacity
               style={styles.resourceCard}
-              onPress={() => Alert.alert("Documentation", "Opening Sync Protocols v2.4 PDF.")}
+              onPress={() => showLocalizedAlert("Documentation", "Opening Sync Protocols v2.4 PDF.")}
             >
               <View style={[styles.resourceIconCircle, { backgroundColor: "#ecfdf5" }]}>
                 <Ionicons name="book-outline" size={18} color="#047857" />
@@ -638,7 +638,7 @@ export const SupportCenterScreen: React.FC = () => {
 
             <TouchableOpacity
               style={styles.resourceCard}
-              onPress={() => Alert.alert("API Reference", "Opening /v1/sync Endpoint Docs.")}
+              onPress={() => showLocalizedAlert("API Reference", "Opening /v1/sync Endpoint Docs.")}
             >
               <View style={[styles.resourceIconCircle, { backgroundColor: "#f3e8ff" }]}>
                 <Ionicons name="code-working-outline" size={18} color="#7e22ce" />
@@ -657,7 +657,7 @@ export const SupportCenterScreen: React.FC = () => {
       <View style={styles.actionFooterFixed}>
         <TouchableOpacity
           style={styles.attachBtn}
-          onPress={() => Alert.alert("Attachment", "Opening file attachment picker...")}
+          onPress={() => showLocalizedAlert("Attachment", "Opening file attachment picker...")}
         >
           <Ionicons name="attach-outline" size={22} color="#334155" />
         </TouchableOpacity>
@@ -681,7 +681,7 @@ export const SupportCenterScreen: React.FC = () => {
             name={sendingState === "sent" ? "checkmark-circle" : "send"}
             size={18}
             color="#ffffff"
-            style={{ marginLeft: 8 }}
+            style={{ marginStart: 8 }}
           />
         </TouchableOpacity>
       </View>
@@ -691,7 +691,7 @@ export const SupportCenterScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <FocusAwareStatusBar style="dark" backgroundColor="#ffffff" />
       {viewMode === "overview" ? renderOverview() : renderDetail()}
     </SafeAreaView>
   );
@@ -751,10 +751,10 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 6,
+    marginEnd: 6,
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
   },
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   feedSubheading: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
     letterSpacing: 0.5,
@@ -782,7 +782,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   archiveLink: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#003527",
   },
@@ -793,14 +793,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    marginRight: 8,
+    marginEnd: 8,
   },
   filterPillActive: {
     backgroundColor: "#000000",
     borderColor: "#000000",
   },
   filterPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },
@@ -844,7 +844,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   ticketMetaText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -854,7 +854,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusPillText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
   },
   progressContainer: {
@@ -866,12 +866,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   progressLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
   },
   progressStatusVal: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
   },
   progressBarTrack: {
@@ -884,7 +884,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   breadcrumbText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
   },
@@ -946,12 +946,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   stepLabelActive: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#003527",
   },
   stepLabelInactive: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
   },
@@ -981,7 +981,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   priorityTagText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#991b1b",
   },
@@ -999,7 +999,7 @@ const styles = StyleSheet.create({
     width: "46%",
   },
   detailsGridLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
     marginBottom: 2,
@@ -1024,13 +1024,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   inquiryHeaderLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
     letterSpacing: 0.5,
   },
   inquiryTime: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     fontWeight: "500",
   },
@@ -1048,7 +1048,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#f1f5f9",
   },
   userBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#003527",
   },
@@ -1078,7 +1078,7 @@ const styles = StyleSheet.create({
     borderColor: "#003527",
   },
   statusToggleText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
@@ -1119,7 +1119,7 @@ const styles = StyleSheet.create({
   replyTabBtn: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    marginRight: 16,
+    marginEnd: 16,
   },
   replyTabBtnActive: {
     borderBottomWidth: 2,
@@ -1167,7 +1167,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   macroHeaderLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
     letterSpacing: 0.5,
@@ -1179,7 +1179,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
-    marginRight: 8,
+    marginEnd: 8,
   },
   macroChipText: {
     fontSize: 12,
@@ -1212,7 +1212,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   resourceCardTitle: {
     fontSize: 13,
@@ -1220,7 +1220,7 @@ const styles = StyleSheet.create({
     color: "#003527",
   },
   resourceCardSub: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
     marginTop: 2,

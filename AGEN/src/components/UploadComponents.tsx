@@ -86,7 +86,7 @@ export function ImagePickerComponent({
               name="image-plus"
               size={20}
               color={COLORS.primary}
-              style={{ marginRight: 8 }}
+              style={{ marginEnd: 8 }}
             />
             <Text style={{ color: COLORS.primary, fontWeight: "600" }}>
               {loading ? "Uploading..." : "Change Image"}
@@ -263,7 +263,7 @@ export function VideoPickerComponent({
               name="video-plus"
               size={20}
               color={COLORS.primary}
-              style={{ marginRight: 8 }}
+              style={{ marginEnd: 8 }}
             />
             <Text style={{ color: COLORS.primary, fontWeight: "600" }}>
               {loading ? "Uploading..." : "Change Video"}
@@ -442,7 +442,7 @@ export function DocumentUploadComponent({
           <Text
             style={{
               flex: 1,
-              marginLeft: 8,
+              marginStart: 8,
               color: COLORS.success,
               fontWeight: "500",
             }}
@@ -470,7 +470,7 @@ export function DocumentUploadComponent({
               <ActivityIndicator color={COLORS.primary} size="small" />
               <Text
                 style={{
-                  marginLeft: 8,
+                  marginStart: 8,
                   color: COLORS.primary,
                   fontWeight: "600",
                 }}
@@ -487,7 +487,7 @@ export function DocumentUploadComponent({
               />
               <Text
                 style={{
-                  marginLeft: 8,
+                  marginStart: 8,
                   color: COLORS.primary,
                   fontWeight: "600",
                 }}
@@ -556,7 +556,7 @@ export function MultiImagePickerComponent({
         style={{ marginBottom: 8 }}
       >
         {images.map((image, index) => (
-          <View key={index} style={{ marginRight: 8 }}>
+          <View key={index} style={{ marginEnd: 8 }}>
             <Image
               source={{ uri: image }}
               style={{

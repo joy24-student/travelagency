@@ -32,8 +32,12 @@ import {
 import { useRBAC } from "./rbac";
 import { AdminPagination } from "./AdminPagination";
 import { DestructiveConfirmModal } from "./DestructiveConfirmModal";
+import { withErrorBoundary } from "../../components/common/ErrorBoundaryView";
+import { ErrorStateCard } from "../../components/common/ErrorStateCard";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { EmptyState } from "../../components/ui/EmptyState";
 
-const { width } = Dimensions.get("window");
+
 
 /**
  * Refund Status Badge
@@ -396,11 +400,12 @@ const RefundActionModal: React.FC<{
 /**
  * Refund Management Screen
  */
-export const RefundManagementScreen: React.FC<{ admin: AdminUser | null }> = ({
+const RefundManagementScreenComponent: React.FC<{ admin?: AdminUser | null }> = ({
   admin: propAdmin,
 }) => {
   const { admin: rbacAdmin } = useRBAC();
   const admin = propAdmin || rbacAdmin;
+  const [error, setError] = useState<string | null>(null);
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedRefund, setSelectedRefund] = useState<RefundRequest | null>(
@@ -430,11 +435,13 @@ export const RefundManagementScreen: React.FC<{ admin: AdminUser | null }> = ({
 
   const loadRefunds = async () => {
     setLoading(true);
+    setError(null);
     try {
       const allRefunds = await refundService.getAllRefunds(filterStatus, 100);
-      setRefunds(allRefunds);
-    } catch (error) {
-      console.error("Error loading refunds:", error);
+      setRefunds(allRefunds || []);
+    } catch (err: any) {
+      console.error("Error loading refunds:", err);
+      setError(err?.message || "Failed to load refund requests.");
     } finally {
       setLoading(false);
     }
@@ -575,29 +582,34 @@ export const RefundManagementScreen: React.FC<{ admin: AdminUser | null }> = ({
       </ScrollView>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#f59e0b" />
+        <View style={{ padding: 16 }}>
+          <LoadingState variant="skeleton" skeletonType="card" count={3} />
         </View>
+      ) : error ? (
+        <ErrorStateCard
+          title="Unable to Load Refund Records"
+          message={error}
+          onRetry={loadRefunds}
+        />
       ) : (
         <FlatList
           data={paginatedRefunds}
           renderItem={({ item }) => (
             <RefundCard refund={item} onPress={handleRefundPress} />
           )}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => item?.id ? String(item.id) : `refund-${index}`}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons
-                name="cash-refund"
-                size={64}
-                color="#d1d5db"
-              />
-              <Text style={styles.emptyText}>No refunds found</Text>
-            </View>
+            <EmptyState
+              type="generic"
+              title="No Refunds Found"
+              description="No refund requests match the current status filter."
+              actionLabel="Refresh Refunds"
+              onAction={loadRefunds}
+            />
           }
           ListFooterComponent={
             refunds.length > PAGE_SIZE ? (
@@ -638,6 +650,11 @@ export const RefundManagementScreen: React.FC<{ admin: AdminUser | null }> = ({
         }}
         isLoading={executingLoading}
         severity="danger"
+        requireTypedConfirmation={true}
+        confirmationWord="REFUND"
+        requireReason={true}
+        reasonPlaceholder="Enter refund disbursement reason for financial ledger..."
+        auditLogRef={`AUD-RFD-${selectedRefund?.id?.slice(-6).toUpperCase() || "LOG"}`}
       />
     </View>
   );
@@ -710,7 +727,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardIcon: {
-    marginRight: 12,
+    marginEnd: 12,
   },
   iconGradient: {
     width: 48,
@@ -804,7 +821,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     marginBottom: 2,
   },
@@ -898,7 +915,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   actionOptionContent: {
     flex: 1,
@@ -950,4 +967,12 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RefundManagementScreen;
+const WrappedRefundManagementScreen: React.FC<{ admin?: AdminUser | null }> = withErrorBoundary(
+  RefundManagementScreenComponent,
+  {
+    screenName: "RefundManagementScreen",
+  }
+);
+
+export { WrappedRefundManagementScreen as RefundManagementScreen };
+export default WrappedRefundManagementScreen;

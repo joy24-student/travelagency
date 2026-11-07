@@ -76,7 +76,7 @@ export function ChatScreen() {
                 Thank you for the quick check-in! Is it possible to get extra towels sent to room 302?
               </Text>
             </View>
-            <Text className="text-[#908fa0] text-[10px] mt-1 ml-1">10:24 AM • Sent</Text>
+            <Text className="text-[#908fa0] text-[10px] mt-1 ms-1">10:24 AM • Sent</Text>
           </View>
 
           {/* Staff Reply */}
@@ -86,7 +86,7 @@ export function ChatScreen() {
                 You're very welcome, Mr. Fox! I've sent a request to housekeeping. They'll be at your door in 5 minutes.
               </Text>
             </View>
-            <View className="flex-row items-center space-x-1 mt-1 mr-1">
+            <View className="flex-row items-center space-x-1 mt-1 me-1">
               <Text className="text-[#908fa0] text-[10px]">10:26 AM • Read</Text>
               <MaterialIcons name="done-all" size={14} color="#4edea3" />
             </View>
@@ -97,7 +97,7 @@ export function ChatScreen() {
             <View className="bg-slate-800/70 border border-white/5 p-4 rounded-tr-2xl rounded-br-2xl rounded-bl-2xl">
               <Text className="text-[#dae2fd] text-sm">Perfect, thanks!</Text>
             </View>
-            <Text className="text-[#908fa0] text-[10px] mt-1 ml-1">10:27 AM</Text>
+            <Text className="text-[#908fa0] text-[10px] mt-1 ms-1">10:27 AM</Text>
           </View>
 
           {/* Typing Indicator */}
@@ -115,15 +115,15 @@ export function ChatScreen() {
         <View className="p-4 bg-[#171f33]/80 backdrop-blur-xl border-t border-white/5">
           {/* Action Chips */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-4">
-            <TouchableOpacity className="bg-slate-800/70 border border-[#8083ff]/20 px-4 py-2 rounded-full flex-row items-center space-x-2 mr-2">
+            <TouchableOpacity className="bg-slate-800/70 border border-[#8083ff]/20 px-4 py-2 rounded-full flex-row items-center space-x-2 me-2">
               <MaterialIcons name="dry-cleaning" size={16} color="#c0c1ff" />
               <Text className="text-[#c0c1ff] text-xs font-medium">Send Towels</Text>
             </TouchableOpacity>
-            <TouchableOpacity className="bg-slate-800/70 border border-[#4edea3]/20 px-4 py-2 rounded-full flex-row items-center space-x-2 mr-2">
+            <TouchableOpacity className="bg-slate-800/70 border border-[#4edea3]/20 px-4 py-2 rounded-full flex-row items-center space-x-2 me-2">
               <MaterialIcons name="restaurant" size={16} color="#4edea3" />
               <Text className="text-[#4edea3] text-xs font-medium">Room Service</Text>
             </TouchableOpacity>
-            <TouchableOpacity className="bg-slate-800/70 border border-white/20 px-4 py-2 rounded-full flex-row items-center space-x-2 mr-2">
+            <TouchableOpacity className="bg-slate-800/70 border border-white/20 px-4 py-2 rounded-full flex-row items-center space-x-2 me-2">
               <MaterialIcons name="cleaning-services" size={16} color="#dae2fd" />
               <Text className="text-[#dae2fd] text-xs font-medium">Housekeeping</Text>
             </TouchableOpacity>

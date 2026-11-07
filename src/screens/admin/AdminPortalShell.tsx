@@ -1,16 +1,16 @@
+import { FocusAwareStatusBar } from "../../components/ui/AppStatusBar";
 /**
  * Admin Portal Shell - Unified Administrative Interface with Full RBAC Governance
  * Provides role-based access control, tab navigation, 3-column module switcher launcher, and role simulation.
  */
 
 import React, { useState, useEffect, useMemo } from "react";
-import {
+import { Platform,
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Modal,
   TextInput,
@@ -18,6 +18,7 @@ import {
   Keyboard,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { AdminUser, AdminRole } from "@/types/admin";
@@ -497,7 +498,7 @@ const AdminPortalShellInner: React.FC<AdminPortalShellProps> = ({
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <FocusAwareStatusBar style="dark" backgroundColor="#ffffff" />
 
       {/* Top Header Bar */}
       <View style={styles.topHeader}>
@@ -508,7 +509,7 @@ const AdminPortalShellInner: React.FC<AdminPortalShellProps> = ({
             </View>
             <View>
               <Text style={styles.portalTitle}>Enterprise Command</Text>
-              <Text style={styles.portalSubtitle}>ShopnoJatra Ultra Core • 20 Modules</Text>
+              <Text style={styles.portalSubtitle}>Shopno Jatra Ultra Core • 20 Modules</Text>
             </View>
           </View>
 
@@ -932,7 +933,7 @@ const styles = StyleSheet.create({
   },
   portalSubtitle: {
     color: "#64748b",
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 1,
   },
   headerRightActions: {
@@ -951,7 +952,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   roleChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   launcherTriggerBtn: {
@@ -967,6 +968,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 3px rgba(15, 23, 42, 0.2)" } : {}),
   },
   launcherBadgeCount: {
     backgroundColor: "#ffffff",
@@ -976,7 +978,7 @@ const styles = StyleSheet.create({
   },
   launcherBadgeCountText: {
     color: "#4f46e5",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
   },
   tabScrollView: {
@@ -1000,7 +1002,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#4f46e5",
   },
   tabText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
@@ -1070,7 +1072,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   roleItemDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
     lineHeight: 15,
@@ -1081,7 +1083,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   activeBadgeText: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
     color: "#ffffff",
   },
@@ -1124,7 +1126,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   launcherSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 1,
   },
@@ -1138,7 +1140,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   switchRoleSmallBtnText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4f46e5",
   },
@@ -1177,7 +1179,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f172a",
   },
   catPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
@@ -1207,6 +1209,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 2,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 2px rgba(15, 23, 42, 0.03)" } : {}),
   },
   col3CardActive: {
     backgroundColor: "#4f46e5",
@@ -1216,6 +1219,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 4px rgba(15, 23, 42, 0.25)" } : {}),
   },
   col3CardRestricted: {
     backgroundColor: "#f8fafc",
@@ -1245,7 +1249,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   col3BadgeText: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "700",
   },
   activeTabTag: {
@@ -1255,7 +1259,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   activeTabTagText: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
     color: "#4f46e5",
   },
@@ -1269,12 +1273,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   restrictedLockText: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "700",
     color: "#dc2626",
   },
   col3Title: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0f172a",
   },
@@ -1285,7 +1289,7 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
   },
   col3Category: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 2,
     fontWeight: "500",
@@ -1311,11 +1315,11 @@ const styles = StyleSheet.create({
     borderTopColor: "#f1f5f9",
   },
   launcherFooterText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
   },
   resetFiltersText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4f46e5",
   },

@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     borderColor: "#4f46e5",
   },
   channelText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4f46e5",
   },

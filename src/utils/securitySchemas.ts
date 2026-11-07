@@ -9,6 +9,16 @@
  */
 
 import { z } from "zod";
+import { toLatinDigits } from "./formatters";
+
+/**
+ * Normalizes input containing native numerals (Bengali ০-৯, Arabic ٠-٩, Hindi ०-९)
+ * to standard ASCII 0-9 before schema parsing.
+ */
+export function normalizeNumericInput(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  return toLatinDigits(String(val)).trim();
+}
 
 /**
  * Strict Email Schema (RFC 5322 compliant, no script/HTML injection)
@@ -26,18 +36,20 @@ export const emailSchema = z
   .refine((val) => !/[<>\/\\'";]/.test(val), "Email contains forbidden characters");
 
 /**
- * Strict Phone Number Schema
- * Supports Bangladeshi domestic (+8801[3-9]\d{8} / 01[3-9]\d{8}) and International E.164 (+\d{1,14})
+ * Strict Phone Number Schema with Auto-Numeral Normalization
+ * Supports domestic (+8801[3-9]\d{8} / 01[3-9]\d{8}) and International E.164 (+\d{1,14})
  */
-export const phoneSchema = z
-  .string()
-  .trim()
-  .min(10, "Phone number is too short")
-  .max(18, "Phone number is too long")
-  .regex(
-    /^(\+?8801[3-9]\d{8}|01[3-9]\d{8}|\+[1-9]\d{1,14})$/,
-    "Enter a valid mobile number (e.g. +88017XXXXXXXX or +1XXXXXXXXXX)"
-  );
+export const phoneSchema = z.preprocess(
+  (val) => normalizeNumericInput(val).replace(/[\s-]/g, ""),
+  z
+    .string()
+    .min(10, "Phone number is too short")
+    .max(18, "Phone number is too long")
+    .regex(
+      /^(\+?8801[3-9]\d{8}|01[3-9]\d{8}|\+[1-9]\d{1,14})$/,
+      "Enter a valid mobile number (e.g. +88017XXXXXXXX or +1XXXXXXXXXX)"
+    )
+);
 
 /**
  * Strict Passport Format Schema (ICAO Doc 9303 standard)
@@ -61,11 +73,14 @@ export const currencyCodeSchema = z
   .length(3, "Currency code must be a 3-letter ISO code (e.g. BDT, USD)")
   .regex(/^[A-Z]{3}$/, "Invalid currency code");
 
-export const currencyAmountSchema = z
-  .number()
-  .positive("Amount must be greater than zero")
-  .max(10000000, "Amount exceeds transaction limit")
-  .refine((val) => Number(val.toFixed(2)) === val, "Amount can have at most 2 decimal places");
+export const currencyAmountSchema = z.preprocess(
+  (val) => (typeof val === "string" ? parseFloat(normalizeNumericInput(val)) : val),
+  z
+    .number()
+    .positive("Amount must be greater than zero")
+    .max(10000000, "Amount exceeds transaction limit")
+    .refine((val) => Number(val.toFixed(2)) === val, "Amount can have at most 2 decimal places")
+);
 
 /**
  * Traveler Profile Validation Schema

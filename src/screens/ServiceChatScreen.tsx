@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import {
   ActivityIndicator,
+  Clipboard,
   Animated,
   Image,
   KeyboardAvoidingView,
@@ -50,6 +51,12 @@ const SUGGESTED_BATCH_2 = [
 export function ServiceChatScreen() {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, []);
 
   // Consumes user state directly from authStore with fallback to useAuth
   const storeUser = useAuthStore((s) => s.user);
@@ -78,6 +85,65 @@ export function ServiceChatScreen() {
     },
   ]);
 
+  // Action Menu, Reply & Retry State
+  const [selectedActionMessage, setSelectedActionMessage] = useState<ChatMessage | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (text: string) => {
+    setToastMessage(text);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleMessageLongPress = (msg: ChatMessage) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedActionMessage(msg);
+  };
+
+  const handleCopyMessage = (msg: ChatMessage) => {
+    Clipboard.setString(msg.content);
+    setSelectedActionMessage(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast("Ã Â¦Â¬Ã Â¦Â¾Ã Â¦Â°Ã Â§ÂÃ Â¦Â¤Ã Â¦Â¾Ã Â¦Å¸Ã Â¦Â¿ Ã Â¦â€¢Ã Â¦ÂªÃ Â¦Â¿ Ã Â¦â€¢Ã Â¦Â°Ã Â¦Â¾ Ã Â¦Â¹Ã Â§Å¸Ã Â§â€¡Ã Â¦â€ºÃ Â§â€¡");
+  };
+
+  const handleReplyMessage = (msg: ChatMessage) => {
+    setReplyingToMessage(msg);
+    setSelectedActionMessage(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleDeleteMessage = (msgId: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    setSelectedActionMessage(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast("Ã Â¦Â¬Ã Â¦Â¾Ã Â¦Â°Ã Â§ÂÃ Â¦Â¤Ã Â¦Â¾Ã Â¦Å¸Ã Â¦Â¿ Ã Â¦Â®Ã Â§ÂÃ Â¦â€ºÃ Â§â€¡ Ã Â¦Â«Ã Â§â€¡Ã Â¦Â²Ã Â¦Â¾ Ã Â¦Â¹Ã Â§Å¸Ã Â§â€¡Ã Â¦â€ºÃ Â§â€¡");
+  };
+
+  const handleRetryMessage = async (msgId: string) => {
+    const targetMsg = messages.find((m) => m.id === msgId);
+    if (!targetMsg) return;
+    
+    // Mark as sending
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msgId ? { ...m, status: "sending" as const } : m))
+    );
+    setSelectedActionMessage(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    setTimeout(() => {
+      // Transition to sent then read
+      setMessages((prev) =>
+        prev.map((m) => (m.id === msgId ? { ...m, status: "sent" as const } : m))
+      );
+      setTimeout(() => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, status: "read" as const } : m))
+        );
+      }, 1000);
+    }, 800);
+  };
+
   // Input & Typing state
   const [inputText, setInputText] = useState<string>("");
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -99,7 +165,8 @@ export function ServiceChatScreen() {
       onMessage: (incoming) => {
         setMessages((prev) => realtimeMessenger.mergeMessages(prev, incoming));
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
       },
       onTyping: (typers) => {
         const botTyping = typers.some((t) => t.userId === "service_bot" && t.isTyping);
@@ -237,7 +304,7 @@ export function ServiceChatScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      {/* ─── Top Navigation Header ───────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Top Navigation Header Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <View style={styles.topHeader}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
@@ -271,13 +338,13 @@ export function ServiceChatScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ─── Keyboard Avoiding Wrapper ────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Keyboard Avoiding Wrapper Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
         style={styles.keyboardContainer}
       >
-        {/* ─── Chat Scroll Container ──────────────────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Chat Scroll Container Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <ScrollView
           ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
@@ -290,8 +357,10 @@ export function ServiceChatScreen() {
           {messages.map((msg) => {
             const isMe = msg.sender_id === activeUserId;
             return (
-              <View
+              <TouchableOpacity
                 key={msg.id}
+                activeOpacity={0.9}
+                onLongPress={() => handleMessageLongPress(msg)}
                 style={[
                   styles.messageBubble,
                   isMe ? styles.userBubble : styles.botBubble,
@@ -325,14 +394,38 @@ export function ServiceChatScreen() {
                     })}
                   </Text>
                   {isMe && (
-                    <Ionicons
-                      name={msg.status === "read" ? "checkmark-done" : "checkmark"}
-                      size={13}
-                      color={msg.status === "read" ? "#93C5FD" : "rgba(255,255,255,0.7)"}
-                    />
+                    <View style={styles.statusIconWrap}>
+                      {msg.status === "sending" && (
+                        <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.7)" />
+                      )}
+                      {msg.status === "sent" && (
+                        <Ionicons name="checkmark" size={13} color="rgba(255,255,255,0.7)" />
+                      )}
+                      {msg.status === "delivered" && (
+                        <Ionicons name="checkmark-done" size={13} color="rgba(255,255,255,0.7)" />
+                      )}
+                      {msg.status === "read" && (
+                        <Ionicons name="checkmark-done" size={13} color="#93C5FD" />
+                      )}
+                      {msg.status === "failed" && (
+                        <Ionicons name="alert-circle" size={13} color="#EF4444" />
+                      )}
+                    </View>
                   )}
                 </View>
-              </View>
+
+                {/* Failed Message Retry Pill */}
+                {isMe && msg.status === "failed" && (
+                  <TouchableOpacity
+                    style={styles.retryPill}
+                    onPress={() => handleRetryMessage(msg.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="refresh-outline" size={12} color="#EF4444" />
+                    <Text style={styles.retryPillText}>ব্যর্থ • আবার পাঠান</Text>
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
             );
           })}
 
@@ -348,7 +441,7 @@ export function ServiceChatScreen() {
             </View>
           )}
 
-          {/* ─── Card "You might want to ask" ─────────────────────────────── */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Card "You might want to ask" Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <View style={styles.suggestionCard}>
             <Text style={styles.suggestionTitle}>You might want to ask</Text>
 
@@ -390,11 +483,11 @@ export function ServiceChatScreen() {
           </View>
         </ScrollView>
 
-        {/* ─── Attachment Preview Bar ───────────────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Attachment Preview Bar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         {attachedImage && (
           <View style={styles.attachedPreviewBar}>
             <Image source={{ uri: attachedImage }} style={styles.attachedThumb} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
+            <View style={{ flex: 1, marginStart: 10 }}>
               <Text style={styles.attachedTitle}>Image attached</Text>
               <Text style={styles.attachedSubtitle}>Ready to send to support</Text>
             </View>
@@ -407,7 +500,7 @@ export function ServiceChatScreen() {
           </View>
         )}
 
-        {/* ─── Upload Progress ─────────────────────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Upload Progress Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         {isUploading && (
           <View style={styles.uploadProgressRow}>
             <ActivityIndicator size="small" color="#2563EB" />
@@ -417,7 +510,28 @@ export function ServiceChatScreen() {
           </View>
         )}
 
-        {/* ─── Bottom Fixed Toolbar & Input Area ─────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Active Reply Preview Bar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {replyingToMessage && (
+          <View style={styles.replyPreviewBar}>
+            <View style={styles.replyBarIndicator} />
+            <View style={styles.replyBarContent}>
+              <Text style={styles.replyBarAuthor}>
+                {replyingToMessage.sender_name || (replyingToMessage.sender_id === activeUserId ? "Ã Â¦â€ Ã Â¦ÂªÃ Â¦Â¨Ã Â¦Â¿" : "Assistant")} Ã Â¦â€¢Ã Â§â€¡ Ã Â¦â€°Ã Â¦Â¤Ã Â§ÂÃ Â¦Â¤Ã Â¦Â° Ã Â¦Â¦Ã Â¦Â¿Ã Â¦Å¡Ã Â§ÂÃ Â¦â€ºÃ Â§â€¡Ã Â¦Â¨
+              </Text>
+              <Text style={styles.replyBarSnippet} numberOfLines={1}>
+                {replyingToMessage.content}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setReplyingToMessage(null)}
+              style={styles.replyBarCloseBtn}
+            >
+              <Ionicons name="close" size={18} color="#64748B" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Bottom Fixed Toolbar & Input Area Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <View style={styles.bottomToolArea}>
           {/* Recently Viewed Chip */}
           <View style={styles.recentlyViewedWrap}>
@@ -474,7 +588,7 @@ export function ServiceChatScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      {/* ─── MODAL: Recently Viewed Hotels ──────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ MODAL: Recently Viewed Hotels Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Modal
         visible={showRecentlyViewed}
         animationType="slide"
@@ -496,7 +610,7 @@ export function ServiceChatScreen() {
               { name: "Pan Pacific Sonargaon", city: "Dhaka Central", price: "$150/night" },
             ].map((item, idx) => (
               <TouchableOpacity
-                key={idx}
+                key={item.name}
                 style={styles.recentItemRow}
                 onPress={() => {
                   setShowRecentlyViewed(false);
@@ -504,7 +618,7 @@ export function ServiceChatScreen() {
                 }}
               >
                 <Ionicons name="bed-outline" size={20} color="#2563EB" />
-                <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={{ flex: 1, marginStart: 12 }}>
                   <Text style={styles.recentItemName}>{item.name}</Text>
                   <Text style={styles.recentItemCity}>{item.city}</Text>
                 </View>
@@ -515,7 +629,7 @@ export function ServiceChatScreen() {
         </View>
       </Modal>
 
-      {/* ─── MODAL: Transport Info ───────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ MODAL: Transport Info Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Modal
         visible={showTransportModal}
         animationType="slide"
@@ -525,7 +639,7 @@ export function ServiceChatScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>🚘 Transport Info</Text>
+              <Text style={styles.sheetTitle}>Ã°Å¸Å¡Ëœ Transport Info</Text>
               <TouchableOpacity onPress={() => setShowTransportModal(false)}>
                 <Ionicons name="close-circle-outline" size={24} color="#64748B" />
               </TouchableOpacity>
@@ -550,7 +664,7 @@ export function ServiceChatScreen() {
         </View>
       </Modal>
 
-      {/* ─── MODAL: Chat History ─────────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ MODAL: Chat History Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Modal
         visible={showHistoryModal}
         animationType="fade"
@@ -568,7 +682,7 @@ export function ServiceChatScreen() {
 
             <TouchableOpacity style={styles.historyRow}>
               <Ionicons name="chatbubbles-outline" size={20} color="#2563EB" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flex: 1, marginStart: 12 }}>
                 <Text style={styles.historyTitle}>Hotels & Homes Inquiry</Text>
                 <Text style={styles.historyDate}>Today, Live</Text>
               </View>
@@ -577,11 +691,75 @@ export function ServiceChatScreen() {
           </View>
         </View>
       </Modal>
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Long Press Context Action Menu Modal Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      <Modal
+        visible={!!selectedActionMessage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedActionMessage(null)}
+      >
+        <Pressable
+          style={styles.actionMenuBackdrop}
+          onPress={() => setSelectedActionMessage(null)}
+        >
+          <View style={styles.actionMenuCard}>
+            <View style={styles.actionMenuHeader}>
+              <Text style={styles.actionMenuTitle}>Ã Â¦Â¬Ã Â¦Â¾Ã Â¦Â°Ã Â§ÂÃ Â¦Â¤Ã Â¦Â¾Ã Â¦Â° Ã Â¦Â¬Ã Â¦Â¿Ã Â¦â€¢Ã Â¦Â²Ã Â§ÂÃ Â¦Âª / Message Options</Text>
+              <Text style={styles.actionMenuSnippet} numberOfLines={2}>
+                "{selectedActionMessage?.content}"
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.actionMenuItem}
+              onPress={() => selectedActionMessage && handleCopyMessage(selectedActionMessage)}
+            >
+              <Ionicons name="copy-outline" size={20} color="#2563EB" />
+              <Text style={styles.actionMenuText}>Ã Â¦â€¢Ã Â¦ÂªÃ Â¦Â¿ Ã Â¦â€¢Ã Â¦Â°Ã Â§ÂÃ Â¦Â¨ (Copy)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionMenuItem}
+              onPress={() => selectedActionMessage && handleReplyMessage(selectedActionMessage)}
+            >
+              <Ionicons name="arrow-undo-outline" size={20} color="#0D9488" />
+              <Text style={styles.actionMenuText}>Ã Â¦â€°Ã Â¦Â¤Ã Â§ÂÃ Â¦Â¤Ã Â¦Â° Ã Â¦Â¦Ã Â¦Â¿Ã Â¦Â¨ (Reply)</Text>
+            </TouchableOpacity>
+
+            {selectedActionMessage?.sender_id === activeUserId && (
+              <TouchableOpacity
+                style={styles.actionMenuItem}
+                onPress={() => selectedActionMessage && handleRetryMessage(selectedActionMessage.id)}
+              >
+                <Ionicons name="refresh-outline" size={20} color="#D97706" />
+                <Text style={styles.actionMenuText}>Ã Â¦â€ Ã Â¦Â¬Ã Â¦Â¾Ã Â¦Â° Ã Â¦ÂªÃ Â¦Â¾Ã Â¦Â Ã Â¦Â¾Ã Â¦Â¨ (Resend / Retry)</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.actionMenuItem, styles.actionMenuItemDestructive]}
+              onPress={() => selectedActionMessage && handleDeleteMessage(selectedActionMessage.id)}
+            >
+              <Ionicons name="trash-outline" size={20} color="#EF4444" />
+              <Text style={[styles.actionMenuText, { color: "#EF4444" }]}>
+                Ã Â¦Â®Ã Â§ÂÃ Â¦â€ºÃ Â§â€¡ Ã Â¦Â«Ã Â§â€¡Ã Â¦Â²Ã Â§ÂÃ Â¦Â¨ (Delete)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Action Toast Feedback */}
+      {toastMessage && (
+        <View style={styles.toastWrap}>
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles: any = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -626,7 +804,7 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: "#F59E0B",
-    marginLeft: 2,
+    marginStart: 2,
     marginTop: 2,
   },
   headerTitle: {
@@ -651,7 +829,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   senderLabel: {
-    fontSize: 11,
+    fontSize: 12,
     textAlign: "center",
     color: "#64748B",
     marginBottom: 12,
@@ -701,7 +879,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   bubbleTime: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94A3B8",
   },
   bubbleTimeMe: {
@@ -763,7 +941,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#1E293B",
     flex: 1,
-    paddingRight: 10,
+    paddingEnd: 10,
   },
   changeBtn: {
     flexDirection: "row",
@@ -807,7 +985,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   badgeOneText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#2563EB",
   },
@@ -833,7 +1011,7 @@ const styles = StyleSheet.create({
     color: "#1E3A8A",
   },
   attachedSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#3B82F6",
   },
   clearAttachmentBtn: {
@@ -891,6 +1069,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 8px rgba(15, 23, 42, 0.04)" } : {}),
   },
   micBtn: {
     padding: 2,
@@ -993,5 +1172,120 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
+  },
+  statusIconWrap: {
+    marginStart: 4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  retryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-end",
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: "#FEE2E2",
+    borderRadius: 12,
+  },
+  retryPillText: {
+    fontSize: 11,
+    color: "#EF4444",
+    fontWeight: "600",
+  },
+  replyPreviewBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#F8FAFC",
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+  },
+  replyBarIndicator: {
+    width: 3,
+    height: "100%",
+    backgroundColor: "#2563EB",
+    borderRadius: 2,
+    marginEnd: 10,
+  },
+  replyBarContent: {
+    flex: 1,
+  },
+  replyBarAuthor: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#2563EB",
+    marginBottom: 2,
+  },
+  replyBarSnippet: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  replyBarCloseBtn: {
+    padding: 6,
+    marginStart: 8,
+  },
+  actionMenuBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  actionMenuCard: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
+  },
+  actionMenuHeader: {
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  actionMenuTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  actionMenuSnippet: {
+    fontSize: 12.5,
+    color: "#64748B",
+    fontStyle: "italic",
+  },
+  actionMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+  },
+  actionMenuItemDestructive: {
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    marginTop: 4,
+  },
+  actionMenuText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  toastWrap: {
+    position: "absolute",
+    bottom: 80,
+    alignSelf: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.9)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 999,
+  },
+  toastText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "500",
   },
 });

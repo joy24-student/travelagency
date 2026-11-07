@@ -20,17 +20,20 @@ import {
   budgetPlannerService,
 } from "../services/ai";
 import { searchRepository } from "../services/repositories";
-import { BottomNav, AiPill } from "./Navigation";
+
 import { TopBar } from "./TopBar";
 import { screens, type UIScreen } from "../data/screens";
 import * as Haptics from "expo-haptics";
 import { useDebounce } from "../hooks/useDebounce";
+import { useTheme } from "../context/ThemeContext";
+import { FONTS } from "../theme/typography";
 import { ListSkeleton, CardSkeleton, ErrorStateCard, EmptyStateView } from "../components/common";
 import { WeatherWidget } from "../components/weather/WeatherWidget";
 
 const PRIMARY = "#287dfa";
 
 export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
+  const { colors, isDark } = useTheme();
   const activeScreen = screen ?? screens.find((s) => s.slug === "explore") ?? screens[0];
   const [destinations, setDestinations] = useState<any[]>([]);
   const [selectedDest, setSelectedDest] = useState<any | null>(null);
@@ -278,7 +281,7 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
           {!loading && activeTab === "gallery" && (
             <View style={s.galleryGrid}>
               {selectedDest.gallery.map((img: string, i: number) => (
-                <Image key={i} source={{ uri: img }} style={s.galleryImg} />
+                <Image key={`gallery-${img}-${i}`} source={{ uri: img }} style={s.galleryImg} />
               ))}
             </View>
           )}
@@ -304,7 +307,7 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
               />
               <SectionBlock title="Budget Breakdown">
                 {budgetData.breakdown?.map((b: any, i: number) => (
-                  <View key={i} style={s.budgetRow}>
+                  <View key={`budget-${b.category || i}`} style={s.budgetRow}>
                     <Text style={s.budgetCat}>{b.category}</Text>
                     <Text style={s.budgetAmt}>
                       {budgetData.currency} {b.estimated}
@@ -319,7 +322,7 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
               </SectionBlock>
               <SectionBlock title="Saving Tips">
                 {budgetData.savingTips?.map((t: string, i: number) => (
-                  <Text key={i} style={s.bulletItem}>
+                  <Text key={`tip-${i}`} style={s.bulletItem}>
                     💡 {t}
                   </Text>
                 ))}
@@ -344,14 +347,14 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
               <Text style={s.reviewSummary}>{reviewData.summary}</Text>
               <SectionBlock title="What People Love">
                 {reviewData.topPraises?.map((p: string, i: number) => (
-                  <Text key={i} style={[s.bulletItem, { color: "#10b981" }]}>
+                  <Text key={`praise-${i}`} style={[s.bulletItem, { color: "#10b981" }]}>
                     ✓ {p}
                   </Text>
                 ))}
               </SectionBlock>
               <SectionBlock title="Common Complaints">
                 {reviewData.topComplaints?.map((c: string, i: number) => (
-                  <Text key={i} style={[s.bulletItem, { color: "#ef4444" }]}>
+                  <Text key={`complaint-${i}`} style={[s.bulletItem, { color: "#ef4444" }]}>
                     ✗ {c}
                   </Text>
                 ))}
@@ -374,7 +377,7 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
               <SectionBlock title="🚨 Common Scams to Avoid">
                 {scamData.length ? (
                   scamData.map((sc: string, i: number) => (
-                    <Text key={i} style={s.bulletItem}>
+                    <Text key={`scam-${i}`} style={s.bulletItem}>
                       ⚠ {sc}
                     </Text>
                   ))
@@ -390,31 +393,52 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
           <View style={{ height: 80 }} />
         </ScrollView>
 
-        <BottomNav active="Home" color={PRIMARY} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={s.shell}>
+    <SafeAreaView style={[s.shell, { backgroundColor: colors.background }]}>
       <TopBar screen={activeScreen} />
       <ScrollView contentContainerStyle={s.scroll}>
-        <Text style={s.exploreTitle}>Explore Destinations</Text>
-        <Text style={s.exploreSub}>Tap a destination to see full details</Text>
+        <Text
+          style={[
+            s.exploreTitle,
+            { color: colors.text, fontFamily: FONTS.bengali.bold },
+          ]}
+        >
+          Explore Destinations
+        </Text>
+        <Text
+          style={[
+            s.exploreSub,
+            { color: colors.textSecondary, fontFamily: FONTS.bengali.regular },
+          ]}
+        >
+          Tap a destination to see full details
+        </Text>
 
         {/* 300ms Debounced Search Bar */}
-        <View style={s.searchContainer}>
-          <Ionicons name="search" size={18} color="#64748B" style={{ marginRight: 8 }} />
+        <View
+          style={[
+            s.searchContainer,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <Ionicons name="search" size={18} color={colors.textMuted} style={{ marginEnd: 8 }} />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="Search by destination or country..."
-            placeholderTextColor="#94A3B8"
-            style={s.searchInput}
+            placeholderTextColor={colors.textMuted}
+            style={[
+              s.searchInput,
+              { color: colors.text, fontFamily: FONTS.bengali.regular },
+            ]}
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </Pressable>
           )}
         </View>
@@ -430,9 +454,22 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
                   Haptics.selectionAsync();
                   setCategoryFilter(cat);
                 }}
-                style={[s.filterChip, active && s.filterChipActive]}
+                style={[
+                  s.filterChip,
+                  {
+                    backgroundColor: active ? colors.primary : colors.surface,
+                    borderColor: active ? colors.primary : colors.border,
+                  },
+                ]}
               >
-                <Text style={[s.filterChipText, active && s.filterChipTextActive]}>{cat}</Text>
+                <Text
+                  style={[
+                    s.filterChipText,
+                    { color: active ? "#FFFFFF" : colors.textSecondary },
+                  ]}
+                >
+                  {cat}
+                </Text>
               </Pressable>
             );
           })}
@@ -495,8 +532,7 @@ export function ExploreScreen({ screen }: { screen?: UIScreen } = {}) {
         )}
         <View style={{ height: 100 }} />
       </ScrollView>
-      <AiPill color={PRIMARY} />
-      <BottomNav active="Home" color={PRIMARY} />
+
     </SafeAreaView>
   );
 }
@@ -508,23 +544,28 @@ function SectionBlock({
   title: string;
   children: React.ReactNode;
 }) {
+  const { colors } = useTheme();
   return (
     <View style={s.block}>
-      <Text style={s.blockTitle}>{title}</Text>
+      <Text style={[s.blockTitle, { color: colors.text, fontFamily: FONTS.bengali.bold }]}>
+        {title}
+      </Text>
       <View style={s.blockBody}>{children}</View>
     </View>
   );
 }
 
-function Chip({ label, color = PRIMARY }: { label: string; color?: string }) {
+function Chip({ label, color }: { label: string; color?: string }) {
+  const { colors } = useTheme();
+  const chipColor = color || colors.primary;
   return (
     <View
       style={[
         s.chip,
-        { backgroundColor: `${color}12`, borderColor: `${color}22` },
+        { backgroundColor: colors.primaryLight, borderColor: chipColor },
       ]}
     >
-      <Text style={[s.chipText, { color }]}>{label}</Text>
+      <Text style={[s.chipText, { color: chipColor }]}>{label}</Text>
     </View>
   );
 }
@@ -538,12 +579,13 @@ function InfoCard({
   label: string;
   value: string;
 }) {
+  const { colors } = useTheme();
   return (
-    <View style={s.infoCard}>
-      <Ionicons name={icon as any} size={20} color={PRIMARY} />
+    <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.borderSubtle, borderWidth: 1 }]}>
+      <Ionicons name={icon as any} size={20} color={colors.primary} />
       <View style={{ flex: 1 }}>
-        <Text style={s.infoLabel}>{label}</Text>
-        <Text style={s.infoValue}>{value}</Text>
+        <Text style={[s.infoLabel, { color: colors.textMuted }]}>{label}</Text>
+        <Text style={[s.infoValue, { color: colors.text, fontFamily: FONTS.bengali.bold }]}>{value}</Text>
       </View>
     </View>
   );
@@ -682,7 +724,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     marginBottom: 16,
-    height: 220,
+    minHeight: 220,
   },
   exploreImg: { width: "100%", height: "100%" },
   exploreOverlay: {
@@ -703,5 +745,5 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  badgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  badgeText: { color: "#fff", fontSize: 12, fontWeight: "700" },
 });

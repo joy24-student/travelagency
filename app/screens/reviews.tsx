@@ -6,11 +6,15 @@ import { useEffect, useState } from "react";
 
 import { useAuth } from "../../src/hooks/useAuth";
 import { supabase } from "../../src/utils/supabase";
-import { BottomNav, AiPill } from "../../src/screens/Navigation";
+import { withErrorBoundary } from "../../src/components/common/ErrorBoundaryView";
+import { ErrorStateCard } from "../../src/components/common/ErrorStateCard";
+import { LoadingState } from "../../src/components/ui/LoadingState";
+import { EmptyState } from "../../src/components/ui/EmptyState";
 
 const PRIMARY = "#287dfa";
 
-export default function ReviewsScreen() {
+function ReviewsScreenInner() {
+  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,21 +78,49 @@ export default function ReviewsScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* Trust & Authenticity Guarantee Banner */}
+          <View style={styles.trustBanner}>
+            <View style={styles.trustBannerHeader}>
+              <Ionicons name="shield-checkmark" size={18} color="#059669" />
+              <Text style={styles.trustBannerTitle}>
+                বিশ্বস্ততা ও সততা নিশ্চয়তা (Trust & Honesty)
+              </Text>
+            </View>
+            <Text style={styles.trustBannerText}>
+              শুধুমাত্র প্ল্যাটফর্মে সম্পন্ন ভ্রমণের পরই অতিথিরা রিভিউ জমা দিতে পারেন। প্রতিটি আসল রিভিউতে "যাচাইকৃত অতিথি" ব্যাজ সংযুক্ত থাকে।
+            </Text>
+          </View>
+
           {reviews.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="star-outline" size={64} color="#d1d5db" />
-              <Text style={styles.emptyTitle}>No reviews yet</Text>
-              <Text style={styles.emptySubtitle}>Your reviews will appear here after your trips</Text>
+              <Text style={styles.emptyTitle}>কোনো রিভিউ নেই</Text>
+              <Text style={styles.emptySubtitle}>
+                আপনার ভ্রমণ সম্পন্ন হওয়ার পর এখানে যাচাইকৃত রিভিউ লিখুন
+              </Text>
             </View>
           ) : (
             reviews.map((review) => (
               <View key={review.id} style={styles.reviewCard}>
                 <View style={styles.reviewHeader}>
-                  <Text style={styles.reviewLocation}>{review.hotel_name || review.location}</Text>
+                  <View style={{ flex: 1, marginEnd: 8 }}>
+                    <Text style={styles.reviewLocation}>{review.hotel_name || review.location}</Text>
+                    {/* Verified Guest & Completed Stay Badges */}
+                    <View style={styles.verifiedRow}>
+                      <View style={styles.verifiedBadge}>
+                        <Ionicons name="shield-checkmark" size={11} color="#059669" />
+                        <Text style={styles.verifiedBadgeText}>যাচাইকৃত অতিথি (Verified Guest)</Text>
+                      </View>
+                      <View style={styles.completedStayBadge}>
+                        <Ionicons name="checkmark-done" size={11} color="#2563EB" />
+                        <Text style={styles.completedStayBadgeText}>সম্পন্ন ভ্রমণ</Text>
+                      </View>
+                    </View>
+                  </View>
                   <View style={styles.ratingRow}>
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Ionicons
-                        key={i}
+                        key={`star-${(review as any).id || "r"}-${i}`}
                         name={i < (review.rating || 0) ? "star" : "star-outline"}
                         size={14}
                         color="#f59e0b"
@@ -104,9 +136,6 @@ export default function ReviewsScreen() {
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
-
-      <AiPill color={PRIMARY} />
-      <BottomNav active="Account" color={PRIMARY} />
     </SafeAreaView>
   );
 }
@@ -145,4 +174,71 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: "row", gap: 2 },
   reviewText: { fontSize: 14, color: "#374151", lineHeight: 20, marginBottom: 6 },
   reviewDate: { fontSize: 12, color: "#9ca3af" },
+  trustBanner: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  trustBannerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  trustBannerTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#065F46",
+  },
+  trustBannerText: {
+    fontSize: 12,
+    color: "#047857",
+    lineHeight: 18,
+  },
+  verifiedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+    flexWrap: "wrap",
+  },
+  verifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+  },
+  verifiedBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#166534",
+  },
+  completedStayBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  completedStayBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
+});
+
+export default withErrorBoundary(ReviewsScreenInner, {
+  screenName: "ReviewsScreen",
 });

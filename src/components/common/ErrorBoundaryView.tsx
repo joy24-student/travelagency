@@ -508,6 +508,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 16px rgba(15, 23, 42, 0.08)" } : {}),
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -626,7 +627,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   diagnosticsTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#94A3B8",
     textTransform: "uppercase",
@@ -637,7 +638,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   copyButtonText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#287DFA",
     fontWeight: "600",
   },
@@ -645,13 +646,13 @@ const styles = StyleSheet.create({
     maxHeight: 140,
   },
   errorSnippetText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#FCA5A5",
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     marginBottom: 6,
   },
   stackSnippetText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94A3B8",
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     lineHeight: 14,

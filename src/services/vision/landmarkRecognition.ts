@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 /**
  * Offline Neural Landmark Recognition & AR Feature Matching Service
  *

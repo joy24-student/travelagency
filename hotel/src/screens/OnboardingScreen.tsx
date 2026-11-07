@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Dimensions, Image, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/GlassView';
 import { MaterialIcons } from '@expo/vector-icons';
 
-const { width, height } = Dimensions.get('window');
 
 const onboardingData = [
   {
@@ -64,7 +63,7 @@ export function OnboardingScreen({ navigation }: any) {
 
       {/* Glassmorphism Card */}
       <View className="px-6 pb-20">
-        <BlurView intensity={30} tint="dark" className="p-8 rounded-[40px] border border-white/10 overflow-hidden">
+        <GlassView intensity={30} tint="dark" className="p-8 rounded-[40px] border border-white/10 overflow-hidden">
           <View className="flex-row space-x-2 mb-6">
             {onboardingData.map((_, i) => (
               <View
@@ -98,7 +97,7 @@ export function OnboardingScreen({ navigation }: any) {
               <MaterialIcons name="arrow-forward" size={20} color="white" />
             </LinearGradient>
           </TouchableOpacity>
-        </BlurView>
+        </GlassView>
       </View>
     </View>
   );

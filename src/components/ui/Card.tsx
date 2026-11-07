@@ -3,15 +3,19 @@ import {
   View,
   Text,
   Pressable,
+  Platform,
   StyleSheet,
   StyleProp,
   ViewStyle,
   TextStyle,
   GestureResponderEvent,
 } from "react-native";
+import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { shadows, ShadowPreset } from "../../theme/shadows";
 import { radii } from "../../theme/spacing";
+import { FONTS } from "../../theme/typography";
+import { useA11yFocusRing } from "../../hooks/useA11yFocusRing";
 
 export type CardBorder = "none" | "subtle" | "default" | "prominent";
 export type CardRounded = "none" | "sm" | "md" | "lg" | "xl" | "2xl" | "full";
@@ -29,6 +33,8 @@ export interface CardProps {
   className?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 export const Card: React.FC<CardProps> & {
@@ -47,7 +53,10 @@ export const Card: React.FC<CardProps> & {
   className,
   style,
   testID,
+  accessibilityLabel,
+  accessibilityHint,
 }) => {
+  const { colors: themeColors } = useTheme();
   const resolvedVariant: CardVariant = variant;
   const resolvedBorder: CardBorder = getVariantBorder(resolvedVariant, border);
   const resolvedPadding: CardPadding = padding;
@@ -56,9 +65,9 @@ export const Card: React.FC<CardProps> & {
 
   const paddingStyle = getPaddingStyle(resolvedPadding);
   const roundedStyle = getRoundedStyle(resolvedRounded);
-  const borderStyle = getBorderStyle(resolvedBorder);
+  const borderStyle = getBorderStyle(resolvedBorder, themeColors);
   const shadowStyle = shadows[resolvedElevation];
-  const bgStyle = getVariantBackground(resolvedVariant);
+  const bgStyle = getVariantBackground(resolvedVariant, themeColors);
 
   const containerStyles = [
     styles.cardBase,
@@ -70,16 +79,30 @@ export const Card: React.FC<CardProps> & {
     style,
   ];
 
+  const { focusStyle, focusProps } = useA11yFocusRing({
+    onPress: () => onPress?.({} as GestureResponderEvent),
+    disabled: !onPress,
+  });
+
   if (onPress) {
     return (
       <Pressable
         testID={testID}
+        accessible={true}
         accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
         onPress={onPress}
+        android_ripple={{
+          color: "rgba(0, 85, 242, 0.08)",
+          borderless: false,
+        }}
         className={className}
+        {...(focusProps as any)}
         style={({ pressed }) => [
           containerStyles,
-          pressed && styles.pressed,
+          Platform.OS !== "android" && pressed && styles.pressed,
+          focusStyle,
         ]}
       >
         {children}
@@ -119,6 +142,8 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
   titleStyle,
   subtitleStyle,
 }) => {
+  const { colors: themeColors } = useTheme();
+
   if (children) {
     return (
       <View className={className} style={[styles.headerContainer, style]}>
@@ -131,10 +156,26 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
     <View className={className} style={[styles.headerContainer, style]}>
       <View style={styles.headerTextGroup}>
         {title ? (
-          <Text style={[styles.headerTitle, titleStyle]}>{title}</Text>
+          <Text
+            style={[
+              styles.headerTitle,
+              { color: themeColors.text, fontFamily: FONTS.bengali.bold },
+              titleStyle,
+            ]}
+          >
+            {title}
+          </Text>
         ) : null}
         {subtitle ? (
-          <Text style={[styles.headerSubtitle, subtitleStyle]}>{subtitle}</Text>
+          <Text
+            style={[
+              styles.headerSubtitle,
+              { color: themeColors.textSecondary, fontFamily: FONTS.bengali.regular },
+              subtitleStyle,
+            ]}
+          >
+            {subtitle}
+          </Text>
         ) : null}
       </View>
       {action ? <View style={styles.headerAction}>{action}</View> : null}
@@ -187,7 +228,17 @@ export const CardDivider: React.FC<CardDividerProps> = ({
   className,
   style,
 }) => {
-  return <View className={className} style={[styles.divider, style]} />;
+  const { colors: themeColors } = useTheme();
+  return (
+    <View
+      className={className}
+      style={[
+        styles.divider,
+        { backgroundColor: themeColors.borderSubtle },
+        style,
+      ]}
+    />
+  );
 };
 
 // Attach compound subcomponents
@@ -220,26 +271,31 @@ function getVariantBorder(variant: CardVariant, fallback: CardBorder): CardBorde
   return fallback;
 }
 
-function getVariantBackground(variant: CardVariant): ViewStyle {
+function getVariantBackground(variant: CardVariant, themeColors?: any): ViewStyle {
+  const cardBg = themeColors?.card || colors.surface.card;
   switch (variant) {
     case "luxe":
-      return { backgroundColor: "#ffffff", borderColor: colors.brand.luxe.gold };
+      return { backgroundColor: cardBg, borderColor: themeColors?.accent || colors.brand.luxe.gold };
     case "default":
     case "elevated":
     case "outlined":
     default:
-      return { backgroundColor: colors.surface.card };
+      return { backgroundColor: cardBg };
   }
 }
 
-function getBorderStyle(border: CardBorder): ViewStyle {
+function getBorderStyle(border: CardBorder, themeColors?: any): ViewStyle {
+  const borderDefault = themeColors?.border || colors.border.default;
+  const borderSubtle = themeColors?.borderSubtle || colors.border.subtle;
+  const borderStrong = themeColors?.borderStrong || colors.border.strong;
+
   switch (border) {
     case "prominent":
-      return { borderWidth: 1.5, borderColor: colors.border.strong };
+      return { borderWidth: 1.5, borderColor: borderStrong };
     case "default":
-      return { borderWidth: 1, borderColor: colors.border.default };
+      return { borderWidth: 1, borderColor: borderDefault };
     case "subtle":
-      return { borderWidth: 1, borderColor: colors.border.subtle };
+      return { borderWidth: 1, borderColor: borderSubtle };
     case "none":
     default:
       return { borderWidth: 0 };
@@ -294,7 +350,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headerAction: {
-    marginLeft: 12,
+    marginStart: 12,
   },
   contentContainer: {
     flexShrink: 0,

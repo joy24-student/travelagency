@@ -1,6 +1,6 @@
 import { colors } from "./colors";
 import { typography } from "./typography";
-import { spacing, radii } from "./spacing";
+import { spacing, radii, touchTargets, hitSlopPresets } from "./spacing";
 import { shadows } from "./shadows";
 
 /**
@@ -11,6 +11,8 @@ export const theme = {
   typography,
   spacing,
   radii,
+  touchTargets,
+  hitSlopPresets,
   shadows,
   animation: {
     duration: {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import {
+import { Platform,
   ActivityIndicator,
   Animated,
   Image,
@@ -16,6 +16,13 @@ import { router } from "expo-router";
 import { useAuth } from "../../src/hooks/useAuth";
 import { AddWidgetModal } from "../../src/components/AddWidgetModal";
 import { supabase } from "../../src/utils/supabase";
+import { TripPlannerScreen } from "../../src/screens/TripPlannerScreen";
+import { useLocalSearchParams } from "expo-router";
+import QRCode from "react-native-qrcode-svg";
+import { ticketService, ETicket } from "../../src/services/payment/ticketService";
+import { ROUTES } from "../../src/constants/routes";
+import { BookingManageModal, BookingManageData } from "../../src/components/booking/BookingManageModal";
+import { calendarService } from "../../src/services/calendarService";
 
 const TRIP_BLUE = "#0055F2";
 const TRIP_PINK = "#FFF0F3";
@@ -24,6 +31,18 @@ const ACCENT_YELLOW = "#FACC15";
 export default function TripsTab() {
   const { user } = useAuth();
   const [showWidgetModal, setShowWidgetModal] = useState(false);
+  const params = useLocalSearchParams();
+  const [activeSegment, setActiveSegment] = useState<"bookings" | "tickets" | "planner">(
+    params?.tab === "planner" ? "planner" : (params?.filter === "tickets" || params?.tab === "tickets") ? "tickets" : "bookings"
+  );
+  const [offlineTickets, setOfflineTickets] = useState<ETicket[]>([]);
+  const [exportingTicketId, setExportingTicketId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (params?.filter === "tickets" || params?.tab === "tickets") {
+      setActiveSegment("tickets");
+    }
+  }, [params?.filter, params?.tab]);
   const [activeFilter, setActiveFilter] = useState("all");
   const [isScrolled, setIsScrolled] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -31,6 +50,8 @@ export default function TripsTab() {
 
   // Live Supabase Data States
   const [bookings, setBookings] = useState<any[]>([]);
+  const [manageBooking, setManageBooking] = useState<BookingManageData | null>(null);
+  const [showManageModal, setShowManageModal] = useState(false);
   const [favoritePosts, setFavoritePosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,6 +73,40 @@ export default function TripsTab() {
       const { data: bookingData } = await bookingQuery;
       if (bookingData) {
         setBookings(bookingData);
+      }
+
+      // Load cached offline tickets
+      try {
+        const cached = await ticketService.getCachedTickets(user?.id || "guest");
+        // Convert any confirmed bookings that are missing in cache
+        const confirmedBookingsAsTickets: ETicket[] = (bookingData || [])
+          .filter((b: any) => b.status === "confirmed" || b.status === "completed")
+          .map((b: any) => {
+            const bRef = b.booking_reference || `SJ-${b.id?.slice(0, 8).toUpperCase()}`;
+            return {
+              id: b.id,
+              bookingReference: bRef,
+              passengerName: user?.email?.split("@")[0] || "Traveler",
+              title: b.hotel?.name || (b.flight ? `Flight ${b.flight.flight_number}` : b.title || "Travel Voucher"),
+              type: b.hotel ? "hotel" : (b.flight ? "flight" : "package"),
+              destination: b.hotel?.city || b.destination || "Bangladesh",
+              origin: b.flight?.origin_city || "Dhaka",
+              travelDate: b.check_in_date || b.travel_date || new Date().toISOString().split("T")[0],
+              amount: b.total_price || b.amount || 0,
+              currency: "BDT",
+              status: "confirmed" as const,
+              qrData: `SHOPNO-TICKET|PNR:${bRef}|ID:${b.id}|STATUS:CONFIRMED`,
+              cachedAt: new Date().toISOString(),
+            };
+          });
+
+        const combinedMap = new Map<string, ETicket>();
+        [...cached, ...confirmedBookingsAsTickets].forEach((t) => {
+          combinedMap.set(t.bookingReference, t);
+        });
+        setOfflineTickets(Array.from(combinedMap.values()));
+      } catch (cacheErr) {
+        console.warn("Tickets cache load warning:", cacheErr);
       }
 
       // 2. Fetch top community travelers' favorites from Supabase
@@ -88,6 +143,28 @@ export default function TripsTab() {
     return () => scrollY.removeListener(listenerId);
   }, [isScrolled, scrollY]);
 
+  if (activeSegment === "planner") {
+    return (
+      <SafeAreaView style={styles.shell} edges={["top"]}>
+        <View style={styles.headerBar}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Pressable
+              style={styles.backToBookingsPill}
+              onPress={() => setActiveSegment("bookings")}
+            >
+              <Ionicons name="arrow-back" size={16} color={TRIP_BLUE} />
+              <Text style={styles.backToBookingsText}>Bookings</Text>
+            </Pressable>
+            <Text style={styles.headerTitle}>AI Trip Planner</Text>
+          </View>
+        </View>
+        <View style={{ flex: 1 }}>
+          <TripPlannerScreen />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.shell} edges={["top"]}>
       {/* Header Bar */}
@@ -100,6 +177,75 @@ export default function TripsTab() {
         >
           <Ionicons name="grid-outline" size={18} color="#111827" />
           <Text style={styles.widgetBtnText}>Widget</Text>
+        </Pressable>
+      </View>
+
+      {/* Segmented Switcher for Trips, My Tickets & AI Planner */}
+      <View style={styles.segmentContainer}>
+        <Pressable
+          style={[
+            styles.segmentButton,
+            activeSegment === "bookings" && styles.segmentButtonActive,
+          ]}
+          onPress={() => setActiveSegment("bookings")}
+        >
+          <Ionicons
+            name="briefcase-outline"
+            size={15}
+            color={activeSegment === "bookings" ? TRIP_BLUE : "#64748B"}
+          />
+          <Text
+            style={[
+              styles.segmentText,
+              activeSegment === "bookings" && styles.segmentTextActive,
+            ]}
+          >
+            বুকিং
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.segmentButton,
+            activeSegment === "tickets" && styles.segmentButtonActive,
+          ]}
+          onPress={() => setActiveSegment("tickets")}
+        >
+          <Ionicons
+            name="ticket-outline"
+            size={15}
+            color={activeSegment === "tickets" ? TRIP_BLUE : "#64748B"}
+          />
+          <Text
+            style={[
+              styles.segmentText,
+              activeSegment === "tickets" && styles.segmentTextActive,
+            ]}
+          >
+            আমার টিকিট
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.segmentButton,
+            (activeSegment as string) === "planner" && styles.segmentButtonActive,
+          ]}
+          onPress={() => setActiveSegment("planner")}
+        >
+          <Ionicons
+            name="sparkles"
+            size={15}
+            color={(activeSegment as string) === "planner" ? TRIP_BLUE : "#64748B"}
+          />
+          <Text
+            style={[
+              styles.segmentText,
+              (activeSegment as string) === "planner" && styles.segmentTextActive,
+            ]}
+          >
+            AI প্ল্যানার
+          </Text>
         </Pressable>
       </View>
 
@@ -173,7 +319,10 @@ export default function TripsTab() {
                 <Pressable
                   key={booking.id}
                   style={styles.hotelCard}
-                  onPress={() => router.push("/screens/search-stays" as any)}
+                  onPress={() => {
+                    setManageBooking(booking);
+                    setShowManageModal(true);
+                  }}
                 >
                   <Image source={{ uri: image }} style={styles.hotelImage} />
 
@@ -181,6 +330,16 @@ export default function TripsTab() {
                     <View style={styles.statusBadgeRow}>
                       <View style={[styles.statusIndicator, { backgroundColor: status === "cancelled" ? "#EF4444" : "#10B981" }]} />
                       <Text style={styles.statusBadgeText}>{status.toUpperCase()}</Text>
+                      <Pressable
+                        style={styles.topManageBtn}
+                        onPress={() => {
+                          setManageBooking(booking);
+                          setShowManageModal(true);
+                        }}
+                      >
+                        <Ionicons name="swap-horizontal" size={11} color="#DC2626" />
+                        <Text style={styles.topManageBtnText}>পরিবর্তন / বাতিল</Text>
+                      </Pressable>
                     </View>
 
                     <Text style={styles.hotelName} numberOfLines={2}>
@@ -194,7 +353,13 @@ export default function TripsTab() {
                     <View style={styles.priceRow}>
                       <Text style={styles.priceText}>${price}</Text>
                       <View style={styles.pinkDiscountBadge}>
-                        <Text style={styles.pinkDiscountText}>Verified</Text>
+                        <Text style={styles.pinkDiscountText} onPress={() => {
+                          calendarService.addToCalendar({
+                            title: `ভ্রমণ: ${title}`,
+                            description: `বুকিং #${booking.booking_reference || booking.id?.slice(0, 8)}`,
+                            startDate: new Date(booking.travel_date || booking.check_in_date || Date.now() + 86400000),
+                          });
+                        }}>+ ক্যালেন্ডার</Text>
                       </View>
                     </View>
                   </View>
@@ -230,7 +395,7 @@ export default function TripsTab() {
         <View style={styles.quickAiActionRow}>
           <Pressable
             style={styles.aiActionPill}
-            onPress={() => router.push("/screens/trip-planner" as any)}
+            onPress={() => setActiveSegment("planner")}
           >
             <Text style={styles.aiSparkleIcon}>✨</Text>
             <Text style={styles.aiActionLabel}>Plan a trip with AI</Text>
@@ -304,7 +469,22 @@ export default function TripsTab() {
         onClose={() => setShowWidgetModal(false)}
       />
 
-      {/* Morphing Back-To-Top Button */}
+      {/* Booking Change & Cancel Modal with Instant Refund Preview */}
+      <BookingManageModal
+        visible={showManageModal}
+        booking={manageBooking}
+        onClose={() => setShowManageModal(false)}
+        onBookingCancelled={(cancelledId) => {
+          setBookings((prev) =>
+            prev.map((b) => (b.id === cancelledId ? { ...b, status: "cancelled" } : b))
+          );
+        }}
+        onDateChanged={(bookingId, newDate) => {
+          setBookings((prev) =>
+            prev.map((b) => (b.id === bookingId ? { ...b, travel_date: newDate, check_in_date: newDate } : b))
+          );
+        }}
+      />
       {isScrolled && (
         <Pressable
           style={styles.backToTopFab}
@@ -323,6 +503,56 @@ const styles = StyleSheet.create({
   shell: {
     flex: 1,
     backgroundColor: "#F8FAFC",
+  },
+  segmentContainer: {
+    flexDirection: "row",
+    backgroundColor: "#F1F5F9",
+    marginHorizontal: 16,
+    marginVertical: 10,
+    borderRadius: 12,
+    padding: 3,
+    gap: 4,
+  },
+  segmentButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  segmentButtonActive: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 2px rgba(15, 23, 42, 0.1)" } : {}),
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  segmentTextActive: {
+    color: TRIP_BLUE,
+    fontWeight: "700",
+  },
+  backToBookingsPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 4,
+  },
+  backToBookingsText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: TRIP_BLUE,
   },
   headerBar: {
     flexDirection: "row",
@@ -454,6 +684,38 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#E11D48",
   },
+  topManageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEE2E2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 3,
+  },
+  topManageBtnText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#DC2626",
+  },
+  addCalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  addCalBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0055F2",
+  },
   emptyBookingsCard: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
@@ -559,7 +821,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   favoriteCard: {
-    height: 180,
+    minHeight: 180,
     borderRadius: 14,
     overflow: "hidden",
     position: "relative",
@@ -626,5 +888,169 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+  },
+  // E-Ticket Tab Styles
+  ticketsContainer: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  offlineHeaderBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 16,
+    gap: 8,
+  },
+  offlineHeaderText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#065F46",
+    flex: 1,
+  },
+  ticketVoucherCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: TRIP_BLUE,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: TRIP_BLUE,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  voucherTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  voucherTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  voucherDate: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  voucherPnrBadge: {
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignItems: "center",
+  },
+  voucherPnrLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#1E40AF",
+  },
+  voucherPnrVal: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: TRIP_BLUE,
+    fontFamily: "monospace",
+  },
+  voucherDivider: {
+    height: 1,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderStyle: "dashed",
+    marginVertical: 14,
+  },
+  voucherQrRow: {
+    flexDirection: "row",
+    gap: 16,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  voucherQrBox: {
+    padding: 8,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+  },
+  voucherDetailsCol: {
+    flex: 1,
+    gap: 8,
+  },
+  voucherMetaItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  voucherMetaLabel: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  voucherMetaVal: {
+    fontSize: 12,
+    color: "#0F172A",
+    fontWeight: "700",
+  },
+  voucherStatusConfirmed: {
+    fontSize: 12,
+    color: "#059669",
+    fontWeight: "800",
+  },
+  voucherShareBtn: {
+    backgroundColor: TRIP_BLUE,
+    borderRadius: 10,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  voucherShareBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  emptyTicketsCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginTop: 20,
+  },
+  emptyTicketsTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  emptyTicketsSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: 16,
+  },
+  browseServicesBtn: {
+    backgroundColor: TRIP_BLUE,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  browseServicesBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

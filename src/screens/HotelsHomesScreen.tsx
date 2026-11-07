@@ -1,3 +1,4 @@
+import { generateRealtimeChannelId } from "../utils/idGenerator";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   ActivityIndicator,
@@ -21,7 +22,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
+import { GlassView } from '../components/ui/GlassView';
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -30,11 +31,16 @@ import { supabase } from "../utils/supabase";
 import { DEMO_USER_ID, FriendProfile } from "../services/repositories/friends";
 import { messengerRepository, ConversationItem } from "../services/repositories/messenger";
 import { DirectChatModal } from "../components/DirectChatModal";
-import { ListSkeleton, CardSkeleton, ErrorStateCard } from "../components/common";
+import { ListSkeleton, CardSkeleton, ErrorStateCard, ResultsSummaryHeader, ComparisonModal, ComparisonItem } from "../components/common";
 import { EmptyState } from "../components/ui/EmptyState";
+import { PrecisionSlider } from "../components/ui/PrecisionSlider";
+import { formatPrice as utilsFormatPrice } from "../utils/currency";
 import { useTravelStore } from "../store/travelStore";
 import { travelRepository, HotelSearchResult, HotelSearchFilters } from "../repositories";
-import { AiPill, BottomNav } from "./Navigation";
+import { formatLocalizedCurrency, formatLocalizedDate } from "../utils/formatters";
+import { useTheme } from "../context/ThemeContext";
+import { RTLIcon } from "../components/ui";
+import { FONTS } from "../theme/typography";
 import {
   sentimentService,
   getVibeMeterColors,
@@ -43,7 +49,6 @@ import {
   TravelDimension,
 } from "../services/nlp/sentimentService";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const TRIP_BLUE = "#0055F2";
 const TRIP_DARK_BLUE = "#000666";
@@ -87,25 +92,16 @@ export const POPULAR_VILLA_DESTINATIONS = [
 // FORMATTING & CALCULATION UTILITIES (ZERO HARD-CODING)
 // ============================================================================
 
-export function formatPrice(amount: number | string): string {
-  const numeric = typeof amount === "string" ? parseFloat(amount) || 0 : amount;
-  return `${HOSPITALITY_CONFIG.DEFAULT_CURRENCY_SYMBOL}${Math.round(numeric).toLocaleString()}`;
+export function formatPrice(amount: number | string, currency?: string): string {
+  return utilsFormatPrice(Number(amount) || 0, currency as any);
 }
 
-export function formatDateShort(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+export function formatDateShort(date: Date, locale?: string): string {
+  return formatLocalizedDate(date, "short", locale);
 }
 
-export function formatDateFull(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+export function formatDateFull(date: Date, locale?: string): string {
+  return formatLocalizedDate(date, "medium", locale);
 }
 
 export function calculateNightsCount(checkIn: Date, checkOut: Date): number {
@@ -114,16 +110,20 @@ export function calculateNightsCount(checkIn: Date, checkOut: Date): number {
 }
 
 export function getRoomInventoryStatus(roomsCount: number) {
-  const roomsLeft = roomsCount <= 0 ? 1 : roomsCount;
-  const isUrgent = roomsLeft <= 2;
+  const count = typeof roomsCount === "number" ? Math.max(0, roomsCount) : 0;
+  const isSoldOut = count === 0;
+  const isUrgent = count > 0 && count <= 2;
   return {
-    roomsLeft,
+    roomsLeft: count,
+    isSoldOut,
     isUrgent,
-    badgeText: isUrgent
-      ? roomsLeft === 1
+    badgeText: isSoldOut
+      ? "বিক্রি শেষ (Sold Out)"
+      : isUrgent
+      ? count === 1
         ? "Only 1 room left at this price!"
         : "Only 2 rooms left at this price!"
-      : `${roomsLeft} Room Types Available`,
+      : `${count} Room Types Available`,
   };
 }
 
@@ -211,7 +211,7 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
-          <BlurView intensity={25} tint="light" style={StyleSheet.absoluteFillObject} />
+          <GlassView intensity={25} tint="light" style={StyleSheet.absoluteFillObject} />
           <View style={styles.blurhashPlaceholderBox}>
             <Ionicons name="image-outline" size={24} color="#94A3B8" />
             <Text style={styles.blurhashText}>
@@ -321,6 +321,7 @@ const BUDGET_MILESTONES = [75, 150, 300, 500, 1000, 1500] as const;
 // ============================================================================
 
 export function HotelsHomesScreen() {
+  const { colors, isDark } = useTheme();
   // Shared travel store integration
   const { hotelFilters, setHotelFilters, resetFilters } = useTravelStore();
 
@@ -350,6 +351,56 @@ export function HotelsHomesScreen() {
 
   // Selected Villa for Booking Bottom Sheet
   const [selectedVilla, setSelectedVilla] = useState<VacationRental | null>(null);
+
+  // Hotel Comparison State
+  const [selectedCompareHotels, setSelectedCompareHotels] = useState<VacationRental[]>([]);
+  const [compareModalVisible, setCompareModalVisible] = useState(false);
+
+  const toggleCompareHotel = useCallback((villa: VacationRental) => {
+    Haptics.selectionAsync();
+    setSelectedCompareHotels((prev) => {
+      if (prev.some((h) => h.id === villa.id)) {
+        return prev.filter((h) => h.id !== villa.id);
+      }
+      if (prev.length >= 4) {
+        Alert.alert("তুলনা সীমা", "সর্বোচ্চ ৪টি হোটেল একসাথে তুলনা করতে পারবেন।");
+        return prev;
+      }
+      return [...prev, villa];
+    });
+  }, []);
+
+  const hotelComparisonItems: ComparisonItem[] = useMemo(() => {
+    return selectedCompareHotels.map((h) => ({
+      id: h.id,
+      title: h.name,
+      subtitle: `${h.location} • ${h.propertyType}`,
+      price: h.pricePerNight,
+      priceUnit: "/রাত",
+      rating: h.rating,
+      reviewsCount: h.reviewsCount,
+      specs: [
+        { label: "ধরণ", value: h.propertyType },
+        { label: "অতিথি", value: `${h.maxGuests} জন` },
+        { label: "বেডরুম", value: `${h.bedrooms}টি` },
+        { label: "বাথরুম", value: `${h.bathrooms}টি` },
+      ],
+      features: h.amenities || [],
+      policies: [h.freeCancellation ? "ফ্রি বাতিলকরণ সুবিধা" : "বাতিলকরণ প্রযোজ্য নয়"],
+    }));
+  }, [selectedCompareHotels]);
+
+  // Progressive list pagination
+  const [pageLimit, setPageLimit] = useState(8);
+  const pagedRentals = useMemo(() => {
+    return filteredRentals.slice(0, pageLimit);
+  }, [filteredRentals, pageLimit]);
+
+  const handleEndReached = useCallback(() => {
+    if (pageLimit < filteredRentals.length) {
+      setPageLimit((prev) => Math.min(prev + 6, filteredRentals.length));
+    }
+  }, [pageLimit, filteredRentals.length]);
 
   // Direct Messenger Chat State
   const [activeChatConvo, setActiveChatConvo] = useState<ConversationItem | null>(null);
@@ -577,7 +628,7 @@ export function HotelsHomesScreen() {
     fetchInventory(isMounted).catch(() => {});
 
     const channel = supabase
-      .channel(`homes-live-${Math.random().toString(36).substring(2, 7)}`)
+      .channel(generateRealtimeChannelId("homes-live"))
       .on("postgres_changes", { event: "*", schema: "public", table: "hotels" }, () => {
         if (isMounted) fetchInventory(isMounted).catch(() => {});
       })
@@ -808,8 +859,7 @@ export function HotelsHomesScreen() {
 
       return (
         <View
-          style={styles.villaCard}
-          className="bg-white mx-4 mb-4 rounded-2xl overflow-hidden border border-slate-200 shadow-sm"
+          style={[styles.villaCard, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}
         >
           {/* Progressive Image & Badges */}
           <Pressable
@@ -834,17 +884,17 @@ export function HotelsHomesScreen() {
                 {villa.isSuperhost && (
                   <View style={styles.superhostBadge} className="flex-row items-center bg-amber-500 px-2.5 py-1 rounded-full shadow-md">
                     <Ionicons name="medal" size={12} color="#FFFFFF" />
-                    <Text style={styles.superhostBadgeText} className="text-white text-xs font-bold ml-1">
+                    <Text style={styles.superhostBadgeText} className="text-white text-xs font-bold ms-1">
                       SUPERHOST
                     </Text>
                   </View>
                 )}
-                <View style={styles.ratingBadge} className="flex-row items-center bg-white/95 px-2.5 py-1 rounded-full ml-auto shadow-sm">
+                <View style={styles.ratingBadge} className="flex-row items-center bg-white/95 px-2.5 py-1 rounded-full ms-auto shadow-sm">
                   <Ionicons name="star" size={12} color="#F59E0B" />
-                  <Text style={styles.ratingText} className="text-xs font-bold text-slate-800 ml-1">
+                  <Text style={styles.ratingText} className="text-xs font-bold text-slate-800 ms-1">
                     {villa.rating.toFixed(2)}
                   </Text>
-                  <Text style={styles.ratingReviews} className="text-xs text-slate-500 ml-1">
+                  <Text style={styles.ratingReviews} className="text-xs text-slate-500 ms-1">
                     ({villa.reviewsCount})
                   </Text>
                 </View>
@@ -875,7 +925,7 @@ export function HotelsHomesScreen() {
               </Text>
               <View style={styles.locationRow} className="flex-row items-center mt-1">
                 <Ionicons name="location-sharp" size={14} color={TRIP_BLUE} />
-                <Text style={styles.locationText} className="text-xs text-slate-500 ml-1">
+                <Text style={styles.locationText} className="text-xs text-slate-500 ms-1">
                   {villa.location}
                 </Text>
               </View>
@@ -886,14 +936,14 @@ export function HotelsHomesScreen() {
               {isUrgent ? (
                 <View style={styles.roomUrgentTag} className="flex-row items-center px-2.5 py-1 rounded-md bg-amber-50 border border-amber-300">
                   <Ionicons name="flame" size={12} color="#D97706" />
-                  <Text style={styles.roomUrgentTagText} className="text-xs font-extrabold text-amber-700 ml-1">
+                  <Text style={styles.roomUrgentTagText} className="text-xs font-extrabold text-amber-700 ms-1">
                     {badgeText}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.roomAvailTag} className="flex-row items-center px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-300">
                   <Ionicons name="checkmark-circle" size={12} color="#059669" />
-                  <Text style={styles.roomAvailTagText} className="text-xs font-bold text-emerald-700 ml-1">
+                  <Text style={styles.roomAvailTagText} className="text-xs font-bold text-emerald-700 ms-1">
                     ✓ {villa.specs.bedrooms} Bedrooms Available
                   </Text>
                 </View>
@@ -913,7 +963,7 @@ export function HotelsHomesScreen() {
                 className="flex-row items-center px-2 py-0.5 rounded border"
               >
                 <Ionicons name="sparkles" size={11} color={topVibeColor.colorHex} />
-                <Text style={{ color: topVibeColor.colorHex }} className="text-[10px] font-extrabold ml-1">
+                <Text style={{ color: topVibeColor.colorHex }} className="text-[10px] font-extrabold ms-1">
                   {villaVibe.overallVibeScore}/100 Vibe · {villaVibe.overallSentiment}
                 </Text>
               </View>
@@ -948,8 +998,8 @@ export function HotelsHomesScreen() {
 
             {/* Host Information Block with Direct Messaging */}
             <View style={styles.hostBlock} className="flex-row items-center justify-between">
-              <View style={styles.hostInfoLeft} className="flex-row items-center flex-1 mr-2">
-                <View style={styles.hostAvatarWrapper} className="relative w-8 h-8 rounded-full overflow-hidden mr-2">
+              <View style={styles.hostInfoLeft} className="flex-row items-center flex-1 me-2">
+                <View style={styles.hostAvatarWrapper} className="relative w-8 h-8 rounded-full overflow-hidden me-2">
                   <Image source={{ uri: villa.host.avatar }} style={styles.hostAvatar} className="w-full h-full" />
                   <View style={styles.hostBadgeDot} className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-white" />
                 </View>
@@ -970,7 +1020,7 @@ export function HotelsHomesScreen() {
                 onPress={() => handleMessageHost(villa.host)}
               >
                 <Ionicons name="chatbubble-ellipses" size={13} color={TRIP_BLUE} />
-                <Text style={styles.messageHostBtnText} className="text-xs font-bold text-blue-600 ml-1">
+                <Text style={styles.messageHostBtnText} className="text-xs font-bold text-blue-600 ms-1">
                   Message
                 </Text>
               </Pressable>
@@ -994,25 +1044,49 @@ export function HotelsHomesScreen() {
                 </Text>
               </View>
 
-              <Pressable
-                style={styles.reserveBtn}
-                className="flex-row items-center bg-blue-600 px-4 py-2.5 rounded-xl active:bg-blue-700 shadow-sm"
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setSelectedVilla(villa);
-                }}
-              >
-                <Text style={styles.reserveBtnText} className="text-white text-xs font-bold mr-1">
-                  View & Reserve
-                </Text>
-                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-              </Pressable>
+              <View className="flex-row items-center">
+                <Pressable
+                  onPress={() => toggleCompareHotel(villa)}
+                  className={`px-2.5 py-2 rounded-xl border flex-row items-center me-2 ${
+                    selectedCompareHotels.some((h) => h.id === villa.id)
+                      ? "bg-blue-50 border-blue-600"
+                      : "bg-slate-100 border-slate-200"
+                  }`}
+                >
+                  <Ionicons
+                    name={selectedCompareHotels.some((h) => h.id === villa.id) ? "checkbox" : "square-outline"}
+                    size={14}
+                    color={selectedCompareHotels.some((h) => h.id === villa.id) ? "#2563EB" : "#64748B"}
+                  />
+                  <Text
+                    className={`text-[11px] font-bold ms-1 ${
+                      selectedCompareHotels.some((h) => h.id === villa.id) ? "text-blue-600" : "text-slate-600"
+                    }`}
+                  >
+                    তুলনা
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.reserveBtn}
+                  className="flex-row items-center bg-blue-600 px-4 py-2.5 rounded-xl active:bg-blue-700 shadow-sm"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedVilla(villa);
+                  }}
+                >
+                  <Text style={styles.reserveBtnText} className="text-white text-xs font-bold me-1">
+                    View & Reserve
+                  </Text>
+                  <RTLIcon name="arrow-forward" size={14} color="#FFFFFF" />
+                </Pressable>
+              </View>
             </View>
           </View>
         </View>
       );
     },
-    [nightsCount, handleMessageHost]
+    [nightsCount, handleMessageHost, selectedCompareHotels, toggleCompareHotel]
   );
 
   // ============================================================================
@@ -1038,9 +1112,9 @@ export function HotelsHomesScreen() {
               <Pressable
                 style={styles.backCircleBtn}
                 className="w-9 h-9 rounded-full bg-black/40 items-center justify-center"
-                onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+                onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}
               >
-                <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+                <RTLIcon name="arrow-back" size={20} color="#FFFFFF" />
               </Pressable>
 
               <View style={styles.headerRight} className="flex-row items-center gap-2">
@@ -1065,7 +1139,7 @@ export function HotelsHomesScreen() {
             <View style={styles.titleWrapper} className="mb-4">
               <View style={styles.heroPillBadge} className="flex-row items-center bg-blue-600 self-start px-2.5 py-1 rounded-full mb-2">
                 <Ionicons name="home" size={12} color="#FFFFFF" />
-                <Text style={styles.heroPillText} className="text-white text-[10px] font-black uppercase tracking-wider ml-1">
+                <Text style={styles.heroPillText} className="text-white text-[10px] font-black uppercase tracking-wider ms-1">
                   VACATION HOMES & VILLAS
                 </Text>
               </View>
@@ -1080,13 +1154,13 @@ export function HotelsHomesScreen() {
         </View>
 
         {/* 2. OVERLAPPING SEARCH & CONFIGURATION CARD */}
-        <View style={styles.searchCardContainer} className="bg-white mx-4 -mt-8 rounded-2xl p-4 shadow-md border border-slate-200 z-10">
+        <View style={[styles.searchCardContainer, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}>
           {/* Destination / Keyword Input */}
           <View style={styles.inputRow} className="flex-row items-center py-1">
             <Ionicons name="search" size={20} color={TRIP_BLUE} />
             <TextInput
               style={styles.textInput}
-              className="flex-1 ml-2.5 text-sm font-semibold text-slate-900"
+              className="flex-1 ms-2.5 text-sm font-semibold text-slate-900"
               value={searchQuery}
               onChangeText={(text) => {
                 setSearchQuery(text);
@@ -1119,7 +1193,7 @@ export function HotelsHomesScreen() {
             }}
           >
             <Ionicons name="calendar-outline" size={20} color={TRIP_BLUE} />
-            <View style={styles.inputCol} className="flex-1 ml-2.5">
+            <View style={styles.inputCol} className="flex-1 ms-2.5">
               <Text style={styles.inputLabel} className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">
                 CHECK-IN & CHECK-OUT
               </Text>
@@ -1128,7 +1202,7 @@ export function HotelsHomesScreen() {
                 · <Text style={{ color: TRIP_BLUE, fontWeight: "700" }}>{nightsCount} {nightsCount === 1 ? "night" : "nights"}</Text>
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+            <RTLIcon name="chevron-forward" size={16} color="#94A3B8" />
           </Pressable>
 
           <View style={styles.hDivider} className="h-[1px] bg-slate-100 my-2.5" />
@@ -1143,7 +1217,7 @@ export function HotelsHomesScreen() {
             }}
           >
             <Ionicons name="people-outline" size={20} color={TRIP_BLUE} />
-            <View style={styles.inputCol} className="flex-1 ml-2.5">
+            <View style={styles.inputCol} className="flex-1 ms-2.5">
               <Text style={styles.inputLabel} className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">
                 GUESTS & PARTY
               </Text>
@@ -1152,7 +1226,7 @@ export function HotelsHomesScreen() {
                 {guestsConfig.children > 0 ? `, ${guestsConfig.children} Children` : " · Entire Home"}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+            <RTLIcon name="chevron-forward" size={16} color="#94A3B8" />
           </Pressable>
         </View>
 
@@ -1198,7 +1272,7 @@ export function HotelsHomesScreen() {
                       styles.amenityPillText,
                       active && styles.amenityPillTextActive,
                     ]}
-                    className={`text-xs font-bold ml-1.5 ${
+                    className={`text-xs font-bold ms-1.5 ${
                       active ? "text-white" : "text-slate-700"
                     }`}
                   >
@@ -1216,7 +1290,7 @@ export function HotelsHomesScreen() {
             <View style={styles.benefitsTitleCol}>
               <View style={styles.voucherTag} className="flex-row items-center bg-blue-600 self-start px-2 py-0.5 rounded-full mb-1">
                 <Ionicons name="sparkles" size={11} color="#FFFFFF" />
-                <Text style={styles.voucherTagText} className="text-white text-[10px] font-bold ml-1">
+                <Text style={styles.voucherTagText} className="text-white text-[10px] font-bold ms-1">
                   EXCLUSIVE OFFER
                 </Text>
               </View>
@@ -1273,7 +1347,7 @@ export function HotelsHomesScreen() {
                   <Pressable
                     key={type}
                     style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                    className={`px-3 py-1.5 rounded-full mr-2 border ${
+                    className={`px-3 py-1.5 rounded-full me-2 border ${
                       isSelected
                         ? "bg-blue-600 border-blue-600"
                         : "bg-slate-50 border-slate-200"
@@ -1309,7 +1383,7 @@ export function HotelsHomesScreen() {
                   <Pressable
                     key={chip.label}
                     style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                    className={`flex-row items-center px-3 py-1.5 rounded-full mr-2 border ${
+                    className={`flex-row items-center px-3 py-1.5 rounded-full me-2 border ${
                       isSelected
                         ? "bg-amber-500 border-amber-500"
                         : "bg-slate-50 border-slate-200"
@@ -1326,7 +1400,7 @@ export function HotelsHomesScreen() {
                       name="star"
                       size={12}
                       color={isSelected ? "#FFFFFF" : "#F59E0B"}
-                      style={{ marginRight: 3 }}
+                      style={{ marginEnd: 3 }}
                     />
                     <Text
                       style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}
@@ -1354,7 +1428,7 @@ export function HotelsHomesScreen() {
                   <Pressable
                     key={chip.label}
                     style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                    className={`px-3 py-1.5 rounded-full mr-2 border ${
+                    className={`px-3 py-1.5 rounded-full me-2 border ${
                       isSelected
                         ? "bg-indigo-600 border-indigo-600"
                         : "bg-slate-50 border-slate-200"
@@ -1381,113 +1455,24 @@ export function HotelsHomesScreen() {
             </ScrollView>
           </View>
 
-          {/* 4. Interactive Price Range Slider & Stepper Controls */}
+          {/* 4. Interactive Precision Slider & Stepper Controls */}
           <View style={styles.filterGroupRow} className="mb-3">
-            <View className="flex-row items-center justify-between mb-1.5">
-              <Text style={styles.filterGroupTitle} className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                Price Range Slider:
-              </Text>
-              <Text className="text-xs font-extrabold text-blue-600">
-                {formatPrice(minPriceSlider)} - {maxPriceSlider >= HOSPITALITY_CONFIG.MAX_BUDGET ? `${formatPrice(HOSPITALITY_CONFIG.MAX_BUDGET)}+` : formatPrice(maxPriceSlider)}
-              </Text>
-            </View>
-
-            {/* Visual Slider Bar Track */}
-            <View className="w-full h-2 bg-slate-200 rounded-full my-2 overflow-hidden">
-              <View
-                style={{
-                  width: `${Math.min(100, Math.max(10, (maxPriceSlider / HOSPITALITY_CONFIG.MAX_BUDGET) * 100))}%`,
-                }}
-                className="h-full bg-blue-600 rounded-full"
-              />
-            </View>
-
-            {/* Quick Price Milestone Pills */}
-            <View className="flex-row justify-between mb-2">
-              {BUDGET_MILESTONES.map((cap) => (
-                <Pressable
-                  key={cap}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setMaxPriceSlider(cap);
-                    setPricePreset("custom");
-                    syncStoreFilters({ maxPrice: cap < HOSPITALITY_CONFIG.MAX_BUDGET ? cap : undefined });
-                  }}
-                  className={`px-2 py-0.5 rounded ${maxPriceSlider === cap ? "bg-blue-600" : "bg-slate-100"}`}
-                >
-                  <Text className={`text-[10px] font-bold ${maxPriceSlider === cap ? "text-white" : "text-slate-600"}`}>
-                    {formatPrice(cap)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Presets Row */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsRow}>
-              {PRICE_PRESETS.map((chip) => {
-                const isSelected = pricePreset === chip.value;
-                return (
-                  <Pressable
-                    key={chip.label}
-                    style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                    className={`px-3 py-1.5 rounded-full mr-2 border ${
-                      isSelected
-                        ? "bg-blue-600 border-blue-600"
-                        : "bg-slate-50 border-slate-200"
-                    }`}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setPricePreset(chip.value);
-                      setMinPriceSlider(chip.min);
-                      setMaxPriceSlider(chip.max);
-                      syncStoreFilters({
-                        minPrice: chip.min > 0 ? chip.min : undefined,
-                        maxPrice: chip.max < HOSPITALITY_CONFIG.MAX_BUDGET ? chip.max : undefined,
-                      });
-                    }}
-                  >
-                    <Text
-                      style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}
-                      className={`text-xs font-semibold ${
-                        isSelected ? "text-white" : "text-slate-700"
-                      }`}
-                    >
-                      {chip.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {/* Interactive Price Stepper Controls */}
-            <View className="flex-row items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 mt-2">
-              <Pressable
-                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg active:bg-slate-100"
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setMaxPriceSlider((prev) => Math.max(minPriceSlider + HOSPITALITY_CONFIG.BUDGET_STEP, prev - HOSPITALITY_CONFIG.BUDGET_STEP));
-                  setPricePreset("custom");
-                }}
-              >
-                <Text className="text-xs font-bold text-slate-700">-{formatPrice(HOSPITALITY_CONFIG.BUDGET_STEP)}</Text>
-              </Pressable>
-
-              <View className="items-center">
-                <Text className="text-xs font-bold text-slate-500">Max Budget Cap</Text>
-                <Text className="text-sm font-extrabold text-slate-900">{formatPrice(maxPriceSlider)}/night</Text>
-              </View>
-
-              <Pressable
-                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg active:bg-slate-100"
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setMaxPriceSlider((prev) => Math.min(HOSPITALITY_CONFIG.MAX_BUDGET, prev + HOSPITALITY_CONFIG.BUDGET_STEP));
-                  setPricePreset("custom");
-                }}
-              >
-                <Text className="text-xs font-bold text-slate-700">+{formatPrice(HOSPITALITY_CONFIG.BUDGET_STEP)}</Text>
-              </Pressable>
-            </View>
+            <PrecisionSlider
+              label="বাজেট সীমা (সর্বোচ্চ প্রতি রাত)"
+              value={maxPriceSlider}
+              min={HOSPITALITY_CONFIG.MIN_BUDGET}
+              max={HOSPITALITY_CONFIG.MAX_BUDGET}
+              step={HOSPITALITY_CONFIG.BUDGET_STEP}
+              unit="/রাত"
+              presets={BUDGET_MILESTONES as any}
+              onChange={(val) => {
+                setMaxPriceSlider(val);
+                setPricePreset("custom");
+                syncStoreFilters({
+                  maxPrice: val < HOSPITALITY_CONFIG.MAX_BUDGET ? val : undefined,
+                });
+              }}
+            />
           </View>
 
           {/* 5. Free Cancellation Policy Chip */}
@@ -1515,7 +1500,7 @@ export function HotelsHomesScreen() {
                   name={freeCancellationOnly ? "checkmark-circle" : "shield-checkmark-outline"}
                   size={14}
                   color={freeCancellationOnly ? "#FFFFFF" : "#059669"}
-                  style={{ marginRight: 4 }}
+                  style={{ marginEnd: 4 }}
                 />
                 <Text
                   style={[
@@ -1533,16 +1518,23 @@ export function HotelsHomesScreen() {
           </View>
         </View>
 
-        {/* Section Heading */}
-        <View style={styles.sectionHeaderRow} className="flex-row items-center justify-between px-4 mt-4 mb-2">
-          <Text style={styles.sectionHeading} className="text-base font-extrabold text-slate-900">
-            {selectedAmenity === "all"
-              ? "Handpicked Luxury Villas"
-              : `${selectedAmenity} Stays`}
-          </Text>
-          <Text className="text-xs font-semibold text-slate-500">
-            ({filteredRentals.length} available)
-          </Text>
+        {/* Section Heading & Results Summary Header */}
+        <View className="px-4 mt-4 mb-2">
+          <ResultsSummaryHeader
+            count={filteredRentals.length}
+            entityName="হোটেল ও রিসোর্ট"
+            sortLabel={propertyTypeFilter !== "All Types" ? propertyTypeFilter : "জনপ্রিয়তা"}
+            filterCount={
+              (searchQuery.trim() ? 1 : 0) +
+              (selectedAmenity !== "all" ? 1 : 0) +
+              (propertyTypeFilter !== "All Types" ? 1 : 0) +
+              (starRatingFilter > 0 ? 1 : 0) +
+              (guestRatingFilter > 0 ? 1 : 0) +
+              (maxPriceSlider < HOSPITALITY_CONFIG.MAX_BUDGET ? 1 : 0) +
+              (freeCancellationOnly ? 1 : 0)
+            }
+            onClearFilters={handleResetFilters}
+          />
         </View>
       </View>
     );
@@ -1635,10 +1627,10 @@ export function HotelsHomesScreen() {
   // ============================================================================
 
   return (
-    <SafeAreaView style={styles.shell} edges={["top"]} className="flex-1 bg-slate-50">
-      {/* Optimized Virtualized FlatList */}
+    <SafeAreaView style={[styles.shell, { backgroundColor: colors.background }]} edges={["top"]}>
+      {/* Optimized Virtualized FlatList with Progressive Pagination */}
       <FlatList
-        data={filteredRentals}
+        data={pagedRentals}
         renderItem={renderVillaItem}
         keyExtractor={keyExtractor}
         getItemLayout={getItemLayout}
@@ -1648,13 +1640,19 @@ export function HotelsHomesScreen() {
         removeClippedSubviews={Platform.OS === "android"}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyState}
+        ListFooterComponent={
+          pageLimit < filteredRentals.length ? (
+            <View style={{ paddingVertical: 20, alignItems: "center" }}>
+              <ActivityIndicator size="small" color="#0055F2" />
+            </View>
+          ) : null
+        }
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.4}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Floating AI Pill & Bottom Navigation */}
-      <AiPill color={TRIP_BLUE} />
-      <BottomNav active="Home" color={TRIP_BLUE} />
 
       {/* =================================================================== */}
       {/* MODAL 1: INTERACTIVE VILLA RESERVATION BOTTOM SHEET */}
@@ -1680,7 +1678,7 @@ export function HotelsHomesScreen() {
                 </View>
                 <Pressable
                   style={styles.sheetCloseBtn}
-                  className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center ml-2"
+                  className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center ms-2"
                   onPress={() => setSelectedVilla(null)}
                 >
                   <Ionicons name="close" size={20} color="#0F172A" />
@@ -1736,14 +1734,14 @@ export function HotelsHomesScreen() {
                     <Text className="text-xs font-semibold text-slate-700">Master Ocean Suite</Text>
                     <View className="flex-row items-center bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                       <Ionicons name="flame" size={10} color="#D97706" />
-                      <Text className="text-[10px] font-bold text-amber-700 ml-1">Only 2 rooms left!</Text>
+                      <Text className="text-[10px] font-bold text-amber-700 ms-1">Available</Text>
                     </View>
                   </View>
                   <View className="flex-row items-center justify-between py-1 pt-2">
                     <Text className="text-xs font-semibold text-slate-700">Garden Villa Chalet</Text>
                     <View className="flex-row items-center bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                       <Ionicons name="checkmark-circle" size={10} color="#059669" />
-                      <Text className="text-[10px] font-bold text-emerald-700 ml-1">Available</Text>
+                      <Text className="text-[10px] font-bold text-emerald-700 ms-1">Available</Text>
                     </View>
                   </View>
                 </View>
@@ -1766,7 +1764,7 @@ export function HotelsHomesScreen() {
                       <View className="flex-row items-center justify-between pb-2 border-b border-slate-200">
                         <View className="flex-row items-center">
                           <Ionicons name="sparkles" size={15} color={vibeColors.colorHex} />
-                          <Text className="text-xs font-black text-slate-900 ml-1.5 uppercase tracking-wide">
+                          <Text className="text-xs font-black text-slate-900 ms-1.5 uppercase tracking-wide">
                             Dynamic Vibe Meters
                           </Text>
                         </View>
@@ -1790,7 +1788,7 @@ export function HotelsHomesScreen() {
                               className={`flex-row items-center px-2 py-1 rounded-md border ${tagStyle.bgClass} ${tagStyle.borderClass}`}
                             >
                               <Ionicons name={tagStyle.iconName as any} size={11} color={tag.sentiment === "negative" ? "#92400E" : "#059669"} />
-                              <Text className={`text-[10px] font-bold ml-1 ${tagStyle.textClass}`}>
+                              <Text className={`text-[10px] font-bold ms-1 ${tagStyle.textClass}`}>
                                 {tag.tag}
                               </Text>
                             </View>
@@ -1811,7 +1809,7 @@ export function HotelsHomesScreen() {
                               <View className="flex-row items-center justify-between mb-1">
                                 <View className="flex-row items-center">
                                   <Ionicons name={icon as any} size={12} color="#475569" />
-                                  <Text className="text-[11px] font-bold text-slate-700 ml-1.5">
+                                  <Text className="text-[11px] font-bold text-slate-700 ms-1.5">
                                     {dimKey}
                                   </Text>
                                 </View>
@@ -1851,7 +1849,7 @@ export function HotelsHomesScreen() {
                       <View className="flex-row items-center justify-between pt-2 mt-1 border-t border-slate-200">
                         <View className="flex-row items-center">
                           <Ionicons name="shield-checkmark" size={12} color="#059669" />
-                          <Text className="text-[9px] font-bold text-emerald-800 ml-1">
+                          <Text className="text-[9px] font-bold text-emerald-800 ms-1">
                             Verified across {selectedVibe.authenticReviewsCount} authentic reviews
                           </Text>
                         </View>
@@ -1877,11 +1875,11 @@ export function HotelsHomesScreen() {
                     <Image
                       source={{ uri: selectedVilla.host.avatar }}
                       style={styles.sheetHostAvatar}
-                      className="w-10 h-10 rounded-full mr-3"
+                      className="w-10 h-10 rounded-full me-3"
                     />
                     <View style={styles.sheetHostDetails} className="flex-1">
                       <View style={styles.sheetHostNameRow} className="flex-row items-center">
-                        <Text style={styles.sheetHostName} className="text-xs font-bold text-slate-900 mr-2">
+                        <Text style={styles.sheetHostName} className="text-xs font-bold text-slate-900 me-2">
                           {selectedVilla.host.name}
                         </Text>
                         <View style={styles.superhostMiniPill} className="bg-amber-100 px-1.5 py-0.5 rounded">
@@ -1910,7 +1908,7 @@ export function HotelsHomesScreen() {
                       }}
                     >
                       <Ionicons name="chatbubble-ellipses" size={14} color={TRIP_BLUE} />
-                      <Text style={styles.sheetMessageHostBtnText} className="text-xs font-bold text-blue-600 ml-1.5">
+                      <Text style={styles.sheetMessageHostBtnText} className="text-xs font-bold text-blue-600 ms-1.5">
                         Direct Chat
                       </Text>
                     </Pressable>
@@ -1921,7 +1919,7 @@ export function HotelsHomesScreen() {
                       onPress={() => router.push("/(tabs)/messages" as any)}
                     >
                       <Ionicons name="mail-outline" size={14} color="#475569" />
-                      <Text style={styles.sheetOpenMessengerBtnText} className="text-xs font-bold text-slate-700 ml-1.5">
+                      <Text style={styles.sheetOpenMessengerBtnText} className="text-xs font-bold text-slate-700 ms-1.5">
                         Messenger Inbox
                       </Text>
                     </Pressable>
@@ -1950,7 +1948,7 @@ export function HotelsHomesScreen() {
                         {formatDateFull(checkInDate)}
                       </Text>
                     </View>
-                    <Ionicons name="arrow-forward" size={16} color={TRIP_BLUE} />
+                    <RTLIcon name="arrow-forward" size={16} color={TRIP_BLUE} />
                     <View style={styles.dateCol} className="items-end">
                       <Text style={styles.dateColLabel} className="text-[10px] text-blue-600 uppercase font-bold">
                         Check-out
@@ -2037,7 +2035,7 @@ export function HotelsHomesScreen() {
                 {/* Deposit Protection Shield Banner */}
                 <View style={styles.depositShieldBanner} className="flex-row items-center bg-emerald-50 p-3 rounded-xl border border-emerald-200 mb-4">
                   <Ionicons name="shield-checkmark" size={18} color="#059669" />
-                  <Text style={styles.depositShieldText} className="text-xs text-emerald-800 font-medium ml-2 flex-1">
+                  <Text style={styles.depositShieldText} className="text-xs text-emerald-800 font-medium ms-2 flex-1">
                     Your deposit is safely held by Antigravity Escrow and automatically refunded after checkout inspection.
                   </Text>
                 </View>
@@ -2049,7 +2047,7 @@ export function HotelsHomesScreen() {
                   onPress={handleBookVilla}
                 >
                   <Ionicons name="lock-closed" size={16} color="#FFFFFF" />
-                  <Text style={styles.bookVillaBtnText} className="text-white text-sm font-bold ml-2">
+                  <Text style={styles.bookVillaBtnText} className="text-white text-sm font-bold ms-2">
                     Book Entire Villa ({formatPrice(priceBreakdown.totalPayable)})
                   </Text>
                 </Pressable>
@@ -2132,7 +2130,7 @@ export function HotelsHomesScreen() {
                   {formatDateFull(checkInDate)}
                 </Text>
               </View>
-              <Ionicons name="arrow-forward" size={20} color="#0055F2" />
+              <RTLIcon name="arrow-forward" size={20} color="#0055F2" />
               <View style={styles.dateSummaryCol}>
                 <Text style={styles.dateSummaryHeading} className="text-xs font-bold text-slate-500">
                   Check-out
@@ -2293,7 +2291,10 @@ export function HotelsHomesScreen() {
           currentUserId={DEMO_USER_ID}
           onClose={() => setActiveChatConvo(null)}
           onOpenProfile={(prof) => {
-            router.push(`/screens/profile/${prof.id}` as any);
+            router.push({
+              pathname: "/screens/profile",
+              params: { userId: prof.id },
+            } as any);
           }}
           onStartCall={(prof, type) => {
             router.push({
@@ -2303,6 +2304,66 @@ export function HotelsHomesScreen() {
           }}
         />
       )}
+
+      {/* Hotel Compare Floating Bar */}
+      {selectedCompareHotels.length > 0 && (
+        <View
+          style={{
+            position: "absolute",
+            bottom: 24,
+            left: 16,
+            right: 16,
+            backgroundColor: "#0F172A",
+            borderRadius: 16,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
+          <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13 }}>
+            {selectedCompareHotels.length}টি হোটেল নির্বাচিত
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Pressable onPress={() => setSelectedCompareHotels([])} style={{ marginEnd: 12 }}>
+              <Text style={{ color: "#EF4444", fontWeight: "700", fontSize: 13 }}>মুছুন</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setCompareModalVisible(true)}
+              style={{
+                backgroundColor: "#0055F2",
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 10,
+              }}
+            >
+              <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13 }}>
+                তুলনা দেখুন ({selectedCompareHotels.length})
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Hotel Comparison Modal */}
+      <ComparisonModal
+        visible={compareModalVisible}
+        onClose={() => setCompareModalVisible(false)}
+        title="হোটেল ও রিসোর্ট তুলনা"
+        items={hotelComparisonItems}
+        onSelect={(item) => {
+          setCompareModalVisible(false);
+          const villa = rentals.find((r) => r.id === item.id);
+          if (villa) setSelectedVilla(villa);
+        }}
+        selectButtonLabel="বুকিং ও বিবরণ দেখুন"
+      />
     </SafeAreaView>
   );
 }
@@ -2320,7 +2381,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   heroContainer: {
-    height: 270,
+    minHeight: 270,
     width: "100%",
     position: "relative",
   },
@@ -2376,7 +2437,7 @@ const styles = StyleSheet.create({
   },
   heroPillText: {
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
@@ -2402,6 +2463,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.08)" } : {}),
     zIndex: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -2413,10 +2475,10 @@ const styles = StyleSheet.create({
   },
   inputCol: {
     flex: 1,
-    marginLeft: 12,
+    marginStart: 12,
   },
   inputLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#64748B",
     letterSpacing: 0.5,
@@ -2426,7 +2488,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#0F172A",
-    marginLeft: 12,
+    marginStart: 12,
   },
   pickerText: {
     fontSize: 13,
@@ -2515,7 +2577,7 @@ const styles = StyleSheet.create({
   },
   voucherTagText: {
     color: "#FFFFFF",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
   },
   benefitsTitle: {
@@ -2524,7 +2586,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   benefitsDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 6,
     lineHeight: 16,
@@ -2564,6 +2626,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.06)" } : {}),
     borderWidth: 1,
     borderColor: "#E2E8F0",
     height: VILLA_ITEM_HEIGHT - 16,
@@ -2600,7 +2663,7 @@ const styles = StyleSheet.create({
   },
   superhostBadgeText: {
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.5,
   },
@@ -2619,7 +2682,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   ratingReviews: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
   },
   bottomImageDetails: {
@@ -2629,7 +2692,7 @@ const styles = StyleSheet.create({
     right: 12,
   },
   imagePropertyType: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#93C5FD",
     letterSpacing: 0.5,
@@ -2672,7 +2735,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   cardAmenityText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     fontWeight: "500",
   },
@@ -2683,7 +2746,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   cardAmenityTextMore: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#334155",
     fontWeight: "700",
   },
@@ -2724,7 +2787,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
   },
   hostTextCol: {
-    marginLeft: 8,
+    marginStart: 8,
     flex: 1,
   },
   hostName: {
@@ -2733,7 +2796,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   hostMetaText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -2749,7 +2812,7 @@ const styles = StyleSheet.create({
     borderColor: "#BFDBFE",
   },
   messageHostBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: TRIP_BLUE,
   },
@@ -2773,7 +2836,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   priceTotalEstimate: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94A3B8",
     marginTop: 1,
   },
@@ -2849,7 +2912,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sheetSpecValue: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0F172A",
     marginTop: 4,
@@ -2876,7 +2939,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   sheetHostDetails: {
-    marginLeft: 10,
+    marginStart: 10,
     flex: 1,
   },
   sheetHostNameRow: {
@@ -2893,20 +2956,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    marginLeft: 6,
+    marginStart: 6,
   },
   superhostMiniText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#D97706",
   },
   sheetHostStats: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
   sheetHostBio: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     lineHeight: 16,
     marginTop: 8,
@@ -2929,7 +2992,7 @@ const styles = StyleSheet.create({
     borderColor: "#BFDBFE",
   },
   sheetMessageHostBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: TRIP_BLUE,
   },
@@ -2946,7 +3009,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   sheetOpenMessengerBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -2984,7 +3047,7 @@ const styles = StyleSheet.create({
   },
   dateCol: {},
   dateColLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#0055F2",
     letterSpacing: 0.5,
@@ -3040,7 +3103,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   breakdownTotalSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -3060,7 +3123,7 @@ const styles = StyleSheet.create({
     borderColor: "#A7F3D0",
   },
   depositShieldText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#065F46",
     flex: 1,
     lineHeight: 15,
@@ -3080,7 +3143,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   guaranteeNote: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94A3B8",
     textAlign: "center",
   },
@@ -3159,7 +3222,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   dateSummaryHeading: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748B",
   },
@@ -3231,7 +3294,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   filterGroupTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#64748B",
     marginBottom: 6,
@@ -3253,7 +3316,7 @@ const styles = StyleSheet.create({
     borderColor: TRIP_BLUE,
   },
   filterChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -3278,7 +3341,7 @@ const styles = StyleSheet.create({
     borderColor: "#A7F3D0",
   },
   roomAvailTagText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#059669",
   },
@@ -3294,7 +3357,7 @@ const styles = StyleSheet.create({
     borderColor: "#FDE68A",
   },
   roomUrgentTagText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#D97706",
   },
@@ -3307,7 +3370,7 @@ const styles = StyleSheet.create({
     borderColor: "#BFDBFE",
   },
   freeCancelTagText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#2563EB",
   },
@@ -3320,7 +3383,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   blurhashText: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#94A3B8",
     fontWeight: "600",
     marginTop: 2,

@@ -1,68 +1,63 @@
 """
-Pydantic v2 schemas for Hotels and Room Search.
+Hotel Search and Detail Schemas.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Dict, List, Optional
-from pydantic import Field
-
-from app.schemas.common import BaseSchema, PaginatedResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class HotelRoomResponse(BaseSchema):
+class HotelSearchQuery(BaseModel):
+    city: str = Field(..., description="Destination city (e.g. Dhaka, Cox's Bazar, Sylhet)")
+    check_in: Optional[date] = Field(None, description="Check-in date (YYYY-MM-DD)")
+    check_out: Optional[date] = Field(None, description="Check-out date (YYYY-MM-DD)")
+    guests: int = Field(1, ge=1, le=10, description="Total guests")
+    rooms: int = Field(1, ge=1, le=5, description="Number of rooms requested")
+    min_star_rating: Optional[int] = Field(None, ge=1, le=5)
+    min_price: Optional[float] = Field(None, ge=0)
+    max_price: Optional[float] = Field(None, ge=0)
+    amenities: Optional[List[str]] = Field(None, description="Required amenities list")
+    sort_by: Optional[str] = Field("recommended", description="price_asc, price_desc, rating, recommended")
+    page: int = Field(1, ge=1)
+    page_size: int = Field(20, ge=1, le=100)
+
+
+class HotelRoomResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     hotel_id: uuid.UUID
+    name: str
     room_type: str
     description: Optional[str] = None
     max_occupancy: int
-    base_price: float
+    bed_type: str
+    size_sqm: Optional[int] = None
+    base_price_per_night: float
     currency: str
-    bed_type: Optional[str] = None
-    square_meters: Optional[int] = None
+    images: List[str] = Field(default_factory=list)
     amenities: List[str] = Field(default_factory=list)
-    image_urls: List[str] = Field(default_factory=list)
-    available_count: Optional[int] = None
+    is_available: bool
 
 
-class HotelResponse(BaseSchema):
+class HotelResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     name: str
     slug: Optional[str] = None
     description: Optional[str] = None
-    star_rating: float
-    average_rating: float
-    total_reviews: int
-    image_url: Optional[str] = None
-    images: List[str] = Field(default_factory=list)
     address: Optional[str] = None
     city: str
-    state_province: Optional[str] = None
     country: str
-    country_code: Optional[str] = "BD"
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    base_price: float
-    currency: str
+    star_rating: int
+    review_score: float
+    review_count: int
+    hero_image: Optional[str] = None
+    images: List[str] = Field(default_factory=list)
     amenities: List[str] = Field(default_factory=list)
+    check_in_time: str
+    check_out_time: str
     is_featured: bool
     rooms: Optional[List[HotelRoomResponse]] = None
-
-
-class HotelSearchQuery(BaseSchema):
-    query: Optional[str] = Field(None, description="Free text search query for hotel name or city")
-    city: Optional[str] = Field(None, description="City filter")
-    country: Optional[str] = Field(None, description="Country filter")
-    check_in: Optional[date] = Field(None, description="Check-in date (YYYY-MM-DD)")
-    check_out: Optional[date] = Field(None, description="Check-out date (YYYY-MM-DD)")
-    guests: int = Field(default=1, ge=1, le=20, description="Number of guests")
-    rooms_needed: int = Field(default=1, ge=1, le=10, description="Number of rooms needed")
-    min_price: Optional[float] = Field(None, ge=0, description="Minimum price filter")
-    max_price: Optional[float] = Field(None, ge=0, description="Maximum price filter")
-    min_rating: Optional[float] = Field(None, ge=1.0, le=5.0, description="Minimum star rating")
-    page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=20, ge=1, le=100)
-
-
-class HotelSearchResponse(PaginatedResponse[HotelResponse]):
-    cached: bool = Field(default=False, description="Indicates if result was served from Redis cache")

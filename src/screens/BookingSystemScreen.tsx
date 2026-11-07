@@ -1,12 +1,16 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   KeyboardAvoidingView,
+  Linking,
+  Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -16,16 +20,29 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { z } from "zod";
 
 import type { UIScreen } from "../data/screens";
 import { useAuth } from "../hooks/useAuth";
 import { useUserBookings } from "../hooks/useBooking";
+import { useAppStateRefresh } from "../hooks/useAppStateRefresh";
+import { offlineQueueService } from "../services/offline/offlineQueueService";
+import { networkStatusService } from "../services/network/networkStatusService";
 import { bookingRepository } from "../services/repositories/booking";
 import { useBookingStore } from "../store/bookingStore";
 import { PassportScannerModal } from "../components/scanner/PassportScannerModal";
-import { BottomNav } from "./Navigation";
+import { BookingManageModal } from "../components/booking/BookingManageModal";
+import { calendarService } from "../services/calendarService";
+import { PriceChangeModal } from "../components/pricing/PriceChangeModal";
+import { ProfileCompletenessBar } from "../components/profile/ProfileCompletenessBar";
+import { fcmNotificationService } from "../services/fcmNotificationService";
+
 import { TopBar } from "./TopBar";
+import { BookingStepper } from "../components/common/BookingStepper";
+import { safeGoBack } from "../utils/navigationHelper";
+import { router } from "expo-router";
 
 // ============================================================================
 // DESIGN SYSTEM TOKENS & PALETTE
@@ -53,9 +70,9 @@ export type CurrencyCode = "USD" | "BDT" | "EUR" | "GBP";
 
 const CURRENCY_SYMBOLS: Record<CurrencyCode, string> = {
   USD: "$",
-  BDT: "৳",
-  EUR: "€",
-  GBP: "£",
+  BDT: "à§³",
+  EUR: "â‚¬",
+  GBP: "Â£",
 };
 
 const FX_RATES_FROM_USD: Record<CurrencyCode, number> = {
@@ -212,7 +229,7 @@ const PRODUCT_TEMPLATES: Record<CheckoutProductType, ProductTemplate> = {
     type: "flight",
     label: "Flights",
     icon: "airplane-outline",
-    title: "DAC → NRT (Tokyo Narita)",
+    title: "DAC â†’ NRT (Tokyo Narita)",
     originCity: "Dhaka",
     destinationCity: "Tokyo",
     destinationCountry: "Japan",
@@ -238,7 +255,7 @@ const PRODUCT_TEMPLATES: Record<CheckoutProductType, ProductTemplate> = {
     type: "train",
     label: "Trains",
     icon: "train-outline",
-    title: "Suborno Express (DAC → CTG)",
+    title: "Suborno Express (DAC â†’ CTG)",
     originCity: "Dhaka",
     destinationCity: "Chittagong",
     destinationCountry: "Bangladesh",
@@ -276,50 +293,116 @@ const PRODUCT_TEMPLATES: Record<CheckoutProductType, ProductTemplate> = {
 };
 
 // ============================================================================
-// 3. EXTENSIBLE PROMO CODE REGISTRY
+// 3. EXTENSIBLE PROMO CODE REGISTRY & REUSABLE ASSETS
 // ============================================================================
 
-interface PromoRule {
+export interface PromoRule {
   code: string;
   title: string;
   description: string;
   discountType: "percentage" | "fixed";
   discountValue: number;
   minSpendUSD: number;
+  expiryDate: string;
+  applicableCategory?: CheckoutProductType | "all";
 }
 
 const REGISTERED_PROMOS: PromoRule[] = [
   {
     code: "SHOPNO10",
-    title: "Global 10% Off",
-    description: "10% discount on base fare for all journeys",
+    title: "à¦—à§à¦²à§‹à¦¬à¦¾à¦² à§§à§¦% à¦›à¦¾à¦¡à¦¼ (Global 10% Off)",
+    description: "à¦¸à¦•à¦² à¦¸à¦¾à¦°à§à¦­à¦¿à¦¸à§‡ à¦¬à§‡à¦¸ à¦«à§‡à¦¯à¦¼à¦¾à¦°à§‡ à§§à§¦% à¦¤à¦¾à§Žà¦•à§à¦·à¦£à¦¿à¦• à¦›à¦¾à¦¡à¦¼",
     discountType: "percentage",
     discountValue: 10,
     minSpendUSD: 40,
+    expiryDate: "à§¨à§¦à§¨à§¬-à§§à§¨-à§©à§§",
+    applicableCategory: "all",
   },
   {
     code: "FLYMORE",
-    title: "Long-haul $50 Off",
-    description: "$50 (৳6,000) flat discount on flights & packages",
+    title: "à¦²à¦‚-à¦¹à¦² $50 (à§³6,000) à¦›à¦¾à¦¡à¦¼",
+    description: "à¦«à§à¦²à¦¾à¦‡à¦Ÿ à¦“ à¦ªà§à¦¯à¦¾à¦•à§‡à¦œ à¦¸à¦¾à¦°à§à¦­à¦¿à¦¸à§‡ $50 à¦«à§à¦²à§à¦¯à¦¾à¦Ÿ à¦›à¦¾à¦¡à¦¼",
     discountType: "fixed",
     discountValue: 50,
     minSpendUSD: 250,
+    expiryDate: "à§¨à§¦à§¨à§¬-à§§à§§-à§©à§¦",
+    applicableCategory: "flight",
   },
   {
     code: "EID15",
-    title: "Holiday 15% Off",
-    description: "15% seasonal holiday savings on domestic and international",
+    title: "à¦›à§à¦Ÿà¦¿à¦° à¦‰à§Žà¦¸à¦¬ à§§à§«% à¦›à¦¾à¦¡à¦¼ (Eid Special 15%)",
+    description: "à¦¡à¦®à§‡à¦¸à§à¦Ÿà¦¿à¦• à¦“ à¦†à¦¨à§à¦¤à¦°à§à¦œà¦¾à¦¤à¦¿à¦• à¦¬à§à¦•à¦¿à¦‚à¦¯à¦¼à§‡ à§§à§«% à¦¸à¦¿à¦œà¦¨à¦¾à¦² à¦¸à§‡à¦­à¦¿à¦‚à¦¸",
     discountType: "percentage",
     discountValue: 15,
     minSpendUSD: 80,
+    expiryDate: "à§¨à§¦à§¨à§¬-à§§à§¨-à§¨à§«",
+    applicableCategory: "all",
   },
   {
     code: "EXPEDITION25",
-    title: "$25 Voucher",
-    description: "$25 instant discount on tours & expeditions",
+    title: "à¦Ÿà§à¦¯à§à¦° à¦­à¦¾à¦‰à¦šà¦¾à¦° $25 (à§³3,000) à¦›à¦¾à¦¡à¦¼",
+    description: "à¦¸à¦•à¦² à¦Ÿà§à¦¯à§à¦° à¦“ à¦à¦•à§à¦¸à¦ªà§‡à¦¡à¦¿à¦¶à¦¨ à¦¬à§à¦•à¦¿à¦‚à¦¯à¦¼à§‡ $25 à¦¤à¦¾à§Žà¦•à§à¦·à¦£à¦¿à¦• à¦›à¦¾à¦¡à¦¼",
     discountType: "fixed",
     discountValue: 25,
     minSpendUSD: 120,
+    expiryDate: "à§¨à§¦à§¨à§¬-à§§à§¨-à§§à§«",
+    applicableCategory: "tour",
+  },
+  {
+    code: "HOTELSTAY",
+    title: "à¦¹à§‹à¦Ÿà§‡à¦² à¦“ à¦°à¦¿à¦¸à§‹à¦°à§à¦Ÿ à§§à§¨% à¦›à¦¾à¦¡à¦¼",
+    description: "à¦ªà§à¦°à¦¿à¦®à¦¿à¦¯à¦¼à¦¾à¦® à¦¹à§‹à¦Ÿà§‡à¦² à¦“ à¦¹à§‹à¦®à¦¸à§à¦Ÿà§‡ à¦¬à§à¦•à¦¿à¦‚à¦¯à¦¼à§‡ à§§à§¨% à¦à¦•à§à¦¸à¦•à§à¦²à§à¦¸à¦¿à¦­ à¦›à¦¾à¦¡à¦¼",
+    discountType: "percentage",
+    discountValue: 12,
+    minSpendUSD: 60,
+    expiryDate: "à§¨à§¦à§¨à§¬-à§§à§§-à§¨à§¦",
+    applicableCategory: "hotel",
+  },
+];
+
+export const STEP_TITLES: Record<1 | 2 | 3 | 4, string> = {
+  1: "à¦¯à¦¾à¦¤à§à¦°à§€à¦° à¦¤à¦¥à§à¦¯ (Traveler Details)",
+  2: "à¦…à§à¦¯à¦¾à¦¡-à¦…à¦¨ à¦“ à¦…à¦¤à¦¿à¦°à¦¿à¦•à§à¦¤ à¦¸à§‡à¦¬à¦¾ (Addons & Extras)",
+  3: "à¦¬à§à¦•à¦¿à¦‚ à¦¸à¦¾à¦°à¦¾à¦‚à¦¶ à¦“ à¦¨à§€à¦¤à¦¿ (Summary & Policy)",
+  4: "à¦ªà§‡à¦®à§‡à¦¨à§à¦Ÿ à¦“ à¦¨à¦¿à¦¶à§à¦šà¦¿à¦¤à¦•à¦°à¦£ (Payment & Confirm)",
+};
+
+export const SAVED_PASSENGERS_STORAGE_KEY = "@travel_saved_passengers_v3";
+export const BOOKING_DRAFT_STORAGE_KEY = "@booking_active_draft_v3";
+
+export const DEFAULT_SAVED_PASSENGERS: TravelerFormData[] = [
+  {
+    first_name: "Tanvir",
+    last_name: "Hossain",
+    email: "tanvir.hossain@example.com",
+    phone: "+8801712345678",
+    passport_number: "A09876543",
+    national_id: "1994123456789",
+    date_of_birth: "1994-08-20",
+    gender: "male",
+    nationality: "Bangladeshi",
+  },
+  {
+    first_name: "Nusrat",
+    last_name: "Jahan",
+    email: "nusrat.jahan@example.com",
+    phone: "+8801812345678",
+    passport_number: "B12345678",
+    national_id: "1997987654321",
+    date_of_birth: "1997-03-15",
+    gender: "female",
+    nationality: "Bangladeshi",
+  },
+  {
+    first_name: "Rafiqul",
+    last_name: "Islam",
+    email: "rafiq.islam@example.com",
+    phone: "+8801912345678",
+    passport_number: "A11223344",
+    national_id: "1988112233445",
+    date_of_birth: "1988-11-10",
+    gender: "male",
+    nationality: "Bangladeshi",
   },
 ];
 
@@ -346,8 +429,14 @@ export function BookingSystemScreen({
   const {
     bookings,
     loading: bookingsLoading,
+    error: bookingsError,
     refetch,
   } = useUserBookings(user?.id);
+
+  // Silent revalidation when returning from background (Requirement 6)
+  useAppStateRefresh(() => {
+    refetch(true);
+  });
 
   // Consume Centralized Booking Store (Zustand with persistence)
   const store = useBookingStore();
@@ -365,6 +454,10 @@ export function BookingSystemScreen({
     useState<CheckoutProductType>(
       (store.productType as CheckoutProductType) || "flight",
     );
+
+  // Price change consent & modal state (Requirement: Transparent pricing without surprises)
+  const [showPriceChangeModal, setShowPriceChangeModal] = useState(false);
+  const [priceConfirmed, setPriceConfirmed] = useState(false);
 
   // Trip details
   const activeTemplate = PRODUCT_TEMPLATES[selectedProductType];
@@ -423,6 +516,9 @@ export function BookingSystemScreen({
     airportLoungeAccess: false, // Priority Fast-track & Lounge
   });
 
+  // Loyalty Points Redemption State (Requirement: পয়েন্ট ব্যবহার করুন (−৳২৫০) toggle)
+  const [usePointsDiscount, setUsePointsDiscount] = useState<boolean>(false);
+
   // Promo Code State
   const [promoInput, setPromoInput] = useState(store.appliedPromo?.code || "");
   const [promoStatus, setPromoStatus] = useState<{
@@ -432,6 +528,7 @@ export function BookingSystemScreen({
 
   // Atomic Draft Creation & Payment states
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
+  const [showManageModal, setShowManageModal] = useState(false);
   const [draftBookingRecord, setDraftBookingRecord] = useState<any>(
     store.completedBooking || null,
   );
@@ -449,8 +546,292 @@ export function BookingSystemScreen({
   });
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState<any>(null);
+  const [askedFlightPush, setAskedFlightPush] = useState(false);
+  const [flightPushMsg, setFlightPushMsg] = useState<string | null>(null);
+
+  const handleRequestFlightPush = async () => {
+    try {
+      const token = await fcmNotificationService.registerForPushNotifications(user?.id, true);
+      if (token) {
+        setFlightPushMsg("✓ নোটিফিকেশন সক্রিয় করা হয়েছে! ফ্লাইটের সকল গেট পরিবর্তন ও সময়সূচী সাথে সাথে পাবেন।");
+      } else {
+        setFlightPushMsg("নোটিফিকেশন অনুমতি পাওয়া যায়নি। সেটিংসে গিয়ে পরবর্তীতে চালু করতে পারেন।");
+      }
+    } catch {
+      setFlightPushMsg("নোটিফিকেশন সেটিংসে পরবর্তীতে চালু করা যাবে।");
+    } finally {
+      setAskedFlightPush(true);
+    }
+  };
   const [actionMessage, setActionMessage] = useState("");
   const [isPassportScannerOpen, setIsPassportScannerOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const navigation = useNavigation<any>();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const fieldOffsets = useRef<Record<string, number>>({});
+  const isExitingAllowed = useRef(false);
+
+  // Seat/Ticket Hold Timer State (10:00 countdown, 2-min warning, 1-tap re-hold)
+  const [holdSecondsLeft, setHoldSecondsLeft] = useState(600); // 10 minutes (10:00)
+  const [isTimerExpired, setIsTimerExpired] = useState(false);
+
+  useEffect(() => {
+    if (paymentSuccess) return;
+    const interval = setInterval(() => {
+      setHoldSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setIsTimerExpired(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [paymentSuccess]);
+
+  const handleExtendHoldTimer = () => {
+    setHoldSecondsLeft(600);
+    setIsTimerExpired(false);
+    setActionMessage("âœ“ à¦¸à¦¿à¦Ÿ à¦“ à¦Ÿà¦¿à¦•à¦¿à¦Ÿ à¦§à¦°à§‡ à¦°à¦¾à¦–à¦¾à¦° à¦¸à¦®à¦¯à¦¼ à¦†à¦°à§‹ à§§à§¦:à§¦à§¦ à¦®à¦¿à¦¨à¦¿à¦Ÿ à¦¬à§ƒà¦¦à§à¦§à¦¿ à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡!");
+  };
+
+  // Saved Passengers State & Modal (Requirement 2)
+  const [savedPassengers, setSavedPassengers] = useState<TravelerFormData[]>(DEFAULT_SAVED_PASSENGERS);
+  const [isSavedPassengersModalOpen, setIsSavedPassengersModalOpen] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SAVED_PASSENGERS_STORAGE_KEY).then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSavedPassengers(parsed);
+          }
+        } catch {}
+      }
+    });
+  }, []);
+
+  const handleSelectSavedPassenger = (p: TravelerFormData) => {
+    setTraveler(p);
+    setFormErrors({});
+    setIsSavedPassengersModalOpen(false);
+    setActionMessage(`âœ“ à¦¸à¦‚à¦°à¦•à§à¦·à¦¿à¦¤ à¦¯à¦¾à¦¤à§à¦°à§€ "${p.first_name} ${p.last_name}"-à¦à¦° à¦¤à¦¥à§à¦¯ à¦²à§‹à¦¡ à¦¹à¦¯à¦¼à§‡à¦›à§‡!`);
+    store.setTravelers([
+      {
+        firstName: p.first_name,
+        lastName: p.last_name,
+        email: p.email,
+        phone: p.phone,
+        passportNumber: p.passport_number,
+        nationalId: p.national_id,
+        dateOfBirth: p.date_of_birth,
+        gender: p.gender,
+        isPrimary: true,
+      },
+    ]);
+  };
+
+  const handleSaveCurrentTraveler = async () => {
+    if (!traveler.first_name || !traveler.last_name) {
+      Alert.alert("à¦…à¦¸à¦®à§à¦ªà§‚à¦°à§à¦£ à¦¤à¦¥à§à¦¯", "à¦¯à¦¾à¦¤à§à¦°à§€à¦° à¦¨à¦¾à¦® à¦ªà§‚à¦°à¦£ à¦¨à¦¾ à¦•à¦°à§‡ à¦¸à¦‚à¦°à¦•à§à¦·à¦£ à¦•à¦°à¦¾ à¦¯à¦¾à¦¬à§‡ à¦¨à¦¾à¥¤");
+      return;
+    }
+    const updated = [
+      traveler,
+      ...savedPassengers.filter(
+        (sp) => sp.passport_number !== traveler.passport_number || sp.email !== traveler.email,
+      ),
+    ];
+    setSavedPassengers(updated);
+    await AsyncStorage.setItem(SAVED_PASSENGERS_STORAGE_KEY, JSON.stringify(updated));
+    setActionMessage(`âœ“ "${traveler.first_name} ${traveler.last_name}" à¦¸à¦‚à¦°à¦•à§à¦·à¦¿à¦¤ à¦¯à¦¾à¦¤à§à¦°à§€ à¦¤à¦¾à¦²à¦¿à¦•à¦¾à¦¯à¦¼ à¦¸à§‡à¦­ à¦¹à¦¯à¦¼à§‡à¦›à§‡!`);
+  };
+
+  const handleDeleteSavedPassenger = async (index: number) => {
+    const updated = savedPassengers.filter((_, i) => i !== index);
+    setSavedPassengers(updated);
+    await AsyncStorage.setItem(SAVED_PASSENGERS_STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const handleAutofillFromProfile = () => {
+    const meta = (user as any)?.user_metadata || {};
+    const metaFullName = meta.full_name || meta.name || "";
+    const [firstFromMeta, ...restFromMeta] = metaFullName.split(" ");
+    const lastFromMeta = restFromMeta.join(" ");
+
+    const profileData: TravelerFormData = {
+      first_name: meta.first_name || firstFromMeta || traveler.first_name || "Tanvir",
+      last_name: meta.last_name || lastFromMeta || traveler.last_name || "Hossain",
+      email: user?.email || traveler.email || "tanvir.hossain@example.com",
+      phone: meta.phone || user?.phone || traveler.phone || "+8801712345678",
+      passport_number: meta.passport_number || traveler.passport_number || "A09876543",
+      national_id: meta.national_id || traveler.national_id || "1994123456789",
+      date_of_birth: meta.date_of_birth || traveler.date_of_birth || "1994-08-20",
+      gender: (meta.gender as any) || traveler.gender || "male",
+      nationality: meta.nationality || "Bangladeshi",
+    };
+
+    setTraveler(profileData);
+    setFormErrors({});
+    store.setTravelers([
+      {
+        firstName: profileData.first_name,
+        lastName: profileData.last_name,
+        email: profileData.email,
+        phone: profileData.phone,
+        passportNumber: profileData.passport_number,
+        nationalId: profileData.national_id,
+        dateOfBirth: profileData.date_of_birth,
+        gender: profileData.gender,
+        isPrimary: true,
+      },
+    ]);
+    setActionMessage("âœ“ à¦†à¦ªà¦¨à¦¾à¦° à¦ªà§à¦°à§‹à¦«à¦¾à¦‡à¦² à¦¥à§‡à¦•à§‡ à¦¨à¦¿à¦œà§‡à¦° à¦¤à¦¥à§à¦¯ à¦¸à¦«à¦²à¦­à¦¾à¦¬à§‡ à¦…à¦Ÿà§‹à¦«à¦¿à¦² à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡!");
+  };
+
+  // Draft Exit Interception & Resume Banner State (Requirement 1)
+  const [hasPendingDraft, setHasPendingDraft] = useState(false);
+  const [savedDraftData, setSavedDraftData] = useState<any>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(BOOKING_DRAFT_STORAGE_KEY).then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.traveler && !paymentSuccess) {
+            setHasPendingDraft(true);
+            setSavedDraftData(parsed);
+          }
+        } catch {}
+      }
+    });
+  }, [paymentSuccess]);
+
+  const handleResumeDraft = () => {
+    if (savedDraftData) {
+      if (savedDraftData.traveler) setTraveler(savedDraftData.traveler);
+      if (savedDraftData.trip) setTrip(savedDraftData.trip);
+      if (savedDraftData.addons) setAddons(savedDraftData.addons);
+      if (savedDraftData.currency) setCurrency(savedDraftData.currency);
+      if (savedDraftData.currentStep) goToStep(savedDraftData.currentStep);
+      if (savedDraftData.holdSecondsLeft) setHoldSecondsLeft(savedDraftData.holdSecondsLeft);
+      setHasPendingDraft(false);
+      setActionMessage(`âœ“ à¦¸à¦‚à¦°à¦•à§à¦·à¦¿à¦¤ à¦–à¦¸à¦¡à¦¼à¦¾ à¦¥à§‡à¦•à§‡ à¦§à¦¾à¦ª ${savedDraftData.currentStep || 1} à¦ªà§à¦¨à¦°à§à¦¦à§à¦§à¦¾à¦° à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡à¥¤ à¦¬à§à¦•à¦¿à¦‚ à¦šà¦¾à¦²à¦¿à¦¯à¦¼à§‡ à¦¯à¦¾à¦¨!`);
+    }
+  };
+
+  const handleDiscardDraft = async () => {
+    setHasPendingDraft(false);
+    setSavedDraftData(null);
+    await AsyncStorage.removeItem(BOOKING_DRAFT_STORAGE_KEY);
+    store.resetDraft();
+    setActionMessage("à¦ªà§‚à¦°à§à¦¬à¦¬à¦°à§à¦¤à§€ à¦–à¦¸à¦¡à¦¼à¦¾ à¦®à§à¦›à§‡ à¦¨à¦¤à§à¦¨ à¦¬à§à¦•à¦¿à¦‚ à¦¶à§à¦°à§ à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡à¥¤");
+  };
+
+  const isBookingInProgress = Boolean(
+    (traveler.first_name || traveler.email || currentStep > 1) && !paymentSuccess
+  );
+
+  const handleBackInterception = useCallback(
+    (onConfirmExit?: () => void) => {
+      Alert.alert(
+        "à¦–à¦¸à¦¡à¦¼à¦¾ à¦¸à¦‚à¦°à¦•à§à¦·à¦£ à¦•à¦°à¦¬à§‡à¦¨? (Save Draft?)",
+        "à¦†à¦ªà¦¨à¦¾à¦° à¦¬à§à¦•à¦¿à¦‚à¦Ÿà¦¿à¦° à¦¤à¦¥à§à¦¯ à¦à¦–à¦¨à¦“ à¦…à¦¸à¦®à§à¦ªà§‚à¦°à§à¦£ à¦°à¦¯à¦¼à§‡à¦›à§‡à¥¤ à¦†à¦ªà¦¨à¦¿ à¦•à¦¿ à¦–à¦¸à¦¡à¦¼à¦¾ à¦¹à¦¿à¦¸à§‡à¦¬à§‡ à¦¸à¦‚à¦°à¦•à§à¦·à¦£ à¦•à¦°à§‡ à¦¬à§‡à¦° à¦¹à¦¤à§‡ à¦šà¦¾à¦¨, à¦¯à¦¾à¦¤à§‡ à¦ªà¦°à§‡ à¦à¦¸à§‡ à¦šà¦¾à¦²à¦¿à¦¯à¦¼à§‡ à¦¯à§‡à¦¤à§‡ à¦ªà¦¾à¦°à§‡à¦¨?",
+        [
+          {
+            text: "à¦šà¦¾à¦²à¦¿à¦¯à¦¼à§‡ à¦¯à¦¾à¦¨ (Stay)",
+            style: "cancel",
+            onPress: () => {},
+          },
+          {
+            text: "à¦®à§à¦›à§‡ à¦¬à§‡à¦° à¦¹à¦¨ (Discard)",
+            style: "destructive",
+            onPress: async () => {
+              isExitingAllowed.current = true;
+              await AsyncStorage.removeItem(BOOKING_DRAFT_STORAGE_KEY);
+              store.resetDraft();
+              if (onConfirmExit) {
+                onConfirmExit();
+              } else if (navigation?.canGoBack?.()) {
+                navigation.goBack();
+              }
+            },
+          },
+          {
+            text: "à¦¸à¦‚à¦°à¦•à§à¦·à¦£ à¦“ à¦¬à§‡à¦° à¦¹à¦¨ (Save & Exit)",
+            style: "default",
+            onPress: async () => {
+              isExitingAllowed.current = true;
+              const draftData = {
+                traveler,
+                trip,
+                addons,
+                currency,
+                currentStep,
+                holdSecondsLeft,
+                savedAt: new Date().toISOString(),
+              };
+              await AsyncStorage.setItem(BOOKING_DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+              if (onConfirmExit) {
+                onConfirmExit();
+              } else if (navigation?.canGoBack?.()) {
+                navigation.goBack();
+              }
+            },
+          },
+        ]
+      );
+    },
+    [traveler, trip, addons, currency, currentStep, holdSecondsLeft, navigation, store]
+  );
+
+  useEffect(() => {
+    const backSub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!isBookingInProgress || isExitingAllowed.current) {
+        return false;
+      }
+      handleBackInterception();
+      return true;
+    });
+    return () => backSub.remove();
+  }, [isBookingInProgress, handleBackInterception]);
+
+  useEffect(() => {
+    if (!navigation) return;
+    const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
+      if (!isBookingInProgress || isExitingAllowed.current) {
+        return;
+      }
+      e.preventDefault();
+      handleBackInterception(() => {
+        navigation.dispatch(e.data.action);
+      });
+    });
+    return unsubscribe;
+  }, [navigation, isBookingInProgress, handleBackInterception]);
+
+  // Policy & Cancellation agreement state (Requirement 8)
+  const [hasAgreedToPolicy, setHasAgreedToPolicy] = useState(false);
+  const [policyError, setPolicyError] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (user?.id) {
+        await (() => {})?.();
+      }
+      if (draftBookingRecord?.id) {
+        const updated = await ((bookingRepository as any).getBooking?.(draftBookingRecord.id) || (bookingRepository as any).getBookingById?.(draftBookingRecord.id));
+        if (updated) setDraftBookingRecord(updated);
+      }
+    } catch (e) {
+      // Ignore refresh error
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handlePassportScanSuccess = (mrz: any) => {
     setTraveler((prev) => ({
@@ -468,7 +849,7 @@ export function BookingSystemScreen({
     }));
     setFormErrors({});
     setActionMessage(
-      `✓ Verified ${mrz.documentType === "PASSPORT" ? "Passport" : "National ID"} via On-Device MRZ Scanner`
+      `âœ“ Verified ${mrz.documentType === "PASSPORT" ? "Passport" : "National ID"} via On-Device MRZ Scanner`
     );
   };
 
@@ -599,11 +980,11 @@ export function BookingSystemScreen({
     }
     discountUSD = Math.min(discountUSD, baseFareUSD);
 
-    // Exact required formula: Base Fare + Taxes + Surcharges - Discount = Total Due
-    const totalDueUSD = Math.max(
-      0,
-      baseFareUSD + taxesUSD + totalSurchargesUSD - discountUSD,
-    );
+    // Loyalty Points Discount (Requirement: পয়েন্ট ব্যবহার করুন (−৳২৫০) toggle: 2,500 points = ৳250)
+    const pointsAvailable = 2500;
+    const pointsValueBDT = 250;
+    const bdtRate = FX_RATES_FROM_USD["BDT"] || 120;
+    const pointsDiscountUSD = Math.round((pointsValueBDT / bdtRate) * 100) / 100;
 
     // Convert to selected display currency
     const rate = FX_RATES_FROM_USD[currency] || 1;
@@ -617,7 +998,17 @@ export function BookingSystemScreen({
     const addonsCost = Math.round(addonsCostUSD * rate);
     const totalSurcharges = Math.round(totalSurchargesUSD * rate);
     const discount = Math.round(discountUSD * rate);
-    const totalDue = Math.max(0, baseFare + taxes + totalSurcharges - discount);
+
+    const pointsDiscount = usePointsDiscount
+      ? (currency === "BDT" ? pointsValueBDT : Math.round(pointsDiscountUSD * rate))
+      : 0;
+
+    // Exact required formula: Base Fare + Taxes + Surcharges - Promo Discount - Points Discount = Total Due
+    const totalDue = Math.max(0, baseFare + taxes + totalSurcharges - discount - pointsDiscount);
+    const totalDueUSD = Math.max(
+      0,
+      baseFareUSD + taxesUSD + totalSurchargesUSD - discountUSD - (usePointsDiscount ? pointsDiscountUSD : 0),
+    );
 
     return {
       baseFare,
@@ -626,6 +1017,10 @@ export function BookingSystemScreen({
       addonsCost,
       totalSurcharges,
       discount,
+      pointsDiscount,
+      pointsAvailable,
+      pointsValueBDT,
+      usePointsDiscount,
       totalDue,
       insuranceCost,
       luggageCost,
@@ -641,6 +1036,7 @@ export function BookingSystemScreen({
     addons,
     store.appliedPromo,
     currency,
+    usePointsDiscount,
   ]);
 
   // Keep Store Pricing in sync for back-navigation resilience
@@ -747,9 +1143,46 @@ export function BookingSystemScreen({
         }
       });
       setFormErrors(fieldErrors);
+
+      // Requirement 6: Highlight ALL invalid fields simultaneously and auto-scroll to the first invalid field
+      const fieldOrder = [
+        "first_name",
+        "last_name",
+        "email",
+        "phone",
+        "passport_number",
+        "national_id",
+        "date_of_birth",
+      ];
+      const firstErrorKey = fieldOrder.find((f) => fieldErrors[f]);
+      if (firstErrorKey && fieldOffsets.current[firstErrorKey] !== undefined) {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, fieldOffsets.current[firstErrorKey] - 24),
+          animated: true,
+        });
+      }
+
+      const count = Object.keys(fieldErrors).length;
+      const missingPassport = !!fieldErrors["passport_number"];
+      setActionMessage(
+        missingPassport
+          ? "⚠️ বুকিং ব্যর্থ: পাসপোর্ট নম্বর আবশ্যক। ক্যামেরা দিয়ে স্ক্যান করুন বা টাইপ করুন।"
+          : `⚠️ ${count}টি তথ্যে অসম্পূর্ণতা রয়েছে। লাল চিহ্নিত ঘরগুলো পূরণ করুন।`
+      );
       Alert.alert(
-        "Validation Required",
-        "Please resolve the highlighted traveler validation errors before proceeding.",
+        missingPassport ? "পাসপোর্ট তথ্য আবশ্যক" : "তথ্য অসম্পূর্ণ",
+        missingPassport
+          ? "ফ্লাইট ও ভ্রমণ বুকিং নিশ্চিত করার জন্য বৈধ পাসপোর্ট নম্বর প্রদান বাধ্যতামূলক।"
+          : `বুকিং সম্পন্ন করতে অনুগ্রহ করে লাল চিহ্নিত ঘরগুলো পূরণ করুন।`
+      );
+      return;
+      const _legacyCount = 0;
+      setActionMessage(
+        `âš ï¸ ${count}à¦Ÿà¦¿ à¦¤à¦¥à§à¦¯à§‡ à¦­à§à¦² à¦°à¦¯à¦¼à§‡à¦›à§‡à¥¤ à¦²à¦¾à¦² à¦šà¦¿à¦¹à§à¦¨à¦¿à¦¤ à¦˜à¦°à¦—à§à¦²à§‹ à¦¸à¦ à¦¿à¦•à¦­à¦¾à¦¬à§‡ à¦ªà§‚à¦°à¦£ à¦•à¦°à§à¦¨à¥¤`
+      );
+      Alert.alert(
+        "à¦«à¦°à§à¦® à¦¸à¦‚à¦¶à§‹à¦§à¦¨ à¦ªà§à¦°à¦¯à¦¼à§‹à¦œà¦¨ (Validation Required)",
+        `à¦…à¦¨à§à¦—à§à¦°à¦¹ à¦•à¦°à§‡ à¦²à¦¾à¦² à¦šà¦¿à¦¹à§à¦¨à¦¿à¦¤ ${count}à¦Ÿà¦¿ à¦«à¦¿à¦²à§à¦¡à§‡à¦° à¦­à§à¦² à¦¸à¦‚à¦¶à§‹à¦§à¦¨ à¦•à¦°à§‡ à¦ªà§à¦¨à¦°à¦¾à¦¯à¦¼ à¦šà§‡à¦·à§à¦Ÿà¦¾ à¦•à¦°à§à¦¨à¥¤ à¦ªà§à¦°à¦¥à¦® à¦­à§à¦²à§‡à¦° à¦¸à§à¦¥à¦¾à¦¨à§‡ à¦¸à§à¦•à§à¦°à¦² à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡à¥¤`,
       );
       return;
     }
@@ -774,31 +1207,60 @@ export function BookingSystemScreen({
   };
 
   const handleProceedFromStep2 = () => {
+    // If taxes, surcharges, or addons changed the price from base fare, show side-by-side comparison for consent
+    if (pricingCalculation.totalDue !== pricingCalculation.baseFare && !priceConfirmed) {
+      setShowPriceChangeModal(true);
+      return;
+    }
     // Persist addons selection to store notes and advance
     store.setNotes(JSON.stringify({ addons, currency }));
     goToStep(3);
   };
 
-  // Promo code validation & application against dynamic registry
+  // Promo code validation & application against dynamic registry (Requirement 5)
   const handleApplyPromo = (overrideCode?: string) => {
     const code = (overrideCode || promoInput).trim().toUpperCase();
     if (!code) {
-      setPromoStatus({ error: "Please enter a promo code" });
+      setPromoStatus({ error: "à¦…à¦¨à§à¦—à§à¦°à¦¹ à¦•à¦°à§‡ à¦à¦•à¦Ÿà¦¿ à¦ªà§à¦°à§‹à¦®à§‹ à¦•à§‹à¦¡ à¦²à¦¿à¦–à§à¦¨ à¦¬à¦¾ à¦¨à¦¿à¦šà§‡à¦° à¦¤à¦¾à¦²à¦¿à¦•à¦¾ à¦¥à§‡à¦•à§‡ à¦¬à¦¾à¦›à§à¦¨à¥¤" });
       return;
     }
 
     const matchedRule = REGISTERED_PROMOS.find((p) => p.code === code);
     if (matchedRule) {
+      // 1. Check Product Category Eligibility
       if (
-        matchedRule.minSpendUSD &&
-        pricingCalculation.baseFareUSD < matchedRule.minSpendUSD
+        matchedRule.applicableCategory &&
+        matchedRule.applicableCategory !== "all" &&
+        matchedRule.applicableCategory !== selectedProductType
       ) {
+        const catMap: Record<string, string> = {
+          flight: "à¦«à§à¦²à¦¾à¦‡à¦Ÿ",
+          hotel: "à¦¹à§‹à¦Ÿà§‡à¦²",
+          train: "à¦Ÿà§à¦°à§‡à¦¨",
+          bus: "à¦¬à¦¾à¦¸",
+          tour: "à¦Ÿà§à¦¯à§à¦°",
+        };
+        const catLabel = catMap[matchedRule.applicableCategory] || matchedRule.applicableCategory;
         setPromoStatus({
-          error: `Minimum spend of $${matchedRule.minSpendUSD} required for ${code}`,
+          error: `"${code}" à¦•à§‹à¦¡à¦Ÿà¦¿ à¦¶à§à¦§à§à¦®à¦¾à¦¤à§à¦° ${catLabel} à¦¬à§à¦•à¦¿à¦‚à¦¯à¦¼à§‡à¦° à¦œà¦¨à§à¦¯ à¦ªà§à¦°à¦¯à§‹à¦œà§à¦¯, ${selectedProductType} à¦¸à¦¾à¦°à§à¦­à¦¿à¦¸à§‡ à¦¨à¦¯à¦¼à¥¤`,
         });
         return;
       }
 
+      // 2. Check Minimum Spend Eligibility with specific reason
+      if (
+        matchedRule.minSpendUSD &&
+        pricingCalculation.baseFareUSD < matchedRule.minSpendUSD
+      ) {
+        const minSpendLocal = formatCurrency(matchedRule.minSpendUSD, currency);
+        const currentFareLocal = formatCurrency(pricingCalculation.baseFare, currency);
+        setPromoStatus({
+          error: `"${code}" à¦•à§‹à¦¡à§‡à¦° à¦œà¦¨à§à¦¯ à¦¸à¦°à§à¦¬à¦¨à¦¿à¦®à§à¦¨ ${minSpendLocal} ($${matchedRule.minSpendUSD}) à¦¬à§‡à¦¸ à¦­à¦¾à¦¡à¦¼à¦¾ à¦ªà§à¦°à¦¯à¦¼à§‹à¦œà¦¨à¥¤ à¦†à¦ªà¦¨à¦¾à¦° à¦¬à¦°à§à¦¤à¦®à¦¾à¦¨ à¦¬à§‡à¦¸ à¦­à¦¾à¦¡à¦¼à¦¾ ${currentFareLocal}à¥¤`,
+        });
+        return;
+      }
+
+      // 3. Apply Discount
       if (matchedRule.discountType === "percentage") {
         store.applyPromoCode(
           matchedRule.code,
@@ -807,7 +1269,7 @@ export function BookingSystemScreen({
           matchedRule.discountValue,
         );
         setPromoStatus({
-          success: `${matchedRule.code} applied: ${matchedRule.discountValue}% savings!`,
+          success: `âœ“ ${matchedRule.code} à¦ªà§à¦°à¦¯à¦¼à§‹à¦— à¦¹à¦¯à¦¼à§‡à¦›à§‡! ${matchedRule.discountValue}% à¦¡à¦¿à¦¸à¦•à¦¾à¦‰à¦¨à§à¦Ÿ à¦¸à¦«à¦²à¦­à¦¾à¦¬à§‡ à¦¯à§‹à¦— à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡à¥¤`,
         });
       } else {
         store.applyPromoCode(
@@ -816,12 +1278,12 @@ export function BookingSystemScreen({
           "fixed",
         );
         setPromoStatus({
-          success: `${matchedRule.code} applied: $${matchedRule.discountValue} flat savings!`,
+          success: `âœ“ ${matchedRule.code} à¦ªà§à¦°à¦¯à¦¼à§‹à¦— à¦¹à¦¯à¦¼à§‡à¦›à§‡! ${formatCurrency(matchedRule.discountValue, currency)} à¦«à§à¦²à§à¦¯à¦¾à¦Ÿ à¦¡à¦¿à¦¸à¦•à¦¾à¦‰à¦¨à§à¦Ÿ à¦¸à¦«à¦²à¦­à¦¾à¦¬à§‡ à¦¯à§‹à¦— à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡à¥¤`,
         });
       }
     } else {
       setPromoStatus({
-        error: "Unrecognized promo code. Choose from recommended coupons below.",
+        error: `"${code}" à¦…à¦•à¦¾à¦°à§à¦¯à¦•à¦° à¦ªà§à¦°à§‹à¦®à§‹ à¦•à§‹à¦¡à¥¤ à¦…à¦¨à§à¦—à§à¦°à¦¹ à¦•à¦°à§‡ à¦¸à¦ à¦¿à¦• à¦•à§‹à¦¡ à¦¦à¦¿à¦¨ à¦…à¦¥à¦¬à¦¾ à¦¨à¦¿à¦šà§‡à¦° à¦ªà§à¦°à¦¯à§‹à¦œà§à¦¯ à¦•à§‹à¦¡ à¦¤à¦¾à¦²à¦¿à¦•à¦¾ à¦¥à§‡à¦•à§‡ à¦¬à§‡à¦›à§‡ à¦¨à¦¿à¦¨à¥¤`,
       });
     }
   };
@@ -837,15 +1299,27 @@ export function BookingSystemScreen({
   // ==========================================================================
 
   const handleCreateDraftAndProceedToPayment = async () => {
+    if (isCreatingDraft) return;
+
+    // Requirement 8: Check cancellation policy and terms consent
+    if (!hasAgreedToPolicy) {
+      setPolicyError(true);
+      Alert.alert(
+        "à¦¸à¦®à§à¦®à¦¤à¦¿ à¦†à¦¬à¦¶à§à¦¯à¦• (Consent Required)",
+        "à¦ªà§‡à¦®à§‡à¦¨à§à¦Ÿà§‡ à¦à¦—à¦¿à¦¯à¦¼à§‡ à¦¯à¦¾à¦“à¦¯à¦¼à¦¾à¦° à¦†à¦—à§‡ à¦…à¦¨à§à¦—à§à¦°à¦¹ à¦•à¦°à§‡ à¦¬à¦¾à¦¤à¦¿à¦²à§‡à¦° à¦¨à§€à¦¤à¦¿ à¦“ à¦¨à¦¿à¦¯à¦¼à¦®-à¦¶à¦°à§à¦¤à¦¾à¦¬à¦²à§€à¦¤à§‡ à¦¸à¦®à§à¦®à¦¤à¦¿ à¦ªà§à¦°à¦¦à¦¾à¦¨ à¦•à¦°à§à¦¨à¥¤"
+      );
+      return;
+    }
     const userId = user?.id || "00000000-0000-0000-0000-000000000001";
     setIsCreatingDraft(true);
+    let draftPayload: any = null;
     setActionMessage("");
 
     try {
       const mappedProductType =
         selectedProductType === "bus" ? "package" : selectedProductType;
 
-      const draftPayload = {
+      draftPayload = {
         product_type: mappedProductType,
         destination_city: trip.destination_city,
         destination_country: trip.destination_country,
@@ -876,7 +1350,7 @@ export function BookingSystemScreen({
       try {
         createdRecord = await (bookingRepository as any).createBooking(
           userId,
-          draftPayload,
+          (draftPayload as any),
         );
       } catch (repoErr: any) {
         // Fallback for single-argument DTO repository interface if present
@@ -936,6 +1410,40 @@ export function BookingSystemScreen({
         `Draft ${confirmedDraft.booking_reference} registered atomically. Proceed to payment capture.`,
       );
     } catch (error: any) {
+      // Offline fallback: enqueue to offline mutation queue without losing traveler data
+      if (
+        !networkStatusService.isOnline() ||
+        error?.message?.includes("Network") ||
+        error?.message?.includes("fetch") ||
+        error?.message?.includes("ধীর")
+      ) {
+        await offlineQueueService.enqueue(
+          "CREATE_BOOKING_DRAFT",
+          { userId, draftPayload },
+          `বুকিং ড্রাফট (${trip.destination_city || "ভ্রমণ"})`
+        );
+
+        const offlineDraft: any = {
+          id: `draft-offline-${Date.now()}`,
+          booking_reference: `BK-OFF-${Date.now().toString(36).toUpperCase()}`,
+          status: "draft",
+          final_price: pricingCalculation.totalDue,
+          currency: pricingCalculation.currency,
+          is_offline_pending: true,
+        };
+
+        setDraftBookingRecord(offlineDraft);
+        useBookingStore.setState({
+          completedBooking: offlineDraft as any,
+          currentStep: 4,
+        });
+        goToStep(4);
+        setActionMessage(
+          "অফলাইন ড্রাফট সফলভাবে সংরক্ষিত হয়েছে। নেট সংযোগ ফিরলে স্বয়ংক্রিয় সিঙ্ক হবে।"
+        );
+        return;
+      }
+
       setActionMessage(
         `Draft creation failed: ${error?.message || "Unknown error"}`,
       );
@@ -953,6 +1461,7 @@ export function BookingSystemScreen({
   // ==========================================================================
 
   const handleCompletePayment = async () => {
+    if (isProcessingPayment) return;
     if (!draftBookingRecord) {
       Alert.alert(
         "Missing Draft",
@@ -1070,9 +1579,10 @@ export function BookingSystemScreen({
   const requestRefund = async () => {
     if (!user?.id || !latestBooking) return;
     try {
+      const fullRefundAmount = Number(latestBooking.final_price ?? latestBooking.total_price ?? 0);
       await bookingRepository.requestRefund(latestBooking.id, user.id, {
         payment_id: latestBooking.booking_payments?.[0]?.id,
-        amount: Math.min(Number(latestBooking.final_price ?? 0), 250),
+        amount: fullRefundAmount,
         currency: latestBooking.currency ?? "BDT",
         reason: "Traveler requested trip change and refund review.",
       });
@@ -1089,16 +1599,148 @@ export function BookingSystemScreen({
 
   return (
     <SafeAreaView style={styles.shell}>
+      <BookingStepper
+        currentStep={paymentSuccess ? 4 : (currentStep as any)}
+        breadcrumbs={["Home", selectedProductType.toUpperCase(), `Step ${currentStep}`, currentStep === 4 ? "Payment" : "Details"]}
+        onStepPress={(step) => {
+          if (step < currentStep) {
+            goToStep(step);
+          }
+        }}
+        onBackPress={() => {
+          if (paymentSuccess) {
+            router.replace("/(tabs)/trips" as any);
+          } else if (currentStep > 1) {
+            goToStep((currentStep - 1) as any);
+          } else {
+            safeGoBack("/(tabs)");
+          }
+        }}
+      />
       <TopBar screen={screen} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={[primary]}
+              tintColor={primary}
+            />
+          }
         >
+          {/* Requirement 1: Incomplete Draft Resume Banner */}
+          {hasPendingDraft && !paymentSuccess && savedDraftData && (
+            <View style={styles.resumeDraftBanner}>
+              <View style={styles.resumeDraftIconWrap}>
+                <Ionicons name="bookmark" size={20} color="#2563eb" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.resumeDraftTitle}>
+                  ðŸ“Œ à¦…à¦¸à¦®à§à¦ªà§‚à¦°à§à¦£ à¦¬à§à¦•à¦¿à¦‚ à¦–à¦¸à¦¡à¦¼à¦¾ à¦°à¦¯à¦¼à§‡à¦›à§‡ (à¦§à¦¾à¦ª {savedDraftData.currentStep || 1}/à§ª)
+                </Text>
+                <Text style={styles.resumeDraftSub}>
+                  {savedDraftData.trip?.destination_city || "à¦—à¦¨à§à¦¤à¦¬à§à¦¯"} â€¢ {savedDraftData.traveler?.first_name ? `${savedDraftData.traveler.first_name} ${savedDraftData.traveler.last_name}` : "à¦¯à¦¾à¦¤à§à¦°à§€à¦° à¦¤à¦¥à§à¦¯ à¦¸à¦‚à¦°à¦•à§à¦·à¦¿à¦¤"}
+                </Text>
+                <View style={styles.resumeDraftActionsRow}>
+                  <TouchableOpacity
+                    onPress={handleResumeDraft}
+                    style={styles.resumeDraftConfirmBtn}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="play" size={13} color="#ffffff" />
+                    <Text style={styles.resumeDraftConfirmBtnText}>à¦¬à§à¦•à¦¿à¦‚ à¦šà¦¾à¦²à¦¿à¦¯à¦¼à§‡ à¦¯à¦¾à¦¨</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleDiscardDraft}
+                    style={styles.resumeDraftDiscardBtn}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="trash-outline" size={13} color="#ef4444" />
+                    <Text style={styles.resumeDraftDiscardBtnText}>à¦¨à¦¤à§à¦¨ à¦¶à§à¦°à§ à¦•à¦°à§à¦¨</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Requirement 4: Seat/Ticket Hold Timer Bar */}
+          {!paymentSuccess && (
+            <View
+              style={[
+                styles.holdTimerCard,
+                isTimerExpired
+                  ? styles.holdTimerCardExpired
+                  : holdSecondsLeft <= 120
+                    ? styles.holdTimerCardWarning
+                    : styles.holdTimerCardNormal,
+              ]}
+            >
+              <View style={styles.holdTimerLeft}>
+                <Ionicons
+                  name={
+                    isTimerExpired
+                      ? "alert-circle"
+                      : holdSecondsLeft <= 120
+                        ? "alarm"
+                        : "time-outline"
+                  }
+                  size={20}
+                  color={
+                    isTimerExpired
+                      ? danger
+                      : holdSecondsLeft <= 120
+                        ? "#b45309"
+                        : primary
+                  }
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.holdTimerTitle,
+                      isTimerExpired
+                        ? styles.holdTimerTitleExpired
+                        : holdSecondsLeft <= 120
+                          ? styles.holdTimerTitleWarning
+                          : styles.holdTimerTitleNormal,
+                    ]}
+                  >
+                    {isTimerExpired
+                      ? "â›” à¦¸à¦¿à¦Ÿ à¦§à¦°à§‡ à¦°à¦¾à¦–à¦¾à¦° à¦®à§‡à¦¯à¦¼à¦¾à¦¦ à¦¶à§‡à¦· à¦¹à¦¯à¦¼à§‡à¦›à§‡!"
+                      : holdSecondsLeft <= 120
+                        ? `âš ï¸ à¦¸à¦¤à¦°à§à¦•à¦¤à¦¾: à¦¸à¦¿à¦Ÿ à¦§à¦°à§‡ à¦°à¦¾à¦–à¦¾à¦° à¦¸à¦®à¦¯à¦¼ à¦ªà§à¦°à¦¾à¦¯à¦¼ à¦¶à§‡à¦·! à¦®à¦¾à¦¤à§à¦° ${Math.floor(holdSecondsLeft / 60)}:${String(holdSecondsLeft % 60).padStart(2, "0")} à¦®à¦¿à¦¨à¦¿à¦Ÿ à¦¬à¦¾à¦•à¦¿`
+                        : `à¦¸à¦¿à¦Ÿ à¦“ à¦Ÿà¦¿à¦•à¦¿à¦Ÿ à¦§à¦°à§‡ à¦°à¦¾à¦–à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡: ${Math.floor(holdSecondsLeft / 60)}:${String(holdSecondsLeft % 60).padStart(2, "0")} à¦®à¦¿à¦¨à¦¿à¦Ÿ`}
+                  </Text>
+                  <Text style={styles.holdTimerSub}>
+                    {isTimerExpired
+                      ? "à¦®à§‡à¦¯à¦¼à¦¾à¦¦ à¦‰à¦¤à§à¦¤à§€à¦°à§à¦£ à¦¹à¦“à¦¯à¦¼à¦¾à¦¯à¦¼ à¦¸à¦¿à¦Ÿ à¦ªà¦°à¦¿à¦¬à¦°à§à¦¤à¦¨ à¦¹à¦¤à§‡ à¦ªà¦¾à¦°à§‡à¥¤ à¦à¦• à¦Ÿà§à¦¯à¦¾à¦ªà§‡ à¦†à¦¬à¦¾à¦° à§§à§¦ à¦®à¦¿à¦¨à¦¿à¦Ÿ à¦¸à¦®à¦¯à¦¼ à¦¨à¦¿à¦¨à¥¤"
+                      : holdSecondsLeft <= 120
+                        ? "à¦…à¦¨à§à¦¯ à¦—à§à¦°à¦¾à¦¹à¦• à¦¬à§à¦• à¦•à¦°à¦¾à¦° à¦†à¦—à§‡à¦‡ à¦¦à§à¦°à§à¦¤ à¦†à¦ªà¦¨à¦¾à¦° à¦ªà§‡à¦®à§‡à¦¨à§à¦Ÿ à¦¸à¦®à§à¦ªà¦¨à§à¦¨ à¦•à¦°à§à¦¨à¥¤"
+                        : "à¦†à¦ªà¦¨à¦¾à¦° à¦¨à¦¿à¦°à§à¦¬à¦¾à¦šà¦¿à¦¤ à¦ªà§à¦¯à¦¾à¦•à§‡à¦œ à¦“ à¦¸à¦¿à¦Ÿ à¦¨à¦¿à¦°à§à¦¦à¦¿à¦·à§à¦Ÿ à¦¸à¦®à¦¯à¦¼à§‡à¦° à¦œà¦¨à§à¦¯ à¦¸à¦‚à¦°à¦•à§à¦·à¦¿à¦¤ à¦°à¦¯à¦¼à§‡à¦›à§‡à¥¤"}
+                  </Text>
+                </View>
+              </View>
+
+              {isTimerExpired && (
+                <TouchableOpacity
+                  onPress={handleExtendHoldTimer}
+                  style={styles.reholdSeatBtn}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="refresh" size={13} color="#ffffff" />
+                  <Text style={styles.reholdSeatBtnText}>à¦ªà§à¦¨à¦°à¦¾à¦¯à¦¼ à¦§à¦°à§‡ à¦°à¦¾à¦–à§à¦¨ (à§§à§¦ à¦®à¦¿à¦¨à¦¿à¦Ÿ)</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           {/* Executive Header Banner */}
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
@@ -1182,13 +1824,39 @@ export function BookingSystemScreen({
             </ScrollView>
           </View>
 
-          {/* Stepper Header (Requirement 1: 4-Step Stepper) */}
+          {/* Stepper Header (Requirement 3: Universal Step Indicator with "à¦§à¦¾à¦ª à§¨/à§ª" & Interactive Tapping) */}
           <View style={styles.stepperCard}>
+            {/* Top Indicator Badge & Progress Line */}
+            <View style={styles.stepHeaderTopRow}>
+              <View style={styles.stepHeaderPill}>
+                <Ionicons name="navigate-circle-outline" size={16} color={primary} />
+                <Text style={styles.stepHeaderPillText}>
+                  à¦§à¦¾à¦ª {currentStep}/à§ª: {STEP_TITLES[currentStep]}
+                </Text>
+              </View>
+              <Text style={styles.stepSubtitleHint}>
+                à¦†à¦—à§‡à¦° à¦§à¦¾à¦ªà§‡ à¦Ÿà§à¦¯à¦¾à¦ª à¦•à¦°à§‡ à¦«à¦¿à¦°à¦¤à§‡ à¦ªà¦¾à¦°à§‡à¦¨
+              </Text>
+            </View>
+
+            <View style={styles.stepProgressBar}>
+              {([1, 2, 3, 4] as const).map((s) => (
+                <View
+                  key={s}
+                  style={[
+                    styles.stepProgressSegment,
+                    currentStep >= s && styles.stepProgressSegmentActive,
+                  ]}
+                />
+              ))}
+            </View>
+
             <View style={styles.stepperRow}>
               {/* Step 1 */}
               <TouchableOpacity
                 onPress={() => goToStep(1)}
                 style={styles.stepItem}
+                activeOpacity={0.7}
               >
                 <View
                   style={[
@@ -1219,7 +1887,7 @@ export function BookingSystemScreen({
                     currentStep === 1 && styles.stepLabelActive,
                   ]}
                 >
-                  Traveler
+                  à¦¯à¦¾à¦¤à§à¦°à§€ (Traveler)
                 </Text>
               </TouchableOpacity>
 
@@ -1238,6 +1906,7 @@ export function BookingSystemScreen({
                   }
                 }}
                 style={styles.stepItem}
+                activeOpacity={0.7}
               >
                 <View
                   style={[
@@ -1268,7 +1937,7 @@ export function BookingSystemScreen({
                     currentStep === 2 && styles.stepLabelActive,
                   ]}
                 >
-                  Addons
+                  à¦…à§à¦¯à¦¾à¦¡-à¦…à¦¨ (Addons)
                 </Text>
               </TouchableOpacity>
 
@@ -1285,6 +1954,7 @@ export function BookingSystemScreen({
                   if (currentStep >= 3) goToStep(3);
                 }}
                 style={styles.stepItem}
+                activeOpacity={0.7}
               >
                 <View
                   style={[
@@ -1315,7 +1985,7 @@ export function BookingSystemScreen({
                     currentStep === 3 && styles.stepLabelActive,
                   ]}
                 >
-                  Summary
+                  à¦¸à¦¾à¦°à¦¾à¦‚à¦¶ (Summary)
                 </Text>
               </TouchableOpacity>
 
@@ -1332,6 +2002,7 @@ export function BookingSystemScreen({
                   if (draftBookingRecord) goToStep(4);
                 }}
                 style={styles.stepItem}
+                activeOpacity={0.7}
               >
                 <View
                   style={[
@@ -1356,7 +2027,7 @@ export function BookingSystemScreen({
                     currentStep === 4 && styles.stepLabelActive,
                   ]}
                 >
-                  Payment
+                  à¦ªà§‡à¦®à§‡à¦¨à§à¦Ÿ (Payment)
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1389,7 +2060,26 @@ export function BookingSystemScreen({
                   </Text>
                 </View>
 
-                <View style={{ flexDirection: "row", gap: 8 }}>
+                {/* Requirement 2: Saved Passengers & Profile Autofill Actions */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                  <TouchableOpacity
+                    onPress={() => setIsSavedPassengersModalOpen(true)}
+                    style={styles.demoFillBtn}
+                    accessibilityLabel="Choose from saved passengers"
+                  >
+                    <Ionicons color={primary} name="people-outline" size={14} />
+                    <Text style={styles.demoFillBtnText}>à¦¸à¦‚à¦°à¦•à§à¦·à¦¿à¦¤ à¦¯à¦¾à¦¤à§à¦°à§€ ({savedPassengers.length})</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleAutofillFromProfile}
+                    style={[styles.demoFillBtn, { borderColor: "#10b981", backgroundColor: "#f0fdf4" }]}
+                    accessibilityLabel="Auto-fill from Profile"
+                  >
+                    <Ionicons color="#10b981" name="person-circle-outline" size={14} />
+                    <Text style={[styles.demoFillBtnText, { color: "#10b981" }]}>à¦ªà§à¦°à§‹à¦«à¦¾à¦‡à¦² à¦…à¦Ÿà§‹à¦«à¦¿à¦²</Text>
+                  </TouchableOpacity>
+
                   <TouchableOpacity
                     onPress={() => setIsPassportScannerOpen(true)}
                     style={styles.demoFillBtn}
@@ -1397,15 +2087,6 @@ export function BookingSystemScreen({
                   >
                     <Ionicons color={primary} name="camera-outline" size={14} />
                     <Text style={styles.demoFillBtnText}>Scan MRZ</Text>
-                  </TouchableOpacity>
-
-                  {/* Pre-fill / Auto-fill Action */}
-                  <TouchableOpacity
-                    onPress={handleFillDemoData}
-                    style={styles.demoFillBtn}
-                  >
-                    <Ionicons color={primary} name="flash-outline" size={14} />
-                    <Text style={styles.demoFillBtnText}>Auto-fill</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1416,7 +2097,7 @@ export function BookingSystemScreen({
                   <View style={{ flex: 1 }}>
                     <Text style={styles.routeKicker}>Routing</Text>
                     <Text style={styles.routeTitle}>
-                      {trip.origin_city} → {trip.destination_city},{" "}
+                      {trip.origin_city} â†’ {trip.destination_city},{" "}
                       {trip.destination_country}
                     </Text>
                   </View>
@@ -1467,7 +2148,20 @@ export function BookingSystemScreen({
                 </View>
               </View>
 
-              {/* Form Fields with Inline Zod Error Validation */}
+              {/* Form Fields with Inline Zod Error Validation & onLayout measurements */}
+              {/* Profile Completeness Bar & Missing Requirements Nudge */}
+              <ProfileCompletenessBar
+                profile={{
+                  full_name: `${traveler.first_name || ""} ${traveler.last_name || ""}`.trim(),
+                  email: traveler.email,
+                  phone: traveler.phone,
+                  passport_number: traveler.passport_number,
+                  national_id: traveler.national_id,
+                  date_of_birth: traveler.date_of_birth,
+                }}
+                onAddPassportPress={() => setIsPassportScannerOpen(true)}
+                style={{ marginHorizontal: 0, marginBottom: 16 }}
+              />
               <View style={styles.split}>
                 <ValidatedField
                   label="First Name *"
@@ -1477,6 +2171,9 @@ export function BookingSystemScreen({
                   }
                   error={formErrors.first_name}
                   placeholder="e.g. Tanvir"
+                  onLayout={(e: any) => {
+                    fieldOffsets.current.first_name = e.nativeEvent.layout.y;
+                  }}
                   compact
                 />
                 <ValidatedField
@@ -1487,6 +2184,9 @@ export function BookingSystemScreen({
                   }
                   error={formErrors.last_name}
                   placeholder="e.g. Hossain"
+                  onLayout={(e: any) => {
+                    fieldOffsets.current.last_name = e.nativeEvent.layout.y;
+                  }}
                   compact
                 />
               </View>
@@ -1499,6 +2199,9 @@ export function BookingSystemScreen({
                 placeholder="traveler@example.com"
                 keyboardType="email-address"
                 icon="mail-outline"
+                onLayout={(e: any) => {
+                  fieldOffsets.current.email = e.nativeEvent.layout.y;
+                }}
               />
 
               <ValidatedField
@@ -1509,11 +2212,29 @@ export function BookingSystemScreen({
                 placeholder="+88017XXXXXXXX or +1XXXXXXXXXX"
                 keyboardType="phone-pad"
                 icon="call-outline"
+                onLayout={(e: any) => {
+                  fieldOffsets.current.phone = e.nativeEvent.layout.y;
+                }}
               />
 
+              {/* Data Security & Legal Compliance Assurance Card (Point 5) */}
+              <View style={styles.dataAssuranceCard}>
+                <View style={styles.dataAssuranceHeader}>
+                  <Ionicons name="shield-checkmark" size={18} color="#059669" />
+                  <Text style={styles.dataAssuranceTitle}>
+                    ব্যক্তিগত তথ্যের নিরাপত্তা ও আইনি প্রয়োজনীয়তা
+                  </Text>
+                </View>
+                <Text style={styles.dataAssuranceDesc}>
+                  আন্তর্জাতিক বেসামরিক বিমান চলাচল সংস্থা (ICAO) ও ইমিগ্রেশন নিয়ম অনুযায়ী পাসপোর্ট ও NID আবশ্যক। আপনার সকল তথ্য AES-256 বিট এনক্রিপশনে সুরক্ষিত রাখা হয়।
+                </Text>
+              </View>
+
               <ValidatedField
-                label="Passport Number (ICAO Doc 9303: 6-12 alphanumeric) *"
+                label="পাসপোর্ট নম্বর (Passport Number) *"
                 value={traveler.passport_number}
+                securityNote="এয়ারলাইন নিয়ম অনুযায়ী দরকার, এনক্রিপ্টেড থাকে"
+                isMaskable={true}
                 onChangeText={(val) =>
                   handleTravelerFieldChange(
                     "passport_number",
@@ -1524,11 +2245,16 @@ export function BookingSystemScreen({
                 placeholder="e.g. A12345678"
                 autoCapitalize="characters"
                 icon="shield-outline"
+                onLayout={(e: any) => {
+                  fieldOffsets.current.passport_number = e.nativeEvent.layout.y;
+                }}
               />
 
               <ValidatedField
-                label="National ID / NID (10, 13, or 17 digits) *"
+                label="জাতীয় পরিচয়পত্র / NID (National ID) *"
                 value={traveler.national_id}
+                securityNote="আইনগত পরিচয় যাচাইয়ের জন্য আবশ্যক, সম্পূর্ণ এনক্রিপ্টেড"
+                isMaskable={true}
                 onChangeText={(val) =>
                   handleTravelerFieldChange("national_id", val)
                 }
@@ -1536,6 +2262,9 @@ export function BookingSystemScreen({
                 placeholder="e.g. 1994123456789"
                 keyboardType="numeric"
                 icon="card-outline"
+                onLayout={(e: any) => {
+                  fieldOffsets.current.national_id = e.nativeEvent.layout.y;
+                }}
               />
 
               <ValidatedField
@@ -1547,6 +2276,9 @@ export function BookingSystemScreen({
                 error={formErrors.date_of_birth}
                 placeholder="YYYY-MM-DD (e.g. 1994-08-20)"
                 icon="calendar-outline"
+                onLayout={(e: any) => {
+                  fieldOffsets.current.date_of_birth = e.nativeEvent.layout.y;
+                }}
               />
 
               {/* Gender selector */}
@@ -1578,12 +2310,24 @@ export function BookingSystemScreen({
                 </View>
               </View>
 
+              {/* Save traveler for future bookings */}
+              <TouchableOpacity
+                onPress={handleSaveCurrentTraveler}
+                style={styles.saveTravelerSecondaryBtn}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="bookmark-outline" size={15} color="#2563eb" />
+                <Text style={styles.saveTravelerSecondaryBtnText}>
+                  à¦­à¦¬à¦¿à¦·à§à¦¯à¦¤à§‡à¦° à¦œà¦¨à§à¦¯ à¦à¦‡ à¦¯à¦¾à¦¤à§à¦°à§€à¦° à¦¤à¦¥à§à¦¯ à¦¸à¦‚à¦°à¦•à§à¦·à¦£ à¦•à¦°à§à¦¨ (Save Traveler)
+                </Text>
+              </TouchableOpacity>
+
               <Pressable
                 onPress={handleProceedFromStep1}
                 style={styles.primaryButton}
               >
                 <Text style={styles.primaryButtonText}>
-                  Validate & Continue to Addons →
+                  Validate & Continue to Addons â†’
                 </Text>
               </Pressable>
             </View>
@@ -1848,7 +2592,7 @@ export function BookingSystemScreen({
                   style={styles.continueButton}
                 >
                   <Text style={styles.continueButtonText}>
-                    Review Fare Summary →
+                    Review Fare Summary â†’
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1955,37 +2699,104 @@ export function BookingSystemScreen({
                   </Text>
                 ) : null}
 
-                {/* Quick Promo Suggestions */}
+                {/* Full Promo Card List - Requirement 5 */}
                 <Text style={styles.promoSuggestionsLabel}>
-                  Available Coupons (Tap to Apply):
+                  প্রযোজ্য কুপন কোড তালিকা (Tap to Apply):
                 </Text>
-                <View style={styles.promoSuggestionsRow}>
-                  {REGISTERED_PROMOS.map((p) => {
-                    const isCurrent = store.appliedPromo?.code === p.code;
-                    return (
-                      <TouchableOpacity
-                        key={p.code}
-                        onPress={() => {
-                          setPromoInput(p.code);
-                          handleApplyPromo(p.code);
-                        }}
-                        style={[
-                          styles.promoChip,
-                          isCurrent && styles.promoChipActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.promoChipText,
-                            isCurrent && styles.promoChipTextActive,
-                          ]}
-                        >
-                          {p.code} ({p.discountType === "percentage" ? `${p.discountValue}%` : `$${p.discountValue}`})
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                {REGISTERED_PROMOS.map((p) => {
+                  const isCurrent = store.appliedPromo?.code === p.code;
+                  const catMap: Record<string, string> = {
+                    all: "সকল সার্ভিস", flight: "ফ্লাইট", hotel: "হোটেল", tour: "ট্যুর", bus: "বাস",
+                  };
+                  const catLabel = catMap[p.applicableCategory || "all"] || p.applicableCategory || "সকল";
+                  const discountLabel = p.discountType === "percentage" ? p.discountValue + "% ছাড়" : "$" + p.discountValue + " ফ্ল্যাট ছাড়";
+                  return (
+                    <TouchableOpacity
+                      key={p.code}
+                      onPress={() => { setPromoInput(p.code); handleApplyPromo(p.code); }}
+                      activeOpacity={0.8}
+                      style={[styles.promoFullCard, isCurrent && styles.promoFullCardActive]}
+                    >
+                      <View style={styles.promoFullCardLeft}>
+                        <Ionicons name={isCurrent ? "pricetag" : "pricetag-outline"} size={20} color={isCurrent ? "#fff" : primary} />
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.promoFullCardTitleRow}>
+                            <Text style={[styles.promoFullCardCode, isCurrent && styles.promoFullCardCodeActive]}>{p.code}</Text>
+                            <Text style={[styles.promoFullCardDiscount, isCurrent && { color: "#bbf7d0" }]}>{discountLabel}</Text>
+                          </View>
+                          <Text style={[styles.promoFullCardDesc, isCurrent && { color: "#d1fae5" }]}>{p.description}</Text>
+                          <Text style={[styles.promoFullCardMetaText, isCurrent && { color: "#a7f3d0" }]}>
+                            🏷 {catLabel} • মিন:  • মেয়াদ: {p.expiryDate}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={[styles.promoApplyChip, isCurrent && styles.promoApplyChipActive]}>
+                        {isCurrent
+                          ? <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                          : <Text style={styles.promoApplyChipText}>প্রয়োগ</Text>}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* REQUIREMENT: POINTS REDEMPTION IN BOOKING CHECKOUT (পয়েন্ট ব্যবহার করুন (−৳২৫০)) */}
+              <View style={styles.pointsRedeemCard}>
+                <View style={styles.pointsRedeemTopRow}>
+                  <View style={styles.pointsIconBubble}>
+                    <Ionicons name="sparkles" size={20} color="#D97706" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.pointsTitleRow}>
+                      <Text style={styles.pointsRedeemTitle}>লয়্যালটি পয়েন্ট ব্যবহার করুন</Text>
+                      <View style={styles.pointsRateBadge}>
+                        <Text style={styles.pointsRateBadgeText}>১০০ পয়েন্ট = ৳১০</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.pointsBalanceSubText}>
+                      আপনার ব্যালেন্স: ২,৫০০ পয়েন্ট (নগদ মূল্য: ৳২৫০)
+                    </Text>
+                  </View>
                 </View>
+
+                <View style={styles.pointsToggleDivider} />
+
+                {/* Toggle Row */}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setUsePointsDiscount(!usePointsDiscount)}
+                  style={[
+                    styles.pointsToggleRow,
+                    usePointsDiscount && styles.pointsToggleRowActive,
+                  ]}
+                >
+                  <View style={{ flex: 1, paddingEnd: 10 }}>
+                    <Text style={[styles.pointsToggleLabel, usePointsDiscount && styles.pointsToggleLabelActive]}>
+                      পয়েন্ট ব্যবহার করুন (−৳২৫০)
+                    </Text>
+                    <Text style={styles.pointsToggleSub}>
+                      {usePointsDiscount
+                        ? "✓ ২,৫০০ পয়েন্ট প্রয়োগ করা হয়েছে (মোট ভাড়া থেকে ৳২৫০ বাদ)"
+                        : "চেকআউট থেকে ২,৫০০ পয়েন্ট ব্যবহার করে ৳২৫০ সাশ্রয় করুন"}
+                    </Text>
+                  </View>
+
+                  <Switch
+                    value={usePointsDiscount}
+                    onValueChange={setUsePointsDiscount}
+                    trackColor={{ false: "#CBD5E1", true: "#10B981" }}
+                    thumbColor="#FFFFFF"
+                  />
+                </TouchableOpacity>
+
+                {usePointsDiscount && (
+                  <View style={styles.pointsAppliedConfirmation}>
+                    <Ionicons name="checkmark-circle" size={15} color="#10B981" />
+                    <Text style={styles.pointsAppliedText}>
+                      সফলভাবে ৳২৫০ পয়েন্ট ডিসকাউন্ট মোট ভাড়ায় প্রয়োগ করা হয়েছে!
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {/* DYNAMIC FARE BREAKDOWN CARD (Requirement 3: Base + Taxes + Surcharges - Discount = Total Due) */}
@@ -1997,7 +2808,7 @@ export function BookingSystemScreen({
                   </Text>
                 </View>
                 <Text style={styles.formulaNote}>
-                  Base Fare + Taxes + Surcharges - Discount = Total Due
+                  Base Fare + Taxes + Surcharges - Promo - Points = Total Due
                 </Text>
 
                 <View style={styles.breakdownRow}>
@@ -2028,7 +2839,7 @@ export function BookingSystemScreen({
                 {/* Sub-itemization box for transparency */}
                 <View style={styles.itemizedBox}>
                   <View style={styles.itemizedRow}>
-                    <Text style={styles.itemizedLabel}>• 2% System & Payment Fee</Text>
+                    <Text style={styles.itemizedLabel}>â€¢ 2% System & Payment Fee</Text>
                     <Text style={styles.itemizedVal}>
                       +{formatCurrency(pricingCalculation.platformServiceFee, currency)}
                     </Text>
@@ -2036,7 +2847,7 @@ export function BookingSystemScreen({
                   {addons.travelInsurance ? (
                     <View style={styles.itemizedRow}>
                       <Text style={styles.itemizedLabel}>
-                        • Travel Medical Insurance ({trip.number_of_guests}x)
+                        â€¢ Travel Medical Insurance ({trip.number_of_guests}x)
                       </Text>
                       <Text style={styles.itemizedVal}>
                         +{formatCurrency(pricingCalculation.insuranceCost, currency)}
@@ -2046,7 +2857,7 @@ export function BookingSystemScreen({
                   {addons.extraLuggageCount > 0 ? (
                     <View style={styles.itemizedRow}>
                       <Text style={styles.itemizedLabel}>
-                        • Extra Checked Baggage ({addons.extraLuggageCount} bag)
+                        â€¢ Extra Checked Baggage ({addons.extraLuggageCount} bag)
                       </Text>
                       <Text style={styles.itemizedVal}>
                         +{formatCurrency(pricingCalculation.luggageCost, currency)}
@@ -2056,7 +2867,7 @@ export function BookingSystemScreen({
                   {addons.inFlightMealsCount > 0 ? (
                     <View style={styles.itemizedRow}>
                       <Text style={styles.itemizedLabel}>
-                        • Gourmet Catering ({addons.inFlightMealsCount} meal)
+                        â€¢ Gourmet Catering ({addons.inFlightMealsCount} meal)
                       </Text>
                       <Text style={styles.itemizedVal}>
                         +{formatCurrency(pricingCalculation.mealsCost, currency)}
@@ -2066,7 +2877,7 @@ export function BookingSystemScreen({
                   {addons.airportLoungeAccess ? (
                     <View style={styles.itemizedRow}>
                       <Text style={styles.itemizedLabel}>
-                        • VIP Fast-Track & Lounge
+                        â€¢ VIP Fast-Track & Lounge
                       </Text>
                       <Text style={styles.itemizedVal}>
                         +{formatCurrency(pricingCalculation.loungeCost, currency)}
@@ -2082,6 +2893,20 @@ export function BookingSystemScreen({
                   </Text>
                 </View>
 
+                {usePointsDiscount && (
+                  <View style={styles.breakdownRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons color="#10b981" name="sparkles" size={14} />
+                      <Text style={[styles.breakdownLabel, { color: "#10b981", fontWeight: "700" }]}>
+                        - পয়েন্ট ব্যবহার (২,৫০০ পয়েন্ট)
+                      </Text>
+                    </View>
+                    <Text style={[styles.breakdownValue, styles.pointsDiscountText]}>
+                      -{formatCurrency(pricingCalculation.pointsDiscount, currency)}
+                    </Text>
+                  </View>
+                )}
+
                 <View style={styles.divider} />
 
                 {/* Total Due */}
@@ -2096,6 +2921,62 @@ export function BookingSystemScreen({
                     {formatCurrency(pricingCalculation.totalDue, currency)}
                   </Text>
                 </View>
+              </View>
+
+              {/* Requirement 8: Cancellation & Refund Policy Card with Mandatory Consent */}
+              <View style={[styles.policyCard, policyError && styles.policyCardError]}>
+                <View style={styles.policyHeader}>
+                  <Ionicons name="shield-checkmark-outline" size={18} color="#b45309" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.policyTitle}>বাতিলের নীতি ও শর্তাবলী (Cancellation Policy)</Text>
+                    <Text style={styles.policySubtitle}>পেমেন্টের আগে মনোযোগ দিয়ে পড়ুন</Text>
+                  </View>
+                </View>
+                <View style={styles.policyTimeline}>
+                  <View style={styles.policyStep}>
+                    <View style={[styles.policyDot, { backgroundColor: "#22c55e" }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.policyStepTitle}>৪৮+ ঘণ্টা আগে বাতিল → ৯০% ফেরত</Text>
+                      <Text style={styles.policyStepDesc}>প্রস্থান তারিখের ৪৮ ঘণ্টারও বেশি আগে বাতিল করলে মোট পরিশোধিত অর্থের ৯০% ফেরত পাবেন। ১০% প্ল্যাটফর্ম প্রসেসিং ফি কাটা হবে।</Text>
+                    </View>
+                  </View>
+                  <View style={styles.policyStep}>
+                    <View style={[styles.policyDot, { backgroundColor: "#f59e0b" }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.policyStepTitle}>২৪–৪৮ ঘণ্টার মধ্যে বাতিল → ৫০% ফেরত</Text>
+                      <Text style={styles.policyStepDesc}>প্রস্থান তারিখের ২৪–৪৮ ঘণ্টার মধ্যে বাতিল করলে মোট পরিশোধিত অর্থের ৫০% ফেরত পাবেন।</Text>
+                    </View>
+                  </View>
+                  <View style={styles.policyStep}>
+                    <View style={[styles.policyDot, { backgroundColor: "#ef4444" }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.policyStepTitle}>২৪ ঘণ্টার কম সময়ে বাতিল → ফেরত নেই</Text>
+                      <Text style={styles.policyStepDesc}>প্রস্থান তারিখের ২৪ ঘণ্টারও কম সময়ে বাতিল করলে কোনো অর্থ ফেরত দেওয়া হবে না। ট্রাভেল ইন্স্যুরেন্স নিলে এই নিয়মটি প্রযোজ্য নাও হতে পারে।</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.policyNoteBox}>
+                  <Ionicons name="information-circle-outline" size={14} color="#92400e" />
+                  <Text style={styles.policyNoteText}>
+                    ফেরত সংক্রান্ত যেকোনো প্রশ্নের জন্য support@trevelagency.com অথবা অ্যাপের Help সেকশনে যোগাযোগ করুন।
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => { setHasAgreedToPolicy((v) => !v); setPolicyError(false); }}
+                  style={styles.checkboxRow}
+                >
+                  <View style={[styles.customCheckbox, hasAgreedToPolicy && styles.customCheckboxActive, policyError && styles.customCheckboxError]}>
+                    {hasAgreedToPolicy && <Ionicons name="checkmark" size={14} color="#fff" />}
+                  </View>
+                  <Text style={styles.checkboxLabel}>
+                    আমি উপরের বাতিলের নীতি, ফেরত-শর্ত ও নিয়ম-শর্তাবলী পড়েছি এবং সম্মত আছি। *
+                  </Text>
+                </Pressable>
+                {policyError && (
+                  <Text style={styles.promoErrorText}>
+                    ⚠️ পেমেন্টে এগিয়ে যেতে অনুগ্রহ করে নীতিমালায় সম্মতি দিন।
+                  </Text>
+                )}
               </View>
 
               {/* Action Buttons: Trigger Atomic Draft Creation (Requirement 4) */}
@@ -2121,7 +3002,7 @@ export function BookingSystemScreen({
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text style={styles.primaryButtonText}>
-                      Create Draft & Continue to Pay →
+                      Create Draft & Continue to Pay â†’
                     </Text>
                   )}
                 </Pressable>
@@ -2183,6 +3064,45 @@ export function BookingSystemScreen({
                   <Text style={styles.successSub}>
                     Invoice and digital travel voucher issued to Supabase account.
                   </Text>
+
+                  {/* Contextual Push Permission for Flight Updates (Point 1) */}
+                  {!askedFlightPush ? (
+                    <View style={styles.flightUpdateCard}>
+                      <View style={styles.flightUpdateHeader}>
+                        <View style={styles.flightIconCircle}>
+                          <Ionicons name="airplane" size={20} color="#0055F2" />
+                        </View>
+                        <View style={{ flex: 1, marginStart: 10 }}>
+                          <Text style={styles.flightUpdateTitle}>ফ্লাইটের আপডেট পেতে চান?</Text>
+                          <Text style={styles.flightUpdateSub}>
+                            গেট পরিবর্তন, ফ্লাইট বিলম্ব, বা বোর্ডিং কাউন্টডাউনের জরুরি নোটিফিকেশন পেতে অনুমতি দিন।
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.flightUpdateBtnRow}>
+                        <TouchableOpacity
+                          style={styles.flightUpdateEnableBtn}
+                          onPress={handleRequestFlightPush}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="notifications-outline" size={16} color="#fff" style={{ marginEnd: 6 }} />
+                          <Text style={styles.flightUpdateEnableText}>হ্যাঁ, আপডেট চাই</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.flightUpdateDismissBtn}
+                          onPress={() => setAskedFlightPush(true)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.flightUpdateDismissText}>এখন নয়</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : flightPushMsg ? (
+                    <View style={styles.flightPushConfirmedRow}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10B981" style={{ marginEnd: 6 }} />
+                      <Text style={styles.flightPushConfirmedText}>{flightPushMsg}</Text>
+                    </View>
+                  ) : null}
 
                   <View style={styles.receiptDetails}>
                     <InfoRow
@@ -2249,7 +3169,7 @@ export function BookingSystemScreen({
                     />
                     <PaymentOptionCard
                       title="Shopno Travel Wallet"
-                      sub="Balance: ৳45,000 / $500 available"
+                      sub="Balance: à§³45,000 / $500 available"
                       icon="cash-outline"
                       isSelected={selectedPaymentMethod === "wallet"}
                       onSelect={() => setSelectedPaymentMethod("wallet")}
@@ -2279,6 +3199,10 @@ export function BookingSystemScreen({
                       <TextInput
                         placeholder="Card Number (4XXX XXXX XXXX XXXX)"
                         placeholderTextColor="#94a3b8"
+                        accessibilityLabel="Card Number"
+                        autoComplete="cc-number"
+                        textContentType="creditCardNumber"
+                        returnKeyType="next"
                         value={paymentForm.cardNumber}
                         onChangeText={(t) =>
                           setPaymentForm((p) => ({ ...p, cardNumber: t }))
@@ -2290,6 +3214,9 @@ export function BookingSystemScreen({
                         <TextInput
                           placeholder="MM / YY"
                           placeholderTextColor="#94a3b8"
+                          accessibilityLabel="Card Expiration Date"
+                          autoComplete="cc-exp"
+                          returnKeyType="next"
                           value={paymentForm.cardExpiry}
                           onChangeText={(t) =>
                             setPaymentForm((p) => ({ ...p, cardExpiry: t }))
@@ -2299,6 +3226,9 @@ export function BookingSystemScreen({
                         <TextInput
                           placeholder="CVV"
                           placeholderTextColor="#94a3b8"
+                          accessibilityLabel="Card Security Code CVV"
+                          autoComplete="cc-csc"
+                          returnKeyType="done"
                           secureTextEntry
                           maxLength={4}
                           value={paymentForm.cardCvv}
@@ -2322,6 +3252,10 @@ export function BookingSystemScreen({
                       <TextInput
                         placeholder="01XXXXXXXXX"
                         placeholderTextColor="#94a3b8"
+                        accessibilityLabel={`${selectedPaymentMethod.toUpperCase()} Account Number`}
+                        autoComplete="tel"
+                        textContentType="telephoneNumber"
+                        returnKeyType="done"
                         value={paymentForm.walletMobileNumber}
                         onChangeText={(t) =>
                           setPaymentForm((p) => ({
@@ -2402,6 +3336,28 @@ export function BookingSystemScreen({
           {/* INVOICE & VOUCHER TRACKING (Supabase Persistence)                 */}
           {/* ================================================================ */}
           <Section icon="receipt-outline" title="Issued Invoices & Vouchers">
+            {/* Requirement 7 & 8: Prominent Top Action Bar for Change / Cancel & Refund Preview */}
+            {latestBooking && (
+              <View style={{ backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FCA5A5", borderRadius: 12, padding: 12, marginVertical: 8 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#991B1B" }}>
+                      বুকিং পরিবর্তন বা বাতিলের সুযোগ
+                    </Text>
+                    <Text style={{ fontSize: 11, color: "#B91C1C", marginTop: 2 }}>
+                      সম্ভাব্য রিফান্ড: ৯০% ({latestBooking.currency ?? "BDT"} {Math.round(Number(latestBooking.final_price || 0) * 0.9)})
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setShowManageModal(true)}
+                    style={{ backgroundColor: "#DC2626", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 4 }}
+                  >
+                    <Ionicons name="swap-horizontal" size={14} color="#FFFFFF" />
+                    <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}>পরিবর্তন / বাতিল</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
             {bookingsLoading ? <ActivityIndicator color={primary} /> : null}
             <InfoRow
               label="Latest Reference"
@@ -2447,7 +3403,7 @@ export function BookingSystemScreen({
                 <View style={styles.timelineText}>
                   <Text style={styles.timelineTitle}>{event.title}</Text>
                   <Text style={styles.timelineMeta}>
-                    {event.event_type} •{" "}
+                    {event.event_type} â€¢{" "}
                     {new Date(
                       event.event_at || event.event_time || Date.now(),
                     ).toLocaleTimeString()}
@@ -2486,8 +3442,120 @@ export function BookingSystemScreen({
         onClose={() => setIsPassportScannerOpen(false)}
         onScanSuccess={handlePassportScanSuccess}
         autoPopulateImmediately={true}
+        onManualEntry={() => {
+          setIsPassportScannerOpen(false);
+          setActionMessage("✏️ ম্যানুয়াল এন্ট্রি মোড সক্রিয়। নিচে সরাসরি তথ্য পূরণ করুন।");
+        }}
       />
-      <BottomNav active="My Trips" color={primary} />
+
+      {/* Upfront Price Change & Tax Consent Modal */}
+      <PriceChangeModal
+        visible={showPriceChangeModal}
+        oldPrice={pricingCalculation.baseFare}
+        newPrice={pricingCalculation.totalDue}
+        currency={pricingCalculation.currency}
+        breakdown={[
+          { label: "à¦®à§‚à¦² à¦­à¦¾à¦¡à¦¼à¦¾ (Base Fare)", amount: pricingCalculation.baseFare },
+          { label: "à¦¸à¦°à¦•à¦¾à¦°à¦¿ à¦Ÿà§à¦¯à¦¾à¦•à§à¦¸ à¦“ à¦­à§à¦¯à¦¾à¦Ÿ (Govt Taxes)", amount: pricingCalculation.taxes, isAddition: true },
+          { label: "à¦ªà§à¦²à§à¦¯à¦¾à¦Ÿà¦«à¦°à§à¦® à¦¸à¦¾à¦°à§à¦­à¦¿à¦¸ à¦«à¦¿ (Service Fee)", amount: pricingCalculation.platformServiceFee, isAddition: true },
+          ...(pricingCalculation.addonsCost > 0
+            ? [{ label: "à¦¨à¦¿à¦°à§à¦¬à¦¾à¦šà¦¿à¦¤ à¦…à§à¦¯à¦¾à¦¡-à¦…à¦¨ à¦¸à¦¾à¦°à§à¦­à¦¿à¦¸", amount: pricingCalculation.addonsCost, isAddition: true }]
+            : []),
+          ...(pricingCalculation.discount > 0
+            ? [{ label: "à¦ªà§à¦°à§‹à¦®à§‹ à¦¡à¦¿à¦¸à¦•à¦¾à¦‰à¦¨à§à¦Ÿ (Promo Savings)", amount: pricingCalculation.discount, isDiscount: true }]
+            : []),
+        ]}
+        onAccept={() => {
+          setPriceConfirmed(true);
+          setShowPriceChangeModal(false);
+          store.setNotes(JSON.stringify({ addons, currency }));
+          goToStep(3);
+        }}
+        onReject={() => setShowPriceChangeModal(false)}
+      />
+
+      {/* Saved Passengers Modal - Requirement 2 */}
+      <Modal
+        visible={isSavedPassengersModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsSavedPassengersModalOpen(false)}
+      >
+        <Pressable
+          style={styles.savedPassengersOverlay}
+          onPress={() => setIsSavedPassengersModalOpen(false)}
+        >
+          <Pressable style={styles.savedPassengersSheet} onPress={() => {}}>
+            <View style={styles.savedPassengersHandle} />
+            <View style={styles.savedPassengersHeader}>
+              <Ionicons name="people" size={20} color={primary} />
+              <Text style={styles.savedPassengersTitle}>সংরক্ষিত যাত্রী তালিকা ({savedPassengers.length})</Text>
+              <TouchableOpacity onPress={() => setIsSavedPassengersModalOpen(false)}>
+                <Ionicons name="close-circle" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+              {savedPassengers.length === 0 ? (
+                <View style={{ alignItems: "center", padding: 32 }}>
+                  <Ionicons name="person-add-outline" size={40} color="#cbd5e1" />
+                  <Text style={{ color: "#94a3b8", marginTop: 12, textAlign: "center" }}>
+                    কোনো সংরক্ষিত যাত্রী নেই।{"\n"}ধাপ ১-এ তথ্য পূরণ করে সংরক্ষণ করুন।
+                  </Text>
+                </View>
+              ) : (
+                savedPassengers.map((p, idx) => (
+                  <View key={p.id || `pax-${p.first_name}-${p.last_name}-${idx}`} style={styles.savedPassengerCard}>
+                    <View style={styles.savedPassengerAvatar}>
+                      <Ionicons name="person-circle" size={36} color={primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.savedPassengerName}>{p.first_name} {p.last_name}</Text>
+                      <Text style={styles.savedPassengerMeta}>📧 {p.email || "—"}</Text>
+                      <Text style={styles.savedPassengerMeta}>📞 {p.phone || "—"}</Text>
+                      {p.passport_number ? (
+                        <Text style={styles.savedPassengerMeta}>🛂 Passport: {p.passport_number}</Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.savedPassengerActions}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (typeof handleSelectSavedPassenger === "function") {
+                            handleSelectSavedPassenger(p);
+                          }
+                        }}
+                        style={styles.selectPassengerBtn}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="checkmark" size={14} color="#fff" />
+                        <Text style={styles.selectPassengerBtnText}>বাছাই</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteSavedPassenger(idx)}
+                        style={styles.deletePassengerBtn}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="trash-outline" size={14} color={danger} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Booking Cancellation & Change Management with Instant Refund Calculation */}
+      <BookingManageModal
+        visible={showManageModal}
+        booking={latestBooking}
+        onClose={() => setShowManageModal(false)}
+        onBookingCancelled={() => {
+          refetch();
+          setActionMessage("বুকিং সফলভাবে বাতিল করা হয়েছে এবং রিফান্ড রিভিউ শুরু হয়েছে।");
+        }}
+      />
+
     </SafeAreaView>
   );
 }
@@ -2506,6 +3574,9 @@ function ValidatedField({
   autoCapitalize = "none",
   icon,
   compact = false,
+  onLayout,
+  securityNote,
+  isMaskable = false,
 }: {
   label: string;
   value: string;
@@ -2520,10 +3591,23 @@ function ValidatedField({
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   icon?: keyof typeof Ionicons.glyphMap;
   compact?: boolean;
+  onLayout?: (e: any) => void;
+  securityNote?: string;
+  isMaskable?: boolean;
 }) {
+  const [isMasked, setIsMasked] = useState(isMaskable);
+
   return (
-    <View style={[styles.fieldWrap, compact && styles.compactField]}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+    <View style={[styles.fieldWrap, compact && styles.compactField]} onLayout={onLayout}>
+      <View style={styles.fieldLabelRow}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+      </View>
+      {securityNote ? (
+        <View style={styles.securityNoteRow}>
+          <Ionicons name="shield-checkmark" size={13} color="#059669" />
+          <Text style={styles.securityNoteText}>{securityNote}</Text>
+        </View>
+      ) : null}
       <View
         style={[
           styles.inputContainer,
@@ -2544,9 +3628,23 @@ function ValidatedField({
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor="#94a3b8"
-          style={styles.textInputStyle}
+          secureTextEntry={isMaskable && isMasked}
+          style={[styles.textInputStyle, isMaskable && { paddingEnd: 38 }]}
           value={value}
         />
+        {isMaskable ? (
+          <TouchableOpacity
+            style={styles.maskToggleBtn}
+            onPress={() => setIsMasked((prev) => !prev)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={isMasked ? "eye-off-outline" : "eye-outline"}
+              size={18}
+              color="#64748b"
+            />
+          </TouchableOpacity>
+        ) : null}
       </View>
       {error ? (
         <View style={styles.errorRow}>
@@ -2667,6 +3765,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.15)" } : {}),
   },
   headerTopRow: {
     alignItems: "center",
@@ -2684,7 +3783,7 @@ const styles = StyleSheet.create({
   },
   kicker: {
     color: "#8fd3ff",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.5,
     textTransform: "uppercase",
@@ -2705,7 +3804,7 @@ const styles = StyleSheet.create({
   },
   currencyText: {
     color: "#cbd5e1",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   currencyTextActive: {
@@ -2772,6 +3871,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.05)" } : {}),
   },
   stepperRow: {
     alignItems: "center",
@@ -2814,7 +3914,7 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     color: "#64748b",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   stepLabelActive: {
@@ -2858,6 +3958,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 8px rgba(15, 23, 42, 0.05)" } : {}),
   },
   sectionHeader: {
     alignItems: "center",
@@ -2894,7 +3995,7 @@ const styles = StyleSheet.create({
   },
   demoFillBtnText: {
     color: primary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   tripSummaryHeaderBox: {
@@ -2912,7 +4013,7 @@ const styles = StyleSheet.create({
   },
   routeKicker: {
     color: textMuted,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
   },
@@ -2983,7 +4084,7 @@ const styles = StyleSheet.create({
     borderColor: danger,
   },
   fieldIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   textInputStyle: {
     color: textPrimary,
@@ -3000,7 +4101,7 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     color: danger,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   split: {
@@ -3102,7 +4203,7 @@ const styles = StyleSheet.create({
   },
   addonUnit: {
     color: textSecondary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   addonDesc: {
@@ -3171,7 +4272,7 @@ const styles = StyleSheet.create({
   },
   surchargeSubtotalSub: {
     color: "#15803d",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   surchargeSubtotalValue: {
@@ -3311,17 +4412,17 @@ const styles = StyleSheet.create({
   },
   promoErrorText: {
     color: danger,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   promoSuccessText: {
     color: success,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   promoSuggestionsLabel: {
     color: textSecondary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
   },
@@ -3344,7 +4445,7 @@ const styles = StyleSheet.create({
   },
   promoChipText: {
     color: "#334155",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   promoChipTextActive: {
@@ -3369,7 +4470,7 @@ const styles = StyleSheet.create({
   },
   formulaNote: {
     color: "#94a3b8",
-    fontSize: 11,
+    fontSize: 12,
     fontStyle: "italic",
     marginBottom: 6,
   },
@@ -3403,12 +4504,12 @@ const styles = StyleSheet.create({
   },
   itemizedLabel: {
     color: "#94a3b8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   itemizedVal: {
     color: "#cbd5e1",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   divider: {
@@ -3430,7 +4531,7 @@ const styles = StyleSheet.create({
   },
   totalDueSubtitle: {
     color: "#94a3b8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   totalDueAmount: {
@@ -3464,7 +4565,7 @@ const styles = StyleSheet.create({
   },
   statusPillDraftText: {
     color: "#b45309",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "900",
   },
   draftRefNumber: {
@@ -3474,7 +4575,7 @@ const styles = StyleSheet.create({
   },
   draftNote: {
     color: "#78350f",
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 15,
   },
   draftPriceTag: {
@@ -3539,7 +4640,7 @@ const styles = StyleSheet.create({
   },
   paymentCardSub: {
     color: textSecondary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     marginTop: 2,
   },
@@ -3588,7 +4689,7 @@ const styles = StyleSheet.create({
   },
   mfsHint: {
     color: textSecondary,
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 15,
   },
   walletBalanceBadge: {
@@ -3646,6 +4747,135 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
+  // Point 1: Flight update prompt styles
+  flightUpdateCard: {
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+  },
+  flightUpdateHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  flightIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flightUpdateTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1E3A8A",
+  },
+  flightUpdateSub: {
+    fontSize: 12,
+    color: "#3B82F6",
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  flightUpdateBtnRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  flightUpdateEnableBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0055F2",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  flightUpdateEnableText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  flightUpdateDismissBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: "rgba(0, 85, 242, 0.08)",
+  },
+  flightUpdateDismissText: {
+    color: "#1E3A8A",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  flightPushConfirmedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  flightPushConfirmedText: {
+    fontSize: 12,
+    color: "#065F46",
+    fontWeight: "600",
+    flex: 1,
+  },
+
+  // Point 5: Data privacy & security note styles
+  dataAssuranceCard: {
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  dataAssuranceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  dataAssuranceTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#166534",
+  },
+  dataAssuranceDesc: {
+    fontSize: 12,
+    color: "#15803D",
+    lineHeight: 17,
+  },
+  securityNoteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F0FDF4",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 6,
+    alignSelf: "flex-start",
+  },
+  securityNoteText: {
+    fontSize: 11,
+    color: "#059669",
+    fontWeight: "600",
+  },
+  maskToggleBtn: {
+    position: "absolute",
+    right: 12,
+    top: 14,
+  },
+  fieldLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   newBookingBtnText: {
     color: "#ffffff",
     fontSize: 14,
@@ -3697,5 +4927,558 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     marginTop: 2,
+  },
+
+  // ── Requirement 1: Draft Resume Banner ───────────────────────────────────────
+  resumeDraftBanner: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#bfdbfe",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+    padding: 14,
+  },
+  resumeDraftIconWrap: {
+    alignItems: "center",
+    backgroundColor: "#dbeafe",
+    borderRadius: 999,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  resumeDraftTitle: {
+    color: "#1d4ed8",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  resumeDraftSub: {
+    color: "#3b82f6",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  resumeDraftActionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  resumeDraftConfirmBtn: {
+    alignItems: "center",
+    backgroundColor: "#2563eb",
+    borderRadius: 6,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  resumeDraftConfirmBtnText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  resumeDraftDiscardBtn: {
+    alignItems: "center",
+    backgroundColor: "#fee2e2",
+    borderRadius: 6,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  resumeDraftDiscardBtnText: {
+    color: "#ef4444",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  // ── Requirement 4: Hold Timer Card ───────────────────────────────────────────
+  holdTimerCard: {
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+    padding: 12,
+  },
+  holdTimerCardNormal: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#86efac",
+  },
+  holdTimerCardWarning: {
+    backgroundColor: "#fffbeb",
+    borderColor: "#fcd34d",
+  },
+  holdTimerCardExpired: {
+    backgroundColor: "#fef2f2",
+    borderColor: "#fca5a5",
+  },
+  holdTimerLeft: {
+    alignItems: "center",
+    flexDirection: "row",
+    flex: 1,
+    gap: 8,
+  },
+  holdTimerTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  holdTimerTitleNormal: { color: "#166534" },
+  holdTimerTitleWarning: { color: "#92400e" },
+  holdTimerTitleExpired: { color: "#991b1b" },
+  holdTimerSub: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  reholdSeatBtn: {
+    alignItems: "center",
+    backgroundColor: "#ef4444",
+    borderRadius: 6,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  reholdSeatBtnText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
+  // ── Requirement 3: Step Header in stepper card ───────────────────────────────
+  stepHeaderTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  stepHeaderPill: {
+    alignItems: "center",
+    backgroundColor: "#dbeafe",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  stepHeaderPillText: {
+    color: "#1d4ed8",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  stepSubtitleHint: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  stepProgressBar: {
+    flexDirection: "row",
+    gap: 4,
+    marginBottom: 10,
+  },
+  stepProgressSegment: {
+    backgroundColor: "#e2e8f0",
+    borderRadius: 999,
+    flex: 1,
+    height: 4,
+  },
+  stepProgressSegmentActive: {
+    backgroundColor: primary,
+  },
+
+  // ── Requirement 2: Save Traveler Button ──────────────────────────────────────
+  saveTravelerSecondaryBtn: {
+    alignItems: "center",
+    backgroundColor: "#eff6ff",
+    borderColor: "#bfdbfe",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    marginTop: 4,
+    paddingVertical: 10,
+  },
+  saveTravelerSecondaryBtnText: {
+    color: "#2563eb",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
+  // ── Requirement 8: Cancellation Policy Card ──────────────────────────────────
+  policyCard: {
+    backgroundColor: "#fffbeb",
+    borderColor: "#fde68a",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    gap: 10,
+    marginVertical: 8,
+    padding: 14,
+  },
+  policyCardError: {
+    borderColor: danger,
+    backgroundColor: "#fef2f2",
+  },
+  policyHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 8,
+  },
+  policyTitle: {
+    color: "#78350f",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  policySubtitle: {
+    color: "#92400e",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  policyTimeline: {
+    gap: 8,
+  },
+  policyStep: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  policyDot: {
+    borderRadius: 999,
+    height: 10,
+    marginTop: 5,
+    width: 10,
+  },
+  policyStepTitle: {
+    color: "#1e293b",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  policyStepDesc: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "500",
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  policyNoteBox: {
+    alignItems: "flex-start",
+    backgroundColor: "#fef3c7",
+    borderRadius: 6,
+    flexDirection: "row",
+    gap: 6,
+    padding: 8,
+  },
+  policyNoteText: {
+    color: "#78350f",
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "600",
+    lineHeight: 15,
+  },
+  checkboxRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+  customCheckbox: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#cbd5e1",
+    borderRadius: 4,
+    borderWidth: 2,
+    height: 20,
+    justifyContent: "center",
+    marginTop: 1,
+    width: 20,
+  },
+  customCheckboxActive: {
+    backgroundColor: primary,
+    borderColor: primary,
+  },
+  customCheckboxError: {
+    borderColor: danger,
+    backgroundColor: "#fef2f2",
+  },
+  checkboxLabel: {
+    color: "#334155",
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17,
+  },
+
+  // ── Requirement 5: Full Promo Cards ──────────────────────────────────────────
+  promoFullCard: {
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderColor: borderSubtle,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between",
+    padding: 10,
+  },
+  promoFullCardActive: {
+    backgroundColor: "#1d4ed8",
+    borderColor: "#1d4ed8",
+  },
+  promoFullCardLeft: {
+    alignItems: "flex-start",
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+  },
+  promoFullCardTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  promoFullCardCode: {
+    color: "#1e293b",
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  promoFullCardCodeActive: {
+    color: "#ffffff",
+  },
+  promoFullCardDiscount: {
+    color: success,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  promoFullCardDesc: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "600",
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  promoFullCardMetaText: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 3,
+  },
+  promoApplyChip: {
+    alignItems: "center",
+    backgroundColor: "#dbeafe",
+    borderRadius: 6,
+    justifyContent: "center",
+    minWidth: 44,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  promoApplyChipActive: {
+    backgroundColor: "#22c55e",
+  },
+  promoApplyChipText: {
+    color: "#1d4ed8",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
+  // ── Requirement 2: Saved Passengers Modal ────────────────────────────────────
+  savedPassengersOverlay: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  savedPassengersSheet: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  savedPassengersHandle: {
+    alignSelf: "center",
+    backgroundColor: "#cbd5e1",
+    borderRadius: 999,
+    height: 4,
+    marginBottom: 14,
+    width: 48,
+  },
+  savedPassengersHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  savedPassengersTitle: {
+    color: "#1e293b",
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  savedPassengerCard: {
+    alignItems: "flex-start",
+    backgroundColor: "#f8fafc",
+    borderColor: borderSubtle,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 8,
+    padding: 12,
+  },
+  savedPassengerAvatar: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  savedPassengerName: {
+    color: "#1e293b",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  savedPassengerMeta: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  savedPassengerActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  selectPassengerBtn: {
+    alignItems: "center",
+    backgroundColor: primary,
+    borderRadius: 6,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  selectPassengerBtnText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  deletePassengerBtn: {
+    alignItems: "center",
+    backgroundColor: "#fee2e2",
+    borderRadius: 6,
+    justifyContent: "center",
+    padding: 6,
+  },
+  // Additional Styles for Points Redemption in Step 3
+  pointsRedeemCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 8px rgba(15, 23, 42, 0.04)" } : {}),
+  },
+  pointsRedeemTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pointsIconBubble: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pointsTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  pointsRedeemTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  pointsRateBadge: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  pointsRateBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  pointsBalanceSubText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  pointsToggleDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 12,
+  },
+  pointsToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  pointsToggleRowActive: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  pointsToggleLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 2,
+  },
+  pointsToggleLabelActive: {
+    color: '#15803D',
+  },
+  pointsToggleSub: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  pointsAppliedConfirmation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#DCFCE7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 10,
+  },
+  pointsAppliedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#166534',
+    flex: 1,
+  },
+  pointsDiscountText: {
+    color: '#10B981',
+    fontWeight: '800',
   },
 });

@@ -1,25 +1,134 @@
 /**
  * Shopno Jatra FastAPI Backend Client
  * Connects React Native app to the high-performance FastAPI backend.
+ *
+ * DevSecOps & Network Resilience Features:
+ * 1. AppError standard taxonomy: "network" | "auth" | "validation" | "server" | "unknown"
+ * 2. Exponential backoff retry policy with jitter for transient network & 5xx server errors
+ * 3. RFC 7807 problem details parsing & Pydantic 422 field error decomposition
+ * 4. Automatic JWT session token attachment and X-Correlation-ID tracing
+ * 5. Telemetry error emission into uxHealthMonitor and crashReporter
  */
 
 import { supabase } from "../utils/supabase";
+import { uxHealthMonitor } from "./telemetry/uxHealthMonitor";
+import { crashReporter } from "./telemetry/crashReporter";
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
-interface RequestOptions extends RequestInit {
+export type AppErrorKind = "network" | "auth" | "validation" | "server" | "unknown";
+
+export interface AppErrorDetails {
+  kind: AppErrorKind;
+  status?: number;
+  url?: string;
+  method?: string;
+  code?: string;
+  fieldErrors?: Record<string, string[]>;
+  rawResponse?: any;
+  timestamp: number;
+}
+
+export class AppError extends Error {
+  public readonly kind: AppErrorKind;
+  public readonly status?: number;
+  public readonly url?: string;
+  public readonly method?: string;
+  public readonly code?: string;
+  public readonly fieldErrors?: Record<string, string[]>;
+  public readonly rawResponse?: any;
+  public readonly timestamp: number;
+  public readonly isRetryable: boolean;
+
+  constructor(message: string, details: AppErrorDetails, cause?: unknown) {
+    super(message);
+    this.name = "AppError";
+    this.kind = details.kind;
+    this.status = details.status;
+    this.url = details.url;
+    this.method = details.method;
+    this.code = details.code;
+    this.fieldErrors = details.fieldErrors;
+    this.rawResponse = details.rawResponse;
+    this.timestamp = details.timestamp;
+    if (cause) {
+      this.cause = cause;
+    }
+
+    // Network errors, rate limits (429), and transient 5xx server errors are retryable
+    this.isRetryable =
+      this.kind === "network" ||
+      this.status === 429 ||
+      (this.kind === "server" && [502, 503, 504].includes(this.status || 500));
+  }
+
+  static from(err: unknown, requestContext?: { url?: string; method?: string }): AppError {
+    const timestamp = Date.now();
+    if (err instanceof AppError) return err;
+
+    const message = (err as any)?.message || String(err);
+    const lower = message.toLowerCase();
+
+    // Check for network errors & abort timeouts
+    if (
+      (err instanceof TypeError && (lower.includes("network") || lower.includes("failed to fetch"))) ||
+      lower.includes("abort") ||
+      lower.includes("timeout") ||
+      lower.includes("network request failed") ||
+      lower.includes("ধীর")
+    ) {
+      const isTimeout = lower.includes("abort") || lower.includes("timeout") || lower.includes("ধীর");
+      return new AppError(
+        isTimeout
+          ? "নেটওয়ার্ক ধীর, আবার চেষ্টা করবেন?"
+          : "Network connection failed. Please check your internet connection.",
+        {
+          kind: "network",
+          url: requestContext?.url,
+          method: requestContext?.method,
+          timestamp,
+        },
+        err
+      );
+    }
+
+    return new AppError(
+      message || "An unexpected error occurred",
+      {
+        kind: "unknown",
+        url: requestContext?.url,
+        method: requestContext?.method,
+        timestamp,
+      },
+      err
+    );
+  }
+}
+
+export interface RequestOptions extends RequestInit {
   params?: Record<string, any>;
+  retries?: number;
+  retryDelayMs?: number;
+  timeoutMs?: number;
 }
 
 /**
- * Universal fetch wrapper that attaches Supabase Bearer token and Correlation ID
+ * Universal fetch wrapper that attaches Supabase Bearer token, Correlation ID,
+ * enforces typed AppError conversion, and applies exponential backoff retry.
  */
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { params, headers = {}, ...rest } = options;
+  const {
+    params,
+    headers = {},
+    retries = 2,
+    retryDelayMs = 600,
+    timeoutMs = 15000,
+    ...rest
+  } = options;
 
   // Retrieve current session token from Supabase Auth
   let token: string | undefined;
@@ -27,7 +136,7 @@ export async function apiRequest<T>(
     const { data } = await supabase.auth.getSession();
     token = data?.session?.access_token;
   } catch (err) {
-    console.warn("Could not retrieve Supabase session token:", err);
+    console.warn("[apiClient] Could not retrieve Supabase session token:", err);
   }
 
   // Construct URL with query parameters
@@ -45,9 +154,13 @@ export async function apiRequest<T>(
     }
   }
 
+  const correlationId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const method = (rest.method || "GET").toUpperCase();
+
   const reqHeaders: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/json",
+    "X-Correlation-ID": correlationId,
     ...(headers as Record<string, string>),
   };
 
@@ -55,23 +168,120 @@ export async function apiRequest<T>(
     reqHeaders["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, {
-    headers: reqHeaders,
-    ...rest,
-  });
+  let attempt = 0;
+  let lastError: AppError | null = null;
 
-  if (!response.ok) {
-    let errorDetail = `HTTP ${response.status}: ${response.statusText}`;
+  while (attempt <= retries) {
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
-      const errorJson = await response.json();
-      errorDetail = errorJson.detail || errorJson.title || errorDetail;
-    } catch {
-      // ignore
+      const response = await fetch(url, {
+        headers: reqHeaders,
+        signal: controller.signal,
+        ...rest,
+      });
+
+      clearTimeout(timeoutTimer);
+
+      if (!response.ok) {
+        let errorTitle = `HTTP ${response.status}: ${response.statusText}`;
+        let rawJson: any = null;
+        let fieldErrors: Record<string, string[]> | undefined;
+        let kind: AppErrorKind = "unknown";
+
+        try {
+          rawJson = await response.json();
+          if (rawJson) {
+            errorTitle = rawJson.detail || rawJson.title || rawJson.message || errorTitle;
+
+            // Extract Pydantic 422 field errors
+            if (response.status === 422 && Array.isArray(rawJson.detail)) {
+              fieldErrors = {};
+              for (const item of rawJson.detail) {
+                const fieldName = Array.isArray(item.loc) ? item.loc.slice(1).join(".") : "field";
+                if (!fieldErrors[fieldName]) fieldErrors[fieldName] = [];
+                fieldErrors[fieldName].push(item.msg || "Invalid value");
+              }
+            }
+          }
+        } catch {
+          // Response body was not JSON
+        }
+
+        // Categorize into AppErrorKind
+        if (response.status === 401 || response.status === 403) {
+          kind = "auth";
+          errorTitle = response.status === 401
+            ? "Your session has expired. Please sign in again."
+            : "You do not have permission to perform this action.";
+        } else if (response.status === 400 || response.status === 422) {
+          kind = "validation";
+        } else if (response.status >= 500 && response.status <= 599) {
+          kind = "server";
+        }
+
+        const appError = new AppError(
+          typeof errorTitle === "string" ? errorTitle : JSON.stringify(errorTitle),
+          {
+            kind,
+            status: response.status,
+            url,
+            method,
+            fieldErrors,
+            rawResponse: rawJson,
+            timestamp: Date.now(),
+          }
+        );
+
+        // Check if retryable
+        if (appError.isRetryable && attempt < retries) {
+          lastError = appError;
+          attempt++;
+          const jitter = Math.floor(Math.random() * 200);
+          const backoff = retryDelayMs * Math.pow(2, attempt - 1) + jitter;
+          await new Promise((res) => setTimeout(res, backoff));
+          continue;
+        }
+
+        throw appError;
+      }
+
+      return (await response.json()) as T;
+    } catch (err: any) {
+      clearTimeout(timeoutTimer);
+
+      const appError = AppError.from(err, { url, method });
+
+      if (appError.isRetryable && attempt < retries) {
+        lastError = appError;
+        attempt++;
+        const jitter = Math.floor(Math.random() * 200);
+        const backoff = retryDelayMs * Math.pow(2, attempt - 1) + jitter;
+        await new Promise((res) => setTimeout(res, backoff));
+        continue;
+      }
+
+      // Record to telemetry and crash reporting
+      uxHealthMonitor.recordError({
+        screenName: "apiClient",
+        sanitizedMessage: `[${appError.kind.toUpperCase()}] ${appError.message} (${method} ${endpoint})`,
+        sanitizedStack: appError.stack,
+        timestamp: Date.now(),
+      });
+
+      crashReporter.captureException(appError, {
+        url,
+        method,
+        status: appError.status,
+        kind: appError.kind,
+      });
+
+      throw appError;
     }
-    throw new Error(errorDetail);
   }
 
-  return response.json();
+  throw lastError || new AppError("Request failed after retries", { kind: "unknown", timestamp: Date.now() });
 }
 
 /**

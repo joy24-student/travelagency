@@ -24,7 +24,9 @@ import Svg, { Path, Circle } from "react-native-svg";
 import { reportService, adminService } from "@/services/adminService";
 import { FinancialReport, AdminUser } from "@/types/admin";
 
-const { width, height } = Dimensions.get("window");
+import { useResponsive } from "../../hooks/useResponsive";
+
+const { width } = Dimensions.get("window");
 
 /**
  * Report Card Component
@@ -570,7 +572,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   reportMetrics: {
@@ -588,7 +590,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     marginBottom: 4,
   },

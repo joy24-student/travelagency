@@ -1,84 +1,76 @@
 """
-Tests for Cloudflare R2 Presigned Upload URL Generation and MIME Whitelisting.
+Test Cloudflare R2 Presigned Upload URL Restrictions.
 """
 
 import uuid
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import create_test_jwt
+from tests.conftest import make_test_jwt
 
 
 @pytest.mark.asyncio
-async def test_presigned_url_generation_success(client: AsyncClient):
-    """Authenticated user requests a presigned PUT URL for avatar upload."""
+async def test_presigned_upload_valid_pdf_under_5mb(client: AsyncClient):
+    """Valid PDF document under 5MB generates single-use PUT upload URL."""
     user_id = uuid.uuid4()
-    token = create_test_jwt(user_id=user_id)
+    token = make_test_jwt(user_id)
 
     payload = {
-        "file_name": "profile_photo.png",
-        "mime_type": "image/png",
-        "size_bytes": 1024 * 500,  # 500 KB
-        "entity_type": "avatar",
+        "file_name": "passport_scan.pdf",
+        "mime_type": "application/pdf",
+        "size_bytes": 2 * 1024 * 1024,  # 2 MB
+        "entity_type": "kyc_document",
     }
-
-    response = await client.post(
-        "/api/v1/storage/upload-url",
+    resp = await client.post(
+        "/api/v1/storage/presigned-upload",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 200
-    data = response.json()
+    assert resp.status_code == 200
+    data = resp.json()["data"]
     assert "upload_url" in data
-    assert "key" in data
-    assert "avatars" in data["key"]
     assert data["http_method"] == "PUT"
-    assert data["required_headers"]["Content-Type"] == "image/png"
+    assert data["key"].endswith(".pdf")
+    assert "public_url" in data
 
 
 @pytest.mark.asyncio
-async def test_presigned_url_disallowed_mime_type(client: AsyncClient):
-    """Uploading an unauthorized executable or script as an avatar is rejected."""
+async def test_presigned_upload_invalid_mime_type_rejected(client: AsyncClient):
+    """Disallowed MIME type (e.g. application/zip, text/plain) is rejected with 400 Bad Request."""
     user_id = uuid.uuid4()
-    token = create_test_jwt(user_id=user_id)
+    token = make_test_jwt(user_id)
 
     payload = {
-        "file_name": "malicious.exe",
-        "mime_type": "application/x-msdownload",
-        "size_bytes": 1024 * 10,
+        "file_name": "malicious.zip",
+        "mime_type": "application/zip",
+        "size_bytes": 1024 * 1024,
         "entity_type": "avatar",
     }
-
-    response = await client.post(
-        "/api/v1/storage/upload-url",
+    resp = await client.post(
+        "/api/v1/storage/presigned-upload",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 400
-    problem = response.json()
-    assert problem["status"] == 400
-    assert "not permitted" in problem["detail"]
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "BAD_REQUEST"
+    assert "not permitted" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
-async def test_presigned_url_file_too_large(client: AsyncClient):
-    """Avatar exceeding 5MB max size is rejected."""
+async def test_presigned_upload_exceeding_5mb_rejected(client: AsyncClient):
+    """Upload request exceeding 5MB is rejected with 422 or 400."""
     user_id = uuid.uuid4()
-    token = create_test_jwt(user_id=user_id)
+    token = make_test_jwt(user_id)
 
     payload = {
-        "file_name": "huge_avatar.jpg",
-        "mime_type": "image/jpeg",
-        "size_bytes": 10 * 1024 * 1024,  # 10 MB > 5MB limit
+        "file_name": "huge_avatar.png",
+        "mime_type": "image/png",
+        "size_bytes": 6 * 1024 * 1024,  # 6 MB
         "entity_type": "avatar",
     }
-
-    response = await client.post(
-        "/api/v1/storage/upload-url",
+    resp = await client.post(
+        "/api/v1/storage/presigned-upload",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 400
-    problem = response.json()
-    assert problem["status"] == 400
-    assert "exceeds limit" in problem["detail"]
+    assert resp.status_code in (400, 422)

@@ -1,3 +1,4 @@
+import { AppImage } from "./ui/AppImage";
 import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
@@ -21,6 +22,9 @@ import {
   DEMO_USER_ID,
 } from "../services/repositories/friends";
 import { TravelVideoPlayer } from "./TravelVideoPlayer";
+import { LoadingState } from "./ui/LoadingState";
+import { EmptyState } from "./ui/EmptyState";
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const TRIP_BLUE = "#0055F2";
@@ -178,7 +182,12 @@ export function UserProfileModal({
   };
 
   return (
-    <Modal visible={!!userId} animationType="slide" presentationStyle="pageSheet">
+    <Modal
+      visible={!!userId}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
       <View style={styles.shell}>
         {/* Header bar */}
         <View style={styles.navBar}>
@@ -190,8 +199,10 @@ export function UserProfileModal({
         </View>
 
         {loading ? (
-          <View style={styles.centerLoader}>
-            <ActivityIndicator size="large" color={TRIP_BLUE} />
+          <View style={{ padding: 16 }}>
+            <LoadingState variant="skeleton" skeletonType="profile" count={1} />
+            <View style={{ height: 16 }} />
+            <LoadingState variant="skeleton" skeletonType="card" count={2} />
           </View>
         ) : profile ? (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -215,7 +226,7 @@ export function UserProfileModal({
             <View style={styles.profileCard}>
               <View style={styles.avatarRow}>
                 <View style={styles.avatarBorder}>
-                  <Image source={{ uri: profile.avatar_url }} style={styles.bigAvatar} />
+                  <AppImage source={{ uri: profile.avatar_url }} placeholderCategory="avatar" style={styles.bigAvatar} />
                   <View style={styles.onlineBadge} />
                 </View>
 
@@ -455,7 +466,7 @@ export function UserProfileModal({
                   <View style={styles.friendsGrid}>
                     {userFriends.map((friend) => (
                       <View key={friend.id} style={styles.friendGridCard}>
-                        <Image source={{ uri: friend.avatar_url }} style={styles.friendGridAvatar} />
+                        <AppImage source={{ uri: friend.avatar_url }} placeholderCategory="avatar" style={styles.friendGridAvatar} />
                         <Text style={styles.friendGridName} numberOfLines={1}>
                           {friend.display_name}
                         </Text>
@@ -496,9 +507,14 @@ export function UserProfileModal({
             <View style={{ height: 60 }} />
           </ScrollView>
         ) : (
-          <View style={styles.centerLoader}>
-            <Text style={styles.emptyText}>User not found</Text>
-          </View>
+          <EmptyState
+            type="generic"
+            title="User Not Found"
+            description="We couldn't retrieve this traveler's profile or the account may no longer exist."
+            actionLabel="Go Back"
+            onAction={onClose}
+            style={{ padding: 32 }}
+          />
         )}
       </View>
     </Modal>
@@ -637,7 +653,7 @@ const styles = StyleSheet.create({
   },
   influencerBadgeText: {
     color: "#D97706",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   bioText: {
@@ -724,7 +740,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
     marginTop: 2,
@@ -798,7 +814,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   postLocText: {
-    fontSize: 11,
+    fontSize: 12,
     color: TRIP_BLUE,
     fontWeight: "700",
   },
@@ -855,7 +871,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   friendGridHandle: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
   },
   aboutCard: {

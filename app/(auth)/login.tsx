@@ -1,449 +1,684 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { router } from "expo-router";
-import { useState, useRef, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { 
-  Alert, 
-  Text, 
-  View, 
-  Pressable, 
-  KeyboardAvoidingView, 
-  Platform, 
-  StatusBar, 
-  StyleSheet, 
-  ScrollView, 
-  Image, 
-  Modal, 
-  TextInput, 
-  NativeSyntheticEvent, 
-  TextInputKeyPressEventData, 
-  PanResponder, 
-  Animated 
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Text,
+  View,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  ScrollView,
+  Image,
+  Modal,
+  TextInput,
+  Animated,
 } from "react-native";
-import Svg, { Path } from "react-native-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router, useLocalSearchParams } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri } from "expo-auth-session";
+import * as LocalAuthentication from "expo-local-authentication";
+import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { supabase } from "../../src/utils/supabase"; // Keeping the supabase import
-import { useAuth } from "../../src/hooks/useAuth"; // Using the auth hook instead of direct service
-import { loginSchema, LoginFormValues } from "../../src/auth/schemas";
 
-// Safe import for Google Sign-in to prevent crash in Expo Go
+import { useAuth } from "../../src/hooks/useAuth";
+import { authService } from "../../src/services/auth";
+import { useSettingsStore } from "../../src/store/settingsStore";
+import { useTheme } from "../../src/context/ThemeContext";
+import { deviceSessionService } from "../../src/services/deviceSessionService";
+import { OTPInput, PasswordStrengthMeter } from "../../src/components/ui";
+import { BRAND } from "../../src/constants/brand";
+
+// Safe import for Google Sign-in to prevent crash in unsupported environments
 let GoogleSignin: any;
 try {
   const GoogleSigninModule = require("@react-native-google-signin/google-signin");
   GoogleSignin = GoogleSigninModule.GoogleSignin;
 } catch (e) {
-  // Silent catch, handled in component
+  // Silent fallback
 }
 
 WebBrowser.maybeCompleteAuthSession();
 
 const TRIP_BLUE = "#3166ee";
 
+function maskEmail(email: string): string {
+  if (!email || !email.includes("@")) return email || "";
+  const parts = email.split("@");
+  const name = parts[0];
+  const domain = parts[1];
+  const first = name.charAt(0);
+  return `${first}***@${domain}`;
+}
+
 export default function LoginScreen() {
-  const { signIn, signInWithOAuth, sendOtp, verifyOtp, updatePassword } = useAuth(); // Using auth context
+  const { signIn, signInWithOAuth, sendOtp, verifyOtp, updatePassword } = useAuth();
+  const searchParams = useLocalSearchParams<{ expired?: string; returnTo?: string }>();
+  const { security, toggleBiometric } = useSettingsStore();
+  const { isDark, isOled } = useTheme();
+
+  // Root states
   const [loading, setLoading] = useState(false);
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null);
+
+  // Email step modal & form states
   const [emailModalVisible, setEmailModalVisible] = useState(false);
-  const [couponModalVisible, setCouponModalVisible] = useState(false);
-  const [otpModalVisible, setOtpModalVisible] = useState(false);
-  const [referralCode, setReferralCode] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [referralError, setReferralError] = useState<string | null>(null);
-  const [referralSuccess, setReferralSuccess] = useState(false);
-  const [otpSuccess, setOtpSuccess] = useState(false);
-  const [otpValue, setOtpValue] = useState(['', '', '', '', '', '']);
-  const [resendTimer, setResendTimer] = useState(30);
-  const [canResend, setCanResend] = useState(false);
-  const [userExists, setUserExists] = useState<boolean | null>(null);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [checkingUser, setCheckingUser] = useState(false);
+  const [userExists, setUserExists] = useState<boolean | null>(null);
+
+  // Password fields
+  const [passwordInput, setPasswordInput] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  // Lockout / Rate limit counter (30s)
+  const [lockoutTimer, setLockoutTimer] = useState<number>(0);
+  const [failedAttempts, setFailedAttempts] = useState<number>(0);
+
+  // OTP Verification modal & states
+  const [otpModalVisible, setOtpModalVisible] = useState(false);
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpLength, setOtpLength] = useState<6 | 8>(6);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [resendTimer, setResendTimer] = useState(60);
+  const [canResend, setCanResend] = useState(false);
   const [isNewUserFlow, setIsNewUserFlow] = useState(false);
+
+  // Magic link state
+  const [magicLinkNotice, setMagicLinkNotice] = useState<string | null>(null);
+  const [sendingMagicLink, setSendingMagicLink] = useState(false);
+
+  // Password creation for new users
   const [passwordCreateModalVisible, setPasswordCreateModalVisible] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [createPasswordError, setCreatePasswordError] = useState<string | null>(null);
 
+  // Biometrics prompt modal after first login
+  const [biometricPromptVisible, setBiometricPromptVisible] = useState(false);
+  const [biometricPendingRedirect, setBiometricPendingRedirect] = useState<string | null>(null);
+
+  // Social & Referral
+  const [socialError, setSocialError] = useState<string | null>(null);
+  const [showReferralInput, setShowReferralInput] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+  const [referralMessage, setReferralMessage] = useState<string | null>(null);
+
+  // Animations
+  const modalFadeAnim = useRef(new Animated.Value(0)).current;
+  const modalSlideAnim = useRef(new Animated.Value(400)).current;
+
+  // Adaptive theme colors
+  const themeStyles = {
+    bg: isOled ? "#000000" : isDark ? "#0f172a" : "#ffffff",
+    cardBg: isOled ? "#09090b" : isDark ? "#1e293b" : "#ffffff",
+    textPrimary: isDark ? "#f8fafc" : "#111827",
+    textSecondary: isDark ? "#94a3b8" : "#4b5563",
+    inputBg: isDark ? "#0f172a" : "#f9fafb",
+    inputBorder: isDark ? "#334155" : "#e5e7eb",
+    modalOverlay: "rgba(0, 0, 0, 0.65)",
+    bannerBg: isDark ? "#292524" : "#fef3c7",
+    bannerBorder: isDark ? "#44403c" : "#fde68a",
+    bannerText: isDark ? "#fcd34d" : "#92400e",
+    googleBtnBg: isDark ? "#1e293b" : "#ffffff",
+    googleBtnBorder: isDark ? "#334155" : "#e5e7eb",
+    googleBtnText: isDark ? "#f8fafc" : "#1f2937",
+    biometricBtnBg: isDark ? "#1e3a8a33" : "#eff6ff",
+    biometricBtnBorder: isDark ? "#1e40af" : "#bfdbfe",
+  };
+
+  // Safe Haptic feedback trigger
+  const triggerHaptic = (type: "light" | "success" | "error") => {
+    if (Platform.OS === "web") return;
+    try {
+      if (type === "light") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else if (type === "success") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else if (type === "error") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } catch {}
+  };
+
+  // Initialize Google Sign-in if configured
   useEffect(() => {
     if (GoogleSignin) {
-      GoogleSignin.configure({
-        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-        iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-        offlineAccess: true,
-      });
+      try {
+        GoogleSignin.configure({
+          webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+          iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+          offlineAccess: true,
+        });
+      } catch (err) {
+        console.warn("GoogleSignin configuration skipped:", err);
+      }
     }
   }, []);
 
-  // Modal Pan/Drag logic
-  const pan = useRef(new Animated.ValueXY()).current;
-  const iconPulseAnim = useRef(new Animated.Value(1)).current;
-  const emailIconPulseAnim = useRef(new Animated.Value(1)).current;
-  const referralIconPulseAnim = useRef(new Animated.Value(1)).current;
-  const successScaleAnim = useRef(new Animated.Value(0)).current;
-  const resendRotateAnim = useRef(new Animated.Value(0)).current;
-  const modalFadeAnim = useRef(new Animated.Value(0)).current;
-  const modalSlideAnim = useRef(new Animated.Value(500)).current;
-
-  const createPanResponder = (closeHandler: () => void) =>
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          pan.y.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 120) {
-          Animated.timing(pan.y, {
-            toValue: 1000,
-            duration: 300,
-            useNativeDriver: true,
-          }).start(closeHandler);
-        } else {
-          Animated.spring(pan.y, {
-            toValue: 0,
-            friction: 8,
-            tension: 40,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    });
-
-  const emailPan = useRef(createPanResponder(() => setEmailModalVisible(false))).current;
-  const otpPan = useRef(createPanResponder(() => setOtpModalVisible(false))).current;
-  const couponPan = useRef(createPanResponder(() => setCouponModalVisible(false))).current;
-  const passwordCreatePan = useRef(createPanResponder(() => setPasswordCreateModalVisible(false))).current;
-
-  useEffect(() => { 
-    pan.setValue({ x: 0, y: 0 }); 
-  }, [emailModalVisible, otpModalVisible, couponModalVisible, passwordCreateModalVisible]);
-
+  // Check for expired session notification
   useEffect(() => {
-    if (!emailModalVisible) {
-      setUserExists(null);
-      setCheckingUser(false);
-    }
-  }, [emailModalVisible]);
-
-  const otpRefs = useRef<TextInput[]>([]);
-
-  // Unified animation trigger for all modals
-  useEffect(() => {
-    const isVisible = emailModalVisible || otpModalVisible || couponModalVisible || passwordCreateModalVisible;
-    if (isVisible) {
-      pan.setValue({ x: 0, y: 0 }); // Reset manual drag position
-      Animated.parallel([
-        Animated.timing(modalFadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.spring(modalSlideAnim, { toValue: 0, friction: 8, tension: 40, useNativeDriver: true }),
-      ]).start();
-    } else {
-      modalSlideAnim.setValue(500);
-      modalFadeAnim.setValue(0);
-    }
-  }, [emailModalVisible, otpModalVisible, couponModalVisible, passwordCreateModalVisible]);
-
-useEffect(() => {
-    if (otpModalVisible) {
-      const anim = Animated.loop(
-        Animated.sequence([
-          Animated.timing(iconPulseAnim, { toValue: 1.1, duration: 1000, useNativeDriver: true }),
-          Animated.timing(iconPulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true })
-        ])
-      );
-      anim.start();
-
-      const interval = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => {
-        clearInterval(interval);
-        anim.stop();
-      };
-    }
-  }, [otpModalVisible]);
-
-  useEffect(() => {
-    if (emailModalVisible) {
-      const anim = Animated.loop(
-        Animated.sequence([
-          Animated.timing(emailIconPulseAnim, {
-            toValue: 1.1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(emailIconPulseAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      anim.start();
-      return () => anim.stop();
-    }
-  }, [emailModalVisible]);
-
-  useEffect(() => {
-    if (couponModalVisible) {
-      const anim = Animated.loop(
-        Animated.sequence([
-          Animated.timing(referralIconPulseAnim, {
-            toValue: 1.1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(referralIconPulseAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      anim.start();
-      return () => anim.stop();
-    }
-  }, [couponModalVisible]);
-
-  const animateSuccess = () => {
-    successScaleAnim.setValue(0);
-    Animated.spring(successScaleAnim, {
-      toValue: 1,
-      friction: 4,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleResend = () => {
-    if (!canResend) return;
-    setResendTimer(30);
-    setCanResend(false);
-    setOtpValue(['', '', '', '', '', '']);
-    Animated.timing(resendRotateAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start(() => resendRotateAnim.setValue(0));
-  };
-
-  const handleOtpChange = (val: string, index: number) => {
-    const nextOtp = [...otpValue];
-    nextOtp[index] = val;
-    setOtpValue(nextOtp);
-    if (val && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !otpValue[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleApplyReferral = () => {
-    if (!referralCode.trim()) {
-      setReferralError("Please enter a referral code.");
-      return;
-    }
-    // Simulated validation logic
-    setReferralError(null);
-    setReferralSuccess(true);
-    animateSuccess();
-    
-    setTimeout(() => {
-      setCouponModalVisible(false);
-      // Reset for next time
-      setTimeout(() => {
-        setReferralSuccess(false);
-        setReferralCode("");
-      }, 500);
-    }, 1500);
-  };
-
-  const [otpEmail, setOtpEmail] = useState("");
-
-  const handleOtpVerify = async () => {
-    const token = otpValue.join("");
-    if (token.length < 6) {
-      Alert.alert("Error", "Please enter the 6-digit code.");
-      return;
-    }
-    try {
-      await verifyOtp(otpEmail || "", token, "email"); // Using auth context
-      setOtpSuccess(true);
-      animateSuccess();
-      setTimeout(() => {
-        if (isNewUserFlow) {
-          setOtpModalVisible(false);
-          setOtpSuccess(false);
-          setPasswordCreateModalVisible(true);
-        } else {
-          router.replace("/(tabs)" as any);
-          setOtpModalVisible(false);
-          setOtpSuccess(false);
-        }
-      }, 1500);
-    } catch (error) {
-      Alert.alert("Verification failed", error instanceof Error ? error.message : "Invalid code.");
-    }
-  };
-
-  // Check if user exists when email is entered
-  const handleEmailCheck = async (email: string) => {
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      Alert.alert("Invalid Email", "Please enter a valid email address.");
-      return;
-    }
-
-    setCheckingUser(true);
-    try {
-      // Try to sign in with a fake password to determine if user exists
-      // This is the fallback approach from the authService.checkUserExists method
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: '__check__' + Math.random().toString(36),
-      });
-
-      let exists = false;
-      if (signInError) {
-        // Check error message to determine if user exists
-        const msg = signInError.message.toLowerCase();
-        if (msg.includes('invalid') || msg.includes('password') || msg.includes('credentials')) {
-          exists = true; // User exists, wrong password
-        }
-        // If the error is about unconfirmed email or other non-credential issues, 
-        // we still consider the user as existing
-      } else {
-        // If no error, then somehow the fake password worked (highly unlikely)
-        exists = true;
+    const checkExpiredNotice = async () => {
+      if (searchParams.expired === "1" || searchParams.expired === "true") {
+        setSessionExpiredMessage("⚠️ আপনার সেশন শেষ হয়ে গেছে, দয়া করে আবার লগইন করুন।");
+        return;
       }
-      
+      try {
+        const storedMsg = await AsyncStorage.getItem("@app:session_expired_message");
+        if (storedMsg) {
+          setSessionExpiredMessage(storedMsg);
+          await AsyncStorage.removeItem("@app:session_expired_message");
+        }
+      } catch {}
+    };
+    checkExpiredNotice();
+  }, [searchParams.expired]);
+
+  // Lockout countdown timer (30s)
+  useEffect(() => {
+    if (lockoutTimer <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutTimer]);
+
+  // 60-second OTP resend timer
+  useEffect(() => {
+    if (!otpModalVisible) return;
+    setResendTimer(60);
+    setCanResend(false);
+
+    const interval = setInterval(() => {
+      setResendTimer((prev) => {
+        if (prev <= 1) {
+          setCanResend(true);
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [otpModalVisible, otpEmail]);
+
+  // Modal animation
+  const showModalAnimation = () => {
+    modalFadeAnim.setValue(0);
+    modalSlideAnim.setValue(400);
+    Animated.parallel([
+      Animated.timing(modalFadeAnim, { toValue: 1, duration: 240, useNativeDriver: true }),
+      Animated.spring(modalSlideAnim, { toValue: 0, friction: 8, tension: 50, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const openEmailModal = () => {
+    triggerHaptic("light");
+    setEmailError(null);
+    setPasswordError(null);
+    setUserExists(null);
+    setMagicLinkNotice(null);
+    setEmailModalVisible(true);
+    showModalAnimation();
+  };
+
+  // Check email safely without fake passwords
+  const handleEmailCheck = async () => {
+    triggerHaptic("light");
+    const cleanEmail = emailInput.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      triggerHaptic("error");
+      setEmailError("সঠিক ইমেইল অ্যাড্রেস লিখুন (যেমন: name@example.com)");
+      return;
+    }
+
+    setEmailError(null);
+    setPasswordError(null);
+    setMagicLinkNotice(null);
+    setCheckingUser(true);
+
+    try {
+      const exists = await authService.checkUserExists(cleanEmail);
       setUserExists(exists);
 
       if (!exists) {
-        setOtpEmail(email);
+        // New user! Initiate clean OTP signup
         setIsNewUserFlow(true);
-        // Using the auth context's sendOtp method
-        await sendOtp(email); // Using auth context
+        setOtpEmail(cleanEmail);
+        try {
+          await sendOtp(cleanEmail);
+        } catch (otpErr: any) {
+          console.warn("OTP send notice:", otpErr);
+        }
         setEmailModalVisible(false);
-        // Wait a small bit for modal transition
+        setOtpCode("");
+        setOtpError(null);
         setTimeout(() => {
           setOtpModalVisible(true);
-        }, 300);
+          showModalAnimation();
+        }, 200);
       } else {
+        // Existing user: Show password input + OTP login option
         setIsNewUserFlow(false);
+        setOtpEmail(cleanEmail);
       }
-    } catch (error) {
-      console.error("Error checking user:", error);
-      Alert.alert("Error", "Could not verify email. Please try again.");
+    } catch (err) {
+      console.error("Error during email check:", err);
+      setUserExists(true);
+      setOtpEmail(cleanEmail);
     } finally {
       setCheckingUser(false);
     }
   };
 
-  const { control, handleSubmit, getValues } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
-  });
+  // Sign in with password
+  const handlePasswordSignIn = async () => {
+    if (lockoutTimer > 0) return;
+    triggerHaptic("light");
 
-  const onSubmit = handleSubmit(async ({ email, password }) => {
-    setLoading(true);
-    try {
-      await signIn({ email, password }); // Using auth context
-      router.replace("/(tabs)" as any);
-    } catch (error) {
-      Alert.alert(
-        "Login failed",
-        error instanceof Error ? error.message : "Please try again.",
-      );
-    } finally {
-      setLoading(false);
+    if (!passwordInput) {
+      triggerHaptic("error");
+      setPasswordError("আপনার পাসওয়ার্ড লিখুন");
+      return;
     }
-  });
 
-  const onSocialSignIn = async (provider: "google" | "facebook") => {
+    setPasswordError(null);
     setLoading(true);
-    try {
-      if (provider === 'google') {
-        if (!GoogleSignin) {
-          Alert.alert("Error", "Google Sign-in is not available in this environment. Please use a development build.");
-          return;
-        }
-        await GoogleSignin.hasPlayServices();
-        const userInfo = await GoogleSignin.signIn();
-        if (userInfo.idToken) {
-          // Use the auth context method for Google sign-in
-          await signInWithOAuth(provider); // Using auth context
-          router.replace("/(tabs)" as any);
-          return;
-        } else {
-          throw new Error("No ID token present from Google");
-        }
-      }
 
-      // Use the auth context method for social sign-in
-      await signInWithOAuth(provider); // Using auth context
-      router.push("/(auth)/callback");
-    } catch (error) {
-      Alert.alert("Login failed", error instanceof Error ? error.message : "Please try again.");
+    try {
+      await signIn({ email: emailInput.trim().toLowerCase(), password: passwordInput });
+      triggerHaptic("success");
+      setEmailModalVisible(false);
+      await handlePostLoginSuccess();
+    } catch (err: any) {
+      triggerHaptic("error");
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn("Sign in error:", errMsg);
+
+      const isRateLimit =
+        errMsg.toLowerCase().includes("rate") ||
+        errMsg.toLowerCase().includes("too many") ||
+        err?.status === 429;
+
+      const nextAttempts = failedAttempts + 1;
+      setFailedAttempts(nextAttempts);
+
+      if (isRateLimit || nextAttempts >= 5) {
+        setLockoutTimer(30);
+        setFailedAttempts(0);
+        setPasswordError("অনেক চেষ্টা হয়েছে, ৩০ সেকেন্ড পরে চেষ্টা করুন");
+      } else if (
+        errMsg.toLowerCase().includes("invalid login credentials") ||
+        errMsg.toLowerCase().includes("invalid grant")
+      ) {
+        setPasswordError("পাসওয়ার্ড ভুল হয়েছে। আবার চেষ্টা করুন অথবা OTP দিয়ে লগইন করুন।");
+      } else if (errMsg.toLowerCase().includes("not found")) {
+        setEmailError("এই ইমেইলে অ্যাকাউন্ট পাওয়া যায়নি, সাইন আপ করুন");
+        setUserExists(false);
+      } else {
+        setPasswordError(errMsg || "লগইন ব্যর্থ হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreatePassword = async () => {
-    // Clear previous errors
-    setPasswordError("");
-    
+  // Switch to OTP login flow
+  const handleSwitchToOtpLogin = async () => {
+    triggerHaptic("light");
+    const cleanEmail = emailInput.trim().toLowerCase() || otpEmail;
+    if (!cleanEmail) {
+      setEmailError("দয়া করে ইমেইল অ্যাড্রেস লিখুন");
+      return;
+    }
+
+    setLoading(true);
+    setEmailError(null);
+    setPasswordError(null);
+
+    try {
+      await sendOtp(cleanEmail);
+      setOtpEmail(cleanEmail);
+      setIsNewUserFlow(false);
+      setEmailModalVisible(false);
+      setOtpCode("");
+      setOtpError(null);
+      setTimeout(() => {
+        setOtpModalVisible(true);
+        showModalAnimation();
+      }, 200);
+    } catch (err: any) {
+      setPasswordError(err?.message || "OTP কোড পাঠাতে সমস্যা হয়েছে। কিছুক্ষণ পর চেষ্টা করুন।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Send Magic Link (Passwordless One-Click Link)
+  const handleSendMagicLink = async () => {
+    triggerHaptic("light");
+    const targetEmail = (emailInput || otpEmail).trim().toLowerCase();
+    if (!targetEmail) {
+      setEmailError("দয়া করে ইমেইল অ্যাড্রেস লিখুন");
+      return;
+    }
+
+    setSendingMagicLink(true);
+    setMagicLinkNotice(null);
+    setEmailError(null);
+
+    try {
+      await authService.sendMagicLink(targetEmail);
+      triggerHaptic("success");
+      setMagicLinkNotice(
+        `✉️ ${maskEmail(targetEmail)}-এ ম্যাজিক লিংক পাঠানো হয়েছে! লিংকে ক্লিক করলেই পাসওয়ার্ড ছাড়া লগইন হয়ে যাবে।`
+      );
+    } catch (err: any) {
+      triggerHaptic("error");
+      setEmailError(err?.message || "ম্যাজিক লিংক পাঠানো সম্ভব হয়নি। OTP দিয়ে চেষ্টা করুন।");
+    } finally {
+      setSendingMagicLink(false);
+    }
+  };
+
+  // Verify OTP code
+  const handleOtpVerify = async (codeToVerify?: string) => {
+    const token = (codeToVerify || otpCode).trim();
+    if (!token || token.length < 6) {
+      triggerHaptic("error");
+      setOtpError("দয়া করে সঠিক ভেরিফিকেশন কোড লিখুন");
+      return;
+    }
+
+    setOtpError(null);
+    setLoading(true);
+
+    try {
+      await verifyOtp(otpEmail, token, "email");
+      triggerHaptic("success");
+
+      if (isNewUserFlow) {
+        setOtpModalVisible(false);
+        setPasswordCreateModalVisible(true);
+        showModalAnimation();
+      } else {
+        setOtpModalVisible(false);
+        await handlePostLoginSuccess();
+      }
+    } catch (err: any) {
+      triggerHaptic("error");
+      console.warn("OTP verification error:", err);
+      setOtpError("কোডটি সঠিক নয় অথবা মেয়াদ শেষ হয়ে গেছে। পুনরায় কোড পাঠানোর চেষ্টা করুন।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Resend OTP
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+    triggerHaptic("light");
+    setCanResend(false);
+    setResendTimer(60);
+    setOtpError(null);
+
+    try {
+      await sendOtp(otpEmail);
+    } catch (err: any) {
+      triggerHaptic("error");
+      setOtpError(err?.message || "কোড পুনরায় পাঠাতে সমস্যা হয়েছে।");
+    }
+  };
+
+  // Return from OTP to Email step to fix typo
+  const handleBackToEmailFromOtp = () => {
+    triggerHaptic("light");
+    setOtpModalVisible(false);
+    setOtpCode("");
+    setOtpError(null);
+    openEmailModal();
+  };
+
+  // Complete password creation for new accounts
+  const handleCreatePasswordSubmit = async () => {
+    setCreatePasswordError(null);
+
     if (!newPassword || newPassword.length < 6) {
-      setPasswordError("Password must be at least 6 characters.");
+      triggerHaptic("error");
+      setCreatePasswordError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে");
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError("Passwords do not match.");
+      triggerHaptic("error");
+      setCreatePasswordError("উভয় পাসওয়ার্ড একই হতে হবে");
       return;
     }
 
     setLoading(true);
+    triggerHaptic("light");
     try {
-      await updatePassword(newPassword); // Using auth context
-      Alert.alert("Success", "Account created successfully!");
+      await updatePassword(newPassword);
+      triggerHaptic("success");
       setPasswordCreateModalVisible(false);
-      // Clear password fields
-      setNewPassword("");
-      setConfirmPassword("");
-      router.replace("/(tabs)" as any);
-    } catch (error) {
-      Alert.alert("Error", error instanceof Error ? error.message : "Failed to set password.");
+      await handlePostLoginSuccess();
+    } catch (err: any) {
+      triggerHaptic("error");
+      setCreatePasswordError(err?.message || "পাসওয়ার্ড সেট করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।");
     } finally {
       setLoading(false);
     }
   };
 
+  // Google OAuth sign-in
+  const handleGoogleSignIn = async () => {
+    triggerHaptic("light");
+    setSocialError(null);
+    setLoading(true);
+
+    try {
+      if (GoogleSignin) {
+        await GoogleSignin.hasPlayServices();
+        const userInfo = await GoogleSignin.signIn();
+        if (userInfo.idToken) {
+          await signInWithOAuth("google");
+          triggerHaptic("success");
+          await handlePostLoginSuccess();
+          return;
+        }
+      }
+      // Web / fallback browser flow
+      await signInWithOAuth("google");
+      router.push("/(auth)/callback");
+    } catch (err: any) {
+      console.warn("Google sign in notice:", err);
+      setSocialError("Google সাইন-ইন সম্পন্ন করা সম্ভব হয়নি। ইমেইল দিয়ে চেষ্টা করুন।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Apple OAuth sign-in (Required for iOS App Store compliance)
+  const handleAppleSignIn = async () => {
+    triggerHaptic("light");
+    setSocialError(null);
+    setLoading(true);
+
+    try {
+      await signInWithOAuth("apple");
+      router.push("/(auth)/callback");
+    } catch (err: any) {
+      console.warn("Apple sign in notice:", err);
+      setSocialError("Apple সাইন-ইন সম্পন্ন করা সম্ভব হয়নি। ইমেইল দিয়ে চেষ্টা করুন।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Quick 1-tap biometric login if already enabled on device
+  const handleBiometricQuickLogin = async () => {
+    triggerHaptic("light");
+    setLoading(true);
+    setSocialError(null);
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasHardware || !isEnrolled) {
+        setSocialError("এই ডিভাইসে বায়োমেট্রিক সাপোর্ট পাওয়া যায়নি।");
+        return;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: `${BRAND.name.bn}-তে লগইন করতে আপনার আঙুল বা ফেস স্ক্যান করুন`,
+        fallbackLabel: "ইমেইল দিয়ে লগইন করুন",
+      });
+
+      if (result.success) {
+        triggerHaptic("success");
+        const session = await authService.getSession();
+        if (session?.user) {
+          await handlePostLoginSuccess();
+        } else {
+          openEmailModal();
+          setEmailError("সেশনের মেয়াদ শেষ। দয়া করে একবার ইমেইল ও পাসওয়ার্ড দিয়ে লগইন করুন।");
+        }
+      }
+    } catch (err: any) {
+      setSocialError("বায়োমেট্রিক যাচাইকরণ ব্যর্থ হয়েছে।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Post-login workflow: Register device session + Biometric prompt + return-to navigation
+  const handlePostLoginSuccess = async () => {
+    // 1. Register active device session in backend/store
+    try {
+      const user = await authService.getCurrentUser();
+      if (user?.id) {
+        deviceSessionService.registerOrUpdateSession(user.id).catch(() => {});
+      }
+    } catch {}
+
+    // 2. Check return destination
+    const returnTo =
+      searchParams.returnTo || (await AsyncStorage.getItem("@app:return_to_after_login"));
+
+    if (returnTo) {
+      await AsyncStorage.removeItem("@app:return_to_after_login");
+    }
+
+    // 3. Check if eligible for first-time Biometric enrollment prompt
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      const alreadyPrompted = await AsyncStorage.getItem("@app:biometrics_prompted");
+
+      if (hasHardware && isEnrolled && !alreadyPrompted && !security.biometricLockEnabled) {
+        setBiometricPendingRedirect(returnTo || "/(tabs)");
+        setBiometricPromptVisible(true);
+        return;
+      }
+    } catch (e) {
+      console.warn("Biometric check error:", e);
+    }
+
+    if (returnTo) {
+      router.replace(returnTo as any);
+    } else {
+      router.replace("/(tabs)");
+    }
+  };
+
+  // Enable biometrics from first-login prompt
+  const handleEnableBiometrics = async () => {
+    triggerHaptic("light");
+    try {
+      const authResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: "বায়োমেট্রিক লগইন সক্রিয় করতে নিশ্চিত করুন",
+        fallbackLabel: "বাতিল করুন",
+      });
+
+      if (authResult.success) {
+        triggerHaptic("success");
+        toggleBiometric(true);
+      }
+    } catch (err) {
+      console.warn("Biometric setup error:", err);
+    } finally {
+      await AsyncStorage.setItem("@app:biometrics_prompted", "true");
+      setBiometricPromptVisible(false);
+      const dest = biometricPendingRedirect || "/(tabs)";
+      router.replace(dest as any);
+    }
+  };
+
+  // Skip biometrics from prompt
+  const handleSkipBiometrics = async () => {
+    triggerHaptic("light");
+    await AsyncStorage.setItem("@app:biometrics_prompted", "true");
+    setBiometricPromptVisible(false);
+    const dest = biometricPendingRedirect || "/(tabs)";
+    router.replace(dest as any);
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
+    <SafeAreaView style={[styles.container, { backgroundColor: themeStyles.bg }]}>
+      <StatusBar
+        barStyle={isDark ? "light-content" : "dark-content"}
+        backgroundColor={themeStyles.bg}
+      />
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>Trip.com</Text>
+          <Text style={styles.brandTitle}>{BRAND.name.en}</Text>
+          <Text style={[styles.brandSub, { color: themeStyles.textSecondary }]}>
+            {BRAND.tagline.bn}
+          </Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 60 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Session Expired Notice Banner (Item 8) */}
+        {sessionExpiredMessage && (
+          <View
+            style={[
+              styles.expiredBanner,
+              {
+                backgroundColor: themeStyles.bannerBg,
+                borderColor: themeStyles.bannerBorder,
+              },
+            ]}
+          >
+            <Ionicons name="warning" size={20} color="#b45309" />
+            <Text style={[styles.expiredBannerText, { color: themeStyles.bannerText }]}>
+              {sessionExpiredMessage}
+            </Text>
+          </View>
+        )}
+
         {/* Hero Illustration */}
         <View style={styles.heroSection}>
-          <Image 
-            source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBYXXSGwkHAwAgx2VS2n6p36E09qxeRLWzKJMVoF7cJ1NqKbckZuHaEA0cL-GZ8VkOQCl5LK3RP1prOQPyH9YpTWWwSSUSCP8P8Pno6fvvjqe4nrDwifkbdxyPhMDR-Hlm-is9CBKMg5iLAfCqYAwUN4Rdehr_a70jrHuKQ99PKhUh6sqJcWPuRsWvri3zpj_ZfpSmASsoNoypxAYZPdGNhi2m8bLc38u5tuVPHPAEWsO5D2KSKVO5PgjHzPNbQlc4CRPZU1-1j3qE" }}
+          <Image
+            source={{
+              uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBYXXSGwkHAwAgx2VS2n6p36E09qxeRLWzKJMVoF7cJ1NqKbckZuHaEA0cL-GZ8VkOQCl5LK3RP1prOQPyH9YpTWWwSSUSCP8P8Pno6fvvjqe4nrDwifkbdxyPhMDR-Hlm-is9CBKMg5iLAfCqYAwUN4Rdehr_a70jrHuKQ99PKhUh6sqJcWPuRsWvri3zpj_ZfpSmASsoNoypxAYZPdGNhi2m8bLc38u5tuVPHPAEWsO5D2KSKVO5PgjHzPNbQlc4CRPZU1-1j3qE",
+            }}
             style={styles.heroImage}
             resizeMode="contain"
           />
@@ -451,79 +686,167 @@ useEffect(() => {
 
         {/* Title Content */}
         <View style={styles.textContainer}>
-          <View style={styles.topIconWrapper}>
-            <View style={styles.topIconCircle}>
-              <Svg width={16} height={16} viewBox="0 0 20 20" fill="#fff">
-                <Path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M11.3 1.047a1 1 0 01.897.95l.003.053v1.547l.004.053a1 1 0 01-.897.95l-.003.053H9.7l-.003-.053a1 1 0 01-.897-.95l-.004-.053V2.05a1 1 0 011.003-1.003h1.5zm3.037 2.155l.044.032 1.094 1.094.044.032a1 1 0 010 1.414l-.044.032-1.094 1.094-.044.032a1 1 0 01-1.414 0l-.044-.032-1.094-1.094-.044-.032a1 1 0 010-1.414l.044-.032 1.094-1.094.044-.032a1 1 0 011.414 0zM5.663 3.202l.044.032 1.094 1.094.044.032a1 1 0 01-1.414 1.414l-.044-.032-1.094-1.094-.044-.032a1 1 0 011.414-1.414zM10 7a3 3 0 100 6 3 3 0 000-6z"
-                />
-              </Svg>
-            </View>
-          </View>
-          <Text style={styles.mainTitle}>Sign in for member rewards</Text>
-          <View style={styles.benefitRow}>
-            <View style={[styles.topIconCircle, { padding: 2, marginRight: 6, borderRadius: 3 }]}>
-              <Svg width={12} height={12} viewBox="0 0 20 20" fill="#fff">
-                <Path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M11.3 1.047a1 1 0 01.897.95l.003.053v1.547l.004.053a1 1 0 01-.897.95l-.003.053H9.7l-.003-.053a1 1 0 01-.897-.95l-.004-.053V2.05a1 1 0 011.003-1.003h1.5zm3.037 2.155l.044.032 1.094 1.094.044.032a1 1 0 010 1.414l-.044.032-1.094 1.094-.044.032a1 1 0 01-1.414 0l-.044-.032-1.094-1.094-.044-.032a1 1 0 010-1.414l.044-.032 1.094-1.094.044-.032a1 1 0 011.414 0zM5.663 3.202l.044.032 1.094 1.094.044.032a1 1 0 01-1.414 1.414l-.044-.032-1.094-1.094-.044-.032a1 1 0 011.414-1.414zM10 7a3 3 0 100 6 3 3 0 000-6z"
-                />
-              </Svg>
-            </View>
-            <Text style={styles.benefitText}>Get Member Benefits</Text>
-          </View>
+          <Text style={[styles.mainTitle, { color: themeStyles.textPrimary }]}>
+            লগইন করে বিশেষ অফার উপভোগ করুন
+          </Text>
+          <Text style={[styles.subTitle, { color: themeStyles.textSecondary }]}>
+            সহজে হোটেল, ফ্লাইট ও ট্রেন বুকিং শুরু করুন
+          </Text>
         </View>
 
-        {/* Auth Options */}
+        {/* Social Error inline */}
+        {socialError && (
+          <View style={styles.inlineErrorBox}>
+            <Ionicons name="alert-circle" size={16} color="#ef4444" />
+            <Text style={styles.inlineErrorText}>{socialError}</Text>
+          </View>
+        )}
+
+        {/* Auth Primary Actions */}
         <View style={styles.authOptions}>
-          <View style={styles.buttonList}>
-            <Pressable 
-              style={[styles.actionButton, styles.googleButton]} 
-              onPress={() => onSocialSignIn('google')}
-            >
-              <Ionicons name="logo-google" size={22} color="#000" style={styles.buttonIcon} />
-              <Text style={[styles.actionButtonText, styles.googleButtonText]}>Continue with Google</Text>
-            </Pressable>
+          {/* Main Primary Button: Continue with Email */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && styles.buttonPressed,
+              loading && styles.buttonDisabled,
+            ]}
+            onPress={openEmailModal}
+            disabled={loading}
+          >
+            <Ionicons name="mail" size={20} color="#ffffff" />
+            <Text style={styles.primaryButtonText}>ইমেইল দিয়ে চালিয়ে যান</Text>
+          </Pressable>
 
-            <Pressable style={styles.actionButton} onPress={() => {
-              setUserExists(null);
-              setCheckingUser(false);
-              setEmailModalVisible(true);
-            }}>
-              <Ionicons name="mail-outline" size={24} color="#fff" style={styles.buttonIcon} />
-              <Text style={styles.actionButtonText}>Continue with email</Text>
-            </Pressable>
+          {/* Secondary Button: Continue with Google */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.googleButton,
+              {
+                backgroundColor: themeStyles.googleBtnBg,
+                borderColor: themeStyles.googleBtnBorder,
+              },
+              pressed && styles.buttonPressed,
+              loading && styles.buttonDisabled,
+            ]}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+          >
+            <Ionicons name="logo-google" size={20} color="#ea4335" />
+            <Text style={[styles.googleButtonText, { color: themeStyles.googleBtnText }]}>
+              Google দিয়ে চালিয়ে যান
+            </Text>
+          </Pressable>
 
-            <Pressable 
-              style={[styles.actionButton, styles.facebookButton]} 
-              onPress={() => onSocialSignIn('facebook')}
+          {/* iOS Compliance: Continue with Apple */}
+          {Platform.OS === "ios" && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.appleButton,
+                pressed && styles.buttonPressed,
+                loading && styles.buttonDisabled,
+              ]}
+              onPress={handleAppleSignIn}
+              disabled={loading}
             >
-              <Ionicons name="logo-facebook" size={22} color="#fff" style={styles.buttonIcon} />
-              <Text style={styles.actionButtonText}>Continue with Facebook</Text>
+              <Ionicons name="logo-apple" size={20} color="#ffffff" />
+              <Text style={styles.appleButtonText}>Apple দিয়ে চালিয়ে যান</Text>
             </Pressable>
-          </View>
+          )}
+
+          {/* Quick Biometric Login if enabled on this device */}
+          {security.biometricLockEnabled && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.biometricButton,
+                {
+                  backgroundColor: themeStyles.biometricBtnBg,
+                  borderColor: themeStyles.biometricBtnBorder,
+                },
+                pressed && styles.buttonPressed,
+                loading && styles.buttonDisabled,
+              ]}
+              onPress={handleBiometricQuickLogin}
+              disabled={loading}
+            >
+              <Ionicons name="finger-print" size={22} color={TRIP_BLUE} />
+              <Text style={styles.biometricButtonText}>বায়োমেট্রিক দিয়ে দ্রুত লগইন</Text>
+            </Pressable>
+          )}
         </View>
 
-        {/* Referral Link */}
-        <Pressable style={styles.referralLink} onPress={() => setCouponModalVisible(true)}>
-          <Text style={styles.referralText}>I have a referral code for registration</Text>
-          <Ionicons name="chevron-forward" size={16} color={TRIP_BLUE} />
-        </Pressable>
+        {/* Referral Link Toggle */}
+        <View style={styles.referralContainer}>
+          <Pressable
+            style={styles.referralHeader}
+            onPress={() => {
+              triggerHaptic("light");
+              setShowReferralInput(!showReferralInput);
+            }}
+          >
+            <Ionicons name="pricetag-outline" size={16} color={TRIP_BLUE} />
+            <Text style={styles.referralLinkText}>
+              রেফারাল কোড আছে? {showReferralInput ? "বন্ধ করুন" : "যোগ করুন"}
+            </Text>
+            <Ionicons
+              name={showReferralInput ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={TRIP_BLUE}
+            />
+          </Pressable>
 
-        {/* Legal Footer */}
+          {showReferralInput && (
+            <View style={styles.referralInputCard}>
+              <TextInput
+                style={[
+                  styles.referralInput,
+                  {
+                    backgroundColor: themeStyles.inputBg,
+                    borderColor: themeStyles.inputBorder,
+                    color: themeStyles.textPrimary,
+                  },
+                ]}
+                placeholder="রেফারাল কোড লিখুন (যেমন: TRIP2024)"
+                placeholderTextColor={isDark ? "#64748b" : "#9ca3af"}
+                value={referralCode}
+                onChangeText={(val) => {
+                  setReferralCode(val);
+                  setReferralMessage(null);
+                }}
+                autoCapitalize="characters"
+              />
+              <Pressable
+                style={styles.referralApplyBtn}
+                onPress={() => {
+                  triggerHaptic("light");
+                  if (referralCode.trim()) {
+                    triggerHaptic("success");
+                    setReferralMessage("রেফারাল কোড সফলভাবে যুক্ত হয়েছে!");
+                  }
+                }}
+              >
+                <Text style={styles.referralApplyText}>প্রয়োগ</Text>
+              </Pressable>
+            </View>
+          )}
+          {referralMessage && (
+            <Text style={styles.referralSuccessText}>{referralMessage}</Text>
+          )}
+        </View>
+
+        {/* Terms Footer */}
         <View style={styles.footer}>
-          <Text style={styles.legalText}>
-            By proceeding, I acknowledge that I have read and agree to Trip.com's{" "}
-            <Text style={styles.legalLink}>Terms & Conditions</Text> and{" "}
-            <Text style={styles.legalLink}>Privacy Statement</Text>
+          <Text style={[styles.legalText, { color: isDark ? "#64748b" : "#9ca3af" }]}>
+            চালিয়ে যাওয়ার মাধ্যমে আপনি {BRAND.name.bn}-এর{" "}
+            <Text style={styles.legalLink}>নিয়ম ও শর্তাবলী</Text> এবং{" "}
+            <Text style={styles.legalLink}>গোপনীয়তা নীতি</Text> মেনে নিচ্ছেন।
           </Text>
         </View>
       </ScrollView>
 
-      {/* Email Login Modal */}
+      {/* ========================================================================= */}
+      {/* EMAIL / PASSWORD SHEET MODAL                                              */}
+      {/* ========================================================================= */}
       <Modal
         animationType="none"
         transparent={true}
@@ -537,141 +860,241 @@ useEffect(() => {
             style={styles.keyboardView}
           >
             <Animated.View
-              style={[styles.modalContent, { transform: [{ translateY: Animated.add(modalSlideAnim, pan.y) }] }]}
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: themeStyles.cardBg,
+                  transform: [{ translateY: modalSlideAnim }],
+                },
+              ]}
             >
-              <View style={styles.modalHandle} {...emailPan.panHandlers} />
+              <View
+                style={[
+                  styles.modalHandle,
+                  { backgroundColor: isDark ? "#334155" : "#e5e7eb" },
+                ]}
+              />
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Sign In</Text>
-                <Pressable onPress={() => setEmailModalVisible(false)} style={styles.modalCloseBtn}>
-                  <Ionicons name="close" size={24} color="#111" />
+                <Text style={[styles.modalTitle, { color: themeStyles.textPrimary }]}>
+                  {userExists === true ? "লগইন করুন" : "ইমেইল দিয়ে শুরু করুন"}
+                </Text>
+                <Pressable
+                  onPress={() => setEmailModalVisible(false)}
+                  style={styles.modalCloseBtn}
+                  hitSlop={10}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={isDark ? "#94a3b8" : "#374151"}
+                  />
                 </Pressable>
               </View>
-              <ScrollView style={styles.modalScrollView} bounces={false}>
-                <View style={styles.modalIllustrationContainer}>
-                  <Animated.View style={{ transform: [{ scale: emailIconPulseAnim }] }}>
-                    <View style={styles.modalIconCircle}>
-                      <MaterialCommunityIcons name="email-lock" size={42} color={TRIP_BLUE} />
-                    </View>
-                  </Animated.View>
-                </View>
-                <Controller
-                  control={control}
-                  name="email"
-                  render={({ field: { onBlur, onChange, value }, fieldState: { error } }) => (
-                    <View style={{ marginBottom: 16 }}>
-                      <Text style={styles.label}>Email</Text>
-                      <View style={styles.inputWrapper}>
-                        <View style={styles.leftIconContainer}>
-                          <MaterialCommunityIcons name="email-outline" size={20} color="#9ca3af" />
-                        </View>
-                        <TextInput
-                          style={[styles.modalInput, error && styles.modalInputError, { paddingLeft: 44 }]}
-                          placeholder="Enter your email"
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          placeholderTextColor="#9ca3af"
-                          value={value}
-                          onChangeText={onChange}
-                          onBlur={() => {
-                            onBlur(); // Call react-hook-form's onBlur
-                            handleEmailCheck(value); // Pass the current value
-                          }}
-                        />
-                      </View>
-                      {error?.message && (
-                        <Text style={styles.errorText}>{error.message}</Text>
-                      )}
+
+              <ScrollView
+                bounces={false}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Magic Link Banner Notice */}
+                {magicLinkNotice && (
+                  <View style={styles.magicLinkBox}>
+                    <Ionicons name="mail-open" size={18} color="#15803d" />
+                    <Text style={styles.magicLinkText}>{magicLinkNotice}</Text>
+                  </View>
+                )}
+
+                {/* Email Input */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.fieldLabel, { color: themeStyles.textPrimary }]}>
+                    আপনার ইমেইল অ্যাড্রেস
+                  </Text>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      {
+                        backgroundColor: themeStyles.inputBg,
+                        borderColor: themeStyles.inputBorder,
+                      },
+                      emailError ? styles.inputWrapperError : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name="mail-outline"
+                      size={20}
+                      color={isDark ? "#94a3b8" : "#6b7280"}
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={[styles.textInput, { color: themeStyles.textPrimary }]}
+                      placeholder="name@example.com"
+                      placeholderTextColor={isDark ? "#64748b" : "#9ca3af"}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoComplete="email"
+                      value={emailInput}
+                      onChangeText={(val) => {
+                        setEmailInput(val);
+                        if (emailError) setEmailError(null);
+                        if (userExists !== null) setUserExists(null);
+                      }}
+                      editable={!checkingUser && !loading}
+                      returnKeyType={userExists ? "next" : "go"}
+                      onSubmitEditing={() => {
+                        if (userExists === null) handleEmailCheck();
+                      }}
+                    />
+                  </View>
+                  {/* Inline Email Error */}
+                  {emailError && (
+                    <View style={styles.fieldErrorRow}>
+                      <Ionicons name="alert-circle" size={14} color="#dc2626" />
+                      <Text style={styles.fieldErrorText}>{emailError}</Text>
                     </View>
                   )}
-                />
+                </View>
 
+                {/* If email not yet verified/checked */}
                 {userExists === null && (
-                  <Pressable 
-                    style={[styles.actionButton, checkingUser && styles.buttonDisabled]}
-                    onPress={() => handleEmailCheck(getValues('email'))}
-                    disabled={checkingUser}
-                  >
-                    <Text style={styles.actionButtonText}>
-                      {checkingUser ? "Checking..." : "Continue"}
-                    </Text>
-                    {!checkingUser && <Ionicons name="arrow-forward" size={18} color="#fff" />}
-                  </Pressable>
+                  <View style={{ gap: 10 }}>
+                    <Pressable
+                      style={[
+                        styles.primaryButton,
+                        checkingUser && styles.buttonDisabled,
+                      ]}
+                      onPress={handleEmailCheck}
+                      disabled={checkingUser}
+                    >
+                      <Text style={styles.primaryButtonText}>
+                        {checkingUser ? "যাচাই করা হচ্ছে..." : "চালিয়ে যান"}
+                      </Text>
+                      {!checkingUser && <Ionicons name="arrow-forward" size={18} color="#fff" />}
+                    </Pressable>
+
+                    {/* Magic Link Option */}
+                    <Pressable
+                      style={styles.magicLinkBtn}
+                      onPress={handleSendMagicLink}
+                      disabled={sendingMagicLink || checkingUser}
+                    >
+                      <Ionicons name="paper-plane-outline" size={16} color={TRIP_BLUE} />
+                      <Text style={styles.magicLinkBtnText}>
+                        {sendingMagicLink ? "লিংক পাঠানো হচ্ছে..." : "ম্যাজিক লিংক পাঠান (এক ক্লিকে লগইন)"}
+                      </Text>
+                    </Pressable>
+                  </View>
                 )}
 
-                {userExists !== null && (
-                  <>
-                    {userExists ? (
-                      <>
-                        <Controller
-                          control={control}
-                          name="password"
-                          render={({ field: { onBlur, onChange, value }, fieldState: { error } }) => (
-                            <View style={{ marginBottom: 16 }}>
-                              <Text style={styles.label}>Password</Text>
-                              <View style={styles.inputWrapper}>
-                                <View style={styles.leftIconContainer}>
-                                  <MaterialCommunityIcons name="lock-outline" size={20} color="#9ca3af" />
-                                </View>
-                                <TextInput
-                                  style={[styles.modalInput, error && styles.modalInputError, { paddingLeft: 44, paddingRight: 44 }]}
-                                  placeholder="Enter your password"
-                                  secureTextEntry={!showPassword}
-                                  autoCapitalize="none"
-                                  placeholderTextColor="#9ca3af"
-                                  value={value}
-                                  onChangeText={onChange}
-                                  onBlur={onBlur}
-                                />
-                                <Pressable
-                                  onPress={() => setShowPassword(!showPassword)}
-                                  hitSlop={8}
-                                  style={styles.rightIconContainer}
-                                >
-                                  <Ionicons
-                                    name={showPassword ? "eye-outline" : "eye-off-outline"}
-                                    size={20}
-                                    color="#9ca3af"
-                                  />
-                                </Pressable>
-                              </View>
-                              {error?.message && (
-                                <Text style={styles.errorText}>{error.message}</Text>
-                              )}
-                            </View>
-                          )}
+                {/* If User Exists: Password entry or OTP toggle */}
+                {userExists === true && (
+                  <View style={{ marginTop: 8 }}>
+                    <View style={styles.inputGroup}>
+                      <Text style={[styles.fieldLabel, { color: themeStyles.textPrimary }]}>
+                        পাসওয়ার্ড
+                      </Text>
+                      <View
+                        style={[
+                          styles.inputWrapper,
+                          {
+                            backgroundColor: themeStyles.inputBg,
+                            borderColor: themeStyles.inputBorder,
+                          },
+                          passwordError ? styles.inputWrapperError : null,
+                        ]}
+                      >
+                        <Ionicons
+                          name="lock-closed-outline"
+                          size={20}
+                          color={isDark ? "#94a3b8" : "#6b7280"}
+                          style={styles.inputIcon}
                         />
-                        <Pressable 
+                        <TextInput
+                          style={[styles.textInput, { color: themeStyles.textPrimary }]}
+                          placeholder="আপনার পাসওয়ার্ড লিখুন"
+                          placeholderTextColor={isDark ? "#64748b" : "#9ca3af"}
+                          secureTextEntry={!showPassword}
+                          autoCapitalize="none"
+                          value={passwordInput}
+                          onChangeText={(val) => {
+                            setPasswordInput(val);
+                            if (passwordError) setPasswordError(null);
+                          }}
+                          editable={!loading && lockoutTimer === 0}
+                          returnKeyType="done"
+                          onSubmitEditing={handlePasswordSignIn}
+                        />
+                        <Pressable
                           onPress={() => {
-                            setEmailModalVisible(false);
-                            router.push("/(auth)/forgot-password");
-                          }} 
-                          style={styles.forgotPasswordBtn}
+                            triggerHaptic("light");
+                            setShowPassword(!showPassword);
+                          }}
+                          style={styles.eyeBtn}
+                          hitSlop={8}
                         >
-                          <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                          <Ionicons
+                            name={showPassword ? "eye-off-outline" : "eye-outline"}
+                            size={20}
+                            color={isDark ? "#94a3b8" : "#6b7280"}
+                          />
                         </Pressable>
-                        <Pressable 
-                          style={[styles.actionButton, loading && styles.buttonDisabled]} 
-                          onPress={onSubmit}
-                          disabled={loading}
-                        >
-                          <Text style={styles.actionButtonText}>
-                            {loading ? "Signing in..." : "Sign In"}
-                          </Text>
-                        </Pressable>
-                      </>
-                    ) : (
-                      <View style={styles.newUserMessage}>
-                        <Ionicons name="checkmark-circle" size={48} color="#22c55e" />
-                        <Text style={styles.newUserText}>Verification code sent!</Text>
-                        <Text style={styles.newUserSubtext}>Check your email to verify and create your account.</Text>
+                      </View>
+
+                      {/* Inline Password Error */}
+                      {passwordError && (
+                        <View style={styles.fieldErrorRow}>
+                          <Ionicons name="alert-circle" size={14} color="#dc2626" />
+                          <Text style={styles.fieldErrorText}>{passwordError}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Rate Limit Lockout Banner */}
+                    {lockoutTimer > 0 && (
+                      <View style={styles.lockoutBox}>
+                        <Ionicons name="time-outline" size={16} color="#b91c1c" />
+                        <Text style={styles.lockoutText}>
+                          অনেক চেষ্টা হয়েছে, {lockoutTimer} সেকেন্ড পরে চেষ্টা করুন
+                        </Text>
                       </View>
                     )}
-                  </>
-                )}
 
-                {userExists === null && checkingUser && (
-                  <View style={styles.checkingMessage}>
-                    <Text style={styles.checkingText}>Checking email...</Text>
+                    {/* Password Sign In Button */}
+                    <Pressable
+                      style={[
+                        styles.primaryButton,
+                        (loading || lockoutTimer > 0) && styles.buttonDisabled,
+                      ]}
+                      onPress={handlePasswordSignIn}
+                      disabled={loading || lockoutTimer > 0}
+                    >
+                      <Text style={styles.primaryButtonText}>
+                        {loading ? "লগইন হচ্ছে..." : "সাইন ইন করুন"}
+                      </Text>
+                    </Pressable>
+
+                    {/* Secondary Option: Or Sign in with OTP without password */}
+                    <Pressable
+                      style={styles.switchAuthMethodBtn}
+                      onPress={handleSwitchToOtpLogin}
+                      disabled={loading}
+                    >
+                      <Ionicons name="key-outline" size={18} color={TRIP_BLUE} />
+                      <Text style={styles.switchAuthMethodText}>
+                        পাসওয়ার্ড মনে নেই? OTP কোড দিয়ে লগইন করুন
+                      </Text>
+                    </Pressable>
+
+                    {/* Passwordless Magic link option */}
+                    <Pressable
+                      style={styles.magicLinkBtn}
+                      onPress={handleSendMagicLink}
+                      disabled={sendingMagicLink || loading}
+                    >
+                      <Ionicons name="paper-plane-outline" size={16} color={TRIP_BLUE} />
+                      <Text style={styles.magicLinkBtnText}>
+                        {sendingMagicLink ? "পাঠানো হচ্ছে..." : "ইমেইলে সরাসরি লগইন লিংক পাঠান"}
+                      </Text>
+                    </Pressable>
                   </View>
                 )}
               </ScrollView>
@@ -680,7 +1103,9 @@ useEffect(() => {
         </Animated.View>
       </Modal>
 
-      {/* OTP Verification Modal */}
+      {/* ========================================================================= */}
+      {/* OTP VERIFICATION SHEET MODAL                                              */}
+      {/* ========================================================================= */}
       <Modal
         animationType="none"
         transparent={true}
@@ -689,245 +1114,128 @@ useEffect(() => {
       >
         <Animated.View style={[styles.modalOverlay, { opacity: modalFadeAnim }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setOtpModalVisible(false)} />
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboardView}>
-            <Animated.View
-              style={[styles.modalContent, { transform: [{ translateY: Animated.add(modalSlideAnim, pan.y) }] }]}
-            >
-              <View style={styles.modalHandle} {...otpPan.panHandlers} />
-              <View style={styles.modalHeader}>
-                <View style={styles.headerTitleRow}>
-                  <Animated.View style={{ transform: [{ scale: iconPulseAnim }] }}>
-                    <Ionicons name="shield-checkmark" size={20} color={TRIP_BLUE} style={{ marginRight: 8 }} />
-                  </Animated.View>
-                  <Text style={styles.modalTitle}>Verify Email</Text>
-                </View>
-                <Pressable onPress={() => setOtpModalVisible(false)} style={styles.modalCloseBtn}>
-                  <Ionicons name="close" size={22} color="#111" />
-                </Pressable>
-              </View>
-              <View style={styles.modalBodyContent}>
-                {otpSuccess ? (
-                  <View style={styles.successContainer}>
-                    <Animated.View style={{ transform: [{ scale: successScaleAnim }] }}>
-                      <View style={[styles.modalIconCircle, styles.successCircle]}>
-                        <Ionicons name="checkmark-sharp" size={48} color="#22c55e" />
-                      </View>
-                    </Animated.View>
-                    <Text style={styles.successText}>Verification Successful!</Text>
-                  </View>
-                ) : (
-                  <>
-                <View style={styles.modalIllustrationContainer}>
-                  <Animated.View style={{ transform: [{ scale: iconPulseAnim }] }}>
-                    <View style={[styles.modalIconCircle, { backgroundColor: '#f0fdf4', borderColor: '#dcfce7' }]}>
-                      <MaterialCommunityIcons name="shield-check" size={42} color="#22c55e" />
-                    </View>
-                  </Animated.View>
-                </View>
-                <Text style={styles.modalDescription}>Enter the 6-digit code sent to your email address to continue.</Text>
-                <View style={styles.otpInputContainer}>
-                  {otpValue.map((digit, i) => (
-                    <TextInput
-                      key={i}
-                      ref={(el) => { otpRefs.current[i] = el!; }}
-                      style={styles.otpInput}
-                      keyboardType="number-pad"
-                      maxLength={1}
-                      value={digit}
-                      onChangeText={(val) => handleOtpChange(val, i)}
-                      onKeyPress={(e) => handleOtpKeyPress(e, i)}
-                      autoFocus={i === 0}
-                    />
-                  ))}
-                </View>
-                
-                <View style={styles.timerRow}>
-                  {canResend ? (
-                    <Pressable onPress={handleResend} style={styles.resendBtn}>
-                      <Animated.View style={{
-                        transform: [{
-                          rotate: resendRotateAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['0deg', '360deg']
-                          })
-                        }]
-                      }}>
-                        <Ionicons name="refresh" size={18} color={TRIP_BLUE} />
-                      </Animated.View>
-                      <Text style={styles.resendText}>Resend Code</Text>
-                    </Pressable>
-                  ) : (
-                    <Text style={styles.timerText}>Resend in {resendTimer}s</Text>
-                  )}
-                </View>
-
-                <Pressable 
-                  style={styles.actionButton} 
-                  onPress={handleOtpVerify}
-                >
-                  <Text style={styles.actionButtonText}>Verify & Continue</Text>
-                </Pressable>
-                  </>
-                )}
-              </View>
-            </Animated.View>
-          </KeyboardAvoidingView>
-        </Animated.View>
-      </Modal>
-
-      {/* Coupon / Referral Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={couponModalVisible}
-        onRequestClose={() => setCouponModalVisible(false)}
-      >
-        <Animated.View style={[styles.modalOverlay, { opacity: modalFadeAnim }]} onStartShouldSetResponder={() => true}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setCouponModalVisible(false)} />
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboardView}>
-            <Animated.View style={[styles.modalContent, { transform: [{ translateY: Animated.add(modalSlideAnim, pan.y) }] }]}>
-              <View style={styles.modalHandle} {...couponPan.panHandlers} />
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Referral Code</Text>
-                <Pressable onPress={() => setCouponModalVisible(false)} style={styles.modalCloseBtn}>
-                  <Ionicons name="close" size={22} color="#111" />
-                </Pressable>
-              </View>
-              <View style={styles.modalBodyContent}>
-                {referralSuccess ? (
-                  <View style={styles.successContainer}>
-                    <Animated.View style={{ transform: [{ scale: successScaleAnim }] }}>
-                      <View style={[styles.modalIconCircle, styles.successCircle]}>
-                        <Ionicons name="checkmark-sharp" size={48} color="#22c55e" />
-                      </View>
-                    </Animated.View>
-                    <Text style={styles.successText}>Code Applied Successfully!</Text>
-                  </View>
-                ) : (
-                  <>
-                <View style={styles.modalIllustrationContainer}>
-                  <Animated.View style={{ transform: [{ scale: referralIconPulseAnim }] }}>
-                    <View style={[styles.modalIconCircle, { backgroundColor: '#fff7ed', borderColor: '#ffedd5' }]}>
-                      <MaterialCommunityIcons name="ticket-percent" size={42} color="#f97316" />
-                    </View>
-                  </Animated.View>
-                </View>
-                <Text style={styles.modalDescription}>Enter your referral code below to unlock exclusive member rewards.</Text>
-                <TextInput
-                  style={[styles.modalInput, referralError && styles.modalInputError]}
-                  placeholder="e.g. TRIP2024"
-                  value={referralCode}
-                  onChangeText={(text) => {
-                    setReferralCode(text);
-                    if (referralError) setReferralError(null);
-                  }}
-                  autoCapitalize="characters"
-                />
-                {referralError && <Text style={styles.errorText}>{referralError}</Text>}
-                <Pressable style={styles.actionButton} onPress={handleApplyReferral}>
-                  <Text style={styles.actionButtonText}>Apply Code</Text>
-                </Pressable>
-                  </>)}
-              </View>
-            </Animated.View>
-          </KeyboardAvoidingView>
-        </Animated.View>
-      </Modal>
-
-      {/* Password Creation Modal */}
-      <Modal
-        animationType="none"
-        transparent={true}
-        visible={passwordCreateModalVisible}
-        onRequestClose={() => setPasswordCreateModalVisible(false)}
-      >
-        <Animated.View style={[styles.modalOverlay, { opacity: modalFadeAnim }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPasswordCreateModalVisible(false)} />
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.keyboardView}
           >
             <Animated.View
-              style={[styles.modalContent, { transform: [{ translateY: Animated.add(modalSlideAnim, pan.y) }] }]}
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: themeStyles.cardBg,
+                  transform: [{ translateY: modalSlideAnim }],
+                },
+              ]}
             >
-              <View style={styles.modalHandle} {...passwordCreatePan.panHandlers} />
+              <View
+                style={[
+                  styles.modalHandle,
+                  { backgroundColor: isDark ? "#334155" : "#e5e7eb" },
+                ]}
+              />
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Set Your Password</Text>
-                <Pressable onPress={() => setPasswordCreateModalVisible(false)} style={styles.modalCloseBtn}>
-                  <Ionicons name="close" size={22} color="#111" />
+                <View style={styles.headerTitleRow}>
+                  <Ionicons name="shield-checkmark" size={22} color={TRIP_BLUE} />
+                  <Text style={[styles.modalTitle, { color: themeStyles.textPrimary }]}>
+                    ইমেইল ভেরিফিকেশন
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setOtpModalVisible(false)}
+                  style={styles.modalCloseBtn}
+                  hitSlop={10}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={isDark ? "#94a3b8" : "#374151"}
+                  />
                 </Pressable>
               </View>
-              <ScrollView style={styles.modalScrollView} bounces={false}>
-                <View style={styles.modalIllustrationContainer}>
-                  <View style={[styles.modalIconCircle, { backgroundColor: '#fdf2f8', borderColor: '#fce7f3' }]}>
-                    <MaterialCommunityIcons name="lock-plus" size={42} color="#db2777" />
-                  </View>
-                </View>
 
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={styles.label}>New Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <View style={styles.leftIconContainer}>
-                      <MaterialCommunityIcons name="lock-outline" size={20} color="#9ca3af" />
-                    </View>
-                    <TextInput
-                      style={[styles.modalInput, { paddingLeft: 44, paddingRight: 44 }]}
-                      placeholder="At least 6 characters"
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      placeholderTextColor="#9ca3af"
-                      value={newPassword}
-                      onChangeText={(text) => {
-                        setNewPassword(text);
-                        if (passwordError) setPasswordError("");
-                      }}
-                    />
-                    <Pressable
-                      onPress={() => setShowPassword(!showPassword)}
-                      hitSlop={8}
-                      style={styles.rightIconContainer}
-                    >
-                      <Ionicons
-                        name={showPassword ? "eye-outline" : "eye-off-outline"}
-                        size={20}
-                        color="#9ca3af"
-                      />
-                    </Pressable>
-                  </View>
-                </View>
-
-                <View style={{ marginBottom: 24 }}>
-                  <Text style={styles.label}>Confirm Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <View style={styles.leftIconContainer}>
-                      <MaterialCommunityIcons name="lock-check-outline" size={20} color="#9ca3af" />
-                    </View>
-                    <TextInput
-                      style={[styles.modalInput, { paddingLeft: 44 }]}
-                      placeholder="Repeat your password"
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      placeholderTextColor="#9ca3af"
-                      value={confirmPassword}
-                      onChangeText={(text) => {
-                        setConfirmPassword(text);
-                        if (passwordError) setPasswordError("");
-                      }}
-                    />
-                  </View>
-                </View>
-                
-                {passwordError ? (
-                  <Text style={styles.errorText}>{passwordError}</Text>
-                ) : null}
-
-                <Pressable
-                  style={[styles.actionButton, loading && styles.buttonDisabled]}
-                  onPress={handleCreatePassword}
-                  disabled={loading}
+              <ScrollView
+                bounces={false}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Prominently show Masked Email */}
+                <View
+                  style={[
+                    styles.otpNoticeCard,
+                    { backgroundColor: isDark ? "#1e293b" : "#eff6ff" },
+                  ]}
                 >
-                  <Text style={styles.actionButtonText}>
-                    {loading ? "Creating Account..." : "Complete Sign Up"}
+                  <Text
+                    style={[
+                      styles.otpNoticeTitle,
+                      { color: isDark ? "#93c5fd" : "#1e40af" },
+                    ]}
+                  >
+                    কোড পাঠানো হয়েছে {maskEmail(otpEmail)}-এ
+                  </Text>
+                  {/* Wrong email? Change it link */}
+                  <Pressable onPress={handleBackToEmailFromOtp} style={styles.changeEmailRow}>
+                    <Ionicons name="create-outline" size={14} color={TRIP_BLUE} />
+                    <Text style={styles.changeEmailText}>ভুল ইমেইল? পরিবর্তন করুন</Text>
+                  </Pressable>
+                </View>
+
+                {/* OTP Input (supports 6 or 8 digits, SMS & clipboard autofill) */}
+                <View style={{ marginVertical: 12 }}>
+                  <OTPInput
+                    length={otpLength}
+                    value={otpCode}
+                    onChangeText={(val) => {
+                      setOtpCode(val);
+                      if (otpError) setOtpError(null);
+                      if (val.length === 8 && otpLength === 6) {
+                        setOtpLength(8);
+                      }
+                      if (val.length === otpLength) {
+                        setTimeout(() => handleOtpVerify(val), 100);
+                      }
+                    }}
+                    autoFocus
+                  />
+                </View>
+
+                {/* Inline OTP Error */}
+                {otpError && (
+                  <View style={styles.fieldErrorRowCentered}>
+                    <Ionicons name="alert-circle" size={16} color="#dc2626" />
+                    <Text style={styles.fieldErrorText}>{otpError}</Text>
+                  </View>
+                )}
+
+                {/* 60s Resend Timer */}
+                <View style={styles.timerRow}>
+                  {canResend ? (
+                    <Pressable
+                      onPress={handleResendOtp}
+                      style={styles.resendActiveBtn}
+                      disabled={loading}
+                    >
+                      <Ionicons name="refresh" size={16} color={TRIP_BLUE} />
+                      <Text style={styles.resendActiveText}>আবার কোড পাঠান</Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={[styles.resendDisabledText, { color: themeStyles.textSecondary }]}>
+                      আবার পাঠান ({resendTimer} সেকেন্ড)
+                    </Text>
+                  )}
+                </View>
+
+                {/* Verify Submit Button */}
+                <Pressable
+                  style={[
+                    styles.primaryButton,
+                    (loading || otpCode.length < 6) && styles.buttonDisabled,
+                  ]}
+                  onPress={() => handleOtpVerify()}
+                  disabled={loading || otpCode.length < 6}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {loading ? "যাচাই হচ্ছে..." : "যাচাই করুন ও এগিয়ে যান"}
                   </Text>
                 </Pressable>
               </ScrollView>
@@ -935,9 +1243,221 @@ useEffect(() => {
           </KeyboardAvoidingView>
         </Animated.View>
       </Modal>
-      
-      {/* Home Indicator Spacer */}
-      <View style={styles.homeIndicator} />
+
+      {/* ========================================================================= */}
+      {/* NEW USER PASSWORD CREATION MODAL                                          */}
+      {/* ========================================================================= */}
+      <Modal
+        animationType="none"
+        transparent={true}
+        visible={passwordCreateModalVisible}
+        onRequestClose={() => setPasswordCreateModalVisible(false)}
+      >
+        <Animated.View style={[styles.modalOverlay, { opacity: modalFadeAnim }]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setPasswordCreateModalVisible(false)}
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.keyboardView}
+          >
+            <Animated.View
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: themeStyles.cardBg,
+                  transform: [{ translateY: modalSlideAnim }],
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.modalHandle,
+                  { backgroundColor: isDark ? "#334155" : "#e5e7eb" },
+                ]}
+              />
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: themeStyles.textPrimary }]}>
+                  নতুন পাসওয়ার্ড সেট করুন
+                </Text>
+                <Pressable
+                  onPress={() => setPasswordCreateModalVisible(false)}
+                  style={styles.modalCloseBtn}
+                  hitSlop={10}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={isDark ? "#94a3b8" : "#374151"}
+                  />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                bounces={false}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.fieldLabel, { color: themeStyles.textPrimary }]}>
+                    নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)
+                  </Text>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      {
+                        backgroundColor: themeStyles.inputBg,
+                        borderColor: themeStyles.inputBorder,
+                      },
+                      createPasswordError ? styles.inputWrapperError : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={20}
+                      color={isDark ? "#94a3b8" : "#6b7280"}
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={[styles.textInput, { color: themeStyles.textPrimary }]}
+                      placeholder="পাসওয়ার্ড লিখুন"
+                      placeholderTextColor={isDark ? "#64748b" : "#9ca3af"}
+                      secureTextEntry={!showNewPassword}
+                      autoCapitalize="none"
+                      value={newPassword}
+                      onChangeText={(val) => {
+                        setNewPassword(val);
+                        if (createPasswordError) setCreatePasswordError(null);
+                      }}
+                    />
+                    <Pressable
+                      onPress={() => {
+                        triggerHaptic("light");
+                        setShowNewPassword(!showNewPassword);
+                      }}
+                      style={styles.eyeBtn}
+                      hitSlop={8}
+                    >
+                      <Ionicons
+                        name={showNewPassword ? "eye-off-outline" : "eye-outline"}
+                        size={20}
+                        color={isDark ? "#94a3b8" : "#6b7280"}
+                      />
+                    </Pressable>
+                  </View>
+                  <PasswordStrengthMeter password={newPassword} />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.fieldLabel, { color: themeStyles.textPrimary }]}>
+                    পাসওয়ার্ড নিশ্চিত করুন
+                  </Text>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      {
+                        backgroundColor: themeStyles.inputBg,
+                        borderColor: themeStyles.inputBorder,
+                      },
+                      createPasswordError ? styles.inputWrapperError : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={20}
+                      color={isDark ? "#94a3b8" : "#6b7280"}
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={[styles.textInput, { color: themeStyles.textPrimary }]}
+                      placeholder="পুনরায় পাসওয়ার্ড লিখুন"
+                      placeholderTextColor={isDark ? "#64748b" : "#9ca3af"}
+                      secureTextEntry={!showNewPassword}
+                      autoCapitalize="none"
+                      value={confirmPassword}
+                      onChangeText={(val) => {
+                        setConfirmPassword(val);
+                        if (createPasswordError) setCreatePasswordError(null);
+                      }}
+                    />
+                  </View>
+                  {createPasswordError && (
+                    <View style={styles.fieldErrorRow}>
+                      <Ionicons name="alert-circle" size={14} color="#dc2626" />
+                      <Text style={styles.fieldErrorText}>{createPasswordError}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <Pressable
+                  style={[styles.primaryButton, loading && styles.buttonDisabled]}
+                  onPress={handleCreatePasswordSubmit}
+                  disabled={loading}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {loading ? "অ্যাকাউন্ট তৈরি হচ্ছে..." : "সাইন আপ সম্পন্ন করুন"}
+                  </Text>
+                </Pressable>
+              </ScrollView>
+            </Animated.View>
+          </KeyboardAvoidingView>
+        </Animated.View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* BIOMETRIC ONBOARDING PROMPT                                               */}
+      {/* ========================================================================= */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={biometricPromptVisible}
+        onRequestClose={handleSkipBiometrics}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.biometricCard,
+              { backgroundColor: themeStyles.cardBg },
+            ]}
+          >
+            <View style={styles.biometricIconCircle}>
+              <Ionicons name="finger-print" size={48} color={TRIP_BLUE} />
+            </View>
+            <Text style={[styles.biometricTitle, { color: themeStyles.textPrimary }]}>
+              ফেস / আঙুলের ছাপ চালু করবেন?
+            </Text>
+            <Text style={[styles.biometricDesc, { color: themeStyles.textSecondary }]}>
+              পরের বার দ্রুত ও নিরাপদে লগইন করতে বায়োমেট্রিক সুবিধা চালু রাখুন। এটি যেকোনো সময় সেটিংস থেকে বন্ধ করা যাবে।
+            </Text>
+            <View style={styles.biometricActionRow}>
+              <Pressable
+                style={[styles.biometricBtn, styles.biometricPrimaryBtn]}
+                onPress={handleEnableBiometrics}
+              >
+                <Text style={styles.biometricPrimaryBtnText}>চালু করুন</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.biometricBtn,
+                  styles.biometricSecondaryBtn,
+                  { backgroundColor: isDark ? "#334155" : "#f3f4f6" },
+                ]}
+                onPress={handleSkipBiometrics}
+              >
+                <Text
+                  style={[
+                    styles.biometricSecondaryBtnText,
+                    { color: isDark ? "#cbd5e1" : "#4b5563" },
+                  ]}
+                >
+                  পরে করব
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -945,428 +1465,467 @@ useEffect(() => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 0,
+    paddingTop: 10,
+    paddingBottom: 40,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   logoContainer: {
-    flex: 1,
+    flexDirection: "column",
   },
-  logoText: {
-    fontSize: 20,
-    fontWeight: "bold",
+  brandTitle: {
+    fontSize: 24,
+    fontWeight: "800",
     color: TRIP_BLUE,
+    letterSpacing: -0.5,
+  },
+  brandSub: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  expiredBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 16,
+    gap: 8,
+  },
+  expiredBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
   },
   heroSection: {
     alignItems: "center",
-    marginTop: 0,
-    marginBottom: 30,
+    marginVertical: 12,
   },
   heroImage: {
-    width: 300,
-    height: 200,
+    width: 260,
+    height: 160,
   },
   textContainer: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 24,
   },
   mainTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 16,
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  subTitle: {
+    fontSize: 14,
     textAlign: "center",
   },
-  benefitRow: {
+  inlineErrorBox: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#fee2e2",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
     gap: 8,
   },
-  benefitText: {
-    fontSize: 14,
-    color: "#6b7280",
+  inlineErrorText: {
+    color: "#b91c1c",
+    fontSize: 13,
+    flex: 1,
+    fontWeight: "500",
   },
   authOptions: {
-    marginBottom: 30,
+    gap: 12,
+    marginBottom: 24,
   },
-  buttonList: {
-    gap: 16,
-  },
-  actionButton: {
+  primaryButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: TRIP_BLUE,
-    paddingVertical: 16,
-    borderRadius: 8,
-    gap: 12,
+    paddingVertical: 15,
+    borderRadius: 12,
+    gap: 10,
+    shadowColor: TRIP_BLUE,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  primaryButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700",
   },
   googleButton: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-  },
-  googleButtonText: {
-    color: "#1f2937",
-    fontWeight: "500",
-  },
-  facebookButton: {
-    backgroundColor: "#1877f2",
-  },
-  actionButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  buttonIcon: {
-    marginLeft: 12,
-  },
-  referralLink: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    gap: 8,
+    borderWidth: 1.5,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 10,
   },
-  referralText: {
+  googleButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  appleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000000",
+    borderWidth: 1,
+    borderColor: "#262626",
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 10,
+  },
+  appleButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  biometricButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    gap: 10,
+  },
+  biometricButtonText: {
+    color: TRIP_BLUE,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  buttonPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.99 }],
+  },
+  buttonDisabled: {
+    opacity: 0.55,
+  },
+  referralContainer: {
+    marginVertical: 12,
+    alignItems: "center",
+  },
+  referralHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+  },
+  referralLinkText: {
     fontSize: 14,
     color: TRIP_BLUE,
+    fontWeight: "600",
+  },
+  referralInputCard: {
+    flexDirection: "row",
+    width: "100%",
+    marginTop: 8,
+    gap: 8,
+  },
+  referralInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  referralApplyBtn: {
+    backgroundColor: TRIP_BLUE,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+    borderRadius: 8,
+  },
+  referralApplyText: {
+    color: "#ffffff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  referralSuccessText: {
+    color: "#16a34a",
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 6,
   },
   footer: {
     marginTop: "auto",
-    paddingVertical: 20,
+    paddingTop: 24,
+    alignItems: "center",
   },
   legalText: {
     fontSize: 12,
     lineHeight: 18,
-    color: "#6b7280",
     textAlign: "center",
   },
-  underline: {
-    textDecorationLine: "underline",
+  legalLink: {
+    color: TRIP_BLUE,
+    fontWeight: "500",
   },
+  // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    justifyContent: "flex-end",
   },
   keyboardView: {
-    flex: 1,
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#ffffff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
-    maxHeight: "80%",
-    width: '100%',
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 36 : 24,
+    maxHeight: "88%",
+  },
+  modalHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    alignSelf: "center",
+    marginBottom: 16,
   },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 24,
+    marginBottom: 20,
+  },
+  headerTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#1f2937",
+    fontWeight: "700",
   },
-  closeButton: {
-    padding: 8,
+  modalCloseBtn: {
+    padding: 4,
   },
-  inputContainer: {
-    marginBottom: 20,
+  inputGroup: {
+    marginBottom: 16,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1f2937",
-    marginBottom: 8,
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    backgroundColor: "#f9fafb",
-  },
-  checkboxContainer: {
+  inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24,
-    gap: 8,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 12,
   },
-  checkboxLabel: {
-    fontSize: 14,
-    color: "#6b7280",
+  inputWrapperError: {
+    borderColor: "#ef4444",
+    backgroundColor: "#fef2f2",
+  },
+  inputIcon: {
+    marginEnd: 8,
+  },
+  textInput: {
     flex: 1,
+    paddingVertical: 14,
+    fontSize: 15,
   },
-  checkboxText: {
-    color: TRIP_BLUE,
-    fontWeight: "500",
+  eyeBtn: {
+    padding: 6,
   },
-  submitButton: {
-    backgroundColor: TRIP_BLUE,
-    paddingVertical: 16,
-    borderRadius: 8,
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  otpModalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-  },
-  otpTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1f2937",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  otpSubtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  otpInputContainer: {
+  fieldErrorRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
+    alignItems: "center",
+    marginTop: 6,
+    gap: 6,
   },
-  otpInput: {
-    width: 60,
-    height: 60,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    textAlign: "center",
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1f2937",
-  },
-  resendContainer: {
+  fieldErrorRowCentered: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    marginVertical: 8,
+    gap: 6,
+  },
+  fieldErrorText: {
+    color: "#dc2626",
+    fontSize: 13,
+    fontWeight: "500",
+    flex: 1,
+  },
+  lockoutBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fee2e2",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 16,
     gap: 8,
   },
-  resendText: {
-    fontSize: 14,
-    color: "#6b7280",
+  lockoutText: {
+    color: "#b91c1c",
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
   },
-  resendButton: {
+  switchAuthMethodBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  switchAuthMethodText: {
+    color: TRIP_BLUE,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  magicLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  magicLinkBtnText: {
+    color: TRIP_BLUE,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  magicLinkBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#dcfce7",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 14,
+    gap: 8,
+  },
+  magicLinkText: {
+    color: "#15803d",
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
+  },
+  // OTP Card & Timers
+  otpNoticeCard: {
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  otpNoticeTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  changeEmailRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    marginTop: 4,
+    paddingVertical: 2,
   },
-  resendButtonText: {
+  changeEmailText: {
+    fontSize: 13,
     color: TRIP_BLUE,
-    fontWeight: "500",
-  },
-  successCheckmark: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: [
-      { translateX: -12 },
-      { translateY: -12 },
-    ],
-  },
-  // Add all missing styles
-  legalLink: {
+    fontWeight: "600",
     textDecorationLine: "underline",
-    color: TRIP_BLUE,
   },
-  modalContainer: {
-    width: '100%',
-    justifyContent: 'flex-end',
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#d1d5db',
-    borderRadius: 2,
-    alignSelf: 'center',
+  timerRow: {
+    alignItems: "center",
+    justifyContent: "center",
     marginVertical: 12,
   },
-  modalCloseBtn: {
-    padding: 8,
+  resendActiveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
-  modalScrollView: {
-    flexGrow: 1, // Allows the ScrollView to expand and enable scrolling
+  resendActiveText: {
+    color: TRIP_BLUE,
+    fontSize: 14,
+    fontWeight: "700",
   },
-  modalIllustrationContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
+  resendDisabledText: {
+    fontSize: 13,
+    fontWeight: "500",
   },
-  modalIconCircle: {
+  // Biometric Dialog Prompt
+  biometricCard: {
+    borderRadius: 20,
+    marginHorizontal: 24,
+    marginBottom: "auto",
+    marginTop: "auto",
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 15px rgba(15, 23, 42, 0.25)" } : {}),
+  },
+  biometricIconCircle: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#f0f9ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  forgotPasswordBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 12,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    color: TRIP_BLUE,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  successContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 16,
-  },
-  successCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#dcfce7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  successText: {
-    marginTop: 12,
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#166534',
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  otpBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  timerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 16,
-  },
-  resendBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  timerText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  homeIndicator: {
-    position: 'absolute',
-    bottom: 12,
-    left: '50%',
-    transform: [{ translateX: -25 }],
-    width: 50,
-    height: 4,
-    backgroundColor: '#d1d5db',
-    borderRadius: 2,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    backgroundColor: "#f9fafb",
-    width: '100%',
+    backgroundColor: "#eff6ff",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 16,
   },
-  inputWrapper: {
-    position: 'relative',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  leftIconContainer: {
-    position: 'absolute',
-    left: 12,
-    zIndex: 10,
-  },
-  rightIconContainer: {
-    position: 'absolute',
-    right: 12,
-    zIndex: 10,
-  },
-  modalInputError: {
-    borderColor: "#ef4444",
-  },
-  errorText: {
-    fontSize: 12,
-    color: "#ef4444",
-    marginTop: -8,
-    marginBottom: 12,
-  },
-  modalBodyContent: {
-    paddingTop: 10,
-    paddingBottom: 24,
-  },
-  newUserMessage: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    gap: 12,
-  },
-  newUserText: {
+  biometricTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#166534',
-  },
-  newUserSubtext: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    paddingHorizontal: 16,
-  },
-  checkingMessage: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  checkingText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  topIconWrapper: {
-    alignItems: 'center',
+    fontWeight: "700",
+    textAlign: "center",
     marginBottom: 8,
   },
-  topIconCircle: {
-    backgroundColor: '#ff9d00',
-    padding: 2,
-    borderRadius: 4,
+  biometricDesc: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  biometricActionRow: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  biometricBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  biometricPrimaryBtn: {
+    backgroundColor: TRIP_BLUE,
+  },
+  biometricPrimaryBtnText: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  biometricSecondaryBtn: {},
+  biometricSecondaryBtnText: {
+    fontWeight: "600",
+    fontSize: 15,
   },
 });

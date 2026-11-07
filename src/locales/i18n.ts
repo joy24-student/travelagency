@@ -52,25 +52,64 @@ export const isRTLLanguage = (langCode: string): boolean => {
   return langCode === "ar";
 };
 
-export const applyRTLDirection = (langCode: string) => {
+export const applyRTLDirection = (langCode: string): boolean => {
   const rtl = isRTLLanguage(langCode);
+  let directionChanged = false;
 
   if (Platform.OS === "web") {
     if (typeof document !== "undefined") {
-      document.documentElement.dir = rtl ? "rtl" : "ltr";
+      const prevDir = document.documentElement.dir;
+      const newDir = rtl ? "rtl" : "ltr";
+      document.documentElement.dir = newDir;
       document.documentElement.lang = langCode;
       if (rtl) {
         document.documentElement.classList.add("rtl");
       } else {
         document.documentElement.classList.remove("rtl");
       }
+      directionChanged = prevDir !== newDir;
     }
   } else {
     if (I18nManager.isRTL !== rtl) {
+      directionChanged = true;
       I18nManager.allowRTL(rtl);
       I18nManager.forceRTL(rtl);
     }
   }
+
+  return directionChanged;
+};
+
+/**
+ * Switch language and safely apply RTL configuration with auto-reload if native direction flips
+ */
+export const changeAppLanguage = async (
+  langCode: SupportedLanguage,
+  options: { reloadOnRTLChange?: boolean } = {}
+): Promise<boolean> => {
+  await i18n.changeLanguage(langCode);
+  const directionChanged = applyRTLDirection(langCode);
+
+  if (directionChanged && options.reloadOnRTLChange !== false && Platform.OS !== "web") {
+    try {
+      // Dynamic import expo-updates if available
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Updates = require("expo-updates");
+      if (Updates && typeof Updates.reloadAsync === "function") {
+        setTimeout(async () => {
+          try {
+            await Updates.reloadAsync();
+          } catch (e) {
+            console.log("[i18n] reloadAsync skipped:", e);
+          }
+        }, 150);
+      }
+    } catch {
+      // Ignore if updates not installed
+    }
+  }
+
+  return directionChanged;
 };
 
 // Detect device language on fresh install

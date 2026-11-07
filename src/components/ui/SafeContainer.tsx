@@ -8,22 +8,32 @@ import {
   StyleProp,
   ViewStyle,
   ScrollViewProps,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import {
   SafeAreaView,
   Edge,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
+import { FocusAwareStatusBar } from "./AppStatusBar";
 import { colors } from "../../theme/colors";
+import { ResponsiveContainer } from "../layout/ResponsiveLayout";
 
-export type ContainerBackground = "base" | "subtle" | "muted" | "card" | "dark" | "transparent";
+export type ContainerBackground =
+  | "base"
+  | "subtle"
+  | "muted"
+  | "card"
+  | "dark"
+  | "transparent";
 
 export interface SafeContainerProps {
   children?: React.ReactNode;
   edges?: readonly Edge[];
   avoidKeyboard?: boolean;
   keyboardVerticalOffset?: number;
+  keyboardDismissOnTap?: boolean;
   scrollable?: boolean;
   scrollViewProps?: Omit<ScrollViewProps, "style" | "contentContainerStyle">;
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -34,6 +44,12 @@ export interface SafeContainerProps {
   className?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  // Responsive constraints for Tablet & Web
+  responsive?: boolean;
+  maxWidth?: number;
+  // Fixed footer / submit button pinned above keyboard and respecting bottom safe area
+  fixedFooter?: React.ReactNode;
+  footerStyle?: StyleProp<ViewStyle>;
 }
 
 export const SafeContainer: React.FC<SafeContainerProps> = ({
@@ -41,6 +57,7 @@ export const SafeContainer: React.FC<SafeContainerProps> = ({
   edges = ["top", "left", "right"] as readonly Edge[],
   avoidKeyboard = true,
   keyboardVerticalOffset,
+  keyboardDismissOnTap = false,
   scrollable = false,
   scrollViewProps,
   contentContainerStyle,
@@ -51,29 +68,50 @@ export const SafeContainer: React.FC<SafeContainerProps> = ({
   className,
   style,
   testID,
+  responsive = false,
+  maxWidth,
+  fixedFooter,
+  footerStyle,
 }) => {
   const insets = useSafeAreaInsets();
   const resolvedBg: ContainerBackground = bg;
   const backgroundColor = customBgColor ?? getBackgroundColor(resolvedBg);
 
   // Default iOS keyboard offset considering safe area top inset
-  const defaultIosOffset = keyboardVerticalOffset ?? (insets.top > 0 ? insets.top : 20);
+  const defaultIosOffset =
+    keyboardVerticalOffset ?? (insets.top > 0 ? insets.top : 20);
   const defaultAndroidOffset = keyboardVerticalOffset ?? 0;
 
   const resolvedStatusBarStyle =
     statusBarStyle ?? (bg === "dark" ? "light" : "dark");
 
-  const innerContent = scrollable ? (
+  const wrappedChildren = responsive ? (
+    <ResponsiveContainer maxWidth={maxWidth}>{children}</ResponsiveContainer>
+  ) : (
+    children
+  );
+
+  const innerScrollContent = scrollable ? (
     <ScrollView
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
       {...scrollViewProps}
     >
-      {children}
+      {wrappedChildren}
     </ScrollView>
   ) : (
-    <View style={[styles.flexOne, contentContainerStyle]}>{children}</View>
+    <View style={[styles.flexOne, contentContainerStyle]}>
+      {wrappedChildren}
+    </View>
+  );
+
+  const bodyContent = keyboardDismissOnTap ? (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      {innerScrollContent}
+    </TouchableWithoutFeedback>
+  ) : (
+    innerScrollContent
   );
 
   return (
@@ -83,7 +121,7 @@ export const SafeContainer: React.FC<SafeContainerProps> = ({
       className={className}
       style={[styles.flexOne, { backgroundColor }, style]}
     >
-      <StatusBar style={resolvedStatusBarStyle} hidden={statusBarHidden} />
+      <FocusAwareStatusBar style={resolvedStatusBarStyle} hidden={statusBarHidden} />
 
       {avoidKeyboard ? (
         <KeyboardAvoidingView
@@ -93,14 +131,52 @@ export const SafeContainer: React.FC<SafeContainerProps> = ({
           }
           style={styles.flexOne}
         >
-          {innerContent}
+          {bodyContent}
+          {fixedFooter && (
+            <View
+              style={[
+                styles.fixedFooter,
+                { paddingBottom: Math.max(insets.bottom, 12) },
+                footerStyle,
+              ]}
+            >
+              {responsive ? (
+                <ResponsiveContainer maxWidth={maxWidth}>
+                  {fixedFooter}
+                </ResponsiveContainer>
+              ) : (
+                fixedFooter
+              )}
+            </View>
+          )}
         </KeyboardAvoidingView>
       ) : (
-        innerContent
+        <>
+          {bodyContent}
+          {fixedFooter && (
+            <View
+              style={[
+                styles.fixedFooter,
+                { paddingBottom: Math.max(insets.bottom, 12) },
+                footerStyle,
+              ]}
+            >
+              {responsive ? (
+                <ResponsiveContainer maxWidth={maxWidth}>
+                  {fixedFooter}
+                </ResponsiveContainer>
+              ) : (
+                fixedFooter
+              )}
+            </View>
+          )}
+        </>
       )}
     </SafeAreaView>
   );
 };
+
+export const ScreenWrapper = SafeContainer;
 
 function getBackgroundColor(bg: ContainerBackground): string {
   switch (bg) {
@@ -126,5 +202,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+  },
+  fixedFooter: {
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#ffffff",
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
   },
 });

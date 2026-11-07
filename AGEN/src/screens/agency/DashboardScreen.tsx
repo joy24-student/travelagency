@@ -12,12 +12,12 @@ import {
   RefreshControl,
   TouchableOpacity,
   Animated,
-  SafeAreaView,
   StatusBar,
   Image,
-} from "react-native";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
+import { GlassView } from "../ui/UIComponents";
 import {
   MaterialCommunityIcons,
   Ionicons,
@@ -196,7 +196,7 @@ export default function DashboardScreen() {
                     paddingHorizontal: 5,
                     paddingVertical: 1,
                     borderRadius: 4,
-                    marginLeft: 6,
+                    marginStart: 6,
                   }}
                 >
                   <Text style={{ fontSize: 9, fontWeight: "800", color: roleMeta.color }}>
@@ -322,7 +322,7 @@ export default function DashboardScreen() {
                 activeOpacity={0.7}
                 style={styles.miniStatCard}
               >
-                <BlurView intensity={15} tint="dark" style={styles.miniStatBlur}>
+                <GlassView intensity={15} tint="dark" style={styles.miniStatBlur}>
                   <View
                     style={[
                       styles.statIconBox,
@@ -341,7 +341,7 @@ export default function DashboardScreen() {
                      <Ionicons name="trending-up" size={10} color={UI_COLORS.trendUp} />
                      <Text style={styles.miniTrend}>{stat.trend}</Text>
                   </View>
-                </BlurView>
+                </GlassView>
               </TouchableOpacity>
             ))}
           </View>

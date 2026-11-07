@@ -37,8 +37,12 @@ import { SettingsToggleRow } from "../components/settings/SettingsToggleRow";
 import { LanguageSelectorModal } from "../components/settings/LanguageSelectorModal";
 import { CurrencySelectorModal } from "../components/settings/CurrencySelectorModal";
 import { CacheManagerModal } from "../components/settings/CacheManagerModal";
+import { ActiveDevicesModal } from "../components/settings/ActiveDevicesModal";
+import { AccountDeletionModal } from "../components/settings/AccountDeletionModal";
+import { RTLIcon } from "../components/ui";
 
 export function SettingsScreen() {
+  const [searchQuery, setSearchQuery] = useState("");
   const { width } = useWindowDimensions();
   const isSplitPane = width > 768;
 
@@ -77,6 +81,7 @@ export function SettingsScreen() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [exportingData, setExportingData] = useState(false);
   const [biometricLoading, setBiometricLoading] = useState(false);
+  const [showActiveDevicesModal, setShowActiveDevicesModal] = useState(false);
 
   const currentLangObj = useMemo(
     () => SUPPORTED_LANGUAGES.find((l) => l.code === language),
@@ -284,7 +289,7 @@ export function SettingsScreen() {
                   name="shield-checkmark"
                   size={12}
                   color="#10b981"
-                  style={{ marginRight: 4 }}
+                  style={{ marginEnd: 4 }}
                 />
                 <Text style={styles.kycText}>{t("kycVerified")}</Text>
               </View>
@@ -295,7 +300,7 @@ export function SettingsScreen() {
             <View style={styles.vipTagRow}>
               <Ionicons name="sparkles" size={12} color="#f59e0b" />
               <Text style={styles.vipTierText}>
-                {t("vipTier")} • {t("memberSince", { year: "2024" })}
+                {t("vipTier")} • {t("memberSince", { year: user?.created_at ? new Date(user.created_at).getFullYear().toString() : new Date().getFullYear().toString() })}
               </Text>
             </View>
           </View>
@@ -315,7 +320,7 @@ export function SettingsScreen() {
             name="create-outline"
             size={16}
             color={colors.primary}
-            style={{ marginRight: 6 }}
+            style={{ marginEnd: 6 }}
           />
           <Text style={[styles.editProfileText, { color: colors.primary }]}>
             {t("editProfile")}
@@ -379,7 +384,7 @@ export function SettingsScreen() {
                   name={item.icon as any}
                   size={14}
                   color={isSelected ? colors.primary : colors.subtext}
-                  style={{ marginRight: 4 }}
+                  style={{ marginEnd: 4 }}
                 />
                 <Text
                   style={[
@@ -424,7 +429,7 @@ export function SettingsScreen() {
         </View>
         <View style={styles.rowRight}>
           <Text style={styles.flagEmoji}>{currentLangObj?.flag}</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          <RTLIcon name="chevron-forward" size={18} color={colors.subtext} />
         </View>
       </TouchableOpacity>
 
@@ -456,7 +461,7 @@ export function SettingsScreen() {
           <Text style={[styles.currencyPreview, { color: colors.primary }]}>
             {formatPrice(1000, currency)}
           </Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          <RTLIcon name="chevron-forward" size={18} color={colors.subtext} />
         </View>
       </TouchableOpacity>
     </SettingsSection>
@@ -480,6 +485,18 @@ export function SettingsScreen() {
         subtitle={t("requireAuthPaymentDesc")}
         value={security.requireAuthOnPayment}
         onValueChange={(val) => updateSecurityPreference("requireAuthOnPayment", val)}
+      />
+
+      <SettingsToggleRow
+        icon={<Ionicons name="lock-closed-outline" size={20} color="#8b5cf6" />}
+        title={language === "bn" ? "দ্বি-স্তর বিশিষ্ট নিরাপত্তা (2FA / OTP)" : "Two-Factor Authentication (2FA)"}
+        subtitle={
+          language === "bn"
+            ? "লগইনের সময় অতিরিক্ত OTP বা নিরাপত্তা কোড আবশ্যক"
+            : "Require an OTP verification step on login"
+        }
+        value={security.twoFactorEnabled}
+        onValueChange={(val) => updateSecurityPreference("twoFactorEnabled", val)}
       />
 
       <TouchableOpacity
@@ -522,7 +539,40 @@ export function SettingsScreen() {
             </Text>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+        <RTLIcon name="chevron-forward" size={18} color={colors.subtext} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => setShowActiveDevicesModal(true)}
+        style={[styles.clickableRow, { borderBottomColor: colors.border }]}
+      >
+        <View style={styles.rowLeft}>
+          <View
+            style={[
+              styles.iconBox,
+              { backgroundColor: "#3b82f615" },
+            ]}
+          >
+            <Ionicons name="hardware-chip-outline" size={18} color="#2563eb" />
+          </View>
+          <View>
+            <Text style={[styles.rowTitle, { color: colors.text }]}>
+              {language === "bn" ? "লগইন করা ডিভাইস" : "Logged-in Devices"}
+            </Text>
+            <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
+              {language === "bn" ? "সক্রিয় সেশনসমূহ ও দূরবর্তী লগআউট" : "Manage active sessions & remote logout"}
+            </Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View style={{ backgroundColor: "#22c55e20", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+            <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "700" }}>
+              {language === "bn" ? "সক্রিয়" : "Active"}
+            </Text>
+          </View>
+          <RTLIcon name="chevron-forward" size={18} color={colors.subtext} />
+        </View>
       </TouchableOpacity>
 
       <View style={styles.deviceInfoRow}>
@@ -632,7 +682,7 @@ export function SettingsScreen() {
             </Text>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+        <RTLIcon name="chevron-forward" size={18} color={colors.subtext} />
       </TouchableOpacity>
     </SettingsSection>
   );
@@ -672,7 +722,7 @@ export function SettingsScreen() {
             </Text>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+        <RTLIcon name="chevron-forward" size={18} color={colors.subtext} />
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -698,7 +748,7 @@ export function SettingsScreen() {
             </Text>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={18} color="#ef4444" />
+        <RTLIcon name="chevron-forward" size={18} color="#ef4444" />
       </TouchableOpacity>
 
       {/* About & Licenses Links */}
@@ -801,7 +851,7 @@ export function SettingsScreen() {
                     name={cat.icon as any}
                     size={20}
                     color={isActive ? colors.primary : colors.subtext}
-                    style={{ marginRight: 12 }}
+                    style={{ marginEnd: 12 }}
                   />
                   <Text
                     style={[
@@ -861,6 +911,16 @@ export function SettingsScreen() {
       />
 
       {/* Cache & Storage Manager Modal */}
+      <ActiveDevicesModal
+        visible={showActiveDevicesModal}
+        onClose={() => setShowActiveDevicesModal(false)}
+      />
+
+      <AccountDeletionModal
+        visible={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+      />
+
       <CacheManagerModal
         visible={showCacheModal}
         onClose={() => setShowCacheModal(false)}
@@ -1033,7 +1093,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
+    marginEnd: 14,
   },
   avatarText: {
     color: "#ffffff",
@@ -1051,7 +1111,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 17,
     fontWeight: "700",
-    marginRight: 8,
+    marginEnd: 8,
   },
   kycBadge: {
     flexDirection: "row",
@@ -1078,7 +1138,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: "#f59e0b",
-    marginLeft: 4,
+    marginStart: 4,
   },
   editProfileButton: {
     flexDirection: "row",
@@ -1143,7 +1203,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    paddingRight: 10,
+    paddingEnd: 10,
   },
   iconBox: {
     width: 36,
@@ -1151,7 +1211,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   rowTitle: {
     fontSize: 15,
@@ -1167,12 +1227,12 @@ const styles = StyleSheet.create({
   },
   flagEmoji: {
     fontSize: 20,
-    marginRight: 6,
+    marginEnd: 6,
   },
   currencyPreview: {
     fontSize: 14,
     fontWeight: "600",
-    marginRight: 6,
+    marginEnd: 6,
   },
 
   // Device Info
@@ -1184,7 +1244,7 @@ const styles = StyleSheet.create({
   },
   deviceInfoText: {
     fontSize: 12,
-    marginLeft: 8,
+    marginStart: 8,
   },
 
   // Legal Links
@@ -1253,7 +1313,7 @@ const styles = StyleSheet.create({
   gracePeriodText: {
     fontSize: 11,
     color: "#92400e",
-    marginLeft: 8,
+    marginStart: 8,
     flex: 1,
     lineHeight: 15,
   },
@@ -1283,7 +1343,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   cancelBtnText: {
     fontSize: 14,
@@ -1302,3 +1362,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
+export default SettingsScreen;

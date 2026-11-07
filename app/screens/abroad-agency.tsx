@@ -21,7 +21,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { openLink } from "../../src/utils/openLink";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLanguage } from "../../src/context/LanguageContext";
 import {
   AbroadAgency,
   AbroadGoal,
@@ -40,7 +42,6 @@ if (typeof (abroadAgencyService as any).bookAppointment !== "function") {
   };
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const PRIMARY_BLUE = "#0055F2";
 const NAVY_DARK = "#0B132B";
 const EMERALD_GREEN = "#059669";
@@ -438,6 +439,7 @@ const GOAL_TABS: { id: AbroadGoal; label: string; icon: any }[] = [
 ];
 
 export default function AbroadAgencyScreen() {
+  const { t, formatNumber } = useLanguage();
   const popularDestinations = useMemo(() => buildDestinations(), []);
 
   const [activePortalTab, setActivePortalTab] = useState<PortalTab>("destinations");
@@ -500,7 +502,9 @@ export default function AbroadAgencyScreen() {
         if (savedChecklist) {
           try {
             setChecklistState(JSON.parse(savedChecklist));
-          } catch {}
+          } catch (parseErr) {
+            console.warn("[AbroadAgency] Saved checklist parse error:", parseErr);
+          }
         } else {
           // Default initial checked items
           const initialMap: { [key: string]: boolean } = {
@@ -683,7 +687,9 @@ export default function AbroadAgencyScreen() {
             email: candidateEmail.trim(),
           })
         );
-      } catch {}
+      } catch (storageErr) {
+        console.warn("[AbroadAgency] Profile persistence error:", storageErr);
+      }
 
       // Call abroadAgencyService.bookAppointment() as specified in the enterprise requirement
       const bookingFn = (abroadAgencyService as any).bookAppointment || abroadAgencyService.bookConsultation;
@@ -892,7 +898,7 @@ export default function AbroadAgencyScreen() {
           >
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flex: 1, marginStart: 12 }}>
             <Text style={styles.headerTitle}>Abroad Consultancy Portal</Text>
             <Text style={styles.headerSubtitle}>
               উচ্চশিক্ষা, স্টুডেন্ট ভিসা ও ওয়ার্ক পারমিট হাব
@@ -1072,7 +1078,7 @@ export default function AbroadAgencyScreen() {
                 {/* Header */}
                 <View style={styles.destCardHeader}>
                   <Text style={styles.destFlagEmoji}>{dest.flag}</Text>
-                  <View style={{ flex: 1, marginLeft: 10 }}>
+                  <View style={{ flex: 1, marginStart: 10 }}>
                     <View style={styles.destTitleRow}>
                       <Text style={styles.destName}>{dest.name}</Text>
                       <View style={styles.successRateBadge}>
@@ -1214,7 +1220,7 @@ export default function AbroadAgencyScreen() {
                 style={styles.checklistSummaryGradient}
               >
                 <View style={styles.summaryTopRow}>
-                  <View style={{ flex: 1, paddingRight: 10 }}>
+                  <View style={{ flex: 1, paddingEnd: 10 }}>
                     <Text style={styles.summaryTitle}>ডকুমেন্ট চেকলিস্ট জেনারেটর</Text>
                     <Text style={styles.summarySubtitle}>
                       পাসপোর্ট, একাডেমিক সনদ, ব্যাংক স্টেটমেন্ট ও পুলিশ ক্লিয়ারেন্স
@@ -1326,7 +1332,7 @@ export default function AbroadAgencyScreen() {
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={{ flex: 1, marginLeft: 12 }}
+                        style={{ flex: 1, marginStart: 12 }}
                         onPress={() =>
                           setExpandedChecklistId(isExpanded ? null : item.id)
                         }
@@ -1432,7 +1438,7 @@ export default function AbroadAgencyScreen() {
                   সরকারি আরএল (RL) লাইসেন্স ও ব্রিটিশ কাউন্সিল সনদপ্রাপ্ত
                 </Text>
               </View>
-              <Text style={styles.govTag}>✓ ১০০% ভেরিফাইড</Text>
+              <Text style={styles.govTag}>✓ {t("verifiedBadge", "১০০% ভেরিফাইড")}</Text>
             </View>
 
             {/* Search Agencies Input */}
@@ -1508,7 +1514,7 @@ export default function AbroadAgencyScreen() {
                         source={{ uri: agency.logo_url }}
                         style={styles.agencyLogo}
                       />
-                      <View style={{ flex: 1, marginLeft: 14 }}>
+                      <View style={{ flex: 1, marginStart: 14 }}>
                         <View style={styles.agencyNameRow}>
                           <Text style={styles.agencyName} numberOfLines={1}>
                             {agency.name}
@@ -1550,7 +1556,7 @@ export default function AbroadAgencyScreen() {
                     <View style={styles.destListWrap}>
                       <Text style={styles.destLabel}>প্রধান দেশসমূহ:</Text>
                       {agency.destinations.map((d, i) => (
-                        <View key={i} style={styles.destPill}>
+                        <View key={`dest-${agency.id}-${d}`} style={styles.destPill}>
                           <Text style={styles.destPillText}>🌐 {d}</Text>
                         </View>
                       ))}
@@ -1559,7 +1565,7 @@ export default function AbroadAgencyScreen() {
                     {/* Services Tags */}
                     <View style={styles.serviceTagsWrap}>
                       {agency.services.slice(0, 3).map((srv, idx) => (
-                        <View key={idx} style={styles.serviceTag}>
+                        <View key={`srv-${agency.id}-${srv}`} style={styles.serviceTag}>
                           <Text style={styles.serviceTagText}>✓ {srv}</Text>
                         </View>
                       ))}
@@ -1619,7 +1625,7 @@ export default function AbroadAgencyScreen() {
                 <View key={test.id} style={styles.testimonialCard}>
                   <View style={styles.testHeaderRow}>
                     <Image source={{ uri: test.avatarUrl }} style={styles.testAvatar} />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <View style={styles.testNameRow}>
                         <Text style={styles.testStudentName}>{test.studentName}</Text>
                         <Text style={styles.testFlag}>{test.flag}</Text>
@@ -1661,7 +1667,7 @@ export default function AbroadAgencyScreen() {
                 <View style={styles.wizardHeaderIcon}>
                   <Ionicons name="calendar-sharp" size={26} color="#FFFFFF" />
                 </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={{ flex: 1, marginStart: 12 }}>
                   <Text style={styles.wizardHeaderTitle}>
                     অ্যাপয়েন্টমেন্ট বুকিং উইজার্ড
                   </Text>
@@ -1673,7 +1679,7 @@ export default function AbroadAgencyScreen() {
             </View>
 
             {/* Step 1: Select Agency */}
-            <Text style={styles.wizardStepLabel}>১. এজেন্সি নির্বাচন করুন *</Text>
+            <Text style={styles.wizardStepLabel}>{t("stepSelectAgency", "১. এজেন্সি নির্বাচন করুন *")}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -1716,7 +1722,7 @@ export default function AbroadAgencyScreen() {
             </ScrollView>
 
             {/* Step 2: Target Country Selection */}
-            <Text style={styles.wizardStepLabel}>২. কাঙ্ক্ষিত গন্তব্য দেশ *</Text>
+            <Text style={styles.wizardStepLabel}>{t("stepTargetCountry", "২. কাঙ্ক্ষিত গন্তব্য দেশ *")}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -1756,7 +1762,7 @@ export default function AbroadAgencyScreen() {
             </ScrollView>
 
             {/* Step 3: Consultation Mode Picker */}
-            <Text style={styles.wizardStepLabel}>৩. কাউন্সেলিং মোড *</Text>
+            <Text style={styles.wizardStepLabel}>{t("stepCounselingMode", "৩. কাউন্সেলিং মোড *")}</Text>
             <View style={styles.consultModeRow}>
               <TouchableOpacity
                 style={[
@@ -2221,7 +2227,7 @@ export default function AbroadAgencyScreen() {
               <>
                 <View style={styles.modalHeader}>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text style={{ fontSize: 28, marginRight: 8 }}>
+                    <Text style={{ fontSize: 28, marginEnd: 8 }}>
                       {selectedDestination.flag}
                     </Text>
                     <View>
@@ -2243,7 +2249,7 @@ export default function AbroadAgencyScreen() {
                   {/* Highlights */}
                   <Text style={styles.destModalSubTitle}>প্রধান সুবিধাসমূহ:</Text>
                   {selectedDestination.highlights.map((h, i) => (
-                    <View key={i} style={styles.destHighlightItem}>
+                    <View key={`hl-${selectedDestination.id}-${h}`} style={styles.destHighlightItem}>
                       <Ionicons name="checkmark-circle" size={16} color="#059669" />
                       <Text style={styles.destHighlightText}>{h}</Text>
                     </View>
@@ -2400,7 +2406,7 @@ export default function AbroadAgencyScreen() {
               </View>
 
               <View style={styles.rowTwoCols}>
-                <View style={{ flex: 1, marginRight: 8 }}>
+                <View style={{ flex: 1, marginEnd: 8 }}>
                   <Text style={styles.inputLabel}>IELTS / ভাষা স্কোর</Text>
                   <TextInput
                     style={styles.textInput}
@@ -2411,7 +2417,7 @@ export default function AbroadAgencyScreen() {
                   />
                 </View>
 
-                <View style={{ flex: 1, marginLeft: 8 }}>
+                <View style={{ flex: 1, marginStart: 8 }}>
                   <Text style={styles.inputLabel}>কাজের অভিজ্ঞতা (বছর)</Text>
                   <TextInput
                     style={styles.textInput}
@@ -2468,7 +2474,7 @@ export default function AbroadAgencyScreen() {
                   <Text style={styles.resultSubHead}>সুপারিশকৃত দেশসমূহ:</Text>
                   <View style={styles.resultTagsWrap}>
                     {assessmentResult.recommended_countries.map((c, i) => (
-                      <View key={i} style={styles.recomPill}>
+                      <View key={`recom-${c}`} style={styles.recomPill}>
                         <Text style={styles.recomPillText}>✓ {c}</Text>
                       </View>
                     ))}
@@ -2476,7 +2482,7 @@ export default function AbroadAgencyScreen() {
 
                   <Text style={styles.resultSubHead}>পরবর্তী করণীয় পদক্ষেপ:</Text>
                   {assessmentResult.next_steps.map((step, i) => (
-                    <Text key={i} style={styles.stepItem}>
+                    <Text key={`step-${i}-${step.slice(0, 15)}`} style={styles.stepItem}>
                       • {step}
                     </Text>
                   ))}
@@ -2724,6 +2730,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.05)" } : {}),
   },
   destCardHeader: {
     flexDirection: "row",
@@ -2832,7 +2839,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: "#0284C7",
-    marginRight: 4,
+    marginEnd: 4,
   },
   langPillScore: {
     fontSize: 10,
@@ -2930,6 +2937,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 6px rgba(15, 23, 42, 0.1)" } : {}),
   },
   checklistSummaryGradient: {
     padding: 16,
@@ -3083,7 +3091,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: NAVY_DARK,
     flex: 1,
-    marginRight: 6,
+    marginEnd: 6,
   },
   itemBengaliTitleChecked: {
     color: "#065F46",
@@ -3241,6 +3249,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.05)" } : {}),
   },
   agencyCardHeader: {
     flexDirection: "row",
@@ -3461,7 +3470,7 @@ const styles = StyleSheet.create({
   testAgencyNameTag: {
     fontSize: 10.5,
     color: "#64748B",
-    marginLeft: 6,
+    marginStart: 6,
   },
   testMonthYear: {
     fontSize: 10,
@@ -3719,6 +3728,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.15)" } : {}),
   },
   submitWizardGradient: {
     flexDirection: "row",
@@ -4276,7 +4286,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#16A34A",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 10,
+    marginStart: 10,
   },
   scoreCircleNum: {
     fontSize: 15,

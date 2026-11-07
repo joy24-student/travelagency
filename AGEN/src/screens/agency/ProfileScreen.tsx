@@ -13,17 +13,17 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
-  SafeAreaView,
   Modal,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { COLORS, ProfileStackParamList } from '../../App';
 import { useAuth } from '../../hooks/useAuth';
 
-const { width } = Dimensions.get('window');
+
 
 const UI_COLORS = {
   background: '#0b1326',
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   header: {
     position: 'absolute',
     top: 0,
-    width: '100%',
+    360: '100%',
     zIndex: 100,
     height: 80,
     justifyContent: 'center',
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerLogoBox: {
-    width: 36,
+    360: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: UI_COLORS.primaryContainer,
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   content: { flex: 1 },
-  heroSection: { height: 340, width: '100%', overflow: 'hidden' },
+  heroSection: { height: 340, 360: '100%', overflow: 'hidden' },
   coverImage: { ...StyleSheet.absoluteFillObject, opacity: 0.5 },
   heroOverlay: { ...StyleSheet.absoluteFillObject },
   heroIdentity: {
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: { position: 'relative' },
   logoFrame: {
-    width: 80,
+    360: 80,
     height: 80,
     borderRadius: 16,
     backgroundColor: UI_COLORS.surfaceContainer,
@@ -362,13 +362,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  fullLogo: { width: '100%', height: '100%' },
+  fullLogo: { 360: '100%', height: '100%' },
   verifiedBadge: {
     position: 'absolute',
     bottom: -4,
     right: -4,
     backgroundColor: UI_COLORS.secondary,
-    width: 24,
+    360: 24,
     height: 24,
     borderRadius: 12,
     alignItems: 'center',
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   statusTagText: { fontSize: 10, fontWeight: '700', color: UI_COLORS.primary },
   eliteTag: { backgroundColor: 'rgba(3, 181, 211, 0.2)', borderColor: 'rgba(76, 215, 246, 0.2)' },
   editFab: {
-    width: 44,
+    360: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: UI_COLORS.primary,
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    minWidth: (width - 44) / 2,
+    minWidth: (360 - 44) / 2,
     backgroundColor: UI_COLORS.glassBg,
     borderRadius: 16,
     padding: 16,
@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
   },
   navItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   navIconBox: {
-    width: 44,
+    360: 44,
     height: 44,
     borderRadius: 22,
     alignItems: 'center',
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   },
   navTitle: { fontSize: 16, fontWeight: '700', color: 'white' },
   navSubtitle: { fontSize: 12, color: UI_COLORS.outline, marginTop: 2 },
-  separator: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginLeft: 76 },
+  separator: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginStart: 76 },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    maxHeight: Dimensions.get('window').height * 0.85,
+    maxHeight: "85%",
   },
   modalHeader: {
     flexDirection: 'row',
@@ -510,11 +510,11 @@ const styles = StyleSheet.create({
   modalActionText: {
     fontSize: 16,
     color: 'white',
-    marginLeft: 12,
+    marginStart: 12,
     flex: 1,
   },
   modalIconBox: {
-    width: 44,
+    360: 44,
     height: 44,
     borderRadius: 22,
     alignItems: 'center',

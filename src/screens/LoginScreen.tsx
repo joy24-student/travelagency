@@ -1,5 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, Alert, SafeAreaView } from 'react-native';
+import {
+  View, Text, StyleSheet, Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { GoogleLoginButton } from '../components';
 import { useAuth } from '../hooks/useAuth';
 

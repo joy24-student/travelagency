@@ -14,7 +14,7 @@ export {
   useUserBookings,
   useBooking,
   useCreateBooking,
-  useBookingMutations,
+  useBookingActions,
 } from "./useBooking";
 
 // Search hooks
@@ -60,4 +60,10 @@ export {
   useScreenEventEmitter,
   useScreenHandoff,
 } from "./useScreenCollaboration";
+
+// Responsive & Layout hooks (Addresses screen dimension, tablet/web layouts)
+export * from "./useResponsive";
+export { useA11yFocusRing } from "./useA11yFocusRing";
+export { useDoubleSubmitProtection } from "./useDoubleSubmitProtection";
+export { usePagination } from "./usePagination";
 

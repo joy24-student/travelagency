@@ -5,6 +5,8 @@ import {
   ORDERED_TAXONOMY_KEYS,
   DEFAULT_TAXONOMY,
   buildTaxonomyVector,
+  toUnitVector,
+  computeUnitDotProduct,
   computeCosineSimilarity,
   sampleBeta,
   type RecommendationFeatureTaxonomy,
@@ -338,6 +340,42 @@ describe("RecommendationEngine & ML Hybrid Scoring Suite", () => {
       });
       expect(cachedRes.source).toBe("cache");
       expect(mockedApiRequest).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ============================================================================
+  // 6. ACCELERATED SIMD MATH & ULTRA-FAST BENCHMARKS
+  // ============================================================================
+  describe("Requirement 6: SIMD Loop-Unrolled Math & High-Throughput Benchmarks", () => {
+    it("should compute unit vectors with exact L2 norm = 1.0", () => {
+      const vec = buildTaxonomyVector({
+        budget_affinity: 0.8,
+        adventure_index: 0.6,
+      });
+      const unit = toUnitVector(vec);
+      let normSq = 0;
+      for (let i = 0; i < unit.length; i++) {
+        normSq += unit[i] * unit[i];
+      }
+      expect(Math.sqrt(normSq)).toBeCloseTo(1.0, 5);
+    });
+
+    it("should compute SIMD unit dot product matching cosine similarity", () => {
+      const vecA = buildTaxonomyVector({ budget_affinity: 0.9, adventure_index: 0.5 });
+      const vecB = buildTaxonomyVector({ budget_affinity: 0.85, adventure_index: 0.45 });
+      const unitA = toUnitVector(vecA);
+      const unitB = toUnitVector(vecB);
+
+      const dot = computeUnitDotProduct(unitA, unitB);
+      const cos = computeCosineSimilarity(vecA, vecB);
+      expect(dot).toBeCloseTo(cos, 4);
+    });
+
+    it("should execute 100 recommendation evaluations in sub-millisecond average latency", () => {
+      const bench = recommendationEngine.benchmark(100);
+      expect(bench.totalMs).toBeGreaterThan(0);
+      expect(bench.avgMsPerCall).toBeLessThan(5.0); // well under 5ms per call (typically <0.2ms)
+      expect(bench.opsPerSec).toBeGreaterThan(200); // hundreds to thousands of ops/sec
     });
   });
 });

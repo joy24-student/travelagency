@@ -3,7 +3,7 @@
  * Agency authentication
  */
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     setError("");
@@ -88,6 +89,7 @@ export default function LoginScreen({ navigation }: Props) {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Logo & Title */}
         <View style={styles.logoSection}>
@@ -122,6 +124,11 @@ export default function LoginScreen({ navigation }: Props) {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                accessibilityLabel="Email Address"
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
                 value={email}
                 onChangeText={setEmail}
               />
@@ -146,15 +153,23 @@ export default function LoginScreen({ navigation }: Props) {
                 style={styles.inputIcon}
               />
               <TextInput
+                ref={passwordRef}
                 style={styles.input}
                 placeholder="Enter your password"
                 placeholderTextColor={COLORS.textTertiary}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                autoComplete="current-password"
+                textContentType="password"
+                accessibilityLabel="Password"
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
                 value={password}
                 onChangeText={setPassword}
               />
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
                 onPress={() => setShowPassword(!showPassword)}
                 style={styles.eyeIcon}
               >
@@ -350,7 +365,7 @@ const styles = StyleSheet.create({
   },
 
   inputIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
 
   input: {
@@ -360,7 +375,7 @@ const styles = StyleSheet.create({
   },
 
   eyeIcon: {
-    marginLeft: 8,
+    marginStart: 8,
   },
 
   errorBox: {

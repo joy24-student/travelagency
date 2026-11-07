@@ -142,7 +142,9 @@ export const localMarketplaceService = {
       } else {
         await AsyncStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(INITIAL_PRODUCTS));
       }
-    } catch {}
+    } catch (storageErr) {
+      console.warn("[localMarketplaceService] Error reading products cache:", storageErr);
+    }
 
     let result = [...list];
 
@@ -223,7 +225,9 @@ export const localMarketplaceService = {
           metadata: newOrder,
         },
       ]);
-    } catch {}
+    } catch (syncErr) {
+      console.warn("[localMarketplaceService] Remote order sync failed, saving locally:", syncErr);
+    }
 
     const raw = await AsyncStorage.getItem(ORDERS_STORAGE_KEY);
     const existing: ProductOrder[] = raw ? JSON.parse(raw) : [];

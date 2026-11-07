@@ -160,7 +160,11 @@ htmlcov/
 
 # Generated PDFs
 storage/tickets/*.pdf
-backend-python/storage/tickets/*.pdf
+backend/storage/tickets/*.pdf
 !storage/tickets/.gitkeep
-!backend-python/storage/tickets/.gitkeep
+!backend/storage/tickets/.gitkeep
 
+
+# Firebase mobile credentials
+google-services.json
+!google-services.json.example

@@ -12,12 +12,12 @@ import {
   Animated,
   TouchableOpacity,
   Dimensions,
-  SafeAreaView,
   Platform,
   StatusBar,
   Modal,
   TextInput,
-} from "react-native";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   MaterialCommunityIcons,
   Ionicons,
@@ -28,7 +28,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS } from "../../App";
 import { Card, SectionHeader, Badge, ActivityItem } from "../ui/UIComponents";
 
-const { width } = Dimensions.get("window");
+
 
 const THEME = {
   dark: "#0B0E14",
@@ -239,7 +239,7 @@ export default function OperationsScreen() {
                             style={[
                               styles.capacityFill,
                               {
-                                width: `${(tour.capacity.current / tour.capacity.total) * 100}%`,
+                                360: `${(tour.capacity.current / tour.capacity.total) * 100}%`,
                                 backgroundColor:
                                   idx === 0 ? THEME.accent : THEME.cyan,
                               },
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     color: "white",
   },
   notificationBtn: {
-    width: 42,
+    360: 42,
     height: 42,
     borderRadius: 21,
     backgroundColor: THEME.card,
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 10,
     right: 10,
-    width: 8,
+    360: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: THEME.danger,
@@ -523,11 +523,11 @@ const styles = StyleSheet.create({
   },
 
   horizontalScroll: {
-    paddingRight: 20,
+    paddingEnd: 20,
     gap: 16,
   },
   tourCard: {
-    width: 200,
+    360: 200,
     backgroundColor: THEME.card,
     borderRadius: 24,
     padding: 12,
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -40,
     right: -40,
-    width: 120,
+    360: 120,
     height: 120,
     borderRadius: 60,
     opacity: 0.05,
@@ -571,7 +571,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginLeft: "auto",
+    marginStart: "auto",
   },
   timerText: {
     fontSize: 12,
@@ -631,7 +631,7 @@ const styles = StyleSheet.create({
     color: "white",
   },
   locationIconBox: {
-    width: 36,
+    360: 36,
     height: 36,
     borderRadius: 10,
     backgroundColor: "rgba(239, 68, 68, 0.15)",
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activityIconBox: {
-    width: 40,
+    360: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: "center",
@@ -704,7 +704,7 @@ const styles = StyleSheet.create({
   activityTime: {
     fontSize: 10,
     color: THEME.textSecondary,
-    marginLeft: 10,
+    marginStart: 10,
   },
   modalOverlay: {
     flex: 1,

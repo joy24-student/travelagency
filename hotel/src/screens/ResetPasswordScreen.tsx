@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -16,6 +16,7 @@ export function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   const getStrength = () => {
     if (password.length === 0) return 0;
@@ -37,7 +38,7 @@ export function ResetPasswordScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1 px-6 pt-4" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1 px-6 pt-4" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View className="mb-8">
           <Text className="text-2xl font-bold text-white mb-2">Reset Password</Text>
           <Text className="text-[#94a3b8] text-sm">Create a new strong password for your account</Text>
@@ -49,7 +50,7 @@ export function ResetPasswordScreen() {
 
           {/* New Password Field */}
           <View className="mb-6">
-            <Text className="text-[#c7c4d7] text-xs font-medium ml-1 mb-2">New Password</Text>
+            <Text className="text-[#c7c4d7] text-xs font-medium ms-1 mb-2">New Password</Text>
             <View className="relative">
               <TextInput
                 value={password}
@@ -57,6 +58,11 @@ export function ResetPasswordScreen() {
                 secureTextEntry={!showPassword}
                 placeholder="Min. 8 characters"
                 placeholderTextColor="#464554"
+                autoComplete="new-password"
+                textContentType="newPassword"
+                accessibilityLabel="New Password"
+                returnKeyType="next"
+                onSubmitEditing={() => confirmPasswordRef.current?.focus()}
                 className="w-full bg-[#060e20] border border-white/10 rounded-xl px-4 py-3 text-white text-sm"
               />
               <TouchableOpacity
@@ -88,14 +94,19 @@ export function ResetPasswordScreen() {
 
           {/* Confirm Password Field */}
           <View className="mb-8">
-            <Text className="text-[#c7c4d7] text-xs font-medium ml-1 mb-2">Confirm Password</Text>
+            <Text className="text-[#c7c4d7] text-xs font-medium ms-1 mb-2">Confirm Password</Text>
             <View className="relative">
               <TextInput
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
+                ref={confirmPasswordRef}
                 placeholder="Repeat your new password"
                 placeholderTextColor="#464554"
+                autoComplete="new-password"
+                textContentType="newPassword"
+                accessibilityLabel="Confirm Password"
+                returnKeyType="done"
                 className="w-full bg-[#060e20] border border-white/10 rounded-xl px-4 py-3 text-white text-sm"
               />
               <TouchableOpacity

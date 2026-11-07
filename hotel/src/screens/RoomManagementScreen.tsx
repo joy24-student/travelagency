@@ -4,11 +4,11 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { hotelService, HotelRoomCategory } from '../services/hotelService';
 
@@ -97,7 +97,7 @@ export function RoomManagementScreen() {
           <TouchableOpacity className="p-1">
             <MaterialIcons name="menu" size={24} color="white" />
           </TouchableOpacity>
-          <Text className="text-xl font-bold text-white ml-4">Rooms</Text>
+          <Text className="text-xl font-bold text-white ms-4">Rooms</Text>
         </View>
         <View className="flex-row items-center space-x-3">
           <TouchableOpacity className="p-1" onPress={onRefresh}>
@@ -169,7 +169,7 @@ export function RoomManagementScreen() {
                 <View className="flex-row justify-between mb-1">
                   <Text className="text-xs text-gray-300">{item.floor}</Text>
                   <Text className="text-[10px] text-gray-500">
-                    {item.rooms} Rooms <Text className="text-white font-bold ml-2">{item.percentage}%</Text>
+                    {item.rooms} Rooms <Text className="text-white font-bold ms-2">{item.percentage}%</Text>
                   </Text>
                 </View>
                 <View className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">

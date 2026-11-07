@@ -22,7 +22,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { COLORS } from "../../App";
 import { agencyProfileService } from "../../services/agencyService";
 
-const { width } = Dimensions.get("window");
+
 
 // Ultra UI Constants from HTML redesign
 const UI_COLORS = {
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   header: {
     position: "absolute",
     top: 0,
-    width: "100%",
+    360: "100%",
     zIndex: 100,
     height: 80,
     justifyContent: "center",
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   headerLogoBox: {
-    width: 36,
+    360: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: UI_COLORS.primaryContainer,
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.05)",
   },
   content: { flex: 1 },
-  heroSection: { height: 340, width: "100%", overflow: "hidden" },
+  heroSection: { height: 340, 360: "100%", overflow: "hidden" },
   coverImage: { ...StyleSheet.absoluteFillObject, opacity: 0.5 },
   heroOverlay: { ...StyleSheet.absoluteFillObject },
   heroIdentity: {
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: { position: "relative" },
   logoFrame: {
-    width: 80,
+    360: 80,
     height: 80,
     borderRadius: 16,
     backgroundColor: UI_COLORS.surfaceContainer,
@@ -357,13 +357,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  fullLogo: { width: "100%", height: "100%" },
+  fullLogo: { 360: "100%", height: "100%" },
   verifiedBadge: {
     position: "absolute",
     bottom: -4,
     right: -4,
     backgroundColor: UI_COLORS.secondary,
-    width: 24,
+    360: 24,
     height: 24,
     borderRadius: 12,
     alignItems: "center",
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     elevation: 8,
     shadowColor: UI_COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { 360: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
   },

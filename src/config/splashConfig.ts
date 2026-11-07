@@ -1,8 +1,9 @@
 /**
- * Splash Screen Configuration
+ * Splash Screen Configuration - Shopno Jatra
  *
- * This file controls which splash screen variant is displayed
- * and other splash-related settings.
+ * Controls splash screen display, duration, and animation.
+ * Optimized for instant launch: max ~800-1000ms, animation only on first launch,
+ * and dismisses immediately as soon as app initialization completes.
  */
 
 export type SplashScreenVariant = "basic" | "advanced";
@@ -11,7 +12,7 @@ export interface SplashScreenConfig {
   // Which splash screen to display: 'basic' or 'advanced'
   variant: SplashScreenVariant;
 
-  // How long the splash screen displays (in milliseconds)
+  // How long the splash screen displays (in milliseconds) - max ~1 second
   duration: number;
 
   // Whether to show splash screen for authentication check
@@ -31,68 +32,74 @@ export interface SplashScreenConfig {
     textDuration: number; // Text animation duration (ms)
     particleCount: number; // Number of particles (advanced only)
   };
+
+  // Only play intro animation on the user's first app open
+  onlyFirstLaunch?: boolean;
 }
 
-// Default configuration
+// Default configuration (Fast, lightweight, max ~800ms)
 export const DEFAULT_SPLASH_CONFIG: SplashScreenConfig = {
-  variant: "basic", // Change to 'advanced' to use particle effects version
-  duration: 3500,
-  showForAuth: true,
+  variant: "basic",
+  duration: 800, // Reduced from 3500ms to max ~800ms
+  showForAuth: false,
+  onlyFirstLaunch: true,
   colors: {
-    primary: "#003399",
+    primary: "#0055F2",
     accent: "#FF5722",
     background: "#FFFFFF",
-    text: "#333333",
+    text: "#0F172A",
   },
   animation: {
-    birdDuration: 800,
-    textDuration: 800,
-    particleCount: 8,
+    birdDuration: 350,
+    textDuration: 350,
+    particleCount: 6,
   },
 };
 
 // Preset configurations
 export const PRESETS: Record<string, SplashScreenConfig> = {
-  // Quick splash (1.5 seconds)
+  // Quick splash (400ms)
   quick: {
     ...DEFAULT_SPLASH_CONFIG,
-    duration: 1500,
+    duration: 400,
     animation: {
       ...DEFAULT_SPLASH_CONFIG.animation,
-      birdDuration: 500,
-      textDuration: 400,
+      birdDuration: 200,
+      textDuration: 200,
     },
   },
 
-  // Standard splash (3.5 seconds)
+  // Standard splash (800ms - recommended)
   standard: DEFAULT_SPLASH_CONFIG,
 
-  // Extended splash (5 seconds)
-  extended: {
-    ...DEFAULT_SPLASH_CONFIG,
-    duration: 5000,
-    animation: {
-      ...DEFAULT_SPLASH_CONFIG.animation,
-      birdDuration: 1200,
-      textDuration: 1000,
-    },
-  },
-
-  // Minimal splash (basic version only)
+  // Minimal splash
   minimal: {
     ...DEFAULT_SPLASH_CONFIG,
     variant: "basic",
-    duration: 2000,
+    duration: 400,
   },
 
-  // Full featured (advanced with particles)
+  // Full featured (advanced with particles, capped at 1000ms)
   featured: {
     ...DEFAULT_SPLASH_CONFIG,
     variant: "advanced",
-    duration: 3500,
+    duration: 1000,
     animation: {
       ...DEFAULT_SPLASH_CONFIG.animation,
-      particleCount: 12,
+      birdDuration: 400,
+      textDuration: 400,
+      particleCount: 8,
+    },
+  },
+
+  // Extended splash (capped at 1000ms max)
+  extended: {
+    ...DEFAULT_SPLASH_CONFIG,
+    duration: 1000,
+    animation: {
+      ...DEFAULT_SPLASH_CONFIG.animation,
+      birdDuration: 400,
+      textDuration: 400,
     },
   },
 
@@ -111,10 +118,10 @@ export const PRESETS: Record<string, SplashScreenConfig> = {
   light: {
     ...DEFAULT_SPLASH_CONFIG,
     colors: {
-      primary: "#003399",
+      primary: "#0055F2",
       accent: "#FF5722",
       background: "#FFFFFF",
-      text: "#333333",
+      text: "#0F172A",
     },
   },
 };

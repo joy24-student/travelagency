@@ -1,72 +1,110 @@
 version: "3.9"
 
 services:
-  backend:
+  # ----------------------------------------------------------------------------
+  # 1. FastAPI Asynchronous API Service
+  # ----------------------------------------------------------------------------
+  api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: shopno-jatra-backend
+    container_name: shopno_api
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       - ENVIRONMENT=production
       - DEBUG=false
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/postgres
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/shopnojatra
       - REDIS_URL=redis://redis:6379/0
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET:-your-supabase-jwt-secret}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - BKASH_WEBHOOK_SECRET=${BKASH_WEBHOOK_SECRET:-bkash-webhook-secret-key}
-      - NAGAD_WEBHOOK_SECRET=${NAGAD_WEBHOOK_SECRET:-nagad-webhook-secret-key}
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SUPABASE_URL=https://htkpmrfhoijznigwimwj.supabase.co
+      - SUPABASE_JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters
+      - BKASH_WEBHOOK_SECRET=bkash-secure-webhook-hmac-secret-key
+      - NAGAD_WEBHOOK_SECRET=nagad-secure-webhook-hmac-secret-key
+      - ROCKET_WEBHOOK_SECRET=rocket-secure-webhook-hmac-secret-key
+      - STRIPE_WEBHOOK_SECRET=whsec_mock_stripe_webhook_secret
+      - CARD_WEBHOOK_SECRET=card-secure-webhook-hmac-secret-key
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
-      - shopno-network
+      - shopno_network
 
+  # ----------------------------------------------------------------------------
+  # 2. Celery Asynchronous Task Worker
+  # ----------------------------------------------------------------------------
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopno_celery_worker
+    restart: unless-stopped
+    command: ["celery", "-A", "app.tasks.celery_app.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/shopnojatra
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - shopno_network
+
+  # ----------------------------------------------------------------------------
+  # 3. Redis In-Memory Cache, Rate Limiter & Message Broker
+  # ----------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: shopno-jatra-redis
+    container_name: shopno_redis
     restart: unless-stopped
     ports:
       - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "volatile-lru"]
     volumes:
-      - redis-data:/data
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - shopno-network
+      - shopno_network
 
+  # ----------------------------------------------------------------------------
+  # 4. PostgreSQL Database (Local Container / Standalone Fallback)
+  # ----------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
-    container_name: shopno-jatra-postgres
+    container_name: shopno_postgres
     restart: unless-stopped
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
     ports:
-      - "54322:5432"
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: shopnojatra
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ../supabase/migrations:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shopnojatra"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - shopno-network
-
-volumes:
-  redis-data:
-  postgres-data:
+      - shopno_network
 
 networks:
-  shopno-network:
+  shopno_network:
     driver: bridge
+
+volumes:
+  redis_data:
+  pgdata:

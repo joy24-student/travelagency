@@ -25,7 +25,6 @@ import {
   type Agency,
   type AgencyFilters,
 } from "../services/agencyService";
-import { BottomNav, AiPill } from "./Navigation";
 
 const PRIMARY = "#287dfa";
 const SPECIALTIES = [
@@ -435,8 +434,6 @@ export function AgencyListScreen() {
         />
       )}
 
-      <AiPill color={PRIMARY} />
-      <BottomNav active="Home" color={PRIMARY} />
     </SafeAreaView>
   );
 }
@@ -510,7 +507,7 @@ const s = StyleSheet.create({
     borderColor: "#e5e7eb",
   },
   ratingChipActive: { backgroundColor: "#fef3c7", borderColor: "#f59e0b" },
-  ratingChipText: { fontSize: 11, fontWeight: "700", color: "#9ca3af" },
+  ratingChipText: { fontSize: 12, fontWeight: "700", color: "#9ca3af" },
   ratingChipTextActive: { color: "#92400e" },
   verifiedToggle: {
     flexDirection: "row",
@@ -524,7 +521,7 @@ const s = StyleSheet.create({
     backgroundColor: "#f0fdf4",
   },
   verifiedToggleActive: { backgroundColor: "#10b981", borderColor: "#10b981" },
-  verifiedToggleText: { fontSize: 11, fontWeight: "700", color: "#10b981" },
+  verifiedToggleText: { fontSize: 12, fontWeight: "700", color: "#10b981" },
   list: { padding: 16, paddingBottom: 140 },
   card: {
     backgroundColor: "#fff",
@@ -535,7 +532,7 @@ const s = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 10,
   },
-  cardTop: { height: 130, position: "relative" },
+  cardTop: { minHeight: 130, position: "relative" },
   cover: { width: "100%", height: "100%" },
   coverFallback: {
     backgroundColor: "#f3f4f6",
@@ -585,7 +582,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
-  verifiedText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  verifiedText: { color: "#fff", fontSize: 12, fontWeight: "800" },
   cardBody: { padding: 14, paddingTop: 26 },
   nameRow: {
     flexDirection: "row",
@@ -602,11 +599,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  chipText: { fontSize: 11, color: PRIMARY, fontWeight: "700" },
+  chipText: { fontSize: 12, color: PRIMARY, fontWeight: "700" },
   statsRow: { flexDirection: "row", gap: 16, marginBottom: 12 },
   stat: { flexDirection: "row", alignItems: "center", gap: 3 },
   statValue: { fontSize: 12, fontWeight: "900", color: "#374151" },
-  statLabel: { fontSize: 10, color: "#9ca3af" },
+  statLabel: { fontSize: 12, color: "#9ca3af" },
   actionRow: { flexDirection: "row", gap: 8 },
   followBtn: {
     flex: 1,

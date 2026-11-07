@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceLight,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   headerAvatarText: {
     color: COLORS.text,
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     gap: 12,
-    marginLeft: "auto",
+    marginStart: "auto",
   },
 
   iconButton: {
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   searchIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   searchInput: {
     flex: 1,
@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: COLORS.primary,
-    marginLeft: 8,
+    marginStart: 8,
   },
   noMessagesText: {
     textAlign: "center",

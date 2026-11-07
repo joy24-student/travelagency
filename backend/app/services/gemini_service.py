@@ -1,6 +1,6 @@
 """
-AI Travel Concierge Service powered by Google Gemini API (google-genai SDK).
-Generates detailed structured JSON itineraries tailored to budget and traveler preferences.
+AI Travel Concierge Service powered by Google Gemini SDK (google-genai).
+Asynchronously generates personalized structured JSON itineraries with defensive schema validation.
 """
 
 import json
@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.circuit_breaker import gemini_circuit_breaker
 from app.core.config import settings
-from app.core.exceptions import AppException
 from app.models.ai import TripPlan
 from app.schemas.ai import (
     Activity,
@@ -24,16 +24,15 @@ from app.schemas.ai import (
 
 logger = logging.getLogger(__name__)
 
-
 SYSTEM_INSTRUCTION = """
-You are the Principal AI Travel Concierge for 'Shopno Jatra' (স্বপ্ন যাত্রা), a premier travel agency platform.
+You are the Senior AI Travel Concierge for 'Shopno Jatra' (স্বপ্ন যাত্রা), Bangladesh's premier travel ecosystem.
 Your mission is to generate comprehensive, realistic, day-by-day travel itineraries with accurate cost estimates,
 practical transit tips, cultural etiquette, and authentic dining recommendations.
 
 Rules:
-1. Always tailor activities and pace strictly to the user's budget, destination, interests, and duration.
-2. If the destination is in Bangladesh (e.g. Cox's Bazar, Sylhet, Sreemangal, Sajek Valley, Sundarbans), provide expert local insight into transport (e.g. Parabat Express, Green Line, domestic flights) and regional delicacies (e.g. Shutki, Kacchi, Seven-layer tea).
-3. If international (e.g. Bangkok, Singapore, Istanbul, Dubai, Tokyo), provide accurate transit passes, neighborhood recommendations, and currency exchange advice.
+1. Tailor activities, pace, and dining suggestions strictly to the traveler's budget, destination, interests, and duration.
+2. For Bangladesh destinations (e.g. Cox's Bazar, Sylhet, Sreemangal, Sajek Valley, Sundarbans, Bandarban), provide expert local insight into transport (e.g. Parabat Express, Green Line AC bus, domestic flights) and regional delicacies (e.g. Rupchanda fry, Loitta fry, Sylheti Satkora beef, Seven-layer tea).
+3. For international destinations (e.g. Bangkok, Singapore, Kuala Lumpur, Dubai, Istanbul, Tokyo), provide accurate local transit tips and neighborhood highlights.
 4. Output MUST adhere strictly to the JSON schema requested.
 """
 
@@ -41,181 +40,138 @@ Rules:
 class GeminiConciergeService:
 
     @staticmethod
-    def _get_mock_fallback_plan(request: PlanTripRequest) -> StructuredTripPlan:
-        """Fallback itinerary generator for offline/local development without an active Gemini API key."""
-        budget_val = request.budget or 1200.0
-        currency = request.currency or "USD"
+    def _get_fallback_plan(request: PlanTripRequest) -> StructuredTripPlan:
+        """Fallback itinerary generator for offline/local development or API downtime."""
+        budget_val = request.budget or (request.duration_days * 3500.0)
+        currency = request.currency or "BDT"
 
-        day_1_activities = [
-            Activity(
-                time="10:00 AM",
-                activity="Arrival and Check-in at Accommodation",
-                location=f"Central {request.destination}",
-                notes="Freshen up and unpack; exchange local currency if needed.",
-                estimated_cost=30.0,
-            ),
-            Activity(
-                time="02:30 PM",
-                activity="Historic Walking Tour & Architectural Landmarks",
-                location=f"Old {request.destination}",
-                notes="Wear comfortable walking shoes and modest clothing for heritage sites.",
-                estimated_cost=15.0,
-            ),
-            Activity(
-                time="06:30 PM",
-                activity="Sunset Promenade & Waterfront Leisure",
-                location="City Waterfront",
-                notes="Great photography spot during golden hour.",
-                estimated_cost=0.0,
-            ),
-        ]
+        days_list = []
+        for d in range(1, request.duration_days + 1):
+            if d == 1:
+                theme = "Arrival, Orientation & Sunset Leisure"
+                activities = [
+                    Activity(
+                        time="10:00 AM",
+                        activity=f"Arrival in {request.destination} & Check-in",
+                        location=f"Central {request.destination}",
+                        notes="Unpack, freshen up, and verify local transit passes.",
+                        estimated_cost=250.0,
+                    ),
+                    Activity(
+                        time="03:00 PM",
+                        activity="Walking Heritage & Cultural Tour",
+                        location="Historic Center / Old Town",
+                        notes="Wear comfortable walking shoes.",
+                        estimated_cost=300.0,
+                    ),
+                    Activity(
+                        time="05:30 PM",
+                        activity="Golden Hour Sunset Views",
+                        location="Waterfront / Viewpoint Promenade",
+                        notes="Prime photography location.",
+                        estimated_cost=0.0,
+                    ),
+                ]
+            elif d == request.duration_days:
+                theme = "Souvenir Shopping, Culinary Highlights & Departure"
+                activities = [
+                    Activity(
+                        time="09:30 AM",
+                        activity="Local Artisan Market & Souvenir Shopping",
+                        location="Traditional Bazaar",
+                        notes="Great for local crafts, tea, and textiles.",
+                        estimated_cost=800.0,
+                    ),
+                    Activity(
+                        time="02:00 PM",
+                        activity="Farewell Lunch & Transit to Terminal",
+                        location=f"{request.destination} Airport/Station",
+                        notes="Allow ample time for departure security checks.",
+                        estimated_cost=400.0,
+                    ),
+                ]
+            else:
+                theme = f"Exploration of {request.interests[0] if request.interests else 'Scenic Landmarks'}"
+                activities = [
+                    Activity(
+                        time="08:30 AM",
+                        activity="Full-day Excursion & Nature Adventure",
+                        location=f"Scenic Trails of {request.destination}",
+                        notes="Carry bottled water, sunscreen, and power banks.",
+                        estimated_cost=900.0,
+                    ),
+                    Activity(
+                        time="07:00 PM",
+                        activity="Evening Cultural Performance or Night Market",
+                        location="City Center",
+                        notes="Sample street food snacks.",
+                        estimated_cost=350.0,
+                    ),
+                ]
 
-        day_1_meals = [
-            MealSuggestion(
-                meal_type="breakfast",
-                suggestion="Local Cafe near hotel",
-                recommended_dish="Fresh artisan bread and specialty coffee",
-            ),
-            MealSuggestion(
-                meal_type="lunch",
-                suggestion="Traditional Heritage Kitchen",
-                recommended_dish="Authentic regional platter",
-            ),
-            MealSuggestion(
-                meal_type="dinner",
-                suggestion="Rooftop Bistro overlooking skyline",
-                recommended_dish="Chef's signature grilled seafood",
-            ),
-        ]
+            meals = [
+                MealSuggestion(
+                    meal_type="Breakfast",
+                    cuisine_or_dish="Traditional Paratha, Daal & Local Tea",
+                    suggested_spot="Hotel or Local Tea Stall",
+                    estimated_cost=150.0,
+                ),
+                MealSuggestion(
+                    meal_type="Lunch",
+                    cuisine_or_dish="Fresh Regional Fish Curry & Steamed Rice",
+                    suggested_spot="Famous Heritage Eatery",
+                    estimated_cost=450.0,
+                ),
+                MealSuggestion(
+                    meal_type="Dinner",
+                    cuisine_or_dish="Kacchi Biryani / Grilled Platter",
+                    suggested_spot="Top Rated Restaurant",
+                    estimated_cost=650.0,
+                ),
+            ]
 
-        days = [
-            TripDay(
-                day=1,
-                date=request.start_date,
-                theme="Arrival, Local Immersion & Sunset Views",
-                activities=day_1_activities,
-                meals=day_1_meals,
-                accommodation=f"Boutique Hotel in {request.destination}",
-            )
-        ]
-
-        # Add Day 2 if multi-day
-        if request.end_date != request.start_date:
-            days.append(
-                TripDay(
-                    day=2,
-                    date=request.end_date,
-                    theme="Culinary Discovery, Culture & Departure",
-                    activities=[
-                        Activity(
-                            time="09:30 AM",
-                            activity="Local Art Gallery and Artisan Bazaar",
-                            location="Crafts District",
-                            notes="Support local artisans; haggle respectfully.",
-                            estimated_cost=25.0,
-                        ),
-                        Activity(
-                            time="03:00 PM",
-                            activity="Scenic Viewpoint & Souvenir Shopping",
-                            location="Panorama Point",
-                            notes="Pick up traditional sweets and crafts.",
-                            estimated_cost=20.0,
-                        ),
-                    ],
-                    meals=[
-                        MealSuggestion(
-                            meal_type="breakfast",
-                            suggestion="Bakery & Espresso Bar",
-                            recommended_dish="Warm pastry with local fruit preserves",
-                        ),
-                        MealSuggestion(
-                            meal_type="lunch",
-                            suggestion="Famous Street Food Alley",
-                            recommended_dish="Signature spiced noodles / local street snack",
-                        ),
-                        MealSuggestion(
-                            meal_type="dinner",
-                            suggestion="Farewell Dinner at Riverside Pavilion",
-                            recommended_dish="Slow-cooked savory delicacy",
-                        ),
-                    ],
-                    accommodation=f"Boutique Hotel in {request.destination}",
-                )
-            )
-
-        budget_breakdown = [
-            BudgetCategory(
-                category="Accommodation",
-                estimated_amount=round(budget_val * 0.40, 2),
-                percentage=40.0,
-                saving_tips="Book boutique guesthouses 2-3 weeks in advance for best rates.",
-            ),
-            BudgetCategory(
-                category="Flights & Transit",
-                estimated_amount=round(budget_val * 0.25, 2),
-                percentage=25.0,
-                saving_tips="Utilize metro lines or local rideshare rather than private airport taxis.",
-            ),
-            BudgetCategory(
-                category="Food & Dining",
-                estimated_amount=round(budget_val * 0.20, 2),
-                percentage=20.0,
-                saving_tips="Dine where locals queue; lunch sets are usually 40% cheaper than dinner.",
-            ),
-            BudgetCategory(
-                category="Activities & Sightseeing",
-                estimated_amount=round(budget_val * 0.10, 2),
-                percentage=10.0,
-                saving_tips="Purchase city museum passes online to skip ticketing lines.",
-            ),
-            BudgetCategory(
-                category="Buffer & Contingency",
-                estimated_amount=round(budget_val * 0.05, 2),
-                percentage=5.0,
-                saving_tips="Always keep emergency cash in local currency.",
-            ),
-        ]
+            days_list.append(TripDay(day_number=d, theme=theme, activities=activities, meals=meals))
 
         return StructuredTripPlan(
-            title=f"Unforgettable {request.destination}: Curated Experience",
-            summary=(
-                f"A handcrafted {len(days)}-day journey through {request.destination} combining "
-                f"{', '.join(request.interests)} tailored for a {request.travel_style} travel style."
-            ),
+            title=f"{request.duration_days}-Day Curated Discovery of {request.destination}",
             destination=request.destination,
-            duration_days=len(days),
-            total_estimated_cost=budget_val,
+            duration_days=request.duration_days,
+            total_estimated_budget=budget_val,
             currency=currency,
-            days=days,
-            budget_breakdown=budget_breakdown,
-            tips=[
-                "Carry local currency cash as some street vendors do not accept international cards.",
-                "Download offline map navigation and translation apps prior to landing.",
-                "Keep emergency numbers and embassy contacts handy.",
+            highlights=[
+                f"Curated {request.destination} landmark experiences",
+                "Authentic local dining & street food trail",
+                "Optimized daily travel routes minimizing transit fatigue",
             ],
-            safety_and_cultural_advice=[
-                "Dress respectfully when visiting sacred temples, mosques, and heritage sites.",
-                "Drink bottled or filtered water in tropical regions.",
+            days=days_list,
+            budget_breakdown=[
+                BudgetCategory(category="Accommodation", estimated_amount=round(budget_val * 0.40, 2)),
+                BudgetCategory(category="Food & Dining", estimated_amount=round(budget_val * 0.30, 2)),
+                BudgetCategory(category="Activities & Sightseeing", estimated_amount=round(budget_val * 0.20, 2)),
+                BudgetCategory(category="Local Transit", estimated_amount=round(budget_val * 0.10, 2)),
             ],
+            packing_tips=[
+                "Comfortable walking shoes & weather-appropriate clothing",
+                "Universal power adapter & mobile power bank",
+                "Personal medication & refillable water container",
+            ],
+            safety_advisory="Keep emergency contacts saved and use verified ridesharing or hotel taxis at night.",
         )
 
     @staticmethod
     async def generate_itinerary(
-        db: Optional[AsyncSession],
+        db: AsyncSession,
+        user_id: uuid.UUID,
         request: PlanTripRequest,
-        user_id: Optional[uuid.UUID] = None,
     ) -> StructuredTripPlan:
         """
-        Calls Google Gemini API (gemini-3.8-flash) using google-genai SDK to generate
-        a strictly structured JSON itinerary.
+        Calls Google Gemini SDK (google-genai) to generate a structured itinerary.
+        Defensively validates returned JSON against StructuredTripPlan schema.
         """
         api_key = settings.GEMINI_API_KEY
+        plan: Optional[StructuredTripPlan] = None
 
-        # If no key is set in dev environment, return high-fidelity fallback plan
-        if not api_key:
-            logger.warning("GEMINI_API_KEY is not configured; using high-fidelity curated fallback generator.")
-            plan = GeminiConciergeService._get_mock_fallback_plan(request)
-        else:
+        if api_key and api_key not in ("mock-gemini-api-key-for-dev", "your-google-gemini-api-key", ""):
             try:
                 from google import genai
                 from google.genai import types
@@ -223,69 +179,62 @@ class GeminiConciergeService:
                 client = genai.Client(api_key=api_key)
 
                 prompt = (
-                    f"Create an unforgettable, detailed travel itinerary for {request.travelers} traveler(s).\n"
-                    f"Destination: {request.destination}\n"
-                    f"Origin: {request.origin}\n"
-                    f"Dates: from {request.start_date} to {request.end_date}\n"
+                    f"Create an unforgettable, detailed {request.duration_days}-day travel itinerary for {request.destination}.\n"
+                    f"Origin City: {request.origin}\n"
+                    f"Travelers: {request.travelers_count} ({request.traveler_type})\n"
+                    f"Budget: {request.budget or 'Moderate'} {request.currency}\n"
                     f"Interests: {', '.join(request.interests)}\n"
-                    f"Travel Style: {request.travel_style}\n"
-                    f"Budget: {request.budget or 'flexible'} {request.currency}\n\n"
-                    f"Provide day-by-day schedules with specific times, named locations, culinary dishes, "
-                    f"and an itemized budget breakdown."
+                    f"Ensure day-by-day activities, estimated costs in {request.currency}, authentic meal spots, "
+                    f"and practical budget breakdown.\n"
+                    f"Provide response strictly adhering to JSON schema."
                 )
 
-                # Call Gemini with structured output configuration
-                response = client.models.generate_content(
-                    model=settings.GEMINI_MODEL,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        response_mime_type="application/json",
-                        response_schema=StructuredTripPlan,
-                        temperature=0.3,
-                    ),
-                )
+                async def _call_gemini():
+                    return await client.aio.models.generate_content(
+                        model=settings.GEMINI_MODEL,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            response_mime_type="application/json",
+                            response_schema=StructuredTripPlan,
+                            temperature=0.7,
+                        ),
+                    )
 
-                response_text = response.text
-                if not response_text:
-                    raise AppException(502, "Gemini AI returned empty response")
+                response = await gemini_circuit_breaker.call(_call_gemini)
 
-                # Parse JSON into Pydantic model
-                data = json.loads(response_text)
-                plan = StructuredTripPlan.model_validate(data)
-
+                if response and response.text:
+                    parsed_json = json.loads(response.text)
+                    plan = StructuredTripPlan.model_validate(parsed_json)
+                    logger.info(f"Gemini successfully generated structured itinerary for {request.destination}")
             except Exception as exc:
-                logger.error(f"Error calling Gemini API: {exc}", exc_info=True)
-                # Fallback gracefully
-                plan = GeminiConciergeService._get_mock_fallback_plan(request)
+                logger.warning(
+                    f"Gemini API call or validation failed ({exc}). Falling back to robust offline generator.",
+                    exc_info=True,
+                )
 
-        # Persist to database if requested and DB session available
-        if request.save_to_account and db:
+        if not plan:
+            plan = GeminiConciergeService._get_fallback_plan(request)
+
+        # Persist generated plan in trip_plans table if requested
+        if request.save_to_account:
             try:
-                # Convert dates if available
-                s_date = None
-                e_date = None
-                try:
-                    s_date = datetime.strptime(request.start_date, "%Y-%m-%d").date()
-                    e_date = datetime.strptime(request.end_date, "%Y-%m-%d").date()
-                except Exception:
-                    pass
-
-                trip_record = TripPlan(
+                db_plan = TripPlan(
                     user_id=user_id,
                     title=plan.title,
                     destination=plan.destination,
-                    start_date=s_date,
-                    end_date=e_date,
-                    budget=plan.total_estimated_cost,
+                    duration_days=plan.duration_days,
+                    budget=plan.total_estimated_budget,
                     currency=plan.currency,
-                    plan_data=plan.model_dump(mode="json"),
+                    interests=request.interests,
+                    itinerary_data=plan.model_dump(),
+                    summary=f"{plan.duration_days}-day trip to {plan.destination}",
+                    is_saved=True,
                 )
-                db.add(trip_record)
+                db.add(db_plan)
                 await db.commit()
-                plan.trip_plan_id = trip_record.id
-                logger.info(f"Persisted AI Trip Plan {trip_record.id} for user {user_id}")
-            except Exception as exc:
-                logger.warning(f"Failed to persist trip plan to database: {exc}")
+                logger.info(f"Persisted generated trip plan {db_plan.id} for user {user_id}")
+            except Exception as save_err:
+                logger.warning(f"Could not persist trip plan in database: {save_err}")
 
         return plan

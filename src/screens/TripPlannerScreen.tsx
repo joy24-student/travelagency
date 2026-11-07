@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   ActivityIndicator,
@@ -22,7 +23,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { showLocalizedAlert } from "../utils/localizedAlert";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { StickyHeader } from "../components/common";
 import { addDays, format } from "date-fns";
 
 import {
@@ -56,6 +59,16 @@ import type {
 import { useBookingStore } from "../store/bookingStore";
 import { Badge, Button, Skeleton } from "../components/ui";
 import { WeatherWidget } from "../components/weather/WeatherWidget";
+import {
+  TripTemplatesBanner,
+  TripTopBudgetBar,
+  TripSplitBillModal,
+  TripShareExportModal,
+  RainyAlternativesCard,
+} from "../components/trip";
+import { TripTemplateItem } from "../services/trip/tripTemplates";
+import { useSplitBillStore } from "../store/splitBillStore";
+import { RTLIcon } from "../components/ui";
 
 // ─── Domain Constants & Configurations ────────────────────────────────────────
 
@@ -311,6 +324,9 @@ interface EditingActivityContext {
 }
 
 export function TripPlannerScreen() {
+  const [lastDeletedActivity, setLastDeletedActivity] = useState<any>(null);
+  const handleMoveActivity = (..._args: any[]) => {};
+  const handleUndoDeleteActivity = () => {};
   const insets = useSafeAreaInsets();
 
   // ─── Questionnaire Wizard State ─────────────────────────────────────────────
@@ -361,6 +377,15 @@ export function TripPlannerScreen() {
   const [showSavedModal, setShowSavedModal] = useState<boolean>(false);
   const [isCurrentPlanSaved, setIsCurrentPlanSaved] = useState<boolean>(false);
 
+  // Accidental Swipe / Deletion Undo State
+  const [undoActivityData, setUndoActivityData] = useState<{
+    dayIndex: number;
+    actIndex: number;
+    activity: any;
+    activityTitle: string;
+  } | null>(null);
+  const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ─── Weather Adaptive Planner & Golden Hour State ───────────────────────────
   const [weatherAlert, setWeatherAlert] = useState<WeatherAlertInfo | null>(null);
   const [activeOptimization, setActiveOptimization] = useState<WeatherOptimizationResult | null>(null);
@@ -378,6 +403,60 @@ export function TripPlannerScreen() {
   const [conciergeAnswer, setConciergeAnswer] = useState<string | null>(null);
   const [conciergeSuggestions, setConciergeSuggestions] = useState<string[]>([]);
   const [isAskingConcierge, setIsAskingConcierge] = useState<boolean>(false);
+
+  // ─── Split Bill & Share Modals State ─────────────────────────────────────────
+  const [showSplitBillModal, setShowSplitBillModal] = useState<boolean>(false);
+  const [showShareExportModal, setShowShareExportModal] = useState<boolean>(false);
+
+  // Connect Zustand Split-Bill Store
+  const {
+    members: splitMembers,
+    expenses: splitExpenses,
+    getSettlementDebts,
+    getTotalSpending,
+  } = useSplitBillStore();
+
+  const totalSpent = useMemo(() => getTotalSpending(), [splitExpenses]);
+  const settlementDebts = useMemo(() => getSettlementDebts(), [splitExpenses, splitMembers]);
+
+  // ─── Quick-Start Template Handlers ──────────────────────────────────────────
+  const handleApplyTemplate = (template: TripTemplateItem) => {
+    setOrigin("Dhaka");
+    setDestination(template.destination);
+    setDurationDays(template.durationDays);
+    setTravelers(template.travelers);
+    setTotalBudget(template.estimatedBudget);
+    setTravelStyle(template.travelStyle as any);
+    setBudgetLevel(template.budgetLevel);
+
+    const plan = template.planGenerator(startDate);
+    setGeneratedPlan(plan);
+    setExpandedDay(1);
+
+    // Sync trip name in splitBillStore
+    useSplitBillStore.getState().setTripName(plan.title);
+
+    showLocalizedAlert(
+      "টেমপ্লেট সফলভাবে লোড হয়েছে",
+      `"${template.title}" ট্রিপ প্ল্যানটি এক ট্যাপে কপি ও লোড করা হয়েছে! নিচে সম্পূর্ণ শিডিউল দেখুন।`
+    );
+  };
+
+  const handleCopyToForm = (template: TripTemplateItem) => {
+    setOrigin("Dhaka");
+    setDestination(template.destination);
+    setDurationDays(template.durationDays);
+    setTravelers(template.travelers);
+    setTotalBudget(template.estimatedBudget);
+    setTravelStyle(template.travelStyle as any);
+    setBudgetLevel(template.budgetLevel);
+    setCurrentStep(1);
+
+    showLocalizedAlert(
+      "তথ্য কপি করা হয়েছে",
+      `"${template.title}" এর গন্তব্য, বাজেট ও দিন সংখ্যা ফর্মে পূরণ করা হয়েছে। আপনার পছন্দ অনুযায়ী পরিবর্তন করুন।`
+    );
+  };
 
   // ─── Animation References ───────────────────────────────────────────────────
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -481,7 +560,7 @@ export function TripPlannerScreen() {
       (bookingStore as any).syncItineraryPlan(optimized);
     }
 
-    Alert.alert(
+    showLocalizedAlert(
       "Schedule Weather-Optimized! ☀️",
       "Your itinerary has been automatically restructured to protect against rain and capture peak golden hour lighting.\n\n" +
         `• ${activeOptimization.alert?.outdoorActivityAffected || "Outdoor activity"} swapped for ${
@@ -499,7 +578,7 @@ export function TripPlannerScreen() {
       setDismissedAlertIds((prev) => [...prev, weatherAlert.id]);
       setWeatherAlert(null);
     }
-    Alert.alert(
+    showLocalizedAlert(
       "Original Schedule Kept",
       "You have chosen to retain your original itinerary. Please pack rain gear and an umbrella for Day 2!"
     );
@@ -645,7 +724,7 @@ export function TripPlannerScreen() {
 
   const handleGenerateItinerary = async () => {
     if (!destination.trim()) {
-      Alert.alert("Destination Required", "Please choose or enter a destination to plan your trip.");
+      showLocalizedAlert("Destination Required", "Please choose or enter a destination to plan your trip.");
       return;
     }
 
@@ -800,27 +879,56 @@ export function TripPlannerScreen() {
 
   const handleDeleteActivity = (dayIndex: number, actIndex: number) => {
     if (!generatedPlan) return;
-    Alert.alert(
-      "Remove Activity",
-      "Are you sure you want to delete this activity from your itinerary?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            const newDays = [...generatedPlan.days];
-            const targetDay = { ...newDays[dayIndex] };
-            targetDay.activities = targetDay.activities.filter((_, i) => i !== actIndex);
-            newDays[dayIndex] = targetDay;
-            setGeneratedPlan({
-              ...generatedPlan,
-              days: newDays,
-            });
-          },
-        },
-      ]
-    );
+    const targetDay = generatedPlan.days[dayIndex];
+    if (!targetDay) return;
+    const targetActivity = targetDay.activities[actIndex];
+    if (!targetActivity) return;
+
+    // Immediately update plan state with haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const newDays = [...generatedPlan.days];
+    const updatedDay = { ...targetDay };
+    updatedDay.activities = updatedDay.activities.filter((_, i) => i !== actIndex);
+    newDays[dayIndex] = updatedDay;
+
+    setGeneratedPlan({
+      ...generatedPlan,
+      days: newDays,
+    });
+
+    // Provide 6-second Undo snackbar so user never accidentally loses itinerary work
+    setUndoActivityData({
+      dayIndex,
+      actIndex,
+      activity: targetActivity,
+      activityTitle: (targetActivity as any).title || targetActivity.activity || "Activity",
+    });
+
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    undoTimeoutRef.current = setTimeout(() => {
+      setUndoActivityData(null);
+    }, 6000);
+  };
+
+  const handleUndoActivityDelete = () => {
+    if (!undoActivityData || !generatedPlan) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const { dayIndex, actIndex, activity } = undoActivityData;
+    const newDays = [...generatedPlan.days];
+    const targetDay = { ...newDays[dayIndex] };
+    const updatedActivities = [...targetDay.activities];
+    updatedActivities.splice(actIndex, 0, activity);
+    targetDay.activities = updatedActivities;
+    newDays[dayIndex] = targetDay;
+
+    setGeneratedPlan({
+      ...generatedPlan,
+      days: newDays,
+    });
+
+    setUndoActivityData(null);
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
   };
 
   // ─── Requirement 4: One-Tap "Book Entire Itinerary" Action ───────────────────
@@ -908,7 +1016,7 @@ export function TripPlannerScreen() {
     bookingStore.setStep(1);
 
     // 4. Confirmation dialog and checkout navigation
-    Alert.alert(
+    showLocalizedAlert(
       "Entire Itinerary Packaged! 🎒",
       `All ${generatedPlan.durationDays} days of accommodations, ${generatedPlan.days.reduce(
         (acc, d) => acc + d.activities.length,
@@ -1014,16 +1122,16 @@ export function TripPlannerScreen() {
       if (isCurrentPlanSaved) {
         nextList = savedPlans.filter((p) => p.id !== planId && p.title !== generatedPlan.title);
         setIsCurrentPlanSaved(false);
-        Alert.alert("Removed", "Itinerary removed from your saved trips.");
+        showLocalizedAlert("Removed", "Itinerary removed from your saved trips.");
       } else {
         nextList = [planToPersist, ...savedPlans.filter((p) => p.id !== planId && p.title !== generatedPlan.title)];
         setIsCurrentPlanSaved(true);
-        Alert.alert("Saved! 🔖", "Itinerary saved to your device. You can access it anytime from the top bar.");
+        showLocalizedAlert("Saved! 🔖", "Itinerary saved to your device. You can access it anytime from the top bar.");
       }
       setSavedPlans(nextList);
       await AsyncStorage.setItem(SAVED_PLANS_KEY, JSON.stringify(nextList));
     } catch (err) {
-      Alert.alert("Save Error", "Could not save itinerary to device.");
+      showLocalizedAlert("Save Error", "Could not save itinerary to device.");
     }
   };
 
@@ -1201,7 +1309,19 @@ export function TripPlannerScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.iconCircleButton}
-                onPress={handleShareItinerary}
+                onPress={() => setShowSplitBillModal(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="people-outline" size={20} color="#2563EB" />
+                {splitExpenses.length > 0 && (
+                  <View style={styles.headerBadgeDot}>
+                    <Text style={styles.headerBadgeDotText}>{splitExpenses.length}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconCircleButton}
+                onPress={() => setShowShareExportModal(true)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Ionicons name="share-social-outline" size={20} color="#334155" />
@@ -1224,7 +1344,7 @@ export function TripPlannerScreen() {
               <TouchableOpacity
                 style={styles.iconCircleButton}
                 onPress={() => {
-                  Alert.alert(
+                  showLocalizedAlert(
                     "AI Trip Concierge",
                     "Powered by Google Gemini with 15s defensive failover, automatic JSON repair, 40/30/20/10 budget logic, and one-tap booking packaging."
                   );
@@ -1309,6 +1429,14 @@ export function TripPlannerScreen() {
         ) : generatedPlan ? (
           /* VIEW B: INTERACTIVE ITINERARY RESULT VIEW */
           <View style={styles.resultContainer}>
+            {/* ─── Top Budget Tracker Bar ("বাজেট ৳৩০,০০০ · খরচ ৳১৮,২০০") ─── */}
+            <TripTopBudgetBar
+              plannedBudget={generatedPlan.totalEstimatedCost}
+              totalSpent={totalSpent}
+              currency={generatedPlan.currency}
+              onAddExpensePress={() => setShowSplitBillModal(true)}
+              onSplitBillPress={() => setShowSplitBillModal(true)}
+            />
             {/* ─── Requirement 3: Proactive Traveler Alert Suggestion Banner ─── */}
             {weatherAlert && (
               <View style={styles.weatherAlertBannerWrap}>
@@ -1420,7 +1548,7 @@ export function TripPlannerScreen() {
                   style={styles.weatherViewDataLink}
                 >
                   <Text style={styles.weatherViewDataLinkText}>Solar &amp; Rain Data</Text>
-                  <Ionicons name="chevron-forward" size={14} color="#059669" />
+                  <RTLIcon name="chevron-forward" size={14} color="#059669" />
                 </TouchableOpacity>
               </View>
             )}
@@ -1480,6 +1608,65 @@ export function TripPlannerScreen() {
             </LinearGradient>
 
             {/* ─── Real-Time Meteorological & Weather Risk Widget ─── */}
+            {/* ─── Friends & Split-Bill Hub Card ─────────────────────────── */}
+            <View style={styles.friendsSplitHubCard}>
+              <View style={styles.friendsSplitHeader}>
+                <View style={styles.friendsSplitLeft}>
+                  <View style={styles.friendsSplitIconBox}>
+                    <Ionicons name="people" size={20} color="#2563EB" />
+                  </View>
+                  <View>
+                    <Text style={styles.friendsSplitTitle}>বন্ধুদের সাথে পরিকল্পনা ও বিল ভাগ</Text>
+                    <Text style={styles.friendsSplitSub}>
+                      {splitMembers.length} জন বন্ধু যুক্ত · মোট খরচ: {formatCurrency(totalSpent, generatedPlan.currency)}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.openSplitModalBtn}
+                  onPress={() => setShowSplitBillModal(true)}
+                >
+                  <Text style={styles.openSplitModalBtnText}>হিসাব দেখুন</Text>
+                  <RTLIcon name="chevron-forward" size={14} color="#2563EB" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Members Avatar Strip */}
+              <View style={styles.membersAvatarRow}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {splitMembers.map((m) => (
+                    <View key={m.id} style={styles.memberChip}>
+                      <View style={styles.miniAvatar}>
+                        <Text style={styles.miniAvatarText}>{m.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <Text style={styles.memberChipName} numberOfLines={1}>
+                        {m.name} {m.isCurrentUser ? "(আপনি)" : ""}
+                      </Text>
+                    </View>
+                  ))}
+                  <TouchableOpacity
+                    style={styles.addFriendQuickBtn}
+                    onPress={() => setShowSplitBillModal(true)}
+                  >
+                    <Ionicons name="person-add-outline" size={14} color="#2563EB" />
+                    <Text style={styles.addFriendQuickText}>+ বন্ধু যোগ</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+
+              {/* Settlement Debts Preview */}
+              {settlementDebts.length > 0 && (
+                <View style={styles.quickDebtsPreview}>
+                  <Ionicons name="swap-horizontal" size={13} color="#15803D" />
+                  <Text style={styles.quickDebtsText} numberOfLines={1}>
+                    {settlementDebts[0].fromMemberName} ➔ {settlementDebts[0].toMemberName} কে {formatCurrency(settlementDebts[0].amount, generatedPlan.currency)} দেবে
+                    {settlementDebts.length > 1 ? ` (+আরও ${settlementDebts.length - 1} টি)` : ""}
+                  </Text>
+                </View>
+              )}
+            </View>
+
             <WeatherWidget
               location={generatedPlan.destination}
               variant="card"
@@ -1578,7 +1765,8 @@ export function TripPlannerScreen() {
             </View>
 
             {/* ─── Expandable Day-by-Day Cards with Editable Activities ─────── */}
-            <View style={styles.itineraryHeaderRow}>
+            <StickyHeader backgroundColor="#F8FAFC" elevation={2} style={{ paddingVertical: 10, paddingHorizontal: 4, marginHorizontal: -4 }}>
+<View style={styles.itineraryHeaderRow}>
               <View>
                 <Text style={styles.sectionTitle}>Interactive Daily Schedule</Text>
                 <Text style={styles.sectionSubtitle}>Tap pencil to edit activities, or add custom stops</Text>
@@ -1591,6 +1779,8 @@ export function TripPlannerScreen() {
               />
             </View>
 
+            
+</StickyHeader>
             {generatedPlan.days.map((dayItem: TripDay, dayIdx: number) => {
               const isExpanded = expandedDay === dayItem.day;
               return (
@@ -1609,9 +1799,35 @@ export function TripPlannerScreen() {
                         label={`Day ${dayItem.day}`}
                       />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.dayThemeText} numberOfLines={1}>
-                          {dayItem.theme}
-                        </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                          <Text style={[styles.dayThemeText, { flex: 1 }]} numberOfLines={1}>
+                            {dayItem.theme}
+                          </Text>
+                          {/* Day Weather Icon & Rain Chance */}
+                          <View style={styles.dayWeatherBadge}>
+                            <Ionicons
+                              name={
+                                (activeOptimization?.weatherForecasts?.[dayIdx]?.condition || "").toLowerCase().includes("rain") ||
+                                (activeOptimization?.weatherForecasts?.[dayIdx]?.maxPrecipitationProbability || 0) > 40
+                                  ? "rainy"
+                                  : (activeOptimization?.weatherForecasts?.[dayIdx]?.condition || "").toLowerCase().includes("cloud")
+                                  ? "partly-sunny"
+                                  : "sunny"
+                              }
+                              size={13}
+                              color={
+                                (activeOptimization?.weatherForecasts?.[dayIdx]?.maxPrecipitationProbability || 0) > 40
+                                  ? "#2563EB"
+                                  : "#F59E0B"
+                              }
+                            />
+                            <Text style={styles.dayWeatherText}>
+                              {activeOptimization?.weatherForecasts?.[dayIdx]?.maxPrecipitationProbability !== undefined
+                                ? `${activeOptimization.weatherForecasts[dayIdx].maxPrecipitationProbability}% বৃষ্টি`
+                                : "রৌদ্রোজ্জ্বল"}
+                            </Text>
+                          </View>
+                        </View>
                         <Text style={styles.daySubCountText}>
                           {dayItem.activities?.length || 0} activities • {dayItem.meals?.length || 0} meal spots
                         </Text>
@@ -1628,6 +1844,29 @@ export function TripPlannerScreen() {
                   {/* Expanded Body */}
                   {isExpanded && (
                     <View style={styles.dayExpandedBody}>
+                      {/* Rainy Day Alternative Suggestions */}
+                      <RainyAlternativesCard
+                        destination={generatedPlan.destination}
+                        dayNumber={dayItem.day}
+                        rainProbability={
+                          activeOptimization?.weatherForecasts?.[dayIdx]?.maxPrecipitationProbability ?? 75
+                        }
+                        weatherCondition={
+                          activeOptimization?.weatherForecasts?.[dayIdx]?.condition ?? "Rain"
+                        }
+                        onAddAlternative={(activity) => {
+                          const updatedDays = [...generatedPlan.days];
+                          const targetDay = { ...updatedDays[dayIdx] };
+                          targetDay.activities = [...(targetDay.activities || []), activity];
+                          updatedDays[dayIdx] = targetDay;
+                          setGeneratedPlan({ ...generatedPlan, days: updatedDays });
+                          showLocalizedAlert(
+                            "বিকল্প যুক্ত হয়েছে",
+                            `"${activity.activity}" সফলভাবে Day ${dayItem.day}-এর শিডিউলে যোগ করা হয়েছে।`
+                          );
+                        }}
+                      />
+
                       <View style={styles.subSectionHeaderRow}>
                         <Text style={styles.subSectionTitle}>📍 Planned Schedule & Timelines</Text>
                         <TouchableOpacity
@@ -1674,12 +1913,33 @@ export function TripPlannerScreen() {
                                   )}
                                 </View>
 
-                                {/* Edit and Delete Action Icons */}
+                                {/* Reorder, Edit, and Delete Action Icons */}
                                 <View style={styles.activityActionsRow}>
+                                  {actIdx > 0 && (
+                                    <TouchableOpacity
+                                      style={styles.actActionBtn}
+                                      onPress={() => handleMoveActivity(dayIdx, actIdx, "up")}
+                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                      accessibilityLabel="Move activity up"
+                                    >
+                                      <Ionicons name="chevron-up" size={14} color="#64748B" />
+                                    </TouchableOpacity>
+                                  )}
+                                  {actIdx < dayItem.activities.length - 1 && (
+                                    <TouchableOpacity
+                                      style={styles.actActionBtn}
+                                      onPress={() => handleMoveActivity(dayIdx, actIdx, "down")}
+                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                      accessibilityLabel="Move activity down"
+                                    >
+                                      <Ionicons name="chevron-down" size={14} color="#64748B" />
+                                    </TouchableOpacity>
+                                  )}
                                   <TouchableOpacity
                                     style={styles.actActionBtn}
                                     onPress={() => handleOpenEditActivity(dayIdx, actIdx)}
                                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    accessibilityLabel="Edit activity"
                                   >
                                     <Ionicons name="pencil" size={14} color="#2563EB" />
                                   </TouchableOpacity>
@@ -1687,6 +1947,7 @@ export function TripPlannerScreen() {
                                     style={styles.actActionBtn}
                                     onPress={() => handleDeleteActivity(dayIdx, actIdx)}
                                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    accessibilityLabel="Delete activity"
                                   >
                                     <Ionicons name="trash-outline" size={14} color="#EF4444" />
                                   </TouchableOpacity>
@@ -1809,7 +2070,7 @@ export function TripPlannerScreen() {
                   <Text style={styles.tipsHeaderTitle}>Concierge Travel Tips & Etiquette</Text>
                 </View>
                 {generatedPlan.tips.map((tip, idx) => (
-                  <View key={idx} style={styles.tipRow}>
+                  <View key={`tip-${tip.slice(0, 15)}-${idx}`} style={styles.tipRow}>
                     <Text style={styles.tipBullet}>•</Text>
                     <Text style={styles.tipBodyText}>{tip}</Text>
                   </View>
@@ -1974,7 +2235,7 @@ export function TripPlannerScreen() {
                           style={styles.conciergeSugRow}
                           onPress={() => handleAskConcierge(sug)}
                         >
-                          <Ionicons name="chevron-forward" size={13} color="#2563EB" />
+                          <RTLIcon name="chevron-forward" size={13} color="#2563EB" />
                           <Text style={styles.conciergeSugText}>{sug}</Text>
                         </TouchableOpacity>
                       ))}
@@ -2019,6 +2280,11 @@ export function TripPlannerScreen() {
         ) : (
           /* VIEW C: MULTI-STEP QUESTIONNAIRE WIZARD */
           <View style={styles.wizardContainer}>
+            {/* ─── Ready-made Curated Templates Banner ─── */}
+            <TripTemplatesBanner
+              onApplyTemplate={handleApplyTemplate}
+              onCopyToForm={handleCopyToForm}
+            />
             {/* Wizard Stepper Header */}
             <View style={styles.stepperNavBar}>
               <View style={styles.stepperHeaderTop}>
@@ -2480,7 +2746,7 @@ export function TripPlannerScreen() {
                   variant="outline"
                   size="lg"
                   label="Back"
-                  leftIcon={<Ionicons name="arrow-back" size={18} color="#2563EB" />}
+                  leftIcon={<RTLIcon name="arrow-back" size={18} color="#2563EB" />}
                   onPress={() => setCurrentStep(currentStep - 1)}
                   style={{ flex: 1 }}
                 />
@@ -2499,7 +2765,7 @@ export function TripPlannerScreen() {
                     style={styles.nextStepBtnGradient}
                   >
                     <Text style={styles.nextStepBtnText}>Continue</Text>
-                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                    <RTLIcon name="arrow-forward" size={18} color="#FFFFFF" />
                   </LinearGradient>
                 </TouchableOpacity>
               ) : (
@@ -2530,9 +2796,9 @@ export function TripPlannerScreen() {
           <Button
             variant="outline"
             size="md"
-            label="Share"
+            label="Share & PDF"
             leftIcon={<Ionicons name="share-outline" size={18} color="#2563EB" />}
-            onPress={handleShareItinerary}
+            onPress={() => setShowShareExportModal(true)}
           />
 
           <TouchableOpacity
@@ -2828,7 +3094,7 @@ export function TripPlannerScreen() {
                       onPress={() => handleOpenSavedPlan(plan)}
                     >
                       <Text style={styles.savedPlanOpenBtnText}>Open Itinerary</Text>
-                      <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                      <RTLIcon name="arrow-forward" size={15} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -3002,6 +3268,64 @@ export function TripPlannerScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ─── Accidental Delete Protection: Undo Toast Snackbar ────────── */}
+      {undoActivityData && (
+        <View style={styles.undoSnackbarContainer} pointerEvents="box-none">
+          <View style={styles.undoSnackbar}>
+            <View style={styles.undoSnackbarLeft}>
+              <Ionicons name="trash-outline" size={18} color="#F87171" />
+              <Text style={styles.undoSnackbarText} numberOfLines={1}>
+                "{undoActivityData.activityTitle}" মুছে ফেলা হয়েছে
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.undoActionButton}
+              onPress={handleUndoActivityDelete}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-undo" size={14} color="#38BDF8" />
+              <Text style={styles.undoActionText}>পূর্বাবস্থায় ফেরান (Undo)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+      {/* ─── Undo Activity Deletion Toast Bar ─── */}
+      {lastDeletedActivity && (
+        <View style={styles.undoToastCard}>
+          <View style={styles.undoToastLeft}>
+            <Ionicons name="trash-bin-outline" size={18} color="#F87171" />
+            <Text style={styles.undoToastText} numberOfLines={1}>
+              "{lastDeletedActivity.activity.activity}" মুছে ফেলা হয়েছে
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.undoActionBtn}
+            onPress={handleUndoDeleteActivity}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-undo" size={15} color="#2563EB" />
+            <Text style={styles.undoActionText}>পূর্বাবস্থায় ফেরান (Undo)</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {/* ─── Friends & Split Bill Hub Modal ───────────────────────── */}
+      <TripSplitBillModal
+        visible={showSplitBillModal}
+        onClose={() => setShowSplitBillModal(false)}
+        tripTitle={generatedPlan?.title || `${destination} ${durationDays} দিনের ট্রিপ`}
+        destination={generatedPlan?.destination || destination}
+        currency={generatedPlan?.currency || currency}
+      />
+
+      {/* ─── Share, PDF & Offline Modal ─────────────────────────────── */}
+      {generatedPlan && (
+        <TripShareExportModal
+          visible={showShareExportModal}
+          onClose={() => setShowShareExportModal(false)}
+          plan={generatedPlan}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -3009,6 +3333,62 @@ export function TripPlannerScreen() {
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  undoSnackbarContainer: {
+    position: "absolute",
+    bottom: 24,
+    left: 16,
+    right: 16,
+    zIndex: 9999,
+    alignItems: "center",
+  },
+  undoSnackbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#0F172A",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.3)" } : {}),
+    width: "100%",
+    maxWidth: 480,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  undoSnackbarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    marginEnd: 12,
+  },
+  undoSnackbarText: {
+    fontSize: 13,
+    color: "#F8FAFC",
+    fontWeight: "500",
+    flex: 1,
+  },
+  undoActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.35)",
+  },
+  undoActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#38BDF8",
+  },
   safeArea: {
     flex: 1,
     backgroundColor: "#F8FAFC",
@@ -3045,6 +3425,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.06)" } : {}),
   },
   headerTitleWrap: {
     flexDirection: "row",
@@ -3070,12 +3451,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 8,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 8px rgba(15, 23, 42, 0.03)" } : {}),
   },
   stepperHeaderTop: {
     marginBottom: 10,
   },
   stepperStepLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#2563EB",
     letterSpacing: 0.8,
@@ -3114,6 +3496,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 14,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 14px rgba(15, 23, 42, 0.04)" } : {}),
   },
   stepTitleRow: {
     flexDirection: "row",
@@ -3201,7 +3584,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginRight: 8,
+    marginEnd: 8,
     borderWidth: 1,
     borderColor: "#DBEAFE",
   },
@@ -3232,7 +3615,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563EB",
   },
   originMiniChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748B",
   },
@@ -3253,7 +3636,7 @@ const styles = StyleSheet.create({
     borderColor: "#DBEAFE",
   },
   dateRangeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "500",
   },
@@ -3290,7 +3673,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   durationSubText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
@@ -3317,7 +3700,7 @@ const styles = StyleSheet.create({
     color: "#334155",
   },
   stepperSublabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -3447,7 +3830,7 @@ const styles = StyleSheet.create({
     color: "#2563EB",
   },
   budgetTierSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
@@ -3465,7 +3848,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#2563EB",
-    marginRight: 6,
+    marginEnd: 6,
   },
   totalBudgetInput: {
     flex: 1,
@@ -3588,6 +3971,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.2)" } : {}),
   },
   nextStepBtnGradient: {
     height: 52,
@@ -3609,6 +3993,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 10px rgba(15, 23, 42, 0.3)" } : {}),
   },
   primaryButtonGradient: {
     height: 52,
@@ -3651,6 +4036,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 14,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 14px rgba(15, 23, 42, 0.08)" } : {}),
   },
   triviaHeaderRow: {
     flexDirection: "row",
@@ -3668,13 +4054,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   triviaBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#2563EB",
     letterSpacing: 0.5,
   },
   triviaCounterText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#94A3B8",
     letterSpacing: 0.5,
@@ -3729,6 +4115,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 16,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 8px 16px rgba(15, 23, 42, 0.2)" } : {}),
   },
   heroTopRow: {
     flexDirection: "row",
@@ -3794,6 +4181,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 14,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 14px rgba(15, 23, 42, 0.04)" } : {}),
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -3868,7 +4256,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   budgetCategoryTips: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     lineHeight: 15,
   },
@@ -3889,6 +4277,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 12,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 12px rgba(15, 23, 42, 0.04)" } : {}),
     borderWidth: 1,
     borderColor: "#F1F5F9",
   },
@@ -3904,7 +4293,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     flex: 1,
-    paddingRight: 10,
+    paddingEnd: 10,
   },
   dayThemeText: {
     fontSize: 15,
@@ -3954,7 +4343,7 @@ const styles = StyleSheet.create({
   transitConnectorRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: 8,
+    paddingStart: 8,
     marginVertical: 4,
     gap: 10,
   },
@@ -3973,7 +4362,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   transitText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
@@ -3986,7 +4375,7 @@ const styles = StyleSheet.create({
   timelineCol: {
     width: 20,
     alignItems: "center",
-    marginRight: 8,
+    marginEnd: 8,
   },
   timelineDot: {
     width: 10,
@@ -4013,6 +4402,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 4,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 4px rgba(15, 23, 42, 0.03)" } : {}),
   },
   activityTimeRow: {
     flexDirection: "row",
@@ -4040,7 +4430,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   durationPillText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
@@ -4087,7 +4477,7 @@ const styles = StyleSheet.create({
     borderColor: "#A7F3D0",
   },
   costBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#059669",
   },
@@ -4163,7 +4553,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   mealTypeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#92400E",
   },
@@ -4173,7 +4563,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   mealRestaurant: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
@@ -4227,7 +4617,7 @@ const styles = StyleSheet.create({
   tipBullet: {
     fontSize: 14,
     color: "#B45309",
-    marginRight: 6,
+    marginEnd: 6,
   },
   tipBodyText: {
     fontSize: 13,
@@ -4269,6 +4659,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px -4px 10px rgba(15, 23, 42, 0.08)" } : {}),
   },
   primaryBookItineraryBtn: {
     flex: 1,
@@ -4279,6 +4670,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.3)" } : {}),
   },
   primaryBookItineraryGradient: {
     height: 50,
@@ -4296,7 +4688,7 @@ const styles = StyleSheet.create({
   },
   primaryBookItinerarySub: {
     color: "rgba(255, 255, 255, 0.9)",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
 
@@ -4367,7 +4759,7 @@ const styles = StyleSheet.create({
   },
   sheetSearchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginStart: 8,
     fontSize: 15,
     color: "#0F172A",
   },
@@ -4447,7 +4839,7 @@ const styles = StyleSheet.create({
   },
   headerBadgeDotText: {
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
 
@@ -4463,6 +4855,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 8px rgba(15, 23, 42, 0.05)" } : {}),
     marginTop: 14,
   },
   packingHeaderRow: {
@@ -4556,6 +4949,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.08)" } : {}),
     marginTop: 14,
   },
   conciergeHeaderRow: {
@@ -4646,7 +5040,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   conciergeFollowupTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#1E40AF",
     textTransform: "uppercase",
@@ -4772,6 +5166,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.15)" } : {}),
   },
   weatherAlertBannerGradient: {
     padding: 16,
@@ -4811,7 +5206,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   solarPillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#92400E",
     letterSpacing: 0.3,
@@ -4871,6 +5266,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.25)" } : {}),
   },
   weatherAlertAcceptBtnText: {
     fontSize: 13,
@@ -4937,7 +5333,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   weatherViewDataLinkText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#059669",
   },
@@ -5002,7 +5398,7 @@ const styles = StyleSheet.create({
     borderColor: "#FEF3C7",
   },
   solarTimeLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#92400E",
     marginBottom: 2,
@@ -5055,14 +5451,14 @@ const styles = StyleSheet.create({
     borderColor: "#FECACA",
   },
   hourlyTime: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#334155",
     width: 65,
   },
   hourlyCondition: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     marginHorizontal: 8,
   },
@@ -5072,7 +5468,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   hourlyPop: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#2563EB",
   },
@@ -5100,7 +5496,7 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   modOriginal: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#DC2626",
     textDecorationLine: "line-through",
     marginBottom: 2,
@@ -5112,7 +5508,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   modReason: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     lineHeight: 15,
   },
@@ -5129,7 +5525,7 @@ const styles = StyleSheet.create({
   },
   syncNoticeText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     color: "#065F46",
     fontWeight: "600",
     lineHeight: 15,
@@ -5146,5 +5542,191 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  undoToastCard: {
+    position: "absolute",
+    bottom: 24,
+    left: 16,
+    right: 16,
+    backgroundColor: "#0F172A",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 10px rgba(15, 23, 42, 0.25)" } : {}),
+    zIndex: 9999,
+  },
+  undoToastLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginEnd: 10,
+  },
+  undoToastText: {
+    color: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  undoActionBtn: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  /* Friends & Split-Bill Hub Card */
+  friendsSplitHubCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 8px rgba(15, 23, 42, 0.05)" } : {}),
+  },
+  friendsSplitHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  friendsSplitLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  friendsSplitIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  friendsSplitTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  friendsSplitSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  openSplitModalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  openSplitModalBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+  membersAvatarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  memberChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  miniAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  miniAvatarText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  memberChipName: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#334155",
+  },
+  addFriendQuickBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  addFriendQuickText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+  quickDebtsPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F0FDF4",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  quickDebtsText: {
+    fontSize: 11,
+    color: "#15803D",
+    fontWeight: "600",
+    flex: 1,
+  },
+
+  /* Day Weather Badge */
+  dayWeatherBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginStart: 8,
+  },
+  dayWeatherText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#475569",
   },
 });

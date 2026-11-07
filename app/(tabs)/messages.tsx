@@ -1,3 +1,4 @@
+import { AppImage } from "../../src/components/ui/AppImage";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   ActivityIndicator,
@@ -50,6 +51,8 @@ export interface LiveNotification {
   body: string;
   time: string;
   unread: boolean;
+  category?: "booking" | "promo" | "community";
+  route?: string;
 }
 
 export default function MessagesTab() {
@@ -57,6 +60,7 @@ export default function MessagesTab() {
 
   // Tabs: "chats" | "friends" | "calls" | "notifications"
   const [activeTab, setActiveTab] = useState<"chats" | "friends" | "calls" | "notifications">("chats");
+  const [notifCategory, setNotifCategory] = useState<"all" | "booking" | "promo" | "community">("all");
 
   // Messenger State
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -119,6 +123,8 @@ export default function MessagesTab() {
               : `Booking Reference: ${b.booking_reference || b.id.slice(0, 8)}`,
             time: idx === 0 ? "Recent" : `${idx + 1}d ago`,
             unread: idx === 0,
+            category: "booking",
+            route: "/(tabs)/trips",
           });
         });
       }
@@ -139,9 +145,23 @@ export default function MessagesTab() {
             body: ad.title,
             time: "Promo",
             unread: false,
+            category: "promo",
+            route: "/screens/rewards",
           });
         });
       }
+
+      dynamicNotifs.push({
+        id: "notif-community-buddy",
+        icon: "people",
+        color: "#8B5CF6",
+        title: "কমিউনিটি ভ্রমণসঙ্গী আপডেট",
+        body: "আপনার ভ্রমণ পরিকল্পনার সাথে মিলে যাওয়া নতুন সহযাত্রী গ্রুপে যুক্ত হয়েছেন।",
+        time: "Today",
+        unread: true,
+        category: "community",
+        route: "/screens/community",
+      });
 
       setNotifications(dynamicNotifs);
     } catch (e) {
@@ -383,7 +403,7 @@ export default function MessagesTab() {
                 {/* Self Story / Status Pill */}
                 <View style={styles.onlineItem}>
                   <View style={styles.selfAvatarWrap}>
-                    <Image
+                    <AppImage placeholderCategory="avatar"
                       source={{
                         uri: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
                       }}
@@ -405,7 +425,7 @@ export default function MessagesTab() {
                     onPress={() => handleStartChatWithFriend(friend)}
                   >
                     <View style={styles.onlineAvatarWrap}>
-                      <Image source={{ uri: friend.avatar_url }} style={styles.onlineAvatar} />
+                      <AppImage placeholderCategory="avatar" source={{ uri: friend.avatar_url }} style={styles.onlineAvatar} />
                       <View style={styles.activeGreenDot} />
                     </View>
                     <Text style={styles.onlineName} numberOfLines={1}>
@@ -457,7 +477,7 @@ export default function MessagesTab() {
                     style={styles.convoAvatarWrapper}
                     onPress={() => convo.other_participant && handleOpenProfile(convo.other_participant.id)}
                   >
-                    <Image
+                    <AppImage placeholderCategory="avatar"
                       source={{
                         uri:
                           convo.avatar_url ||
@@ -527,7 +547,7 @@ export default function MessagesTab() {
                     <Pressable
                       onPress={() => req.sender && handleOpenProfile(req.sender.id)}
                     >
-                      <Image
+                      <AppImage placeholderCategory="avatar"
                         source={{
                           uri:
                             req.sender?.avatar_url ||
@@ -578,7 +598,7 @@ export default function MessagesTab() {
                 <Text style={styles.sectionTitle}>Sent Requests</Text>
                 {outgoingRequests.map((req) => (
                   <View key={req.id} style={styles.sentReqCard}>
-                    <Image
+                    <AppImage placeholderCategory="avatar"
                       source={{
                         uri:
                           req.receiver?.avatar_url ||
@@ -620,7 +640,7 @@ export default function MessagesTab() {
                 friends.map((friend) => (
                   <View key={friend.id} style={styles.friendCard}>
                     <Pressable onPress={() => handleOpenProfile(friend.id)}>
-                      <Image source={{ uri: friend.avatar_url }} style={styles.friendAvatar} />
+                      <AppImage placeholderCategory="avatar" source={{ uri: friend.avatar_url }} style={styles.friendAvatar} />
                     </Pressable>
 
                     <Pressable
@@ -658,7 +678,7 @@ export default function MessagesTab() {
                 {suggestedFriends.map((person) => (
                   <View key={person.id} style={styles.friendCard}>
                     <Pressable onPress={() => handleOpenProfile(person.id)}>
-                      <Image source={{ uri: person.avatar_url }} style={styles.friendAvatar} />
+                      <AppImage placeholderCategory="avatar" source={{ uri: person.avatar_url }} style={styles.friendAvatar} />
                     </Pressable>
 
                     <Pressable
@@ -720,7 +740,7 @@ export default function MessagesTab() {
                 return (
                   <View key={log.id} style={styles.callLogCard}>
                     <Pressable onPress={() => other && handleOpenProfile(other.id)}>
-                      <Image
+                      <AppImage placeholderCategory="avatar"
                         source={{
                           uri:
                             other?.avatar_url ||
@@ -779,9 +799,60 @@ export default function MessagesTab() {
         {activeTab === "notifications" && (
           <View>
             <Text style={styles.sectionTitle}>Booking & System Alerts</Text>
-            {notifications.length > 0 ? (
-              notifications.map((n) => (
-                <View key={n.id} style={[styles.notifCard, n.unread && styles.notifUnread]}>
+
+            {/* Category Filter Pills (Point 4) */}
+            <View style={styles.notifFilterRow}>
+              {(
+                [
+                  { key: "all", label: "সব (All)" },
+                  { key: "booking", label: "✈️ বুকিং" },
+                  { key: "promo", label: "🏷️ অফার" },
+                  { key: "community", label: "👥 কমিউনিটি" },
+                ] as const
+              ).map((cat) => (
+                <Pressable
+                  key={cat.key}
+                  style={[
+                    styles.notifFilterChip,
+                    notifCategory === cat.key && styles.notifFilterChipActive,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setNotifCategory(cat.key);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.notifFilterText,
+                      notifCategory === cat.key && styles.notifFilterTextActive,
+                    ]}
+                  >
+                    {cat.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {notifications.filter((n) => notifCategory === "all" || n.category === notifCategory).length > 0 ? (
+              notifications
+                .filter((n) => notifCategory === "all" || n.category === notifCategory)
+                .map((n) => (
+                <Pressable key={n.id} style={[styles.notifCard, n.unread && styles.notifUnread]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setNotifications((prev) =>
+                      prev.map((item) => (item.id === n.id ? { ...item, unread: false } : item))
+                    );
+                    if (n.route) {
+                      router.push(n.route as any);
+                    } else if (n.category === "booking") {
+                      router.push("/(tabs)/trips" as any);
+                    } else if (n.category === "promo") {
+                      router.push("/screens/rewards" as any);
+                    } else if (n.category === "community") {
+                      router.push("/screens/community" as any);
+                    }
+                  }}
+                >
                   <View style={[styles.notifIcon, { backgroundColor: `${n.color}15` }]}>
                     <Ionicons name={n.icon as any} size={20} color={n.color} />
                   </View>
@@ -797,7 +868,7 @@ export default function MessagesTab() {
                     </Text>
                     <Text style={styles.notifTime}>{n.time}</Text>
                   </View>
-                </View>
+                </Pressable>
               ))
             ) : (
               <View style={styles.emptyContainer}>
@@ -1279,6 +1350,29 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     justifyContent: "center",
     alignItems: "center",
+  },
+  notifFilterRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  notifFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+  },
+  notifFilterChipActive: {
+    backgroundColor: PRIMARY,
+  },
+  notifFilterText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  notifFilterTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   notifCard: {
     flexDirection: "row",

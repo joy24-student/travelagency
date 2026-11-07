@@ -13,16 +13,29 @@ import i18n, {
   SUPPORTED_LANGUAGES,
   LanguageInfo,
   applyRTLDirection,
+  changeAppLanguage,
   isRTLLanguage,
 } from "../locales/i18n";
-import { useSettingsStore } from "../store/settingsStore";
+import { useSettingsStore, CurrencyCode } from "../store/settingsStore";
+import {
+  formatCurrency,
+  formatNumber as formatCentralNumber,
+  formatLocalizedDate,
+  formatPlural,
+  DateFormatStyle,
+} from "../utils/formatters";
 
 interface LanguageContextType {
   language: SupportedLanguage;
+  isBengali: boolean;
   isRTL: boolean;
   supportedLanguages: LanguageInfo[];
   changeLanguage: (lng: SupportedLanguage) => Promise<void>;
-  t: (key: string, options?: any) => string;
+  t: (key: string, defaultValueOrOptions?: any, options?: any) => string;
+  formatPrice: (amount: number | string, currency?: CurrencyCode) => string;
+  formatNumber: (value: number | string) => string;
+  formatDate: (date: Date | string | number, style?: DateFormatStyle) => string;
+  formatPlural: (count: number, key: string, fallback?: { one: string; other: string }) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -30,9 +43,9 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const { language: storedLanguage, setLanguage: setStoredLanguage, isHydrated } =
+  const { language: storedLanguage, setLanguage: setStoredLanguage, currency: storedCurrency, isHydrated } =
     useSettingsStore();
-  const { t } = useTranslation();
+  const { t: i18nTranslate } = useTranslation();
   const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguage>(
     (storedLanguage as SupportedLanguage) || (i18n.language as SupportedLanguage) || "en"
   );
@@ -47,11 +60,24 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [isHydrated, storedLanguage]);
 
+  // Subscribe to i18n languageChanged event
+  useEffect(() => {
+    const handleLanguageChanged = (lng: string) => {
+      const typedLang = (lng || "en") as SupportedLanguage;
+      setCurrentLanguage((prev) => (prev !== typedLang ? typedLang : prev));
+      applyRTLDirection(typedLang);
+    };
+
+    i18n.on("languageChanged", handleLanguageChanged);
+    return () => {
+      i18n.off("languageChanged", handleLanguageChanged);
+    };
+  }, []);
+
   const changeLanguage = useCallback(
     async (lng: SupportedLanguage) => {
       try {
-        await i18n.changeLanguage(lng);
-        applyRTLDirection(lng);
+        await changeAppLanguage(lng);
         setCurrentLanguage(lng);
         setStoredLanguage(lng);
       } catch (err) {
@@ -62,16 +88,78 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   const isRTL = useMemo(() => isRTLLanguage(currentLanguage), [currentLanguage]);
+  const isBengali = useMemo(() => currentLanguage === "bn", [currentLanguage]);
+
+  const customTranslate = useCallback(
+    (key: string, defaultValueOrOptions?: any, options?: any): string => {
+      if (!key) return "";
+      if (typeof defaultValueOrOptions === "string") {
+        return String(
+          i18nTranslate(key, { defaultValue: defaultValueOrOptions, ...options })
+        );
+      }
+      return String(i18nTranslate(key, defaultValueOrOptions));
+    },
+    [i18nTranslate]
+  );
+
+  const formatPrice = useCallback(
+    (amount: number | string, currency?: CurrencyCode): string => {
+      const activeCurrency = currency || storedCurrency || "BDT";
+      return formatCurrency(amount, activeCurrency, {
+        locale: currentLanguage,
+      });
+    },
+    [storedCurrency, currentLanguage]
+  );
+
+  const formatNumber = useCallback(
+    (value: number | string): string => {
+      return formatCentralNumber(value, {
+        locale: currentLanguage,
+      });
+    },
+    [currentLanguage]
+  );
+
+  const formatDate = useCallback(
+    (date: Date | string | number, style?: DateFormatStyle): string => {
+      return formatLocalizedDate(date, style || "medium", currentLanguage);
+    },
+    [currentLanguage]
+  );
+
+  const formatPluralCount = useCallback(
+    (count: number, key: string, fallback?: { one: string; other: string }): string => {
+      return formatPlural(count, key, { locale: currentLanguage, fallback });
+    },
+    [currentLanguage]
+  );
 
   const value = useMemo(
     () => ({
       language: currentLanguage,
+      isBengali,
       isRTL,
       supportedLanguages: SUPPORTED_LANGUAGES,
       changeLanguage,
-      t: (key: string, options?: any) => String(t(key, options)),
+      t: customTranslate,
+      formatPrice,
+      formatNumber,
+      formatDate,
+      formatPlural: formatPluralCount,
     }),
-    [currentLanguage, isRTL, changeLanguage, t]
+    [
+      currentLanguage,
+      isBengali,
+      isRTL,
+      changeLanguage,
+      customTranslate,
+      formatPrice,
+      formatNumber,
+      formatDate,
+      formatPluralCount,
+    ]
   );
 
   return (

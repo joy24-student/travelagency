@@ -1,1 +1,3 @@
-"""API v1 Endpoints package."""
+"""
+API v1 Endpoints Package.
+"""

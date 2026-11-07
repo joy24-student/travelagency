@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
+  Alert,
   ActivityIndicator,
   Animated,
   Dimensions,
@@ -30,10 +31,15 @@ import { useBookingStore } from "../store/bookingStore";
 import { bookingRepository } from "../services/repositories/booking";
 import { supabase } from "../utils/supabase";
 import { generateDynamicFlights } from "../data/flightCatalog";
-import { ListSkeleton, ErrorStateCard, EmptyStateView } from "../components/common";
-import { AiPill, BottomNav } from "./Navigation";
+import { PriceAlertCard } from "../components/flights/PriceAlertCard";
+import { FlexibleDateSelector } from "../components/flights/FlexibleDateSelector";
+import { ListSkeleton, ErrorStateCard, EmptyStateView, OptimizedList, StickyHeader, ResultsSummaryHeader, ComparisonModal, CompareItem } from "../components/common";
+import { useResponsive } from "../hooks/useResponsive";
+import { useTheme } from "../context/ThemeContext";
+import { FONTS } from "../theme/typography";
+import { formatLocalizedDate, formatLocalizedNumber, formatLocalizedCurrency, formatCurrency, formatPlural } from "../utils/formatters";
+import { RTLIcon } from "../components/ui";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TRIP_BLUE = "#287dfa";
 const ACCENT_ORANGE = "#ff7d00";
 const ACCENT_GREEN = "#10b981";
@@ -51,13 +57,8 @@ export const FARE_RULES = {
   INFANT_FARE_RATIO: 0.1, // 90% discount for lap infants (under 2 yrs)
 };
 
-export const formatDisplayDate = (d: Date): string => {
-  return d.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+export const formatDisplayDate = (d: Date, locale?: string): string => {
+  return formatLocalizedDate(d, "short", locale);
 };
 
 export const formatIsoDate = (d: Date): string => {
@@ -97,7 +98,7 @@ export interface PassengerCounts {
   infants: number;
 }
 
-export type SortCriteria = "price" | "duration" | "departure";
+export type SortCriteria = "cheapest" | "fastest" | "best" | "price" | "duration" | "departure";
 export type StopsFilterOption = "all" | "nonstop" | "stops";
 
 export interface FlightItem {
@@ -119,6 +120,7 @@ export interface FlightItem {
   baggage_allowance?: string;
   amenities?: string[];
   layover_info?: string;
+  layover_duration_minutes?: number;
   cancellation_policy?: string;
   is_live_db?: boolean;
   departure_airport?: {
@@ -330,6 +332,8 @@ export function calculateFareBreakdown(
 
 export function FlightsScreen() {
   const { user } = useAuth();
+  const { colors, isDark } = useTheme();
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT, isTablet, isDesktop } = useResponsive();
 
   // Dynamic Date Initialization (No hardcoded strings)
   const today = useMemo(() => new Date(), []);
@@ -406,6 +410,8 @@ export function FlightsScreen() {
   const [selectedFlightForDetails, setSelectedFlightForDetails] = useState<FlightItem | null>(null);
   const [showDetailsDrawer, setShowDetailsDrawer] = useState(false);
   const [bookingInProgress, setBookingInProgress] = useState<string | null>(null);
+  const [compareFlightIds, setCompareFlightIds] = useState<string[]>([]);
+  const [showCompareModal, setShowCompareModal] = useState(false);
 
   // Animation values
   const drawerAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -682,13 +688,22 @@ export function FlightsScreen() {
     }
 
     // Sort criteria
-    if (sortBy === "price") {
+    if (sortBy === "cheapest" || sortBy === "price") {
       list.sort((a, b) => {
         const fareA = calculateFareBreakdown(a, passengers, cabinClass, includeCarbonOffset).total;
         const fareB = calculateFareBreakdown(b, passengers, cabinClass, includeCarbonOffset).total;
         return fareA - fareB;
       });
-    } else if (sortBy === "duration") {
+    } else if (sortBy === "fastest" || sortBy === "duration") {
+      list.sort((a, b) => a.flight_duration - b.flight_duration);
+    } else if (sortBy === "best") {
+      list.sort((a, b) => {
+        const fareA = calculateFareBreakdown(a, passengers, cabinClass, includeCarbonOffset).total;
+        const fareB = calculateFareBreakdown(b, passengers, cabinClass, includeCarbonOffset).total;
+        const scoreA = fareA + (a.flight_duration / 60) * 20 + a.stops * 45;
+        const scoreB = fareB + (b.flight_duration / 60) * 20 + b.stops * 45;
+        return scoreA - scoreB;
+      });
       list.sort((a, b) => a.flight_duration - b.flight_duration);
     } else if (sortBy === "departure") {
       list.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
@@ -696,6 +711,59 @@ export function FlightsScreen() {
 
     return list;
   }, [liveFlights, stopsFilter, sortBy, passengers, cabinClass, includeCarbonOffset]);
+
+  const toggleCompareFlight = (flightId: string) => {
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    setCompareFlightIds((prev) =>
+      prev.includes(flightId)
+        ? prev.filter((id) => id !== flightId)
+        : prev.length < 3
+        ? [...prev, flightId]
+        : prev
+    );
+  };
+
+  const flightCompareItems: CompareItem[] = useMemo(() => {
+    return compareFlightIds
+      .map((id) => filteredAndSortedFlights.find((f) => f.id === id))
+      .filter(Boolean)
+      .map((f: any) => ({
+        id: f.id,
+        title: `${f.airline} (${f.flight_number})`,
+        subtitle: `${f.departure_time} ➔ ${f.arrival_time}`,
+        type: "flight" as const,
+        price: calculateFareBreakdown(f, passengers, cabinClass, includeCarbonOffset).total,
+        rating: 4.8,
+        imageUrl: f.airline_logo,
+        specs: [
+          { label: "সময়কাল (Duration)", value: `${Math.floor(f.flight_duration / 60)}h ${f.flight_duration % 60}m` },
+          { label: "বিরতি (Stops)", value: f.stops === 0 ? "সরাসরি (Non-stop)" : `${f.stops}টি বিরতি` },
+          { label: "রুট (Route)", value: `${originAirport.code} ➔ ${destAirport.code}` },
+          { label: "কেবিন ক্লাস", value: cabinClass },
+        ],
+        cancellationPolicy: f.refundable ? "বিনামূল্যে বাতিলযোগ্য (Refundable)" : "অফেরতযোগ্য (Non-refundable)",
+        onSelect: () => openFlightDetails(f),
+      }));
+  }, [compareFlightIds, filteredAndSortedFlights, passengers, cabinClass, includeCarbonOffset, originAirport, destAirport]);
+
+  // Tab Metrics: lowest fare, shortest duration, best value
+  const flightTabMetrics = useMemo(() => {
+    if (!liveFlights.length) return { lowestPrice: 0, shortestDuration: 0, currency: "USD" };
+    let minPrice = Infinity;
+    let minDur = Infinity;
+    liveFlights.forEach((f) => {
+      const brk = calculateFareBreakdown(f, passengers, cabinClass, includeCarbonOffset);
+      if (brk.total < minPrice) minPrice = brk.total;
+      if (f.flight_duration < minDur) minDur = f.flight_duration;
+    });
+    return {
+      lowestPrice: minPrice === Infinity ? 0 : minPrice,
+      shortestDuration: minDur === Infinity ? 0 : minDur,
+      currency: liveFlights[0]?.currency || "USD",
+    };
+  }, [liveFlights, passengers, cabinClass, includeCarbonOffset]);
 
   // Airport selection handlers
   const selectOriginSuggestion = (airport: Airport) => {
@@ -800,6 +868,19 @@ export function FlightsScreen() {
 
   // Requirement 4: Fare Breakdown Drawer "Select Flight" Button -> Dispatch to useBookingStore
   const handleSelectFlight = async (flight: FlightItem) => {
+    // Validate seat availability
+    if (flight.available_seats <= 0 || flight.available_seats < totalPassengersCount) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        "অপর্যাপ্ত আসন (Insufficient Seats)",
+        flight.available_seats <= 0
+          ? "নির্বাচিত ফ্লাইটে কোনো আসন অবশিষ্ট নেই (Sold Out)। অনুগ্রহ করে অন্য ফ্লাইট বেছে নিন।"
+          : `নির্বাচিত ফ্লাইটে মাত্র ${flight.available_seats}টি আসন বাকি আছে, কিন্তু আপনি ${totalPassengersCount} জন যাত্রী নির্বাচন করেছেন। অনুগ্রহ করে যাত্রী সংখ্যা কমান অথবা অন্য ফ্লাইট বেছে নিন।`,
+        [{ text: "ঠিক আছে", style: "default" }]
+      );
+      return;
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setBookingInProgress(flight.id);
 
@@ -901,7 +982,7 @@ export function FlightsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.shell}>
+    <SafeAreaView style={[styles.shell, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -933,10 +1014,10 @@ export function FlightsScreen() {
                     style={styles.backCircleBtn}
                     onPress={() => {
                       Haptics.selectionAsync();
-                      router.canGoBack() ? router.back() : router.replace("/");
+                      router.canGoBack() ? router.back() : router.replace("/(tabs)");
                     }}
                   >
-                    <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+                    <RTLIcon name="arrow-back" size={20} color="#FFFFFF" />
                   </Pressable>
                   <View style={styles.brandRow}>
                     <Text style={styles.tripLogoText}>Trip.com</Text>
@@ -979,7 +1060,7 @@ export function FlightsScreen() {
             </LinearGradient>
 
             {/* Requirement 1: Multi-Criteria Search & Filter Card */}
-            <View style={styles.searchCardContainer}>
+            <View style={[styles.searchCardContainer, { backgroundColor: colors.card, borderColor: colors.borderSubtle, borderWidth: 1 }]}>
               {/* Tabs: One-way, Round-trip, Multi-city */}
               <View style={styles.tabRow}>
                 {(["One-way", "Round-trip", "Multi-city"] as const).map((tab) => {
@@ -1082,7 +1163,7 @@ export function FlightsScreen() {
                                 {airport.name}
                               </Text>
                             </View>
-                            <Ionicons name="chevron-forward" size={14} color="#CBD5E1" />
+                            <RTLIcon name="chevron-forward" size={14} color="#CBD5E1" />
                           </Pressable>
                         ))}
                       </View>
@@ -1174,7 +1255,7 @@ export function FlightsScreen() {
                                 {airport.name}
                               </Text>
                             </View>
-                            <Ionicons name="chevron-forward" size={14} color="#CBD5E1" />
+                            <RTLIcon name="chevron-forward" size={14} color="#CBD5E1" />
                           </Pressable>
                         ))}
                       </View>
@@ -1209,14 +1290,14 @@ export function FlightsScreen() {
                       <Text style={styles.returnDateText}>Round-trip</Text>
                     </View>
                   )}
-                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                  <RTLIcon name="chevron-forward" size={16} color="#9CA3AF" />
                 </Pressable>
 
                 {/* Passengers & Cabin Class Row */}
                 <Pressable style={styles.passengerClassRow} onPress={openPassengerModal}>
                   <View style={styles.passengerSection}>
                     <Ionicons name="people-outline" size={18} color={TRIP_BLUE} />
-                    <View style={{ marginLeft: 8 }}>
+                    <View style={{ marginStart: 8 }}>
                       <Text style={styles.cityFieldLabel}>Passengers</Text>
                       <Text style={styles.passengerCount}>
                         {totalPassengersCount} Pax ({passengers.adults}A
@@ -1230,7 +1311,7 @@ export function FlightsScreen() {
 
                   <View style={styles.classSection}>
                     <Ionicons name="ribbon-outline" size={18} color={ACCENT_ORANGE} />
-                    <View style={{ marginLeft: 8, flex: 1 }}>
+                    <View style={{ marginStart: 8, flex: 1 }}>
                       <Text style={styles.cityFieldLabel}>Cabin Class</Text>
                       <Text style={styles.classText} numberOfLines={1}>
                         {cabinClass}
@@ -1306,13 +1387,34 @@ export function FlightsScreen() {
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <>
-                      <Ionicons name="search" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Ionicons name="search" size={18} color="#FFFFFF" style={{ marginEnd: 6 }} />
                       <Text style={styles.searchSubmitText}>Search Live Flights</Text>
                     </>
                   )}
                 </Pressable>
               </View>
             </View>
+
+            {/* Requirement 6: Flexible Dates Strip (±3 days) & Monthly Calendar */}
+            <FlexibleDateSelector
+              currentDate={departureDateObj}
+              basePrice={flightTabMetrics.lowestPrice || 250}
+              currency={flightTabMetrics.currency}
+              onSelectDate={(newDate) => {
+                setDepartureDateObj(newDate);
+                fetchLiveFlights();
+              }}
+            />
+
+            {/* Requirement 5: Price Drop Alert Toggle Card */}
+            <PriceAlertCard
+              originCode={originAirport.code}
+              destCode={destAirport.code}
+              originCity={originAirport.city}
+              destCity={destAirport.city}
+              currentLowestPrice={flightTabMetrics.lowestPrice || 250}
+              currency={flightTabMetrics.currency}
+            />
 
             {/* Requirement 2: Live Flight Results & Controls */}
             <View style={styles.resultsSection}>
@@ -1327,7 +1429,19 @@ export function FlightsScreen() {
                   </Text>
                 </View>
                 <View style={styles.countBadge}>
-                  <Text style={styles.countBadgeText}>{filteredAndSortedFlights.length} Flights Available</Text>
+                  <ResultsSummaryHeader
+                    count={filteredAndSortedFlights.length}
+                    entityName="ফ্লাইট"
+                    sortLabel={
+                      sortBy === "cheapest"
+                        ? "সবচেয়ে কম দাম"
+                        : sortBy === "fastest"
+                        ? "সবচেয়ে কম সময়"
+                        : "সেরা রেটিং"
+                    }
+                    filterCount={stopsFilter !== "all" ? 1 : 0}
+                    onClearFilters={() => setStopsFilter("all")}
+                  />
                 </View>
               </View>
 
@@ -1335,7 +1449,109 @@ export function FlightsScreen() {
               <View style={styles.controlsCard}>
                 {/* Sorting options */}
                 <View style={styles.sortingSection}>
-                  <Text style={styles.controlHeaderLabel}>Sort Results:</Text>
+                  <Text style={styles.controlHeaderLabel}>ফ্লাইট তুলনা ও বাছাই:</Text>
+                  <View style={styles.comparisonTabsRow}>
+                    <Pressable
+                      style={[
+                        styles.comparisonTab,
+                        (sortBy === "cheapest" || sortBy === "price") && styles.comparisonTabActive,
+                      ]}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setSortBy("cheapest");
+                      }}
+                    >
+                      <Ionicons
+                        name="pricetag"
+                        size={15}
+                        color={(sortBy === "cheapest" || sortBy === "price") ? TRIP_BLUE : "#64748B"}
+                      />
+                      <Text
+                        style={[
+                          styles.comparisonTabTitle,
+                          (sortBy === "cheapest" || sortBy === "price") && styles.comparisonTabTitleActive,
+                        ]}
+                      >
+                        সবচেয়ে সস্তা
+                      </Text>
+                      <Text
+                        style={[
+                          styles.comparisonTabSub,
+                          (sortBy === "cheapest" || sortBy === "price") && styles.comparisonTabSubActive,
+                        ]}
+                      >
+                        {flightTabMetrics.lowestPrice ? formatCurrency(flightTabMetrics.lowestPrice, flightTabMetrics.currency || "BDT") : "--"}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[
+                        styles.comparisonTab,
+                        (sortBy === "fastest" || sortBy === "duration") && styles.comparisonTabActive,
+                      ]}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setSortBy("fastest");
+                      }}
+                    >
+                      <Ionicons
+                        name="flash"
+                        size={15}
+                        color={(sortBy === "fastest" || sortBy === "duration") ? TRIP_BLUE : "#64748B"}
+                      />
+                      <Text
+                        style={[
+                          styles.comparisonTabTitle,
+                          (sortBy === "fastest" || sortBy === "duration") && styles.comparisonTabTitleActive,
+                        ]}
+                      >
+                        দ্রুততম
+                      </Text>
+                      <Text
+                        style={[
+                          styles.comparisonTabSub,
+                          (sortBy === "fastest" || sortBy === "duration") && styles.comparisonTabSubActive,
+                        ]}
+                      >
+                        {flightTabMetrics.shortestDuration
+                          ? `${Math.floor(flightTabMetrics.shortestDuration / 60)}h ${flightTabMetrics.shortestDuration % 60}m`
+                          : "--"}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[
+                        styles.comparisonTab,
+                        sortBy === "best" && styles.comparisonTabActive,
+                      ]}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setSortBy("best");
+                      }}
+                    >
+                      <Ionicons
+                        name="star"
+                        size={15}
+                        color={sortBy === "best" ? TRIP_BLUE : "#64748B"}
+                      />
+                      <Text
+                        style={[
+                          styles.comparisonTabTitle,
+                          sortBy === "best" && styles.comparisonTabTitleActive,
+                        ]}
+                      >
+                        সেরা মান
+                      </Text>
+                      <Text
+                        style={[
+                          styles.comparisonTabSub,
+                          sortBy === "best" && styles.comparisonTabSubActive,
+                        ]}
+                      >
+                        সেরা সমন্বয়
+                      </Text>
+                    </Pressable>
+                  </View>
                   <View style={styles.sortingChipsRow}>
                     <Pressable
                       style={[styles.sortChip, sortBy === "price" && styles.sortChipActive]}
@@ -1348,7 +1564,7 @@ export function FlightsScreen() {
                         name="pricetag-outline"
                         size={13}
                         color={sortBy === "price" ? "#FFFFFF" : TRIP_BLUE}
-                        style={{ marginRight: 4 }}
+                        style={{ marginEnd: 4 }}
                       />
                       <Text style={[styles.sortChipText, sortBy === "price" && styles.sortChipTextActive]}>
                         Price (Ascending)
@@ -1366,7 +1582,7 @@ export function FlightsScreen() {
                         name="speedometer-outline"
                         size={13}
                         color={sortBy === "duration" ? "#FFFFFF" : TRIP_BLUE}
-                        style={{ marginRight: 4 }}
+                        style={{ marginEnd: 4 }}
                       />
                       <Text style={[styles.sortChipText, sortBy === "duration" && styles.sortChipTextActive]}>
                         Duration (Shortest)
@@ -1384,7 +1600,7 @@ export function FlightsScreen() {
                         name="time-outline"
                         size={13}
                         color={sortBy === "departure" ? "#FFFFFF" : TRIP_BLUE}
-                        style={{ marginRight: 4 }}
+                        style={{ marginEnd: 4 }}
                       />
                       <Text style={[styles.sortChipText, sortBy === "departure" && styles.sortChipTextActive]}>
                         Departure Time
@@ -1477,7 +1693,7 @@ export function FlightsScreen() {
                                   <Ionicons name="airplane" size={16} color={TRIP_BLUE} />
                                 </View>
                               )}
-                              <View style={{ marginLeft: 8 }}>
+                              <View style={{ marginStart: 8 }}>
                                 <Text style={styles.airlineTitle}>{flight.airline?.name}</Text>
                                 <Text style={styles.flightNumText}>
                                   {flight.flight_number} · {flight.aircraft_type}
@@ -1521,21 +1737,47 @@ export function FlightsScreen() {
                               <View
                                 style={[
                                   styles.layoverBadge,
-                                  flight.stops === 0 ? styles.layoverBadgeDirect : styles.layoverBadgeStop,
+                                  flight.stops === 0
+                                    ? styles.layoverBadgeDirect
+                                    : (flight.layover_duration_minutes ?? (flight.flight_number.charCodeAt(1) % 3 === 0 ? 40 : (flight.flight_number.charCodeAt(1) % 2 === 0 ? 510 : 105))) <= 60
+                                    ? styles.shortLayoverBadge
+                                    : (flight.layover_duration_minutes ?? (flight.flight_number.charCodeAt(1) % 2 === 0 ? 510 : 105)) >= 420
+                                    ? styles.overnightLayoverBadge
+                                    : styles.layoverBadgeStop,
                                 ]}
                               >
                                 <Ionicons
                                   name={flight.stops === 0 ? "flash-outline" : "time-outline"}
                                   size={11}
-                                  color={flight.stops === 0 ? "#059669" : "#D97706"}
+                                  color={
+                                    flight.stops === 0
+                                      ? "#059669"
+                                      : (flight.layover_duration_minutes ?? (flight.flight_number.charCodeAt(1) % 3 === 0 ? 40 : (flight.flight_number.charCodeAt(1) % 2 === 0 ? 510 : 105))) <= 60
+                                      ? "#DC2626"
+                                      : (flight.layover_duration_minutes ?? (flight.flight_number.charCodeAt(1) % 2 === 0 ? 510 : 105)) >= 420
+                                      ? "#6D28D9"
+                                      : "#D97706"
+                                  }
                                 />
                                 <Text
                                   style={[
                                     styles.layoverBadgeText,
-                                    flight.stops === 0 ? styles.layoverTextDirect : styles.layoverTextStop,
+                                    flight.stops === 0
+                                      ? styles.layoverTextDirect
+                                      : (flight.layover_duration_minutes ?? (flight.flight_number.charCodeAt(1) % 3 === 0 ? 40 : (flight.flight_number.charCodeAt(1) % 2 === 0 ? 510 : 105))) <= 60
+                                      ? styles.shortLayoverText
+                                      : (flight.layover_duration_minutes ?? (flight.flight_number.charCodeAt(1) % 2 === 0 ? 510 : 105)) >= 420
+                                      ? styles.overnightLayoverText
+                                      : styles.layoverTextStop,
                                   ]}
                                 >
-                                  {flight.stops === 0 ? "Nonstop · Direct" : `${flight.stops} Stop · 1h 45m Layover`}
+                                  {flight.stops === 0 ? "Nonstop · Direct" : (
+                                    (flight.layover_duration_minutes ?? (flight.flight_number.charCodeAt(1) % 3 === 0 ? 40 : (flight.flight_number.charCodeAt(1) % 2 === 0 ? 510 : 105))) <= 60
+                                      ? `ছোট কানেকশন ⚠ (${flight.layover_duration_minutes ?? (flight.flight_number.charCodeAt(1) % 3 === 0 ? 40 : 105)} মি.)`
+                                      : (flight.layover_duration_minutes ?? (flight.flight_number.charCodeAt(1) % 2 === 0 ? 510 : 105)) >= 420
+                                      ? `রাত্রিকালীন লেওভার 🌙 (${Math.floor((flight.layover_duration_minutes ?? 510)/60)}h)`
+                                      : `${flight.stops} Stop · 1h 45m`
+                                  )}
                                 </Text>
                               </View>
                             </View>
@@ -1550,16 +1792,23 @@ export function FlightsScreen() {
                           {/* Baggage Allowance Icons & Amenities */}
                           <View style={styles.perksRow}>
                             {/* Baggage allowance icon */}
-                            <View style={styles.baggageAllowancePill}>
-                              <Ionicons name="bag-handle-outline" size={13} color="#374151" />
-                              <Text style={styles.baggageAllowanceText}>
-                                {flight.baggage_allowance || "20 kg check-in + 7 kg cabin"}
+                            <View style={styles.baggageIncludedPill}>
+                              <Ionicons name="checkmark-circle" size={13} color="#059669" />
+                              <Ionicons name="briefcase" size={12} color="#059669" />
+                              <Text style={styles.baggageIncludedText}>
+                                ব্যাগেজ অন্তর্ভুক্ত: {flight.baggage_allowance || "২০ কেজি চেক-ইন + ৭ কেজি কেবিন"}
                               </Text>
                             </View>
 
-                            <View style={styles.perkPill}>
-                              <Ionicons name="people-outline" size={12} color="#6B7280" />
-                              <Text style={styles.perkText}>{flight.available_seats} seats left</Text>
+                            <View style={[styles.perkPill, flight.available_seats <= 0 && { backgroundColor: "#FFE4E6" }]}>
+                              <Ionicons
+                                name={flight.available_seats <= 0 ? "close-circle" : "people-outline"}
+                                size={12}
+                                color={flight.available_seats <= 0 ? "#E11D48" : "#6B7280"}
+                              />
+                              <Text style={[styles.perkText, flight.available_seats <= 0 && { color: "#E11D48", fontWeight: "700" }]}>
+                                {flight.available_seats <= 0 ? "আসন শেষ (Sold Out)" : `${flight.available_seats} seats left`}
+                              </Text>
                             </View>
 
                             {flight.is_live_db && (
@@ -1574,20 +1823,34 @@ export function FlightsScreen() {
                           <View style={styles.cardBottomRow}>
                             <View>
                               <View style={styles.priceRow}>
-                                <Text style={styles.priceValue}>
-                                  {breakdown.currencySymbol}
-                                  {breakdown.total.toLocaleString()}
-                                </Text>
+                                <Text style={styles.priceValue}>{formatCurrency(breakdown.total, flight.currency || "BDT")}</Text>
                                 <Text style={styles.priceCurrency}> {flight.currency}</Text>
                               </View>
-                              <Text style={styles.priceSubtitle}>
-                                {breakdown.currencySymbol}
-                                {breakdown.perPerson.toLocaleString()}/pax · {breakdown.totalPax} traveler
-                                {breakdown.totalPax > 1 ? "s" : ""}
-                              </Text>
+                              <Text style={styles.priceSubtitle}>{formatCurrency(breakdown.perPerson, flight.currency || "BDT")}/pax · {formatPlural(breakdown.totalPax, "passenger")}</Text>
                             </View>
 
                             <View style={styles.actionButtonsRow}>
+                              <Pressable
+                                style={[
+                                  styles.compareFlightBtn,
+                                  compareFlightIds.includes(flight.id) && styles.compareFlightBtnActive,
+                                ]}
+                                onPress={() => toggleCompareFlight(flight.id)}
+                              >
+                                <Ionicons
+                                  name={compareFlightIds.includes(flight.id) ? "checkmark" : "git-compare-outline"}
+                                  size={13}
+                                  color={compareFlightIds.includes(flight.id) ? "#ffffff" : "#2563eb"}
+                                />
+                                <Text
+                                  style={[
+                                    styles.compareFlightBtnText,
+                                    compareFlightIds.includes(flight.id) && styles.compareFlightBtnTextActive,
+                                  ]}
+                                >
+                                  {compareFlightIds.includes(flight.id) ? "যোগ হয়েছে" : "তুলনা"}
+                                </Text>
+                              </Pressable>
                               <Pressable
                                 style={styles.detailsBtn}
                                 onPress={() => openFlightDetails(flight)}
@@ -1601,7 +1864,7 @@ export function FlightsScreen() {
                                 onPress={() => openFlightDetails(flight)}
                               >
                                 <Text style={styles.selectFlightBtnText}>Select</Text>
-                                <Ionicons name="chevron-forward" size={14} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                                <RTLIcon name="chevron-forward" size={14} color="#FFFFFF" style={{ marginStart: 2 }} />
                               </Pressable>
                             </View>
                           </View>
@@ -1620,7 +1883,7 @@ export function FlightsScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
                   {liveInspirations.map((routeItem, idx) => (
                     <Pressable
-                      key={idx}
+                      key={`${routeItem.from}-${routeItem.to}-${(routeItem as any).id || idx}`}
                       style={styles.inspirationCard}
                       onPress={() => {
                         Haptics.selectionAsync();
@@ -1661,9 +1924,6 @@ export function FlightsScreen() {
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
 
-      {/* Floating AI Pill & Bottom Nav */}
-      <AiPill color={TRIP_BLUE} />
-      <BottomNav active="Home" color={TRIP_BLUE} />
 
       {/* =========================================================================
           Airport Full Modal Selector with 300ms Debounce & Popular Hubs
@@ -1693,7 +1953,7 @@ export function FlightsScreen() {
 
           {/* Search Field with 300ms Debounce */}
           <View style={styles.searchBarWrap}>
-            <Ionicons name="search" size={20} color="#9CA3AF" style={{ marginRight: 8 }} />
+            <Ionicons name="search" size={20} color="#9CA3AF" style={{ marginEnd: 8 }} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search airport code (DAC, BKK, DXB...), city, or airport"
@@ -1777,7 +2037,7 @@ export function FlightsScreen() {
                     </View>
 
                     {isSelected && (
-                      <Ionicons name="checkmark-circle" size={22} color={TRIP_BLUE} style={{ marginLeft: 8 }} />
+                      <Ionicons name="checkmark-circle" size={22} color={TRIP_BLUE} style={{ marginStart: 8 }} />
                     )}
                   </Pressable>
                 );
@@ -1890,7 +2150,7 @@ export function FlightsScreen() {
                 const dayDate = new Date(today);
                 dayDate.setDate(dayDate.getDate() + idx + 1);
                 const dayNum = dayDate.getDate();
-                const dayName = dayDate.toLocaleDateString("en-US", { weekday: "short" });
+                const dayName = formatLocalizedDate(dayDate, { weekday: "short" });
                 const fullFormatted = formatDisplayDate(dayDate);
                 const isSelected =
                   datePickerMode === "departure"
@@ -1899,7 +2159,7 @@ export function FlightsScreen() {
 
                 return (
                   <Pressable
-                    key={idx}
+                    key={fullFormatted || `cal-day-${idx}`}
                     style={[styles.calendarDayCell, isSelected && styles.calendarDayCellActive]}
                     onPress={() => {
                       Haptics.selectionAsync();
@@ -2192,7 +2452,7 @@ export function FlightsScreen() {
                             size={16}
                             color={selectedFlightForDetails.stops === 0 ? ACCENT_GREEN : ACCENT_ORANGE}
                           />
-                          <View style={{ marginLeft: 6, flex: 1 }}>
+                          <View style={{ marginStart: 6, flex: 1 }}>
                             <Text style={styles.layoverNoticeTitle}>
                               Flight Duration: {Math.floor(selectedFlightForDetails.flight_duration / 60)}h{" "}
                               {selectedFlightForDetails.flight_duration % 60}m
@@ -2250,8 +2510,7 @@ export function FlightsScreen() {
                                 </Text>
                               </View>
                               <Text style={styles.fareItemValue}>
-                                {breakdown.currencySymbol}
-                                {breakdown.baseFare.toLocaleString()}
+                                {formatCurrency(breakdown.baseFare, selectedFlightForDetails.currency || "BDT")}
                               </Text>
                             </View>
 
@@ -2267,8 +2526,7 @@ export function FlightsScreen() {
                                 </Text>
                               </View>
                               <Text style={styles.fareItemValue}>
-                                {breakdown.currencySymbol}
-                                {breakdown.airportTaxes.toLocaleString()}
+                                {formatCurrency(breakdown.airportTaxes, selectedFlightForDetails.currency || "BDT")}
                               </Text>
                             </View>
 
@@ -2284,8 +2542,7 @@ export function FlightsScreen() {
                                 </Text>
                               </View>
                               <Text style={styles.fareItemValue}>
-                                {breakdown.currencySymbol}
-                                {breakdown.fuelSurcharge.toLocaleString()}
+                                {formatCurrency(breakdown.fuelSurcharge, selectedFlightForDetails.currency || "BDT")}
                               </Text>
                             </View>
 
@@ -2319,8 +2576,7 @@ export function FlightsScreen() {
                                 </Text>
                               </View>
                               <Text style={styles.fareItemValue}>
-                                {breakdown.currencySymbol}
-                                {breakdown.carbonOffset.toLocaleString()}
+                                {formatCurrency(breakdown.carbonOffset, selectedFlightForDetails.currency || "BDT")}
                               </Text>
                             </View>
 
@@ -2331,14 +2587,10 @@ export function FlightsScreen() {
                               <View>
                                 <Text style={styles.fareMatrixTotalLabel}>Total Fare (All taxes & fees included)</Text>
                                 <Text style={styles.fareMatrixPerPerson}>
-                                  {breakdown.currencySymbol}
-                                  {breakdown.perPerson.toLocaleString()} per passenger
+                                  {formatCurrency(breakdown.perPerson, selectedFlightForDetails.currency || "BDT")} / {formatPlural(1, "passenger")}
                                 </Text>
                               </View>
-                              <Text style={styles.fareMatrixTotalValue}>
-                                {breakdown.currencySymbol}
-                                {breakdown.total.toLocaleString()} {selectedFlightForDetails.currency}
-                              </Text>
+                              <Text style={styles.fareMatrixTotalValue}>{formatCurrency(breakdown.total, selectedFlightForDetails.currency || "BDT")}</Text>
                             </View>
                           </View>
                         </View>
@@ -2353,7 +2605,7 @@ export function FlightsScreen() {
                       </View>
                       <View style={styles.baggageItemRow}>
                         <Ionicons name="briefcase-outline" size={16} color="#4B5563" />
-                        <View style={{ marginLeft: 10, flex: 1 }}>
+                        <View style={{ marginStart: 10, flex: 1 }}>
                           <Text style={styles.baggageItemTitle}>Cabin / Hand Luggage</Text>
                           <Text style={styles.baggageItemDetail}>1 x 7 kg (55 x 40 x 20 cm) carry-on included</Text>
                         </View>
@@ -2361,7 +2613,7 @@ export function FlightsScreen() {
                       </View>
                       <View style={styles.baggageItemRow}>
                         <Ionicons name="cube-outline" size={16} color="#4B5563" />
-                        <View style={{ marginLeft: 10, flex: 1 }}>
+                        <View style={{ marginStart: 10, flex: 1 }}>
                           <Text style={styles.baggageItemTitle}>Check-in Baggage</Text>
                           <Text style={styles.baggageItemDetail}>{selectedFlightForDetails.baggage_allowance}</Text>
                         </View>
@@ -2410,25 +2662,44 @@ export function FlightsScreen() {
                         <>
                           <View>
                             <Text style={styles.footerPriceLabel}>Total Amount</Text>
-                            <Text style={styles.footerPriceValue}>
-                              {breakdown.currencySymbol}
-                              {breakdown.total.toLocaleString()} {selectedFlightForDetails.currency}
-                            </Text>
+                            <Text style={styles.footerPriceValue}>{formatCurrency(breakdown.total, selectedFlightForDetails.currency || "BDT")}</Text>
                           </View>
-                          <Pressable
-                            style={[styles.reserveCTAButton, isSelected && { opacity: 0.7 }]}
-                            disabled={isSelected}
-                            onPress={() => handleSelectFlight(selectedFlightForDetails)}
-                          >
-                            {isSelected ? (
-                              <ActivityIndicator size="small" color="#FFFFFF" />
-                            ) : (
-                              <>
-                                <Text style={styles.reserveCTAButtonText}>Select Flight</Text>
-                                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
-                              </>
-                            )}
-                          </Pressable>
+                          {(() => {
+                            const isSoldOut = selectedFlightForDetails.available_seats <= 0;
+                            const isInsufficient = selectedFlightForDetails.available_seats < totalPassengersCount;
+                            const isBlocked = isSelected || isSoldOut || isInsufficient;
+
+                            return (
+                              <Pressable
+                                style={[
+                                  styles.reserveCTAButton,
+                                  isBlocked && !isSelected && { backgroundColor: "#94A3B8" },
+                                  isSelected && { opacity: 0.7 },
+                                ]}
+                                disabled={isBlocked}
+                                onPress={() => handleSelectFlight(selectedFlightForDetails)}
+                              >
+                                {isSelected ? (
+                                  <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : isSoldOut ? (
+                                  <>
+                                    <Ionicons name="ban" size={18} color="#FFFFFF" style={{ marginEnd: 6 }} />
+                                    <Text style={styles.reserveCTAButtonText}>আসন শেষ (Sold Out)</Text>
+                                  </>
+                                ) : isInsufficient ? (
+                                  <>
+                                    <Ionicons name="alert-circle" size={18} color="#FFFFFF" style={{ marginEnd: 6 }} />
+                                    <Text style={styles.reserveCTAButtonText}>আসন অপর্যাপ্ত (মাত্র {selectedFlightForDetails.available_seats}টি বাকি)</Text>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Text style={styles.reserveCTAButtonText}>Select Flight</Text>
+                                    <RTLIcon name="arrow-forward" size={18} color="#FFFFFF" style={{ marginStart: 6 }} />
+                                  </>
+                                )}
+                              </Pressable>
+                            );
+                          })()}
                         </>
                       );
                     })()}
@@ -2439,6 +2710,40 @@ export function FlightsScreen() {
           </Animated.View>
         </View>
       </Modal>
+      {/* Floating Compare Action Bar */}
+      {compareFlightIds.length > 0 && (
+        <View style={styles.floatingCompareBar}>
+          <Pressable
+            style={styles.floatingCompareBtn}
+            onPress={() => setShowCompareModal(true)}
+          >
+            <Ionicons name="git-compare-outline" size={18} color="#ffffff" />
+            <Text style={styles.floatingCompareBtnText}>
+              {compareFlightIds.length}টি ফ্লাইট তুলনা করুন
+            </Text>
+            <Ionicons name="arrow-forward" size={16} color="#ffffff" />
+          </Pressable>
+          <Pressable
+            style={styles.floatingCompareClose}
+            onPress={() => setCompareFlightIds([])}
+          >
+            <Ionicons name="close" size={18} color="#ffffff" />
+          </Pressable>
+        </View>
+      )}
+
+      {/* Side-by-Side Comparison Modal */}
+      <ComparisonModal
+        visible={showCompareModal}
+        items={flightCompareItems}
+        onClose={() => setShowCompareModal(false)}
+        onRemoveItem={(id) => setCompareFlightIds((prev) => prev.filter((x) => x !== id))}
+        onClearAll={() => setCompareFlightIds([])}
+        onBookItem={(item) => {
+          const flight = filteredAndSortedFlights.find((f) => f.id === item.id);
+          if (flight) openFlightDetails(flight);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -2453,6 +2758,74 @@ const styles = StyleSheet.create({
   shell: {
     flex: 1,
     backgroundColor: "#F5F7FA",
+  },
+  compareFlightBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  compareFlightBtnActive: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  compareFlightBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2563eb",
+  },
+  compareFlightBtnTextActive: {
+    color: "#ffffff",
+  },
+  floatingCompareBar: {
+    position: "absolute",
+    bottom: 24,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    zIndex: 999,
+  },
+  floatingCompareBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#2563eb",
+    paddingVertical: 14,
+    borderRadius: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.3)" } : {}),
+  },
+  floatingCompareBtnText: {
+    color: "#ffffff",
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  floatingCompareClose: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#1e293b",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.3)" } : {}),
   },
   keyboardContainer: {
     flex: 1,
@@ -2514,7 +2887,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#DC2626",
   },
   airlineName: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#4B5563",
     letterSpacing: 0.5,
@@ -2547,7 +2920,7 @@ const styles = StyleSheet.create({
     color: "#4B5563",
     marginTop: 6,
     lineHeight: 16,
-    maxWidth: SCREEN_WIDTH * 0.65,
+    maxWidth: "65%",
   },
   decorativeImageWrap: {
     position: "absolute",
@@ -2576,6 +2949,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 14,
     elevation: 6,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 14px rgba(15, 23, 42, 0.1)" } : {}),
     zIndex: 20,
   },
   tabRow: {
@@ -2632,7 +3006,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cityFieldLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "600",
     textTransform: "uppercase",
@@ -2666,7 +3040,7 @@ const styles = StyleSheet.create({
     color: TRIP_BLUE,
   },
   airportSubName: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 2,
   },
@@ -2691,6 +3065,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.08)" } : {}),
     zIndex: 10,
   },
   autocompleteDropdown: {
@@ -2705,6 +3080,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 5,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.12)" } : {}),
     zIndex: 30,
   },
   autocompleteHeader: {
@@ -2717,7 +3093,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   autocompleteHeaderTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: TRIP_BLUE,
     textTransform: "uppercase",
@@ -2750,7 +3126,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   autocompleteNameText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
   },
   inputRow: {
@@ -2774,7 +3150,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   returnDateText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#4B5563",
   },
@@ -2819,7 +3195,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   cabinClassSelectorLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#9CA3AF",
     textTransform: "uppercase",
@@ -2862,7 +3238,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   bundlePillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#B45309",
   },
@@ -2918,7 +3294,7 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT_GREEN,
   },
   liveIndicatorText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: ACCENT_GREEN,
     textTransform: "uppercase",
@@ -2951,7 +3327,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   controlHeaderLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
     textTransform: "uppercase",
@@ -2983,12 +3359,99 @@ const styles = StyleSheet.create({
     borderColor: TRIP_BLUE,
   },
   sortChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
   sortChipTextActive: {
     color: "#FFFFFF",
+  },
+  comparisonTabsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+  comparisonTab: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+  },
+  comparisonTabActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: TRIP_BLUE,
+  },
+  comparisonTabTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#334155",
+    marginTop: 2,
+  },
+  comparisonTabTitleActive: {
+    color: TRIP_BLUE,
+  },
+  comparisonTabSub: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: "#64748B",
+    marginTop: 1,
+  },
+  comparisonTabSubActive: {
+    color: TRIP_BLUE,
+  },
+  shortLayoverBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#FEE2E2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+  },
+  shortLayoverText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#DC2626",
+  },
+  overnightLayoverBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#EDE9FE",
+    borderWidth: 1,
+    borderColor: "#C4B5FD",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+  },
+  overnightLayoverText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#6D28D9",
+  },
+  baggageIncludedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  baggageIncludedText: {
+    fontSize: 11.5,
+    fontWeight: "800",
+    color: "#047857",
   },
   filterSection: {
     paddingTop: 2,
@@ -3012,7 +3475,7 @@ const styles = StyleSheet.create({
     borderColor: TRIP_BLUE,
   },
   filterChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
@@ -3063,7 +3526,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   flightNumText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
     fontWeight: "500",
   },
@@ -3082,7 +3545,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   refundableTagText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: "#059669",
   },
@@ -3093,7 +3556,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   classBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: TRIP_BLUE,
   },
@@ -3118,7 +3581,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   scheduleCity: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
   },
   durationBlock: {
@@ -3127,7 +3590,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   durationText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#6B7280",
     marginBottom: 4,
@@ -3164,7 +3627,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF3C7",
   },
   layoverBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   layoverTextDirect: {
@@ -3192,7 +3655,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   baggageAllowanceText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#374151",
   },
@@ -3206,7 +3669,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   perkText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#4B5563",
     fontWeight: "600",
   },
@@ -3231,7 +3694,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
   },
   priceSubtitle: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "600",
   },
@@ -3276,7 +3739,7 @@ const styles = StyleSheet.create({
   },
   horizontalScroll: {
     gap: 12,
-    paddingRight: 16,
+    paddingEnd: 16,
   },
   inspirationCard: {
     backgroundColor: "#FFFFFF",
@@ -3290,6 +3753,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 5px rgba(15, 23, 42, 0.05)" } : {}),
   },
   inspRouteRow: {
     flexDirection: "row",
@@ -3301,7 +3765,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   inspCarrier: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 4,
   },
@@ -3312,7 +3776,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   inspPriceFrom: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#9CA3AF",
   },
   inspPrice: {
@@ -3371,7 +3835,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   chipsSectionLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#6B7280",
     marginBottom: 8,
@@ -3379,7 +3843,7 @@ const styles = StyleSheet.create({
   },
   chipsRow: {
     gap: 8,
-    paddingRight: 16,
+    paddingEnd: 16,
   },
   chipBtn: {
     backgroundColor: "#F3F4F6",
@@ -3431,7 +3895,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   airportCodeBoxActive: {
     backgroundColor: TRIP_BLUE,
@@ -3588,7 +4052,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#DBEAFE",
   },
   cabinBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4B5563",
   },
@@ -3613,7 +4077,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheetSummaryLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "600",
   },
@@ -3645,7 +4109,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   drawerSheet: {
-    height: SCREEN_HEIGHT * 0.88,
+    height: "88%",
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -3705,7 +4169,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: TRIP_BLUE,
     marginTop: 5,
-    marginRight: 12,
+    marginEnd: 12,
   },
   timelineContent: {
     flex: 1,
@@ -3733,8 +4197,8 @@ const styles = StyleSheet.create({
   timelineVLine: {
     width: 2,
     backgroundColor: "#CBD5E1",
-    marginLeft: 4,
-    marginRight: 16,
+    marginStart: 4,
+    marginEnd: 16,
   },
   layoverNoticeBox: {
     flex: 1,
@@ -3750,7 +4214,7 @@ const styles = StyleSheet.create({
     color: "#1E3A8A",
   },
   layoverNoticeSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#2563EB",
     marginTop: 2,
   },
@@ -3788,7 +4252,7 @@ const styles = StyleSheet.create({
   },
   fareItemCol: {
     flex: 1,
-    paddingRight: 12,
+    paddingEnd: 12,
   },
   fareItemTitleRow: {
     flexDirection: "row",
@@ -3802,10 +4266,10 @@ const styles = StyleSheet.create({
   },
   carbonToggleBtn: {
     padding: 2,
-    marginLeft: 4,
+    marginStart: 4,
   },
   fareItemDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
@@ -3831,7 +4295,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   fareMatrixPerPerson: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -3872,12 +4336,12 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   baggageItemDetail: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 1,
   },
   includedTag: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: ACCENT_GREEN,
     backgroundColor: "#ECFDF5",
@@ -3908,7 +4372,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   footerPriceLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
@@ -3955,7 +4419,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
   },
   datePickerModeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748B",
     marginBottom: 4,
@@ -4011,7 +4475,7 @@ const styles = StyleSheet.create({
     borderColor: TRIP_BLUE,
   },
   calendarDayName: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
@@ -4027,7 +4491,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   calendarPriceHint: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#10B981",
   },

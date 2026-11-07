@@ -1,3 +1,4 @@
+import { formatLocalizedDate, formatNumber, formatCurrency, formatPlural } from "../utils/formatters";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   ActivityIndicator,
@@ -23,14 +24,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import * as SecureStore from "expo-secure-store";
 
-import { AiPill, BottomNav } from "./Navigation";
+
 import { searchRepository } from "../services/repositories/search";
-import { EmptyStateView, ErrorStateCard, ListSkeleton } from "../components/common";
+import { EmptyStateView, ErrorStateCard, ListSkeleton, ResultsSummaryHeader } from "../components/common";
 import { useDebounce } from "../hooks/useDebounce";
 import { useAuthStore } from "../store/authStore";
 import { useBookingStore } from "../store/bookingStore";
+import { TrainTicketReleaseCountdown } from "../components/trains/TrainTicketReleaseCountdown";
+import { SeatPickerModal } from "../components/trains/SeatPickerModal";
+import { RTLIcon } from "../components/ui";
+import { formatPrice } from "../utils/currency";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 const BD_GREEN = "#006A4E";
 const BD_GREEN_DARK = "#004D38";
 const BD_RED = "#F42A41";
@@ -253,7 +258,7 @@ const SYNC_SESSION_SCRIPT = `
           timestamp: Date.now()
         };
         window.ReactNativeWebView.postMessage(JSON.stringify(sessionPayload));
-      } catch(e) {}
+      } catch(e) { console.warn('[RailwayWebView] Session sync script error:', e); }
     }
 
     syncSession();
@@ -323,10 +328,10 @@ export function formatTravelDateDisplay(d: Date): string {
       day: "numeric",
       year: "numeric",
     };
-    const formatted = d.toLocaleDateString("en-US", options);
+    const formatted = formatLocalizedDate(d, options);
 
-    if (diffDays === 0) return `Today, ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-    if (diffDays === 1) return `Tomorrow, ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+    if (diffDays === 0) return `Today, ${formatLocalizedDate(d, { month: "short", day: "numeric" })}`;
+    if (diffDays === 1) return `Tomorrow, ${formatLocalizedDate(d, { month: "short", day: "numeric" })}`;
     return formatted;
   } catch {
     return "Today";
@@ -531,6 +536,10 @@ export function TrainsScreen() {
   const [dateNotice, setDateNotice] = useState<string | null>(null);
 
   const [showClassModal, setShowClassModal] = useState(false);
+  const [activeSeatPicker, setActiveSeatPicker] = useState<{
+    train: BDTrain;
+    classItem: ClassQuotaAvailability;
+  } | null>(null);
   const [showQuotaInfoModal, setShowQuotaInfoModal] = useState(false);
 
   // In-App WebView & Government Session Persistence
@@ -550,6 +559,7 @@ export function TrainsScreen() {
   const [showCredsModal, setShowCredsModal] = useState(false);
   const [inputPhone, setInputPhone] = useState("");
   const [inputPin, setInputPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
 
   // Trains Result State
   const [trainsList, setTrainsList] = useState<BDTrain[]>([]);
@@ -783,7 +793,7 @@ export function TrainsScreen() {
               }
             }
           }
-        } catch(e) {}
+        } catch(e) { console.warn("[RailwayWebView] Cookie restore error:", e); }
       })();
       true;
     `;
@@ -853,7 +863,7 @@ export function TrainsScreen() {
             passInput.value = "${savedCreds.pin || ""}";
             passInput.dispatchEvent(new Event('input', { bubbles: true }));
           }
-        } catch(e) {}
+        } catch(e) { console.warn('[RailwayWebView] Auto-fill pin script error:', e); }
       })();
       true;
     `;
@@ -931,7 +941,7 @@ export function TrainsScreen() {
     setIsWebViewOpen(true);
   };
 
-  // Booking Handoff Handler
+  // Booking Handoff Handler - opens SeatPickerModal first
   const handleBookingHandoff = (train: BDTrain, classItem: ClassQuotaAvailability) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -959,10 +969,40 @@ export function TrainsScreen() {
       return;
     }
 
-    // 2. Validate Travel Date (guaranteed zero unhandled errors)
+    // 2. Validate availability in selected quota
+    const quotaSeats =
+      selectedQuota === "General Quota"
+        ? classItem.quotas.general
+        : selectedQuota === "Female Quota"
+        ? classItem.quotas.female
+        : classItem.quotas.seniorCitizen;
+
+    if (quotaSeats <= 0) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        "আসন খালি নেই (Sold Out / Waitlist)",
+        `নির্বাচিত ট্রেন (${train.name}) ও শ্রেণি (${classItem.classMeta.name})-এ ${selectedQuota} কোটায় কোনো আসন অবশিষ্ট নেই। অনুগ্রহ করে অন্য কোটা, শ্রেণি বা ট্রেন বেছে নিন।`,
+        [{ text: "ঠিক আছে", style: "default" }]
+      );
+      return;
+    }
+
+    // Open SeatPickerModal for interactive zoom/pan seat selection
+    setActiveSeatPicker({ train, classItem });
+  };
+
+  const handleCompleteSeatSelection = (
+    selectedSeats: string[],
+    calculatedTotalFare: number
+  ) => {
+    if (!activeSeatPicker) return;
+    const { train, classItem } = activeSeatPicker;
+    setActiveSeatPicker(null);
+
+    // 2. Validate Travel Date
     const { date: sanitizedDate } = sanitizeTravelDate(travelDate);
     const dateISO = sanitizedDate.toISOString().split("T")[0];
-    const totalFare = classItem.fare * passengersCount;
+    const totalFare = calculatedTotalFare || classItem.fare * passengersCount;
 
     // 3. Store draft train itinerary in useBookingStore
     useBookingStore.getState().initDraft({
@@ -1007,7 +1047,7 @@ export function TrainsScreen() {
       pathname: "/screens/payments",
       params: {
         amount: totalFare.toString(),
-        reference: `Train: ${train.name} (${train.train_number}) - ${classItem.classMeta.name}`,
+        reference: `Train: ${train.name} (${train.train_number}) - ${classItem.classMeta.name} (Seats: ${selectedSeats.join(", ")})`,
         productType: "train",
         originCity: fromStation.city,
         destinationCity: toStation.city,
@@ -1108,7 +1148,7 @@ export function TrainsScreen() {
         date: d,
         isToday,
         isPast,
-        label: d.toLocaleDateString("en-US", { weekday: "narrow" }),
+        label: formatLocalizedDate(d, { weekday: "narrow" }),
         dayNum: d.getDate(),
       });
     }
@@ -1138,10 +1178,10 @@ export function TrainsScreen() {
                 style={styles.backCircleBtn}
                 onPress={() => {
                   Haptics.selectionAsync();
-                  router.canGoBack() ? router.back() : router.replace("/");
+                  router.canGoBack() ? router.back() : router.replace("/(tabs)");
                 }}
               >
-                <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+                <RTLIcon name="arrow-back" size={20} color="#FFFFFF" />
               </Pressable>
 
               <View style={styles.bdBadgeRow}>
@@ -1225,7 +1265,7 @@ export function TrainsScreen() {
                   {fromStation.name}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+              <RTLIcon name="chevron-forward" size={16} color="#9CA3AF" />
             </Pressable>
 
             {/* Swap Divider */}
@@ -1254,7 +1294,7 @@ export function TrainsScreen() {
                   {toStation.name}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+              <RTLIcon name="chevron-forward" size={16} color="#9CA3AF" />
             </Pressable>
           </View>
 
@@ -1263,7 +1303,7 @@ export function TrainsScreen() {
             {/* Travel Date Selector */}
             <Pressable style={styles.paramGridBox} onPress={() => setShowDateModal(true)}>
               <Ionicons name="calendar-outline" size={18} color={BD_GREEN} />
-              <View style={{ marginLeft: 8, flex: 1 }}>
+              <View style={{ marginStart: 8, flex: 1 }}>
                 <Text style={styles.fieldLabelText}>Travel Date</Text>
                 <Text style={styles.paramGridValue} numberOfLines={1}>
                   {formatTravelDateDisplay(travelDate)}
@@ -1277,7 +1317,7 @@ export function TrainsScreen() {
             {/* Class Selector (AC Berth, AC Chair, Snigdha, Shovon Chair, First Class) */}
             <Pressable style={styles.paramGridBox} onPress={() => setShowClassModal(true)}>
               <Ionicons name="ribbon-outline" size={18} color={ACCENT_GOLD} />
-              <View style={{ marginLeft: 8, flex: 1 }}>
+              <View style={{ marginStart: 8, flex: 1 }}>
                 <Text style={styles.fieldLabelText}>Seat Class</Text>
                 <Text style={styles.paramGridValue} numberOfLines={1}>
                   {selectedSeatClassFilter}
@@ -1304,7 +1344,7 @@ export function TrainsScreen() {
               >
                 <Ionicons name="remove" size={14} color={passengersCount <= 1 ? "#9CA3AF" : "#1F2937"} />
               </Pressable>
-              <Text style={styles.stepperValueText}>{passengersCount}</Text>
+              <Text style={styles.stepperValueText}>{formatNumber(passengersCount)}</Text>
               <Pressable
                 style={[styles.stepperBtn, passengersCount >= 4 && styles.stepperBtnDisabled]}
                 disabled={passengersCount >= 4}
@@ -1327,11 +1367,18 @@ export function TrainsScreen() {
             }}
           >
             <View style={styles.btnInnerRow}>
-              <Ionicons name="search" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Ionicons name="search" size={18} color="#FFFFFF" style={{ marginEnd: 8 }} />
               <Text style={styles.searchButtonText}>Find Available Trains</Text>
             </View>
           </Pressable>
         </View>
+
+        {/* Advance Ticket Release Countdown & Reminder Banner */}
+        <TrainTicketReleaseCountdown
+          travelDate={travelDate}
+          originStationName={fromStation.name}
+          destStationName={toStation.name}
+        />
 
         {/* =========================================================================
             Requirement 3: Live Quota Category Selector Matrix
@@ -1486,8 +1533,28 @@ export function TrainsScreen() {
            ========================================================================= */}
         <View style={styles.resultsSection}>
           <View style={styles.resultsHeaderRow}>
-            <Text style={styles.resultsTitle}>Scheduled Intercity Trains</Text>
-            <Text style={styles.resultsCountBadge}>{processedTrainsList.length} Found</Text>
+            <ResultsSummaryHeader
+              count={processedTrainsList.length}
+              entityName="ট্রেন"
+              sortLabel={
+                sortBy === "departure"
+                  ? "ছাড়ার সময় অনুযায়ী"
+                  : sortBy === "duration"
+                  ? "সময়কাল অনুযায়ী"
+                  : "ভাড়া অনুযায়ী"
+              }
+              filterCount={
+                (selectedSeatClassFilter !== "All" ? 1 : 0) +
+                (timeFilter !== "All" ? 1 : 0) +
+                (searchFilterKeyword ? 1 : 0)
+              }
+              onClearFilters={() => {
+                setSelectedSeatClassFilter("All");
+                setTimeFilter("All");
+                setSearchFilterKeyword("");
+              }}
+            />
+
           </View>
 
           {trainsLoading ? (
@@ -1534,7 +1601,7 @@ export function TrainsScreen() {
 
                     <View style={styles.fareStartBox}>
                       <Text style={styles.fareStartText}>Fare from</Text>
-                      <Text style={styles.fareAmountText}>৳{train.base_price}</Text>
+                      <Text style={styles.fareAmountText}>{formatPrice(train.base_price)}</Text>
                     </View>
                   </View>
 
@@ -1726,7 +1793,7 @@ export function TrainsScreen() {
                                   {/* Amenities Badges */}
                                   <View style={styles.amenitiesRow}>
                                     {cItem.classMeta.amenities.map((am, i) => (
-                                      <View key={i} style={styles.amenityTag}>
+                                      <View key={`amenity-${am}-${i}`} style={styles.amenityTag}>
                                         <Text style={styles.amenityTagText}>{am}</Text>
                                       </View>
                                     ))}
@@ -1734,8 +1801,8 @@ export function TrainsScreen() {
                                 </View>
 
                                 <View style={styles.classPriceCol}>
-                                  <Text style={styles.classPriceText}>৳{cItem.fare}</Text>
-                                  <Text style={styles.classPriceSub}>per passenger</Text>
+                                  <Text style={styles.classPriceText}>{formatPrice(cItem.fare)}</Text>
+                                  <Text style={styles.classPriceSub}>/ {formatPlural(1, "passenger")}</Text>
                                 </View>
                               </View>
 
@@ -1790,11 +1857,19 @@ export function TrainsScreen() {
                                 </View>
 
                                 <Pressable
-                                  style={styles.bookClassBtn}
+                                  style={[
+                                    styles.bookClassBtn,
+                                    !isAvailable && { backgroundColor: "#94A3B8", opacity: 0.8 },
+                                  ]}
+                                  disabled={!isAvailable}
                                   onPress={() => handleBookingHandoff(train, cItem)}
                                 >
-                                  <Text style={styles.bookClassBtnText}>Select & Book</Text>
-                                  <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                                  <Text style={styles.bookClassBtnText}>
+                                    {isAvailable ? "Select & Book" : "Waitlist (বুকিং বন্ধ)"}
+                                  </Text>
+                                  {isAvailable && (
+                                    <RTLIcon name="arrow-forward" size={14} color="#FFFFFF" />
+                                  )}
                                 </Pressable>
                               </View>
                             </View>
@@ -1811,9 +1886,7 @@ export function TrainsScreen() {
         <View style={{ height: 110 }} />
       </ScrollView>
 
-      {/* Floating AI Pill & Bottom Navigation */}
-      <AiPill color={BD_GREEN} />
-      <BottomNav active="Home" color={BD_GREEN} />
+
 
       {/* =========================================================================
           TRAVEL DATE SELECTOR MODAL (Guaranteed zero unhandled errors on past dates)
@@ -1880,7 +1953,7 @@ export function TrainsScreen() {
 
                 return (
                   <Pressable
-                    key={idx}
+                    key={item.date.toISOString() || `cal-${idx}`}
                     style={[
                       styles.calendarDayCard,
                       item.isPast && styles.calendarDayPast,
@@ -1913,7 +1986,7 @@ export function TrainsScreen() {
                         isSelected && styles.calendarTagSelected,
                       ]}
                     >
-                      {item.isPast ? "Past" : item.isToday ? "Today" : item.date.toLocaleDateString("en-US", { month: "short" })}
+                      {item.isPast ? "Past" : item.isToday ? "Today" : formatLocalizedDate(item.date, { month: "short" })}
                     </Text>
                   </Pressable>
                 );
@@ -2094,7 +2167,7 @@ export function TrainsScreen() {
 
           {/* Search Input */}
           <View style={styles.searchBarWrap}>
-            <Ionicons name="search" size={20} color="#9CA3AF" style={{ marginRight: 8 }} />
+            <Ionicons name="search" size={20} color="#9CA3AF" style={{ marginEnd: 8 }} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search station or code (Dhaka, CTG, CXB...)"
@@ -2189,7 +2262,7 @@ export function TrainsScreen() {
                   </View>
 
                   {isSelected && (
-                    <Ionicons name="checkmark-circle" size={22} color={BD_GREEN} style={{ marginLeft: 8 }} />
+                    <Ionicons name="checkmark-circle" size={22} color={BD_GREEN} style={{ marginStart: 8 }} />
                   )}
                 </Pressable>
               );
@@ -2231,14 +2304,33 @@ export function TrainsScreen() {
 
             <View style={styles.credsInputWrap}>
               <Text style={styles.fieldLabelText}>Password / PIN</Text>
-              <TextInput
-                style={styles.credsInput}
-                placeholder="Enter railway password"
-                placeholderTextColor="#9CA3AF"
-                value={inputPin}
-                onChangeText={setInputPin}
-                secureTextEntry={true}
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', position: 'relative' }}>
+                <TextInput
+                  style={[styles.credsInput, { flex: 1, paddingEnd: 40 }]}
+                  placeholder="Enter railway password"
+                  placeholderTextColor="#9CA3AF"
+                  value={inputPin}
+                  onChangeText={setInputPin}
+                  secureTextEntry={!showPin}
+                  autoComplete="current-password"
+                  textContentType="password"
+                  accessibilityLabel="Password or PIN"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveCredentials}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={showPin ? 'Hide password' : 'Show password'}
+                  onPress={() => setShowPin(!showPin)}
+                  style={{ position: 'absolute', right: 12, padding: 4 }}
+                >
+                  <Ionicons
+                    name={showPin ? 'eye-outline' : 'eye-off-outline'}
+                    size={20}
+                    color="#9CA3AF"
+                  />
+                </Pressable>
+              </View>
             </View>
 
             <Pressable style={styles.saveCredsSubmitBtn} onPress={handleSaveCredentials}>
@@ -2278,7 +2370,7 @@ export function TrainsScreen() {
                   webViewRef.current?.goBack();
                 }}
               >
-                <Ionicons name="chevron-back" size={20} color={canGoBack ? "#1F2937" : "#CBD5E1"} />
+                <RTLIcon name="chevron-back" size={20} color={canGoBack ? "#1F2937" : "#CBD5E1"} />
               </Pressable>
 
               <Pressable
@@ -2289,7 +2381,7 @@ export function TrainsScreen() {
                   webViewRef.current?.goForward();
                 }}
               >
-                <Ionicons name="chevron-forward" size={20} color={canGoForward ? "#1F2937" : "#CBD5E1"} />
+                <RTLIcon name="chevron-forward" size={20} color={canGoForward ? "#1F2937" : "#CBD5E1"} />
               </Pressable>
 
               <Pressable
@@ -2304,7 +2396,7 @@ export function TrainsScreen() {
             </View>
 
             <View style={styles.urlContainer}>
-              <Ionicons name="lock-closed" size={12} color="#10B981" style={{ marginRight: 4 }} />
+              <Ionicons name="lock-closed" size={12} color="#10B981" style={{ marginEnd: 4 }} />
               <Text style={styles.urlText} numberOfLines={1}>
                 eticket.railway.gov.bd
               </Text>
@@ -2385,6 +2477,19 @@ export function TrainsScreen() {
           />
         </SafeAreaView>
       </Modal>
+      {/* ─── Interactive Seat Picker Modal with Zoom/Pan & Accessible Icons ─── */}
+      {activeSeatPicker && (
+        <SeatPickerModal
+          visible={!!activeSeatPicker}
+          trainName={activeSeatPicker.train.name}
+          trainNumber={activeSeatPicker.train.train_number}
+          seatClass={activeSeatPicker.classItem.classMeta.name}
+          passengersCount={passengersCount}
+          farePerSeat={activeSeatPicker.classItem.fare}
+          onClose={() => setActiveSeatPicker(null)}
+          onConfirmSeats={handleCompleteSeatSelection}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -2402,7 +2507,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   heroContainer: {
-    height: 220,
+    minHeight: 220,
     position: "relative",
   },
   heroImage: {
@@ -2445,7 +2550,7 @@ const styles = StyleSheet.create({
   },
   bdBadgeText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
@@ -2471,7 +2576,7 @@ const styles = StyleSheet.create({
     color: "#E2E8F0",
     marginTop: 4,
     lineHeight: 16,
-    maxWidth: SCREEN_WIDTH * 0.8,
+    maxWidth: "80%",
   },
 
   // Main Search Card
@@ -2486,6 +2591,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 14,
     elevation: 6,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 14px rgba(15, 23, 42, 0.08)" } : {}),
   },
   pastDateNoticeBanner: {
     flexDirection: "row",
@@ -2547,7 +2653,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   saveCredsBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: BD_GREEN,
   },
@@ -2570,13 +2676,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#ECFDF5",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   stationTextCol: {
     flex: 1,
   },
   fieldLabelText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#94A3B8",
     textTransform: "uppercase",
@@ -2600,12 +2706,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   stationCodeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: BD_GREEN,
   },
   stationFullName: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -2634,6 +2740,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 2px rgba(15, 23, 42, 0.08)" } : {}),
   },
   searchParamsGrid: {
     flexDirection: "row",
@@ -2757,7 +2864,7 @@ const styles = StyleSheet.create({
     color: BD_GREEN,
   },
   quotaSectionSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
     marginBottom: 10,
@@ -2788,7 +2895,7 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   quotaTabFull: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 1,
   },
@@ -2799,7 +2906,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   classFilterLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
     textTransform: "uppercase",
@@ -2807,7 +2914,7 @@ const styles = StyleSheet.create({
   },
   classFilterScroll: {
     gap: 8,
-    paddingRight: 16,
+    paddingEnd: 16,
   },
   filterChip: {
     paddingHorizontal: 14,
@@ -2858,7 +2965,7 @@ const styles = StyleSheet.create({
     backgroundColor: BD_GREEN,
   },
   timeFilterPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -2872,7 +2979,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   sortBarLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
@@ -2889,7 +2996,7 @@ const styles = StyleSheet.create({
     borderColor: BD_GREEN,
   },
   sortPillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
@@ -2930,6 +3037,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 8px rgba(15, 23, 42, 0.04)" } : {}),
   },
   trainCardHeader: {
     flexDirection: "row",
@@ -2949,12 +3057,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   trainNumText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: BD_GREEN,
   },
   trainRouteText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
@@ -2962,7 +3070,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   fareStartText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94A3B8",
     textTransform: "uppercase",
   },
@@ -2994,7 +3102,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   stationLabelText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#475569",
     marginTop: 2,
     fontWeight: "600",
@@ -3008,7 +3116,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   platformBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: BD_GREEN,
   },
@@ -3018,7 +3126,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   durationText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#475569",
     marginBottom: 4,
@@ -3041,7 +3149,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 3,
   },
   intermediateStopsCountText: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#94A3B8",
     marginTop: 4,
     fontWeight: "600",
@@ -3088,12 +3196,12 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   timelineCardArrivalPlatform: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: BD_RED,
   },
   timelineFlow: {
-    paddingLeft: 4,
+    paddingStart: 4,
   },
   timelineNodeRow: {
     flexDirection: "row",
@@ -3104,12 +3212,12 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   nodeTimeMain: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#0F172A",
   },
   nodeTimeSub: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#64748B",
   },
   nodeTrackCol: {
@@ -3155,7 +3263,7 @@ const styles = StyleSheet.create({
   },
   nodeDetailsCol: {
     flex: 1,
-    paddingLeft: 8,
+    paddingStart: 8,
     paddingBottom: 14,
   },
   nodeStationHeader: {
@@ -3175,7 +3283,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   nodePlatText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -3186,7 +3294,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   layoverPillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748B",
   },
@@ -3211,11 +3319,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   activeQuotaLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
   },
   activeQuotaValue: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     color: BD_GREEN,
   },
@@ -3246,12 +3354,12 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   classCodeTagText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#3730A3",
   },
   classDescText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
     lineHeight: 14,
@@ -3269,7 +3377,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   amenityTagText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },
@@ -3282,7 +3390,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   classPriceSub: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#94A3B8",
   },
   quotaMatrixBreakdownRow: {
@@ -3301,12 +3409,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   quotaPillLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#475569",
     fontWeight: "600",
   },
   quotaPillSeats: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   seatsAvailable: {
@@ -3325,7 +3433,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   selectedQuotaNoticeText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#334155",
     fontWeight: "600",
   },
@@ -3387,7 +3495,7 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   sheetSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
@@ -3440,7 +3548,7 @@ const styles = StyleSheet.create({
     borderColor: BD_GREEN,
   },
   calendarDayNarrow: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
@@ -3451,7 +3559,7 @@ const styles = StyleSheet.create({
     marginVertical: 1,
   },
   calendarDayTag: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#94A3B8",
   },
@@ -3479,7 +3587,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   pastDateSafetyNoteText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#065F46",
     fontWeight: "600",
     flex: 1,
@@ -3515,12 +3623,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   classBadgeTagText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
   classItemDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
@@ -3542,11 +3650,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   quotaInfoBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
   },
   quotaInfoCardDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#334155",
     lineHeight: 16,
   },
@@ -3623,7 +3731,7 @@ const styles = StyleSheet.create({
     backgroundColor: BD_GREEN,
   },
   divisionChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -3637,7 +3745,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F1F5F9",
   },
   chipsSectionLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
     marginBottom: 8,
@@ -3645,7 +3753,7 @@ const styles = StyleSheet.create({
   },
   chipsRow: {
     gap: 8,
-    paddingRight: 16,
+    paddingEnd: 16,
   },
   chipBtn: {
     backgroundColor: "#F1F5F9",
@@ -3687,7 +3795,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   stationCodeBoxActive: {
     backgroundColor: BD_GREEN,
@@ -3831,7 +3939,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#16A34A",
   },
   syncStatusText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#166534",
   },
@@ -3842,7 +3950,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   clearSessionPillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: BD_RED,
   },

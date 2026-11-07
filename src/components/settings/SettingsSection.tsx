@@ -1,5 +1,5 @@
 import React, { ReactNode } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { Platform, View, Text, StyleSheet } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 
 interface SettingsSectionProps {
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   iconContainer: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   title: {
     fontSize: 14,
@@ -89,5 +89,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 3px rgba(15, 23, 42, 0.05)" } : {}),
   },
 });

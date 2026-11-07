@@ -182,7 +182,9 @@ export const abroadAgencyService = {
           message: `Consultation booked for ${booking.target_country} (${booking.goal}) on ${booking.appointment_date} at ${booking.appointment_time}`,
         },
       ]);
-    } catch {}
+    } catch (syncErr) {
+      console.warn("[abroadAgencyService] Remote enquiry sync failed, saving locally:", syncErr);
+    }
 
     const raw = await AsyncStorage.getItem(CONSULTATIONS_STORAGE_KEY);
     const existing: ConsultationBooking[] = raw ? JSON.parse(raw) : [];

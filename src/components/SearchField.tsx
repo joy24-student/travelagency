@@ -18,15 +18,22 @@ export function SearchField({
 }: SearchFieldProps) {
   return (
     <>
-      <Pressable style={styles.container} onPress={onPress}>
+      <Pressable
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${value}`}
+        accessibilityHint="Tap to edit search field"
+        style={styles.container}
+        onPress={onPress}
+      >
         {icon && (
-          <View style={styles.iconContainer}>
+          <View accessible={false} importantForAccessibility="no" style={styles.iconContainer}>
             <Ionicons name={icon as any} size={20} color="#6b7280" />
           </View>
         )}
         <View style={styles.content}>
-          <Text style={styles.label}>{label}</Text>
-          <Text style={styles.value}>{value}</Text>
+          <Text allowFontScaling={true} maxFontSizeMultiplier={1.4} style={styles.label}>{label}</Text>
+          <Text allowFontScaling={true} maxFontSizeMultiplier={1.4} style={styles.value}>{value}</Text>
         </View>
       </Pressable>
       {isBorder && <View style={styles.border} />}
@@ -46,7 +53,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
     marginTop: 2,
   },
   content: {

@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import {
+import { Platform,
   View,
   ScrollView,
   Text,
@@ -39,8 +39,7 @@ import { supabase } from "@/utils/supabase";
 import { AdminRole } from "@/types/admin";
 import { useRBAC } from "./rbac";
 import { AdminTab } from "./AdminPortalShell";
-
-const { width } = Dimensions.get("window");
+import { useResponsive } from "@/hooks/useResponsive";
 
 export interface AdminDashboardProps {
   onNavigateTab?: (tab: AdminTab) => void;
@@ -83,6 +82,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenLauncher,
   onOpenRoleModal,
 }) => {
+  const { width, isTablet, isDesktop } = useResponsive();
   const { admin: rbacAdmin, role, hasPermission } = useRBAC();
   const [metrics, setMetrics] = useState<Record<string, any> | null>(null);
   const [admin, setAdmin] = useState<Record<string, any> | null>(null);
@@ -1410,13 +1410,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#059669",
   },
   liveIndicatorText: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
     color: "#059669",
     letterSpacing: 0.5,
   },
   greetingSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -1439,7 +1439,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#4f46e5",
   },
   currencyPillText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
   },
@@ -1456,12 +1456,12 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   dateText: {
-    fontSize: 8,
+    fontSize: 12,
     color: "#94a3b8",
     fontWeight: "500",
   },
   dayText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0f172a",
   },
@@ -1481,6 +1481,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.04)" } : {}),
   },
   launcherBannerLeft: {
     flexDirection: "row",
@@ -1501,7 +1502,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   launcherBannerSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 1,
   },
@@ -1515,7 +1516,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   launcherOpenBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4f46e5",
   },
@@ -1533,7 +1534,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   sectionHeaderSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 1,
   },
@@ -1560,6 +1561,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 3,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 3px rgba(15, 23, 42, 0.02)" } : {}),
   },
   kpiCardRestricted: {
     borderColor: "#fef3c7",
@@ -1588,7 +1590,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   trendPillTextGreen: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#16a34a",
   },
@@ -1602,7 +1604,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   trendPillTextAmber: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
     color: "#b45309",
   },
@@ -1613,7 +1615,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   trendPillTextRed: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#dc2626",
   },
@@ -1624,7 +1626,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   kpiLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
     marginTop: 2,
@@ -1640,21 +1642,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   kpiFootText: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#94a3b8",
   },
   kpiFootHighlightGreen: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#16a34a",
   },
   kpiFootHighlightBlue: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#2563eb",
   },
   kpiFootHighlightRed: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#dc2626",
   },
@@ -1664,7 +1666,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   kpiRoleActionText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#d97706",
   },
@@ -1681,6 +1683,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 3,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 3px rgba(15, 23, 42, 0.02)" } : {}),
   },
   analyticsHeader: {
     flexDirection: "row",
@@ -1708,7 +1711,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   verifiedRoleBadgeText: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
     color: "#059669",
   },
@@ -1722,12 +1725,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   restrictedRoleBadgeText: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
     color: "#dc2626",
   },
   analyticsSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -1747,7 +1750,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#4f46e5",
   },
   rangePillText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
@@ -1771,7 +1774,7 @@ const styles = StyleSheet.create({
     borderColor: "#f1f5f9",
   },
   hudDateLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     fontWeight: "600",
   },
@@ -1793,12 +1796,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   hudStatText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4f46e5",
   },
   hudHelperText: {
-    fontSize: 8,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 2,
   },
@@ -1816,7 +1819,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   chartSummaryLabel: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#94a3b8",
     fontWeight: "500",
   },
@@ -1858,7 +1861,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   restrictedGuardDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#78350f",
     textAlign: "center",
     marginTop: 4,
@@ -1877,7 +1880,7 @@ const styles = StyleSheet.create({
     borderColor: "#fde68a",
   },
   restrictedRoleAlertText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#92400e",
     fontWeight: "600",
     flex: 1,
@@ -1894,7 +1897,7 @@ const styles = StyleSheet.create({
   },
   switchPersonaBtnText: {
     color: "#ffffff",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
 
@@ -1905,7 +1908,7 @@ const styles = StyleSheet.create({
   },
   donutContainer: {
     width: 160,
-    height: 160,
+    minHeight: 160,
     alignItems: "center",
     justifyContent: "center",
     marginVertical: 4,
@@ -1921,14 +1924,14 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   donutCenterLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4f46e5",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   donutCenterSub: {
-    fontSize: 8,
+    fontSize: 12,
     color: "#94a3b8",
   },
   verticalBreakdownGrid: {
@@ -1957,16 +1960,16 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 4,
+    marginEnd: 4,
   },
   verticalCardLabel: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0f172a",
   },
   verticalPercentText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   verticalMetricRow: {
@@ -1976,17 +1979,17 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   verticalCountText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     fontWeight: "500",
   },
   verticalRevText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0f172a",
   },
   verticalRevTextMasked: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#94a3b8",
     fontStyle: "italic",
   },
@@ -2001,7 +2004,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   viewDetailLink: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4f46e5",
   },
@@ -2018,6 +2021,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 3,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 3px rgba(15, 23, 42, 0.02)" } : {}),
   },
   telemetryHeaderRow: {
     flexDirection: "row",
@@ -2036,7 +2040,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   telemetrySubtitle: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 1,
   },
@@ -2050,7 +2054,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   pingDiagnosticsText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#ffffff",
   },
@@ -2093,7 +2097,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#059669",
   },
   statusPillTextGreen: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#059669",
   },
@@ -2103,7 +2107,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   telemetryServiceDesc: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 1,
   },
@@ -2117,35 +2121,35 @@ const styles = StyleSheet.create({
     borderTopColor: "#edf2f7",
   },
   telemetryStatLabel: {
-    fontSize: 8,
+    fontSize: 12,
     color: "#94a3b8",
   },
   telemetryStatVal: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0f172a",
     marginTop: 1,
   },
   telemetryStatValGreen: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#059669",
     marginTop: 1,
   },
   telemetryStatValBlue: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#2563eb",
     marginTop: 1,
   },
   telemetryStatValPurple: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#7c3aed",
     marginTop: 1,
   },
   telemetryStatValOrange: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#ea580c",
     marginTop: 1,
@@ -2158,7 +2162,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   telemetryFooterText: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#94a3b8",
     textAlign: "center",
   },
@@ -2192,7 +2196,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   quickJumpLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "600",
     color: "#334155",
     textAlign: "center",
@@ -2208,12 +2212,12 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   sectionSubtitle: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 1,
   },
   viewAllText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4f46e5",
   },
@@ -2238,6 +2242,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.01,
     shadowRadius: 2,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 2px rgba(15, 23, 42, 0.01)" } : {}),
   },
   attentionIconContainer: {
     width: 30,
@@ -2250,24 +2255,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   attentionTitle: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#1f2937",
   },
   attentionCountRed: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#DC2626",
     marginTop: 1,
   },
   attentionCountOrange: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#EA580C",
     marginTop: 1,
   },
   attentionCountBlue: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: "#2563EB",
     marginTop: 1,

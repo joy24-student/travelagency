@@ -1,5 +1,7 @@
+import { AppImage } from "../../src/components/ui/AppImage";
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import {
+import { Platform,
+  Dimensions,
   View,
   Text,
   StyleSheet,
@@ -11,7 +13,6 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
-  Dimensions,
   Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -37,7 +38,9 @@ import {
   SAMPLE_TRAVELERS,
 } from "../../src/services/travelMatchingService";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import { useResponsive } from "../../src/hooks/useResponsive";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.26;
 
 const PRIMARY_BLUE = "#0055F2";
@@ -178,6 +181,7 @@ function resolveDynamicMeta(candidate: TravelProfile, myProfile: TravelProfile |
 }
 
 export default function TravelMatchScreen() {
+  const { width: SCREEN_WIDTH } = useResponsive();
   const [myPlan, setMyPlan] = useState<TravelProfile | null>(null);
   const [rawMatches, setRawMatches] = useState<MatchResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -645,7 +649,7 @@ export default function TravelMatchScreen() {
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flex: 1, marginStart: 12 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.headerTitle}>Travel Match</Text>
               <View style={styles.aiBadge}>
@@ -672,7 +676,7 @@ export default function TravelMatchScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.headerActionBtn, { marginLeft: 6 }]}
+            style={[styles.headerActionBtn, { marginStart: 6 }]}
             onPress={() => setShowEditPlanModal(true)}
             activeOpacity={0.8}
           >
@@ -809,7 +813,7 @@ export default function TravelMatchScreen() {
               {/* Stack Card 2 (Next Card Preview) */}
               {nextCard && (
                 <View style={[styles.cardWrapper, styles.nextCardUnderneath]}>
-                  <Image
+                  <AppImage placeholderCategory="avatar"
                     source={{ uri: nextCard.match.candidate.avatar_url }}
                     style={styles.cardImageBg}
                   />
@@ -846,7 +850,7 @@ export default function TravelMatchScreen() {
                     },
                   ]}
                 >
-                  <Image
+                  <AppImage placeholderCategory="avatar"
                     source={{ uri: currentCard.match.candidate.avatar_url }}
                     style={styles.cardImageBg}
                   />
@@ -919,10 +923,10 @@ export default function TravelMatchScreen() {
                     >
                       <View style={styles.avatarStack}>
                         {currentCard.meta.mutual_friends.avatars.map((avatarUrl, idx) => (
-                          <Image
-                            key={idx}
+                          <AppImage placeholderCategory="avatar"
+                            key={`friend-${avatarUrl || idx}`}
                             source={{ uri: avatarUrl }}
-                            style={[styles.stackedAvatar, { marginLeft: idx > 0 ? -10 : 0 }]}
+                            style={[styles.stackedAvatar, { marginStart: idx > 0 ? -10 : 0 }]}
                           />
                         ))}
                       </View>
@@ -988,7 +992,7 @@ export default function TravelMatchScreen() {
                                   name="checkmark-circle"
                                   size={12}
                                   color="#10B981"
-                                  style={{ marginRight: 3 }}
+                                  style={{ marginEnd: 3 }}
                                 />
                               )}
                               <Text
@@ -1098,7 +1102,7 @@ export default function TravelMatchScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.resetDeckBtn, { marginLeft: 10 }]}
+                  style={[styles.resetDeckBtn, { marginStart: 10 }]}
                   onPress={() => {
                     triggerHaptic();
                     setShowEditPlanModal(true);
@@ -1151,7 +1155,7 @@ export default function TravelMatchScreen() {
 
                 <View style={styles.myIntentStylesRow}>
                   {myPlan.travel_styles.map((s, idx) => (
-                    <View key={idx} style={styles.myIntentPill}>
+                    <View key={`style-${s}`} style={styles.myIntentPill}>
                       <Text style={styles.myIntentPillText}>{s}</Text>
                     </View>
                   ))}
@@ -1225,8 +1229,8 @@ export default function TravelMatchScreen() {
                 <View key={cand.id} style={styles.feedCard}>
                   {/* Feed Card Header */}
                   <View style={styles.feedCardHeader}>
-                    <Image source={{ uri: cand.avatar_url }} style={styles.feedAvatar} />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <AppImage placeholderCategory="avatar" source={{ uri: cand.avatar_url }} style={styles.feedAvatar} />
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Text style={styles.feedNameText}>{cand.name}</Text>
                         <Text style={styles.feedAgeText}>• {cand.age} বছর</Text>
@@ -1310,7 +1314,7 @@ export default function TravelMatchScreen() {
                       const isCommon = myPlan?.travel_styles.includes(style);
                       return (
                         <View
-                          key={idx}
+                          key={`cand-${cand.id}-${style}`}
                           style={[styles.feedStylePill, isCommon && styles.feedStylePillActive]}
                         >
                           <Text
@@ -1407,11 +1411,11 @@ export default function TravelMatchScreen() {
                 <ScrollView showsVerticalScrollIndicator={false}>
                   {/* Recipient Snapshot Card */}
                   <View style={styles.recipientSnapshotCard}>
-                    <Image
+                    <AppImage placeholderCategory="avatar"
                       source={{ uri: selectedMatchForInvite.match.candidate.avatar_url }}
                       style={styles.recipientAvatar}
                     />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <Text style={styles.recipientName}>
                         {selectedMatchForInvite.match.candidate.name},{" "}
                         {selectedMatchForInvite.match.candidate.age}
@@ -1592,7 +1596,7 @@ export default function TravelMatchScreen() {
                       <View style={styles.breakdownPillsRow}>
                         {scoreSheetMatch.match.common_interests.length > 0 ? (
                           scoreSheetMatch.match.common_interests.map((c, i) => (
-                            <View key={i} style={styles.commonInterestPill}>
+                            <View key={`ci-${c}`} style={styles.commonInterestPill}>
                               <Text style={styles.commonInterestText}>✓ {c}</Text>
                             </View>
                           ))
@@ -1696,7 +1700,7 @@ export default function TravelMatchScreen() {
                   {/* Trust Score Banner */}
                   <View style={styles.trustScoreBanner}>
                     <Ionicons name="shield-checkmark" size={36} color="#10B981" />
-                    <View style={{ marginLeft: 14 }}>
+                    <View style={{ marginStart: 14 }}>
                       <Text style={styles.trustScoreTitle}>
                         {verificationSheetMatch.meta.safety_score}% ট্রাস্ট স্কোর
                       </Text>
@@ -1709,7 +1713,7 @@ export default function TravelMatchScreen() {
                   {/* Verification Checkpoints */}
                   <View style={styles.verifyItemRow}>
                     <Ionicons name="id-card" size={20} color="#0284C7" />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <Text style={styles.verifyItemTitle}>
                         {verificationSheetMatch.meta.verification_label}
                       </Text>
@@ -1722,7 +1726,7 @@ export default function TravelMatchScreen() {
 
                   <View style={styles.verifyItemRow}>
                     <Ionicons name="people" size={20} color="#6366F1" />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <Text style={styles.verifyItemTitle}>পারস্পরিক ভ্রমণ বন্ধু</Text>
                       <Text style={styles.verifyItemDesc}>
                         {verificationSheetMatch.meta.mutual_friends.names.join(", ")}
@@ -1735,7 +1739,7 @@ export default function TravelMatchScreen() {
 
                   <View style={styles.verifyItemRow}>
                     <Ionicons name="ribbon" size={20} color="#F59E0B" />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flex: 1, marginStart: 12 }}>
                       <Text style={styles.verifyItemTitle}>কমিউনিটি রেটিং ও সমাপ্তকৃত ট্যুর</Text>
                       <Text style={styles.verifyItemDesc}>
                         ★ {verificationSheetMatch.meta.rating} (
@@ -1858,7 +1862,7 @@ export default function TravelMatchScreen() {
               </View>
 
               <View style={styles.rowTwoCols}>
-                <View style={{ flex: 1, marginRight: 8 }}>
+                <View style={{ flex: 1, marginEnd: 8 }}>
                   <Text style={styles.inputSectionLabel}>শুরুর তারিখ</Text>
                   <TextInput
                     style={styles.textInputBox}
@@ -1868,7 +1872,7 @@ export default function TravelMatchScreen() {
                     onChangeText={setPlanStart}
                   />
                 </View>
-                <View style={{ flex: 1, marginLeft: 8 }}>
+                <View style={{ flex: 1, marginStart: 8 }}>
                   <Text style={styles.inputSectionLabel}>শেষের তারিখ</Text>
                   <TextInput
                     style={styles.textInputBox}
@@ -2125,6 +2129,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 10,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 10px rgba(15, 23, 42, 0.22)" } : {}),
   },
   nextCardUnderneath: {
     transform: [{ scale: 0.94 }, { translateY: 14 }],
@@ -2206,7 +2211,7 @@ const styles = StyleSheet.create({
   avatarStack: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 8,
+    marginEnd: 8,
   },
   stackedAvatar: {
     width: 20,
@@ -2384,6 +2389,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 6px rgba(15, 23, 42, 0.15)" } : {}),
   },
   controlBtnDisabled: {
     opacity: 0.4,
@@ -2567,7 +2573,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginStart: 8,
     fontSize: 13,
     color: "#0F172A",
   },
@@ -2622,6 +2628,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 6px rgba(15, 23, 42, 0.05)" } : {}),
   },
   feedCardHeader: {
     flexDirection: "row",
@@ -3026,7 +3033,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0F172A",
     flex: 1,
-    marginLeft: 8,
+    marginStart: 8,
   },
   breakdownCardScore: {
     fontSize: 13,

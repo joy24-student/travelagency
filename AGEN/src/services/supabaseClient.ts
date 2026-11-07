@@ -4,14 +4,18 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  process.env.REACT_APP_SUPABASE_URL ||
-  "https://htkpmrfhoijznigwimwj.supabase.co";
+  process.env.REACT_APP_SUPABASE_URL;
 
 const supabaseKey =
   process.env.EXPO_PUBLIC_SUPABASE_KEY ||
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-  process.env.REACT_APP_SUPABASE_ANON_KEY ||
-  "sb_publishable_L-imfE-H1FnYefIOH6_cdQ_nOO2PImv";
+  process.env.REACT_APP_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    "Missing required Supabase environment configuration for Agency Portal! Please define EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your environment."
+  );
+}
 
 /**
  * Hardware-backed secure storage for Agency Portal

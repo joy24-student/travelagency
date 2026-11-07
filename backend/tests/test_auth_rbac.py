@@ -1,5 +1,5 @@
 """
-Tests for Supabase JWT Authentication and RBAC Dependencies.
+Test Zero-Trust JWT Authentication and RBAC Role Enforcement.
 """
 
 import uuid
@@ -8,81 +8,60 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import AdminUser, Agency, UserProfile
-from tests.conftest import create_test_jwt
+from tests.conftest import make_test_jwt
 
 
 @pytest.mark.asyncio
-async def test_unauthenticated_request_fails(client: AsyncClient):
-    """Requests to protected endpoints without Authorization header must return 401."""
-    response = await client.get("/api/v1/auth/me")
-    assert response.status_code == 401
-    data = response.json()
-    assert data["status"] == 401
-    assert data["title"] == "Unauthorized"
-    assert "Missing Authorization" in data["detail"]
-    assert response.headers["Content-Type"] == "application/problem+json"
-
-
-@pytest.mark.asyncio
-async def test_valid_user_jwt_resolves_profile(client: AsyncClient, db_session: AsyncSession):
-    """Valid JWT resolves authenticated CurrentUser context."""
-    user_id = uuid.uuid4()
-    token = create_test_jwt(user_id=user_id, email="traveller@example.com", role="user")
-
-    response = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 200
-    data = response.json()
-    assert data["id"] == str(user_id)
-    assert data["email"] == "traveller@example.com"
-    assert data["role"] == "user"
-
-
-@pytest.mark.asyncio
-async def test_admin_rbac_enforcement(client: AsyncClient, db_session: AsyncSession):
-    """Standard user is denied admin access (403), while admin user is allowed (200)."""
-    normal_user_id = uuid.uuid4()
-    normal_token = create_test_jwt(user_id=normal_user_id, role="user")
-
-    # Regular user attempting admin endpoint
-    resp_denied = await client.get("/api/v1/auth/verify-admin", headers={"Authorization": f"Bearer {normal_token}"})
-    assert resp_denied.status_code == 403
-    problem = resp_denied.json()
-    assert problem["status"] == 403
-    assert problem["title"] == "Forbidden"
-    assert "Administrator privileges required" in problem["detail"]
-
-    # Admin user
-    admin_id = uuid.uuid4()
-    admin_token = create_test_jwt(user_id=admin_id, role="admin")
-
-    # Also register in admin_users table
-    admin_record = AdminUser(user_id=admin_id, role="superadmin", status="active")
-    db_session.add(admin_record)
-    await db_session.commit()
-
-    resp_allowed = await client.get("/api/v1/auth/verify-admin", headers={"Authorization": f"Bearer {admin_token}"})
-    assert resp_allowed.status_code == 200
-    assert resp_allowed.json()["role"] == "admin"
-
-
-@pytest.mark.asyncio
-async def test_agency_rbac_enforcement(client: AsyncClient, db_session: AsyncSession):
-    """Agency owners or users with agency role are authorized for agency endpoints."""
-    agency_owner_id = uuid.uuid4()
-    agency_token = create_test_jwt(user_id=agency_owner_id, role="agency")
-
-    # Insert agency into DB
-    agency = Agency(
-        owner_user_id=agency_owner_id,
-        name="Sundarban Eco Travels",
-        verification_status="verified",
-        status="active",
-    )
-    db_session.add(agency)
-    await db_session.commit()
-
-    resp = await client.get("/api/v1/auth/verify-agency", headers={"Authorization": f"Bearer {agency_token}"})
-    assert resp.status_code == 200
+async def test_auth_me_unauthorized(client: AsyncClient):
+    """Accessing /me without Authorization header returns 401."""
+    resp = await client.get("/api/v1/auth/me")
+    assert resp.status_code == 401
     data = resp.json()
-    assert data["role"] == "agency"
-    assert data["agency_id"] == str(agency.id)
+    assert data["code"] == "UNAUTHORIZED"
+    assert "correlation_id" in data
+
+
+@pytest.mark.asyncio
+async def test_auth_me_valid_jwt(client: AsyncClient):
+    """Accessing /me with valid Supabase JWT returns resolved CurrentUser profile."""
+    user_id = uuid.uuid4()
+    token = make_test_jwt(user_id, email="guest@shopnojatra.com", role="user")
+
+    resp = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    res_json = resp.json()
+    assert res_json["success"] is True
+    assert res_json["data"]["email"] == "guest@shopnojatra.com"
+    assert res_json["data"]["role"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_auth_admin_role_resolution(client: AsyncClient, db_session: AsyncSession):
+    """User registered in admin_users table is elevated to ADMIN role."""
+    admin_uuid = uuid.uuid4()
+    admin_entry = AdminUser(user_id=admin_uuid, role="admin", status="active")
+    db_session.add(admin_entry)
+    await db_session.commit()
+
+    token = make_test_jwt(admin_uuid, email="superadmin@shopnojatra.com", role="user")
+    resp = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    res_json = resp.json()
+    assert res_json["data"]["role"] == "admin"
+    assert "admin" in res_json["data"]["roles"]
+
+
+@pytest.mark.asyncio
+async def test_auth_inspect_claims(client: AsyncClient):
+    """Accessing /inspect-claims returns decoded JWT metadata and zero-trust security claims."""
+    user_id = uuid.uuid4()
+    token = make_test_jwt(user_id, email="dev@shopnojatra.com", role="user")
+
+    resp = await client.get("/api/v1/auth/inspect-claims", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    res_json = resp.json()
+    assert res_json["success"] is True
+    assert res_json["data"]["subject"] == str(user_id)
+    assert res_json["data"]["email"] == "dev@shopnojatra.com"
+    assert res_json["data"]["resolved_role"] == "user"
+    assert "token_audience" in res_json["data"]

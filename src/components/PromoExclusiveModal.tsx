@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import {
+import { Platform,
   Animated,
   Dimensions,
   Modal,
@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 const TRIP_BLUE = "#0055F2";
 const PINK_BG = "#FFF7F8";
 const PINK_BORDER = "#FFE4E8";
@@ -53,7 +53,7 @@ const PROMO_ITEMS = [
 ];
 
 export function PromoExclusiveModal({ visible, onClose, onClaimAll }: PromoModalProps) {
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const translateY = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export function PromoExclusiveModal({ visible, onClose, onClaimAll }: PromoModal
           useNativeDriver: true,
         }),
         Animated.timing(translateY, {
-          toValue: SCREEN_HEIGHT,
+          toValue: 600,
           duration: 200,
           useNativeDriver: true,
         }),
@@ -96,7 +96,7 @@ export function PromoExclusiveModal({ visible, onClose, onClaimAll }: PromoModal
         useNativeDriver: true,
       }),
       Animated.timing(translateY, {
-        toValue: SCREEN_HEIGHT,
+        toValue: 600,
         duration: 220,
         useNativeDriver: true,
       }),
@@ -254,7 +254,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 20,
-    maxHeight: SCREEN_HEIGHT * 0.85,
+    ...(Platform.OS === "web" ? { boxShadow: "0px -4px 16px rgba(15, 23, 42, 0.15)" } : {}),
+    maxHeight: "85%",
   },
   topHeaderRow: {
     flexDirection: "row",
@@ -330,6 +331,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.2)" } : {}),
     flexDirection: "row",
   },
   coinText: {
@@ -341,7 +343,7 @@ const styles = StyleSheet.create({
     color: "#E11D48",
     fontWeight: "900",
     fontSize: 14,
-    marginLeft: 1,
+    marginStart: 1,
   },
   hatBrim: {
     width: 104,
@@ -403,7 +405,7 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 6,
+    marginStart: 6,
   },
   dashedDivider: {
     height: "60%",

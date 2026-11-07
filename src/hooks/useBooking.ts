@@ -1,13 +1,19 @@
 import { useCallback } from "react";
 import { useMutation, useQuery } from "./useAuth";
 import { bookingRepository } from "../services/repositories/booking";
+import { offlineQueueService } from "../services/offline/offlineQueueService";
+import { networkStatusService } from "../services/network/networkStatusService";
 
-// Hook for user bookings
+// Hook for user bookings with SWR cache and background revalidation
 export const useUserBookings = (userId?: string, status?: string) => {
+  const cacheKey = userId ? `user_bookings:${userId}:${status || "all"}` : undefined;
+
   const {
     data: bookings,
     loading,
     error,
+    isStale,
+    isCached,
     refetch,
   } = useQuery(
     async () => {
@@ -15,23 +21,35 @@ export const useUserBookings = (userId?: string, status?: string) => {
       return await bookingRepository.getUserBookings(userId, status);
     },
     [userId, status],
-    { enabled: !!userId },
+    {
+      enabled: !!userId,
+      cacheKey,
+      timeoutMs: 12000,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+    },
   );
 
   return {
     bookings: bookings || [],
     loading,
     error,
+    isStale,
+    isCached,
     refetch,
   };
 };
 
 // Hook for single booking
 export const useBooking = (bookingId?: string) => {
+  const cacheKey = bookingId ? `booking_detail:${bookingId}` : undefined;
+
   const {
     data: booking,
     loading,
     error,
+    isStale,
+    isCached,
     refetch,
   } = useQuery(
     async () => {
@@ -39,111 +57,126 @@ export const useBooking = (bookingId?: string) => {
       return await bookingRepository.getBooking(bookingId);
     },
     [bookingId],
-    { enabled: !!bookingId },
+    {
+      enabled: !!bookingId,
+      cacheKey,
+      timeoutMs: 12000,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+    },
   );
 
   return {
     booking,
     loading,
     error,
+    isStale,
+    isCached,
     refetch,
   };
 };
 
-// Hook for creating bookings
+// Hook for creating bookings with offline queue support
 export const useCreateBooking = () => {
   const createMutation = useMutation(
     async ({ userId, booking }: { userId: string; booking: any }) => {
-      return await bookingRepository.createBooking(userId, booking);
+      // If offline, enqueue to offline mutation queue
+      if (!networkStatusService.isOnline()) {
+        await offlineQueueService.enqueue(
+          "CREATE_BOOKING_DRAFT",
+          { userId, booking },
+          `বুকিং ড্রাফট (${booking.product_type || "ট্রিপ"})`
+        );
+        return {
+          id: `offline_draft_${Date.now()}`,
+          status: "offline_pending",
+          booking_reference: `BK-OFF-${Date.now().toString(36).toUpperCase()}`,
+          is_offline_pending: true,
+          ...booking,
+        };
+      }
+
+      try {
+        return await bookingRepository.createBooking(userId, booking);
+      } catch (err) {
+        // If network failure during creation, enqueue as well
+        await offlineQueueService.enqueue(
+          "CREATE_BOOKING_DRAFT",
+          { userId, booking },
+          `বুকিং ড্রাফট (${booking.product_type || "ট্রিপ"})`
+        );
+        throw err;
+      }
+    },
+  );
+
+  return createMutation;
+};
+
+// Hook for booking actions
+export const useBookingActions = () => {
+  const cancelBookingMutation = useMutation(
+    async ({ bookingId, reason }: { bookingId: string; reason?: string }) => {
+      return await bookingRepository.cancelBooking(bookingId, reason || "");
+    },
+  );
+
+  const confirmBookingMutation = useMutation(
+    async ({ bookingId }: { bookingId: string }) => {
+      return await bookingRepository.confirmBooking(bookingId);
     },
   );
 
   return {
-    createBooking: createMutation.mutate,
-    loading: createMutation.loading,
-    error: createMutation.error,
-    data: createMutation.data,
+    cancelBooking: cancelBookingMutation.mutate,
+    confirmBooking: confirmBookingMutation.mutate,
+    loading: cancelBookingMutation.loading || confirmBookingMutation.loading,
+    error: cancelBookingMutation.error || confirmBookingMutation.error,
   };
 };
 
-// Hook for booking mutations
-export const useBookingMutations = (bookingId: string) => {
-  const confirmMutation = useMutation(
-    async () => await bookingRepository.confirmBooking(bookingId),
-  );
-
-  const cancelMutation = useMutation(
-    async (reason: string) =>
-      await bookingRepository.cancelBooking(bookingId, reason),
-  );
-
-  const addPassengerMutation = useMutation(
-    async (passenger: any) =>
-      await bookingRepository.addPassenger(bookingId, passenger),
-  );
-
-  const createPaymentMutation = useMutation(
-    async (payment: any) =>
-      await bookingRepository.createPayment(bookingId, payment),
-  );
-
-  const refundMutation = useMutation(
-    async ({ userId, refund }: { userId: string; refund: any }) =>
-      await bookingRepository.requestRefund(bookingId, userId, refund),
-  );
-
-  const timelineMutation = useMutation(
-    async ({ userId, event }: { userId: string; event: any }) =>
-      await bookingRepository.addTimelineEvent(bookingId, userId, event),
-  );
-
-  return {
-    confirm: confirmMutation.mutate,
-    cancel: cancelMutation.mutate,
-    addPassenger: addPassengerMutation.mutate,
-    createPayment: createPaymentMutation.mutate,
-    requestRefund: refundMutation.mutate,
-    addTimelineEvent: timelineMutation.mutate,
-    isConfirming: confirmMutation.loading,
-    isCancelling: cancelMutation.loading,
-    isAddingPassenger: addPassengerMutation.loading,
-    isCreatingPayment: createPaymentMutation.loading,
-    isRequestingRefund: refundMutation.loading,
-    isAddingTimelineEvent: timelineMutation.loading,
-  };
-};
-
-export const useCompleteBookingFlow = () => {
-  const flowMutation = useMutation(
-    async ({ userId, payload }: { userId: string; payload: any }) =>
-      await bookingRepository.completeBookingFlow(userId, payload),
-  );
-
-  return {
-    completeBookingFlow: flowMutation.mutate,
-    loading: flowMutation.loading,
-    error: flowMutation.error,
-    data: flowMutation.data,
-  };
-};
-
-export const useTripTimeline = (bookingId?: string) => {
+// Hook for booking items
+export const useBookingItems = (bookingId?: string) => {
   const {
-    data: timeline,
+    data: items,
     loading,
     error,
     refetch,
   } = useQuery(
     async () => {
       if (!bookingId) return [];
-      return await bookingRepository.getTimeline(bookingId);
+      return await bookingRepository.getBookingItems(bookingId);
     },
     [bookingId],
-    { enabled: !!bookingId },
+    { enabled: !!bookingId, cacheKey: bookingId ? `booking_items:${bookingId}` : undefined },
   );
 
   return {
-    timeline: timeline || [],
+    items: items || [],
+    loading,
+    error,
+    refetch,
+  };
+};
+
+// Hook for booking invoices
+export const useBookingInvoices = (bookingId?: string) => {
+  const {
+    data: invoices,
+    loading,
+    error,
+    refetch,
+  } = useQuery(
+    async () => {
+      if (!bookingId) return [];
+      return await bookingRepository.getBookingInvoices(bookingId);
+    },
+    [bookingId],
+    { enabled: !!bookingId, cacheKey: bookingId ? `booking_invoices:${bookingId}` : undefined },
+  );
+
+  return {
+    invoices: invoices || [],
     loading,
     error,
     refetch,

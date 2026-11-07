@@ -46,7 +46,6 @@ import {
 } from "@/services/admin/heatmapService";
 import { AdminUser } from "@/types/admin";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Major transit routes connecting Bangladesh travel corridors for map visualization
 const MAP_CORRIDOR_VECTORS = [
@@ -997,7 +996,7 @@ export const DemandHeatmapScreen: React.FC<DemandHeatmapScreenProps> = ({
                         color="#4f46e5"
                       />
                     </View>
-                    <View style={{ flex: 1, marginLeft: 10 }}>
+                    <View style={{ flex: 1, marginStart: 10 }}>
                       <Text style={styles.routeNameText}>{rt.routeName}</Text>
                       <Text style={styles.routeTerminalsText}>
                         {rt.origin} ➔ {rt.destination}
@@ -1212,7 +1211,12 @@ export const DemandHeatmapScreen: React.FC<DemandHeatmapScreenProps> = ({
       {/* ==================================================================== */}
       {/* REQUIREMENT 4: EXPORT ANALYTICS MODAL */}
       {/* ==================================================================== */}
-      <Modal visible={exportModalVisible} transparent animationType="fade">
+      <Modal
+        visible={exportModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setExportModalVisible(false)}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -1322,7 +1326,12 @@ export const DemandHeatmapScreen: React.FC<DemandHeatmapScreenProps> = ({
       {/* ==================================================================== */}
       {/* COMMISSION ADJUSTMENT POLICY MODAL */}
       {/* ==================================================================== */}
-      <Modal visible={!!selectedRecForAction} transparent animationType="slide">
+      <Modal
+        visible={!!selectedRecForAction}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedRecForAction(null)}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
             {selectedRecForAction && (
@@ -1480,6 +1489,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 6,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.15)" } : {}),
     gap: 10,
   },
   toastText: {
@@ -1525,7 +1535,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#dc2626",
   },
   livePillText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#dc2626",
     letterSpacing: 0.5,
@@ -1554,6 +1564,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.2)" } : {}),
   },
   exportHeaderBtnText: {
     color: "#ffffff",
@@ -1588,6 +1599,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 3px rgba(15, 23, 42, 0.04)" } : {}),
   },
   kpiCardRed: {
     borderLeftWidth: 4,
@@ -1623,12 +1635,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   kpiFooterText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#10b981",
   },
   kpiSubdetail: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
   },
 
@@ -1645,6 +1657,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 4px rgba(15, 23, 42, 0.04)" } : {}),
   },
   sectionHeader: {
     flexDirection: "row",
@@ -1698,7 +1711,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#475569",
-    marginRight: 10,
+    marginEnd: 10,
   },
   layerPills: {
     gap: 8,
@@ -1716,7 +1729,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#4f46e5",
   },
   layerPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },
@@ -1749,7 +1762,7 @@ const styles = StyleSheet.create({
     borderColor: "#0f172a",
   },
   divPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
@@ -1796,7 +1809,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   legendText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },
@@ -1812,7 +1825,7 @@ const styles = StyleSheet.create({
   },
   mapSvgContainer: {
     width: 380,
-    height: 380,
+    minHeight: 380,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1821,7 +1834,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   mapCanvasFooterText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
     textAlign: "center",
   },
@@ -1863,7 +1876,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   districtChipSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 3,
   },
@@ -1905,7 +1918,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   drawerStatusText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
   },
   drawerCategoryText: {
@@ -1928,7 +1941,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   metricLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
     fontWeight: "600",
   },
@@ -1939,7 +1952,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   metricSubVal: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#94a3b8",
     marginTop: 2,
   },
@@ -1960,7 +1973,7 @@ const styles = StyleSheet.create({
     color: "#92400e",
   },
   surgeAlertBody: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#78350f",
     marginTop: 2,
   },
@@ -1972,7 +1985,7 @@ const styles = StyleSheet.create({
   },
   surgeActionBtnText: {
     color: "#ffffff",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
 
@@ -1996,9 +2009,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 1px 2px rgba(15, 23, 42, 0.1)" } : {}),
   },
   windowBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
@@ -2054,12 +2068,12 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   surgeTagText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     color: "#dc2626",
   },
   destCategoryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -2072,7 +2086,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   velocitySubText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748b",
   },
   velocityCardFooter: {
@@ -2093,7 +2107,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   originsLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
   },
@@ -2106,7 +2120,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   originPillText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#475569",
   },
   conversionBadge: {
@@ -2115,7 +2129,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   conversionText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#16a34a",
   },
@@ -2149,7 +2163,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   routeTerminalsText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -2162,7 +2176,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   congestionBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   routeProgressRow: {
@@ -2183,7 +2197,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   occupancyPercentText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#475569",
   },
@@ -2198,11 +2212,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   routeStatLabel: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#64748b",
   },
   routeStatVal: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0f172a",
     marginTop: 2,
@@ -2248,7 +2262,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   recZoneText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#ffffff",
   },
@@ -2258,7 +2272,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   severityText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
   },
   recStatusBadge: {
@@ -2266,7 +2280,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   recStatusText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   recHeadline: {
@@ -2293,7 +2307,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   recMetricHeader: {
-    fontSize: 9,
+    fontSize: 12,
     color: "#64748b",
   },
   recMetricVal: {
@@ -2362,6 +2376,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 10,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 20px rgba(15, 23, 42, 0.25)" } : {}),
   },
   modalHeader: {
     flexDirection: "row",
@@ -2425,7 +2440,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
   exportOptionPrimarySub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#e0e7ff",
     marginTop: 2,
   },
@@ -2435,7 +2450,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   exportOptionSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 2,
   },
@@ -2496,7 +2511,7 @@ const styles = StyleSheet.create({
     color: "#64748b",
   },
   policyInputHelp: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     marginTop: 4,
   },
@@ -2512,7 +2527,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   impactLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#1e40af",
   },
   impactValue: {

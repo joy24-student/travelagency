@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { FocusAwareStatusBar } from "../components/ui";
+import { generateRealtimeChannelId } from "../utils/idGenerator";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dimensions,
   Image,
@@ -13,12 +15,6 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
-  useAnimatedStyle,
-  interpolate,
-  Extrapolation,
-  runOnJS,
-  withTiming,
-  withSpring,
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,52 +24,38 @@ import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "../hooks/useAuth";
+import { useLanguage } from "../context/LanguageContext";
+import { useTheme } from "../context/ThemeContext";
 import { supabase } from "../utils/supabase";
 import { TravelRepository } from "../repositories/travelRepository";
 import { PromoExclusiveModal } from "../components/PromoExclusiveModal";
-import { Badge, Button, Card, Skeleton, EmptyState } from "../components/ui";
+import { FeatureDiscoveryModal } from "../components/FeatureDiscoveryModal";
+import { Badge, Skeleton } from "../components/ui";
+import { UnifiedSearchCard } from "../components/search/UnifiedSearchCard";
+import { savedItemsService } from "../services/savedItemsService";
+import { formatPrice } from "../utils/currency";
+import { withNetworkTimeout } from "../utils/networkTimeout";
+import { useAppStateRefresh } from "../hooks/useAppStateRefresh";
+import { networkStatusService } from "../services/network/networkStatusService";
+import { ErrorStateCard, EmptyStateView, OptimizedImage } from "../components/common";
+import { recommendationEngine } from "../services/ml/recommendationEngine";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const TRIP_BLUE = "#0055F2";
 const TRIP_NAVY = "#0A2540";
-const TRIP_LIGHT_BLUE = "#EEF5FF";
-const ACCENT_YELLOW = "#FACC15";
 
-// Offline Cache Keys
 const CACHE_KEYS = {
-  CHIPS: "@travel:cached_travel_chips",
   DESTINATIONS: "@travel:cached_featured_destinations",
   PROMOS: "@travel:cached_promotional_banners",
   POSTS: "@travel:cached_posts",
   HOTELS: "@travel:cached_hotels",
 };
 
-const DEFAULT_TRAVEL_CHIPS = [
-  "Bali",
-  "Cox's Bazar",
-  "Tokyo",
-  "Sylhet",
-  "Bangkok",
-  "Dubai",
-  "Singapore",
-  "Sajek Valley",
-  "Paris",
-  "Sreemangal",
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TYPES & REPOSITORY INTERFACES
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface DynamicAd {
   id: string;
   title: string;
   banner_url: string;
   target_url: string;
-  placement?: string;
-  status?: string;
   discount_badge?: string;
-  click_count?: number;
 }
 
 export interface TrendingDestination {
@@ -81,12 +63,10 @@ export interface TrendingDestination {
   name: string;
   city?: string;
   country?: string;
-  tagline?: string;
-  promotion_text?: string;
   hero_image_url?: string;
   average_budget?: string;
   rating?: number;
-  is_trending?: boolean;
+  promotion_text?: string;
 }
 
 export interface DynamicPost {
@@ -96,23 +76,13 @@ export interface DynamicPost {
   content?: string;
   location?: string;
   likes_count: number;
-  comments_count?: number;
-  metadata?: {
-    views_count?: number;
-    rating?: number;
-    tags?: string[];
-  };
   author?: {
-    id?: string;
     username?: string;
     display_name?: string;
     avatar_url?: string;
-    is_influencer?: boolean;
   };
   media?: Array<{
-    id?: string;
     media_url: string;
-    media_type?: string;
   }>;
 }
 
@@ -123,2062 +93,1364 @@ export interface DynamicHotel {
   star_rating: number | string;
   base_price?: number | string;
   image_url?: string;
-  discount_percent?: number;
 }
 
-interface ServiceQuickGridItem {
+export interface RecommendedItem {
+  id: string;
+  type: "hotel" | "package" | "flight";
+  title: string;
+  subtitle: string;
+  destination: string;
+  rating: number;
+  reviewsCount: number;
+  basePrice: number;
+  taxRate: number; // e.g. 0.08 for 8% tax & service fees
+  image_url: string;
+  badge?: string;
+  route: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4 PRIMARY ACTION SERVICES & SECONDARY EXPANDABLE SERVICES
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ServiceActionItem {
   id: string;
   label: string;
   sublabel: string;
   icon: keyof typeof Ionicons.glyphMap;
   route: string;
   gradientColors: [string, string];
-  iconColor: string;
-  tag?: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RUNTIME REPOSITORY ENHANCEMENT
-// ─────────────────────────────────────────────────────────────────────────────
-
-declare module "../repositories/travelRepository" {
-  interface TravelRepository {
-    getFeaturedDestinations(limit?: number): Promise<TrendingDestination[]>;
-    getPromotionalBanners(): Promise<DynamicAd[]>;
-  }
-  namespace TravelRepository {
-    function getFeaturedDestinations(limit?: number): Promise<TrendingDestination[]>;
-    function getPromotionalBanners(): Promise<DynamicAd[]>;
-  }
-}
-
-if (!("getFeaturedDestinations" in TravelRepository.prototype)) {
-  (TravelRepository.prototype as any).getFeaturedDestinations = async function (
-    limit = 10
-  ): Promise<TrendingDestination[]> {
-    try {
-      const { data, error } = await this.client
-        .from("destinations")
-        .select("*")
-        .order("is_trending", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false })
-        .limit(limit);
-      if (error) throw error;
-      return (data || []) as TrendingDestination[];
-    } catch {
-      try {
-        const fallback = await this.findAll(undefined, { limit });
-        return (fallback || []) as TrendingDestination[];
-      } catch {
-        return [];
-      }
-    }
-  };
-}
-
-if (!("getPromotionalBanners" in TravelRepository.prototype)) {
-  (TravelRepository.prototype as any).getPromotionalBanners = async function (): Promise<
-    DynamicAd[]
-  > {
-    try {
-      const { data, error } = await this.client
-        .from("advertisements")
-        .select("*")
-        .eq("status", "active")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as DynamicAd[];
-    } catch {
-      return [];
-    }
-  };
-}
-
-if (!("getFeaturedDestinations" in TravelRepository)) {
-  (TravelRepository as any).getFeaturedDestinations = async function (limit = 10) {
-    const repo = new TravelRepository();
-    return (repo as any).getFeaturedDestinations(limit);
-  };
-}
-
-if (!("getPromotionalBanners" in TravelRepository)) {
-  (TravelRepository as any).getPromotionalBanners = async function () {
-    const repo = new TravelRepository();
-    return (repo as any).getPromotionalBanners();
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MODULAR SERVICE QUICK-GRID DATA
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SERVICE_GRID_ITEMS: ServiceQuickGridItem[] = [
+const PRIMARY_4_SERVICES: ServiceActionItem[] = [
   {
     id: "flights",
-    label: "Flights",
-    sublabel: "Best Fares",
+    label: "ফ্লাইট",
+    sublabel: "সর্বনিম্ন ভাড়া",
     icon: "airplane",
     route: "/screens/flights",
     gradientColors: ["#0055F2", "#1E40AF"],
-    iconColor: "#FFFFFF",
-    tag: "PROMO",
-  },
-  {
-    id: "stays",
-    label: "Stays",
-    sublabel: "Hotels & Villas",
-    icon: "bed",
-    route: "/screens/search-stays",
-    gradientColors: ["#0D9488", "#115E59"],
-    iconColor: "#FFFFFF",
-    tag: "SPECIAL",
   },
   {
     id: "trains",
-    label: "Trains",
-    sublabel: "Express Seats",
+    label: "ট্রেন",
+    sublabel: "আসন সংরক্ষণ",
     icon: "train",
     route: "/screens/trains",
     gradientColors: ["#059669", "#065F46"],
-    iconColor: "#FFFFFF",
   },
   {
+    id: "stays",
+    label: "হোটেল",
+    sublabel: "রিসোর্ট ও হোমস্টে",
+    icon: "bed",
+    route: "/screens/search-stays",
+    gradientColors: ["#0D9488", "#115E59"],
+  },
+  {
+    id: "packages",
+    label: "প্যাকেজ",
+    sublabel: "অল-ইনক্লুসিভ ট্যুর",
+    icon: "briefcase",
+    route: "/screens/packages",
+    gradientColors: ["#EA580C", "#9A3412"],
+  },
+];
+
+const SECONDARY_SERVICES: ServiceActionItem[] = [
+  {
     id: "bus-launch",
-    label: "Bus/Launch",
-    sublabel: "AC & Sleeper",
+    label: "বাস ও লঞ্চ",
+    sublabel: "এসি ও স্লিপার",
     icon: "bus",
     route: "/screens/bus-launch",
     gradientColors: ["#6366F1", "#4338CA"],
-    iconColor: "#FFFFFF",
   },
   {
     id: "tour-guides",
-    label: "Tour Guides",
-    sublabel: "Certified Locals",
+    label: "ট্যুর গাইড",
+    sublabel: "স্থানীয় গাইড",
     icon: "compass",
     route: "/screens/tour-guides",
-    gradientColors: ["#EA580C", "#9A3412"],
-    iconColor: "#FFFFFF",
-    tag: "VERIFIED",
+    gradientColors: ["#D97706", "#B45309"],
   },
   {
     id: "abroad-agency",
-    label: "Abroad Agency",
-    sublabel: "Visa & Hajj/Umrah",
+    label: "বিদেশ ও ভিসা",
+    sublabel: "ভিসা ও প্রসেসিং",
     icon: "globe",
     route: "/screens/abroad-agency",
     gradientColors: ["#0284C7", "#0369A1"],
-    iconColor: "#FFFFFF",
+  },
+  {
+    id: "car-rentals",
+    label: "কার রেন্টাল",
+    sublabel: "ড্রাইভারসহ গাড়ি",
+    icon: "car",
+    route: "/screens/car-rentals",
+    gradientColors: ["#4F46E5", "#3730A3"],
+  },
+  {
+    id: "trip-planner",
+    label: "ট্রিপ প্ল্যানার",
+    sublabel: "স্মার্ট ভ্রমণ পরিকল্পনা",
+    icon: "flash",
+    route: "/screens/trip-planner",
+    gradientColors: ["#8B5CF6", "#6D28D9"],
+  },
+  {
+    id: "events",
+    label: "ইভেন্টস",
+    sublabel: "উৎসব ও কনসার্ট",
+    icon: "calendar",
+    route: "/screens/events",
+    gradientColors: ["#EC4899", "#BE185D"],
+  },
+];
+
+// Fallback curated recommendations with transparent pricing
+const CURATED_RECOMMENDATIONS: RecommendedItem[] = [
+  {
+    id: "rec-stay-1",
+    type: "hotel",
+    title: "Sayeman Beach Resort",
+    subtitle: "প্রিমিয়াম সি-ভিউ রুম ও ইনফিনিটি পুল",
+    destination: "কক্সবাজার (Cox's Bazar)",
+    rating: 4.9,
+    reviewsCount: 420,
+    basePrice: 11500,
+    taxRate: 0.1, // 10% VAT & service
+    image_url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600",
+    badge: "জনপ্রিয় পছন্দ",
+    route: "/screens/search-stays",
+  },
+  {
+    id: "rec-pkg-1",
+    type: "package",
+    title: "সাজেক ভ্যালি ৩ দিন ২ রাত মেঘের রাজ্য ট্যুর",
+    subtitle: "রিসোর্ট স্টে, জিপ ভ্রমণ, সকাল-রাতের খাবার ও গাইড",
+    destination: "সাজেক ভ্যালি, রাঙ্গামাটি",
+    rating: 4.8,
+    reviewsCount: 310,
+    basePrice: 8500,
+    taxRate: 0.05,
+    image_url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600",
+    badge: "বেস্টসেলার",
+    route: "/screens/packages",
+  },
+  {
+    id: "rec-stay-2",
+    type: "hotel",
+    title: "গ্র্যান্ড সুলতান টি রিসোর্ট অ্যান্ড গলফ",
+    subtitle: "চা বাগানের মাঝে বিলাসবহুল ৫-স্টার স্টে",
+    destination: "শ্রীমঙ্গল, সিলেট",
+    rating: 4.9,
+    reviewsCount: 580,
+    basePrice: 16500,
+    taxRate: 0.1,
+    image_url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600",
+    badge: "লাক্সারি চয়েস",
+    route: "/screens/search-stays",
+  },
+  {
+    id: "rec-pkg-2",
+    type: "package",
+    title: "সেন্ট মার্টিন কোরাল আইল্যান্ড ক্রুজ প্যাকেজ",
+    subtitle: "জাহাজের টিকিট, রিসোর্ট ও বারবিকিউ ডিনার",
+    destination: "সেন্ট মার্টিন দ্বীপ",
+    rating: 4.7,
+    reviewsCount: 240,
+    basePrice: 9800,
+    taxRate: 0.05,
+    image_url: "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=600",
+    badge: "সীমিত আসন",
+    route: "/screens/packages",
   },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENTS (MEMOIZED FOR 60 FPS SCROLL PERFORMANCE)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ServiceGridCard = React.memo<{
-  item: ServiceQuickGridItem;
-  onPress: (route: string) => void;
-}>(({ item, onPress }) => {
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.serviceCard,
-        pressed && styles.serviceCardPressed,
-      ]}
-      onPress={() => onPress(item.route)}
-    >
-      <View style={styles.serviceIconContainer}>
-        <LinearGradient
-          colors={item.gradientColors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.serviceIconGradient}
-        >
-          <Ionicons name={item.icon} size={22} color={item.iconColor} />
-        </LinearGradient>
-        {item.tag && (
-          <View style={styles.serviceMiniTag}>
-            <Text style={styles.serviceMiniTagText}>{item.tag}</Text>
-          </View>
-        )}
-      </View>
-      <Text style={styles.serviceCardTitle} numberOfLines={1}>
-        {item.label}
-      </Text>
-      <Text style={styles.serviceCardSubtitle} numberOfLines={1}>
-        {item.sublabel}
-      </Text>
-    </Pressable>
-  );
-});
-
-const DestinationCard = React.memo<{
-  dest: TrendingDestination;
-  onSelect: (dest: TrendingDestination) => void;
-}>(({ dest, onSelect }) => {
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.trendingCard,
-        pressed && { transform: [{ scale: 0.98 }] },
-      ]}
-      onPress={() => onSelect(dest)}
-    >
-      <Image
-        source={{
-          uri:
-            dest.hero_image_url ||
-            "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500",
-        }}
-        style={styles.trendingCardImage}
-      />
-      <LinearGradient
-        colors={["rgba(0,0,0,0.05)", "rgba(15,23,42,0.85)"]}
-        style={styles.trendingCardGradient}
-      />
-
-      {/* Top badges */}
-      <View style={styles.trendingCardTopRow}>
-        <View style={styles.trendingRatingBadge}>
-          <Ionicons name="star" size={11} color="#F59E0B" />
-          <Text style={styles.trendingRatingText}>
-            {dest.rating ? dest.rating.toFixed(1) : "4.9"}
-          </Text>
-        </View>
-      </View>
-
-      {/* Bottom Content */}
-      <View style={styles.trendingCardContent}>
-        <Text style={styles.trendingCardName} numberOfLines={1}>
-          {dest.name}
-        </Text>
-        <Text style={styles.trendingCardCountry} numberOfLines={1}>
-          {dest.city ? `${dest.city}, ` : ""}{dest.country || "Explore"}
-        </Text>
-        {dest.promotion_text ? (
-          <View style={styles.trendingPromoPill}>
-            <Text style={styles.trendingPromoPillText} numberOfLines={1}>
-              {dest.promotion_text}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-    </Pressable>
-  );
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN HOME SCREEN COMPONENT
+// MAIN HOME SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function HomeScreen() {
   const { user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState("Bali");
-  const [activeFeedTab, setActiveFeedTab] = useState<"discover" | "nearby">("discover");
-  const [showPromoModal, setShowPromoModal] = useState(false);
+  const { colors, isDark } = useTheme();
+
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [isOffline, setIsOffline] = useState(false);
+  const [showSecondaryServices, setShowSecondaryServices] = useState(false);
+  const [showPromoModal, setShowPromoModal] = useState(false);
+  const [activeRecCategory, setActiveRecCategory] = useState<"all" | "hotel" | "package">("all");
+  const [activeCommunityTab, setActiveCommunityTab] = useState<"discover" | "nearby">("discover");
+  const [showAllServicesModal, setShowAllServicesModal] = useState(false);
 
-  // Cached Travel Chips
-  const [travelChips, setTravelChips] = useState<string[]>(DEFAULT_TRAVEL_CHIPS);
+  // Present the 40+ Feature Discovery Guide once for new users after login
+  useEffect(() => {
+    AsyncStorage.getItem("@app:has_seen_first_time_tour").then((val) => {
+      if (!val) {
+        setTimeout(() => {
+          setShowAllServicesModal(true);
+          AsyncStorage.setItem("@app:has_seen_first_time_tour", "true");
+        }, 1500);
+      }
+    });
+  }, []);
 
-  // Repository & Dynamic Data
-  const [ads, setAds] = useState<DynamicAd[]>([]);
-  const [activeHeroAdIndex, setActiveHeroAdIndex] = useState(0);
+  // Dynamic Data States
   const [trendingDestinations, setTrendingDestinations] = useState<TrendingDestination[]>([]);
+  const [ads, setAds] = useState<DynamicAd[]>([]);
   const [communityPosts, setCommunityPosts] = useState<DynamicPost[]>([]);
-  const [featuredHotels, setFeaturedHotels] = useState<DynamicHotel[]>([]);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set());
-
-  const travelRepo = useMemo(() => new TravelRepository(), []);
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // REANIMATED V4 SCROLL WORKLET & HARDWARE ACCELERATED ANIMATIONS
-  // ───────────────────────────────────────────────────────────────────────────
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const scrollY = useSharedValue(0);
-  const isScrolledShared = useSharedValue(false);
-
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
-      const y = event.contentOffset.y;
-      scrollY.value = y;
-
-      if (y > 65 && !isScrolledShared.value) {
-        isScrolledShared.value = true;
-        runOnJS(setIsScrolled)(true);
-      } else if (y <= 65 && isScrolledShared.value) {
-        isScrolledShared.value = false;
-        runOnJS(setIsScrolled)(false);
-      }
+      scrollY.value = event.contentOffset.y;
     },
   });
 
-  // Sticky search container elevation, background & border transition
-  const animatedStickySearchStyle = useAnimatedStyle(() => {
-    const shadowOpacity = interpolate(
-      scrollY.value,
-      [30, 90],
-      [0, 0.08],
-      Extrapolation.CLAMP
-    );
-    const borderBottomOpacity = interpolate(
-      scrollY.value,
-      [30, 90],
-      [0, 1],
-      Extrapolation.CLAMP
-    );
-    const elevation = interpolate(
-      scrollY.value,
-      [30, 90],
-      [0, 4],
-      Extrapolation.CLAMP
-    );
-
-    return {
-      shadowOpacity,
-      elevation,
-      borderBottomColor: `rgba(226, 232, 240, ${borderBottomOpacity})`,
-    };
-  });
-
-  // Hero Banner Parallax & Elastic Scale Style (Zero height mutations)
-  const animatedHeroBannerStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(
-      scrollY.value,
-      [-120, 0, 240],
-      [-20, 0, 20],
-      Extrapolation.CLAMP
-    );
-    const scale = interpolate(
-      scrollY.value,
-      [-120, 0],
-      [1.06, 1],
-      Extrapolation.CLAMP
-    );
-    return {
-      transform: [{ translateY }, { scale }],
-    };
-  });
-
-  // Silky smooth status bar transitions across iOS and Android
+  // Track saved items from savedItemsService
   useEffect(() => {
-    if (Platform.OS === "android") {
-      StatusBar.setBackgroundColor(isScrolled ? "#FFFFFF" : TRIP_BLUE, true);
-    }
-    StatusBar.setBarStyle(isScrolled ? "dark-content" : "light-content", true);
-  }, [isScrolled]);
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // OFFLINE CACHE RESTORATION
-  // ───────────────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    const restoreOfflineCache = async () => {
-      try {
-        const [
-          cachedChipsJson,
-          cachedDestsJson,
-          cachedAdsJson,
-          cachedPostsJson,
-          cachedHotelsJson,
-        ] = await Promise.all([
-          AsyncStorage.getItem(CACHE_KEYS.CHIPS),
-          AsyncStorage.getItem(CACHE_KEYS.DESTINATIONS),
-          AsyncStorage.getItem(CACHE_KEYS.PROMOS),
-          AsyncStorage.getItem(CACHE_KEYS.POSTS),
-          AsyncStorage.getItem(CACHE_KEYS.HOTELS),
-        ]);
-
-        if (cachedChipsJson) {
-          const parsed = JSON.parse(cachedChipsJson);
-          if (Array.isArray(parsed) && parsed.length > 0) setTravelChips(parsed);
-        }
-        if (cachedDestsJson) {
-          const parsed = JSON.parse(cachedDestsJson);
-          if (Array.isArray(parsed) && parsed.length > 0) setTrendingDestinations(parsed);
-        }
-        if (cachedAdsJson) {
-          const parsed = JSON.parse(cachedAdsJson);
-          if (Array.isArray(parsed) && parsed.length > 0) setAds(parsed);
-        }
-        if (cachedPostsJson) {
-          const parsed = JSON.parse(cachedPostsJson);
-          if (Array.isArray(parsed) && parsed.length > 0) setCommunityPosts(parsed);
-        }
-        if (cachedHotelsJson) {
-          const parsed = JSON.parse(cachedHotelsJson);
-          if (Array.isArray(parsed) && parsed.length > 0) setFeaturedHotels(parsed);
-        }
-      } catch (cacheErr) {
-        console.warn("HomeScreen offline cache error:", cacheErr);
-      }
-    };
-
-    restoreOfflineCache();
+    const unsubscribe = savedItemsService.subscribe((items) => {
+      setSavedIds(new Set(items.map((i) => i.id)));
+    });
+    return () => unsubscribe();
   }, []);
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // CONCURRENT REPOSITORY DATA INGESTION
-  // ───────────────────────────────────────────────────────────────────────────
+  // Greeting text
+  const greetingText = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "শুভ সকাল ☀️";
+    if (hour < 18) return "শুভ অপরাহ্ন 🌤️";
+    return "শুভ সন্ধ্যা 🌙";
+  }, []);
 
-  const fetchHomeScreenData = useCallback(async () => {
+  // Fetch data with 12s timeout and error distinction
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setFetchError(null);
     try {
-      const [
-        destinationsResult,
-        promosResult,
-        postsResult,
-        hotelsResult,
-        likesResult,
-      ] = await Promise.allSettled([
-        // 1. Featured Destinations from TravelRepository
-        typeof TravelRepository.getFeaturedDestinations === "function"
-          ? TravelRepository.getFeaturedDestinations(10)
-          : travelRepo.getFeaturedDestinations(10),
-
-        // 2. Promotional Banners from TravelRepository
-        typeof TravelRepository.getPromotionalBanners === "function"
-          ? TravelRepository.getPromotionalBanners()
-          : travelRepo.getPromotionalBanners(),
-
-        // 3. Published community posts
+      const travelRepo = new TravelRepository();
+      const fetchPromise = Promise.allSettled([
+        (travelRepo as any).getFeaturedDestinations(8),
+        (travelRepo as any).getPromotionalBanners(),
         supabase
           .from("posts")
           .select("*, author:community_profiles!posts_user_id_fkey(*), media:post_media(*)")
           .eq("status", "published")
           .order("created_at", { ascending: false })
-          .limit(20),
-
-        // 4. Featured hotels
-        supabase
-          .from("hotels")
-          .select("id, name, city, star_rating, base_price, image_url")
-          .order("star_rating", { ascending: false })
-          .limit(8),
-
-        // 5. User liked posts
-        user?.id
-          ? supabase.from("post_likes").select("post_id").eq("user_id", user.id)
-          : Promise.resolve({ data: [] }),
+          .limit(10),
       ]);
 
-      let networkSuccess = false;
+      const [destsResult, promosResult, postsResult] = await withNetworkTimeout(
+        fetchPromise,
+        12000,
+        "নেটওয়ার্ক ধীর, আবার চেষ্টা করবেন?"
+      );
 
-      // Handle Featured Destinations
-      if (destinationsResult.status === "fulfilled" && destinationsResult.value) {
-        const dests = destinationsResult.value as TrendingDestination[];
-        if (dests.length > 0) {
-          setTrendingDestinations(dests);
-          networkSuccess = true;
-          AsyncStorage.setItem(CACHE_KEYS.DESTINATIONS, JSON.stringify(dests)).catch(() => {});
+      let hadSuccess = false;
 
-          // Merge and cache travel chips without layout shifting
-          const liveChips = dests
-            .map((d) => d.city || d.name)
-            .filter((name): name is string => Boolean(name && name.trim().length > 0));
-
-          const combinedChips = Array.from(
-            new Set([...liveChips, ...DEFAULT_TRAVEL_CHIPS])
-          ).slice(0, 10);
-
-          setTravelChips(combinedChips);
-          AsyncStorage.setItem(CACHE_KEYS.CHIPS, JSON.stringify(combinedChips)).catch(() => {});
-        }
+      if (destsResult.status === "fulfilled" && Array.isArray(destsResult.value)) {
+        setTrendingDestinations(destsResult.value);
+        hadSuccess = true;
+        AsyncStorage.setItem(CACHE_KEYS.DESTINATIONS, JSON.stringify(destsResult.value)).catch(() => {});
       }
-
-      // Handle Promotional Banners (no hardcoded arrays)
-      if (promosResult.status === "fulfilled" && promosResult.value) {
-        const bannerAds = promosResult.value as DynamicAd[];
-        if (bannerAds.length > 0) {
-          setAds(bannerAds);
-          networkSuccess = true;
-          AsyncStorage.setItem(CACHE_KEYS.PROMOS, JSON.stringify(bannerAds)).catch(() => {});
-        }
+      if (promosResult.status === "fulfilled" && Array.isArray(promosResult.value)) {
+        setAds(promosResult.value);
+        hadSuccess = true;
+        AsyncStorage.setItem(CACHE_KEYS.PROMOS, JSON.stringify(promosResult.value)).catch(() => {});
       }
-
-      // Handle Community Posts
       if (postsResult.status === "fulfilled" && (postsResult.value as any)?.data) {
-        const posts = (postsResult.value as any).data;
-        if (Array.isArray(posts) && posts.length > 0) {
-          setCommunityPosts(posts);
-          networkSuccess = true;
-          AsyncStorage.setItem(CACHE_KEYS.POSTS, JSON.stringify(posts)).catch(() => {});
-        }
+        setCommunityPosts((postsResult.value as any).data);
+        hadSuccess = true;
       }
 
-      // Handle Hotels
-      if (hotelsResult.status === "fulfilled" && (hotelsResult.value as any)?.data) {
-        const hotels = (hotelsResult.value as any).data;
-        if (Array.isArray(hotels) && hotels.length > 0) {
-          setFeaturedHotels(hotels);
-          networkSuccess = true;
-          AsyncStorage.setItem(CACHE_KEYS.HOTELS, JSON.stringify(hotels)).catch(() => {});
-        }
+      if (!hadSuccess && destsResult.status === "rejected") {
+        const err = (destsResult as any).reason;
+        setFetchError(err?.message || "ডাটা লোড করা সম্ভব হয়নি।");
+      } else {
+        setFetchError(null);
       }
-
-      // Handle Likes
-      if (likesResult.status === "fulfilled" && (likesResult.value as any)?.data) {
-        const userLikes = (likesResult.value as any).data;
-        if (Array.isArray(userLikes)) {
-          setLikedPostIds(new Set(userLikes.map((l: any) => l.post_id)));
-        }
+    } catch (e: any) {
+      console.warn("HomeScreen fetch error:", e);
+      if (trendingDestinations.length === 0) {
+        setFetchError(e?.message || "নেটওয়ার্ক ধীর, আবার চেষ্টা করবেন?");
       }
-
-      setIsOffline(!networkSuccess && (destinationsResult.status === "rejected" || promosResult.status === "rejected"));
-    } catch (err) {
-      console.warn("HomeScreen data fetch warning:", err);
-      setIsOffline(true);
     } finally {
-      setIsInitialLoading(false);
+      setIsLoadingData(false);
     }
-  }, [user?.id, travelRepo]);
+  }, [trendingDestinations.length]);
 
-  // Initial fetch and Realtime synchronization
+  // Silent refresh when returning from background (Requirement 6)
+  useAppStateRefresh(() => {
+    fetchData(true);
+  });
+
+  // Re-fetch on network reconnection (Requirement 1)
   useEffect(() => {
-    fetchHomeScreenData();
+    const unsub = networkStatusService.onReconnect(() => {
+      fetchData(true);
+    });
+    return () => unsub();
+  }, [fetchData]);
 
-    const channelId = `home-live-${Math.random().toString(36).substring(2, 9)}`;
-    const liveChannel = supabase
+  useEffect(() => {
+    // Restore offline cache first
+    AsyncStorage.getItem(CACHE_KEYS.DESTINATIONS).then((data) => {
+      if (data) {
+        try {
+          setTrendingDestinations(JSON.parse(data));
+        } catch {}
+      }
+    });
+
+    fetchData();
+
+    // Supabase realtime updates
+    const channelId = generateRealtimeChannelId("home-realtime");
+    const channel = supabase
       .channel(channelId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "advertisements" }, () => {
-        fetchHomeScreenData();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "destinations" }, () => {
-        fetchHomeScreenData();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, () => {
-        fetchHomeScreenData();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "destinations" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "advertisements" }, () => fetchData())
       .subscribe();
 
     return () => {
-      supabase.removeChannel(liveChannel);
+      supabase.removeChannel(channel);
     };
-  }, [fetchHomeScreenData]);
+  }, [fetchData]);
 
-  // Auto-show promo modal once on mount for demo
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowPromoModal(true);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Concurrent Pull-to-Refresh handler
-  const handlePullToRefresh = useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     try {
-      await fetchHomeScreenData();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err) {
-      console.warn("Refresh execution warning:", err);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await fetchData();
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchHomeScreenData]);
+  }, [fetchData]);
 
-  // Service Quick-Grid press handler with Light haptic feedback
+  // Handle service button navigation
   const handleServicePress = useCallback((route: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
     router.push(route as any);
   }, []);
 
-  // Destination press handler
-  const handleDestinationPress = useCallback((dest: TrendingDestination) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSearchQuery(dest.city || dest.name);
-    router.push({
-      pathname: "/screens/search" as any,
-      params: { q: dest.city || dest.name },
-    });
-  }, []);
+  // Dynamic ML Recommendations
+  const [dynamicRecommendations, setDynamicRecommendations] = useState<RecommendedItem[]>([]);
 
-  // Interactive like toggling with haptics and DB persistence
-  const handleToggleLike = useCallback(
-    async (post: DynamicPost) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const isLiked = likedPostIds.has(post.id);
-      const nextLiked = !isLiked;
-
-      setLikedPostIds((prev) => {
-        const next = new Set(prev);
-        if (nextLiked) next.add(post.id);
-        else next.delete(post.id);
-        return next;
+  useEffect(() => {
+    let isMounted = true;
+    recommendationEngine
+      .getRecommendations({
+        limit: 8,
+        enable_diversity: true,
+      })
+      .then((res) => {
+        if (isMounted && res.success && res.recommendations.length > 0) {
+          const mapped: RecommendedItem[] = res.recommendations.map((rec) => {
+            const isHotel = rec.item_type === 'hotel';
+            const isTour = rec.item_type === 'tour';
+            return {
+              id: rec.id,
+              type: isHotel ? 'hotel' : isTour ? 'package' : 'flight',
+              title: rec.name,
+              subtitle: rec.match_reasons[0] || `${rec.city} রিকমেন্ডেশন`,
+              destination: `${rec.city}, ${rec.region.toUpperCase()}`,
+              rating: rec.rating || 4.8,
+              reviewsCount: rec.reviews_count || 150,
+              basePrice: rec.price || (isHotel ? 6500 : 3500),
+              taxRate: 0.1,
+              image_url: rec.image_url || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600',
+              badge: rec.relevance_score > 0.85 ? 'স্মার্ট পছন্দ' : 'জনপ্রিয়',
+              route: isHotel ? '/screens/search-stays' : '/screens/packages',
+            };
+          });
+          setDynamicRecommendations(mapped);
+        }
+      })
+      .catch((err) => {
+        console.debug('HomeScreen dynamic rec load error:', err);
       });
 
-      setCommunityPosts((prev) =>
-        prev.map((p) =>
-          p.id === post.id
-            ? {
-                ...p,
-                likes_count: Math.max(0, p.likes_count + (nextLiked ? 1 : -1)),
-              }
-            : p
-        )
-      );
-
-      try {
-        if (user?.id) {
-          if (nextLiked) {
-            await supabase.from("post_likes").insert([{ post_id: post.id, user_id: user.id }]);
-          } else {
-            await supabase.from("post_likes").delete().eq("post_id", post.id).eq("user_id", user.id);
-          }
-        }
-        const newCount = Math.max(0, post.likes_count + (nextLiked ? 1 : -1));
-        await supabase.from("posts").update({ likes_count: newCount }).eq("id", post.id);
-      } catch (err) {
-        console.warn("Failed to persist like toggle:", err);
-      }
-    },
-    [likedPostIds, user?.id]
-  );
-
-  // Dynamic greeting based on current local hour
-  const greetingText = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning ☀️";
-    if (hour < 18) return "Good afternoon 🌤️";
-    return "Good evening 🌙";
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // Filtered community posts based on Discover vs Nearby tabs
-  const filteredPosts = useMemo(() => {
-    if (activeFeedTab === "discover") return communityPosts;
-    const q = searchQuery.toLowerCase().trim();
-    const filtered = communityPosts.filter((p) => {
-      const loc = (p.location || "").toLowerCase();
-      const title = (p.title || "").toLowerCase();
-      return (
-        loc.includes(q) ||
-        title.includes(q) ||
-        loc.includes("bangladesh") ||
-        loc.includes("sylhet") ||
-        loc.includes("dhaka") ||
-        loc.includes("cox")
-      );
+  // Handle save toggle with haptics + toast & bandit feedback
+  const handleToggleSaveRec = useCallback(async (item: RecommendedItem) => {
+    const totalWithTax = Math.round(item.basePrice * (1 + item.taxRate));
+    await savedItemsService.toggleSaveItem({
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      subtitle: item.subtitle,
+      destination: item.destination,
+      price: item.basePrice,
+      totalPriceWithTax: totalWithTax,
+      rating: item.rating,
+      image_url: item.image_url,
+      route: item.route,
     });
-    return filtered.length > 0 ? filtered : communityPosts;
-  }, [communityPosts, activeFeedTab, searchQuery]);
 
-  const activeHeroAd = ads.length > 0 ? ads[activeHeroAdIndex % ads.length] : null;
-  const secondaryAd = ads.length > 1 ? ads[1] : null;
+    const arm = item.id.includes('cox')
+      ? 'coxs_bazar'
+      : item.id.includes('sajek')
+      ? 'sajek'
+      : item.id.includes('sylhet')
+      ? 'sylhet'
+      : 'sundarbans';
+    recommendationEngine.recordBanditFeedback(arm, 1.0, { itemId: item.id });
+  }, []);
 
-  const leftPosts = useMemo(() => filteredPosts.filter((_, i) => i % 2 === 0), [filteredPosts]);
-  const rightPosts = useMemo(() => filteredPosts.filter((_, i) => i % 2 !== 0), [filteredPosts]);
-
-  const leftHotels = useMemo(() => featuredHotels.filter((_, i) => i % 2 === 0), [featuredHotels]);
-  const rightHotels = useMemo(() => featuredHotels.filter((_, i) => i % 2 !== 0), [featuredHotels]);
+  // Filter recommendations
+  const filteredRecommendations = useMemo(() => {
+    const source = dynamicRecommendations.length > 0 ? dynamicRecommendations : CURATED_RECOMMENDATIONS;
+    if (activeRecCategory === 'all') return source;
+    return source.filter((r) => r.type === activeRecCategory);
+  }, [activeRecCategory, dynamicRecommendations]);
 
   return (
-    <SafeAreaView style={styles.shell} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.shell, { backgroundColor: isDark ? colors.background : TRIP_BLUE }]}
+      edges={["top"]}
+    >
       <StatusBar
-        barStyle={isScrolled ? "dark-content" : "light-content"}
-        backgroundColor={isScrolled ? "#FFFFFF" : TRIP_BLUE}
+        barStyle="light-content"
+        backgroundColor={isDark ? colors.background : TRIP_BLUE}
         animated
       />
 
-      {/* Main 60 FPS Reanimated ScrollView */}
       <Animated.ScrollView
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        stickyHeaderIndices={[1]}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={handlePullToRefresh}
-            tintColor={TRIP_BLUE}
+            onRefresh={onRefresh}
+            tintColor="#FFFFFF"
             colors={[TRIP_BLUE]}
-            progressBackgroundColor="#FFFFFF"
           />
         }
       >
         {/* ================================================================== */}
-        {/* Section 0: Luxury Header Bar & 6-Service Quick-Grid                */}
+        {/* 1. Header Bar: Brand, Greeting & Quick Action Icons                */}
         {/* ================================================================== */}
-        <View style={styles.topSectionWrapper}>
-          {/* Top Brand & Loyalty Bar */}
-          <View style={styles.headerBar}>
-            <View style={styles.headerLeftContainer}>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  handlePullToRefresh();
-                }}
-                style={styles.logoPressArea}
-              >
-                <Text style={styles.brandTitle}>Trip.com</Text>
-              </Pressable>
-              <Text style={styles.greetingSubtitle}>{greetingText}</Text>
-            </View>
-
-            <View style={styles.headerRightActions}>
-              {isOffline && (
-                <Badge
-                  status="warning"
-                  variant="subtle"
-                  size="sm"
-                  label="Offline"
-                  style={styles.offlineBadge}
-                />
-              )}
-
-              {/* Gold Coin / Rewards Badge */}
-              <Pressable
-                style={styles.rewardsButton}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/screens/rewards" as any);
-                }}
-              >
-                <LinearGradient
-                  colors={["#FDE047", "#EAB308"]}
-                  style={styles.goldCoinGradient}
-                >
-                  <Text style={styles.goldCoinSymbol}>T</Text>
-                </LinearGradient>
-                <Text style={styles.rewardsLabel}>Points</Text>
-              </Pressable>
-            </View>
+        <View style={styles.topHeader}>
+          <View>
+            <Text style={styles.brandTitle}>Trip.com</Text>
+            <Text style={styles.greetingText}>{greetingText}</Text>
           </View>
 
-          {/* Curved Sheet with Quick-Grid */}
-          <View style={styles.curvedSheet}>
-            <View style={styles.quickGridHeader}>
-              <Text style={styles.quickGridTitle}>Explore Services</Text>
-              <Text style={styles.quickGridSubtitle}>All-in-one travel platform</Text>
-            </View>
+          <View style={styles.headerRightRow}>
+            {/* Saved Items Direct Shortcut */}
+            <Pressable
+              style={styles.savedHeaderBtn}
+              onPress={() => {
+                try {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                } catch {}
+                router.push("/screens/saved" as any);
+              }}
+            >
+              <Ionicons name="heart" size={16} color="#EF4444" />
+              <Text style={styles.savedHeaderText}>সেভ তালিকা ({savedIds.size})</Text>
+            </Pressable>
 
-            {/* Modular 6-Service Grid */}
-            <View style={styles.serviceGrid}>
-              {SERVICE_GRID_ITEMS.map((service) => (
-                <ServiceGridCard
-                  key={service.id}
-                  item={service}
-                  onPress={handleServicePress}
-                />
-              ))}
-            </View>
+            {/* Points / Rewards */}
+            <Pressable
+              style={styles.pointsBtn}
+              onPress={() => {
+                try {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                } catch {}
+                router.push("/screens/rewards" as any);
+              }}
+            >
+              <LinearGradient colors={["#FACC15", "#EAB308"]} style={styles.coinDot}>
+                <Text style={styles.coinText}>★</Text>
+              </LinearGradient>
+              <Text style={styles.pointsText}>পয়েন্টস</Text>
+            </Pressable>
           </View>
         </View>
 
         {/* ================================================================== */}
-        {/* Section 1: Sticky Search Bar, Filter Chips & Segmented Feed Tabs   */}
+        {/* 2. Top 4 Primary Action Icons + "আরও দেখুন" (Problem 1)            */}
         {/* ================================================================== */}
-        <Animated.View style={[styles.stickySearchWrapper, animatedStickySearchStyle]}>
-          {/* Search Pill Input */}
-          <View style={styles.searchBarPill}>
-            <Pressable
-              style={styles.aiAssistantIcon}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/screens/service-chat" as any);
-              }}
-            >
-              <Ionicons name="sparkles" size={15} color="#0055F2" />
-            </Pressable>
-
-            <Pressable
-              style={styles.searchInputTouchArea}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: "/screens/search" as any, params: { q: searchQuery } });
-              }}
-            >
-              <Text style={styles.searchInputLabel} numberOfLines={1}>
-                {searchQuery ? `Searching "${searchQuery}"` : "Where are you going?"}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.searchActionSubmit}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: "/screens/search" as any, params: { q: searchQuery } });
-              }}
-            >
-              <Ionicons name="search" size={17} color="#FFFFFF" />
-            </Pressable>
-          </View>
-
-          {/* Cached Travel Chips Row */}
-          <Animated.ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsScrollContent}
-          >
-            {travelChips.map((chip) => {
-              const isActive = searchQuery.toLowerCase() === chip.toLowerCase();
-              return (
-                <Pressable
-                  key={chip}
-                  style={({ pressed }) => [
-                    styles.chipPill,
-                    isActive && styles.chipPillActive,
-                    pressed && { opacity: 0.75 },
-                  ]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSearchQuery(chip);
-                    router.push({ pathname: "/screens/search" as any, params: { q: chip } });
-                  }}
-                >
-                  <Ionicons
-                    name={isActive ? "location" : "location-outline"}
-                    size={12}
-                    color={isActive ? TRIP_BLUE : "#64748B"}
-                  />
-                  <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                    {chip}
-                  </Text>
-                </Pressable>
-              );
-            })}
-
-            <Pressable
-              style={styles.mapActionChip}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/screens/explore" as any);
-              }}
-            >
-              <Ionicons name="map" size={13} color={TRIP_BLUE} />
-              <Text style={styles.mapActionText}>Map</Text>
-            </Pressable>
-          </Animated.ScrollView>
-
-          {/* Quick Actions Row */}
-          <View style={styles.quickActionsBar}>
-            {[
-              { label: "Deals", icon: "pricetag" as const, action: () => setShowPromoModal(true) },
-              { label: "Events", icon: "calendar" as const, action: () => router.push("/screens/events" as any) },
-              { label: "Trip.Planner", icon: "flash" as const, action: () => router.push("/screens/trip-planner" as any) },
-              { label: "Trending", icon: "trending-up" as const, action: () => router.push("/(tabs)/community" as any) },
-            ].map((qa) => (
+        <View style={styles.servicesContainer}>
+          <View style={styles.primaryServicesGrid}>
+            {PRIMARY_4_SERVICES.map((srv) => (
               <Pressable
-                key={qa.label}
-                style={styles.quickActionItem}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  qa.action();
-                }}
+                key={srv.id}
+                style={({ pressed }) => [
+                  styles.serviceActionCard,
+                  pressed && { transform: [{ scale: 0.96 }] },
+                ]}
+                onPress={() => handleServicePress(srv.route)}
               >
-                <View style={styles.quickActionIconWrap}>
-                  <Ionicons name={qa.icon} size={18} color={TRIP_BLUE} />
-                </View>
-                <Text style={styles.quickActionLabel}>{qa.label}</Text>
+                <LinearGradient
+                  colors={srv.gradientColors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.serviceIconCircle}
+                >
+                  <Ionicons name={srv.icon} size={24} color="#FFFFFF" />
+                </LinearGradient>
+                <Text style={styles.serviceLabel}>{srv.label}</Text>
+                <Text style={styles.serviceSublabel}>{srv.sublabel}</Text>
               </Pressable>
             ))}
           </View>
 
-          {/* Segmented Feed Switcher */}
-          <View style={styles.feedTabsContainer}>
-            <Pressable
-              style={[
-                styles.feedTabPill,
-                activeFeedTab === "discover" && styles.feedTabPillActive,
-              ]}
-              onPress={() => {
+          {/* "আরও দেখুন" (View More) Expandable Toggle */}
+          <Pressable
+            style={styles.expandServicesBtn}
+            onPress={() => {
+              try {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setActiveFeedTab("discover");
-              }}
-            >
-              <Text
-                style={[
-                  styles.feedTabText,
-                  activeFeedTab === "discover" && styles.feedTabTextActive,
-                ]}
-              >
-                Discover
-              </Text>
-              {activeFeedTab === "discover" && <View style={styles.tabActiveIndicator} />}
-            </Pressable>
+              } catch {}
+              setShowSecondaryServices((prev) => !prev);
+            }}
+          >
+            <Text style={styles.expandServicesText}>
+              {showSecondaryServices ? "সংক্ষিপ্ত করুন ▲" : "অন্যান্য সেবা দেখুন (বাস, গাইড, ভিসা, কার) ▾"}
+            </Text>
+          </Pressable>
 
-            <Pressable
-              style={[
-                styles.feedTabPill,
-                activeFeedTab === "nearby" && styles.feedTabPillActive,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setActiveFeedTab("nearby");
-              }}
-            >
-              <Text
-                style={[
-                  styles.feedTabText,
-                  activeFeedTab === "nearby" && styles.feedTabTextActive,
-                ]}
-              >
-                Nearby Gems
-              </Text>
-              {activeFeedTab === "nearby" && <View style={styles.tabActiveIndicator} />}
-            </Pressable>
-          </View>
-        </Animated.View>
+          {/* Secondary Services Expandable Sheet */}
+          {showSecondaryServices && (
+            <View style={styles.secondaryServicesGrid}>
+              {SECONDARY_SERVICES.map((sec) => (
+                <Pressable
+                  key={sec.id}
+                  style={styles.secondaryServiceItem}
+                  onPress={() => handleServicePress(sec.route)}
+                >
+                  <LinearGradient
+                    colors={sec.gradientColors}
+                    style={styles.secondaryIconCircle}
+                  >
+                    <Ionicons name={sec.icon} size={18} color="#FFFFFF" />
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.secondaryLabel}>{sec.label}</Text>
+                    <Text style={styles.secondarySublabel}>{sec.sublabel}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
 
         {/* ================================================================== */}
-        {/* Section 2: Trending Destinations Carousel (Repository Data)        */}
+        {/* 2b. 40+ Features Interactive Guide & Directory Banner              */}
+        {/* ================================================================== */}
+        <Pressable
+          style={styles.featureGuideBanner}
+          onPress={() => {
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            } catch {}
+            setShowAllServicesModal(true);
+          }}
+        >
+          <LinearGradient
+            colors={["#1E3A8A", "#2563EB", "#3B82F6"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.featureGuideGradient}
+          >
+            <View style={styles.featureGuideIconCircle}>
+              <Ionicons name="apps" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.featureGuideTitle}>৪০+ ফিচার ডিরেক্টরি ও গাইড</Text>
+                <View style={styles.featureCountBadge}>
+                  <Text style={styles.featureCountText}>40+ Tools</Text>
+                </View>
+              </View>
+              <Text style={styles.featureGuideSubtitle}>
+                সকল ভ্রমণ টুলস, এআই ও জরুরি সার্ভিস এক নজরে ঘুরে দেখুন
+              </Text>
+            </View>
+            <View style={styles.featureGuideArrow}>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </View>
+          </LinearGradient>
+        </Pressable>
+
+        {/* ================================================================== */}
+        {/* 3. Unified Search Card with 1-Tap Fill (Problem 2)                 */}
+        {/* ================================================================== */}
+        <View style={styles.searchCardWrapper}>
+          <UnifiedSearchCard />
+        </View>
+
+        {/* ================================================================== */}
+        {/* 4. Personalized Recommendations (ব্যক্তিগত সুপারিশ) (Problem 1 & 6) */}
+        {/* ================================================================== */}
+        <View style={styles.recSection}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Ionicons name="sparkles" size={20} color="#0055F2" />
+              <View>
+                <Text style={styles.sectionTitle}>ব্যক্তিগত সুপারিশ (Recommended for You)</Text>
+                <Text style={styles.sectionSubtitle}>আপনার জন্য বাছাইকৃত শীর্ষ হোটেল ও হলিডে প্যাকেজ</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Category Chips */}
+          <View style={styles.recTabsRow}>
+            {[
+              { id: "all", label: "সব সুপারিশ" },
+              { id: "hotel", label: "হোটেল ও রিসোর্ট" },
+              { id: "package", label: "হলিডে প্যাকেজ" },
+            ].map((tab) => {
+              const isActive = activeRecCategory === tab.id;
+              return (
+                <Pressable
+                  key={tab.id}
+                  style={[styles.recTabChip, isActive && styles.recTabChipActive]}
+                  onPress={() => {
+                    try {
+                      Haptics.selectionAsync();
+                    } catch {}
+                    setActiveRecCategory(tab.id as any);
+                  }}
+                >
+                  <Text style={[styles.recTabChipText, isActive && styles.recTabChipTextActive]}>
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Recommendations Cards */}
+          <View style={styles.recCardsList}>
+            {filteredRecommendations.map((item) => {
+              const isSaved = savedIds.has(item.id);
+              const totalWithTax = Math.round(item.basePrice * (1 + item.taxRate));
+
+              return (
+                <Pressable
+                  key={item.id}
+                  style={styles.recCard}
+                  onPress={() => router.push(item.route as any)}
+                >
+                  {/* Image */}
+                  <View style={styles.recImageWrap}>
+                    <Image source={{ uri: item.image_url }} style={styles.recImage} />
+                    <LinearGradient
+                      colors={["rgba(0,0,0,0.3)", "transparent", "rgba(0,0,0,0.7)"]}
+                      style={StyleSheet.absoluteFill}
+                    />
+
+                    {/* Badge */}
+                    {item.badge && (
+                      <View style={styles.recBadgePill}>
+                        <Text style={styles.recBadgeText}>{item.badge}</Text>
+                      </View>
+                    )}
+
+                    {/* Heart Save Button with Haptic + Toast (Problem 7) */}
+                    <Pressable
+                      style={styles.heartButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleToggleSaveRec(item);
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons
+                        name={isSaved ? "heart" : "heart-outline"}
+                        size={20}
+                        color={isSaved ? "#EF4444" : "#FFFFFF"}
+                      />
+                    </Pressable>
+
+                    {/* Rating on Image */}
+                    <View style={styles.recRatingPill}>
+                      <Ionicons name="star" size={12} color="#F59E0B" />
+                      <Text style={styles.recRatingText}>{item.rating}</Text>
+                      <Text style={styles.recReviewsText}>({item.reviewsCount})</Text>
+                    </View>
+                  </View>
+
+                  {/* Body Content */}
+                  <View style={styles.recCardBody}>
+                    <Text style={styles.recTitle} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.recSubtitle} numberOfLines={1}>
+                      {item.subtitle}
+                    </Text>
+
+                    <View style={styles.recLocRow}>
+                      <Ionicons name="location-outline" size={13} color="#64748B" />
+                      <Text style={styles.recLocText} numberOfLines={1}>
+                        {item.destination}
+                      </Text>
+                    </View>
+
+                    {/* Transparent Upfront Pricing (Problem 6) */}
+                    <View style={styles.recPriceRow}>
+                      <View>
+                        <Text style={styles.recPriceLabel}>শুরুর মূল্য</Text>
+                        <Text style={styles.recBasePrice}>
+                          {formatPrice(item.basePrice)}
+                          <Text style={styles.recNightUnit}>
+                            {item.type === "hotel" ? " / রাত" : " / জন"}
+                          </Text>
+                        </Text>
+                      </View>
+
+                      {/* Prominent Tax Included Badge */}
+                      <View style={styles.totalPriceBadge}>
+                        <Ionicons name="shield-checkmark" size={12} color="#059669" />
+                        <Text style={styles.totalPriceBadgeText}>
+                          ট্যাক্স ও ফিসহ মোট: {formatPrice(totalWithTax)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* ================================================================== */}
+        {/* 5. Trending Destinations (জনপ্রিয় গন্তব্য)                         */}
+        {/* ================================================================== */}
+        {/* ================================================================== */}
+        {/* 5. Trending Destinations (জনপ্রিয় গন্তব্য)                         */}
+        {/* Distinct 3 states: Loading, Error with Retry, Empty, Success       */}
         {/* ================================================================== */}
         <View style={styles.trendingSection}>
           <View style={styles.sectionHeaderRow}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Ionicons name="flame" size={19} color="#EF4444" />
-              <Text style={styles.sectionHeadingTitle}>Trending Destinations</Text>
+              <Ionicons name="flame" size={20} color="#EF4444" />
+              <Text style={styles.sectionTitle}>জনপ্রিয় ভ্রমণ গন্তব্য</Text>
             </View>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/screens/explore" as any);
-              }}
-            >
-              <Text style={styles.seeAllText}>See all</Text>
-            </Pressable>
+            {trendingDestinations.length > 0 && (
+              <Pressable onPress={() => router.push("/screens/explore" as any)}>
+                <Text style={styles.seeAllText}>সব দেখুন →</Text>
+              </Pressable>
+            )}
           </View>
 
-          {isInitialLoading && trendingDestinations.length === 0 ? (
-            <View style={styles.trendingCardsRow}>
+          {/* 1. Loading State */}
+          {isLoadingData && trendingDestinations.length === 0 && (
+            <View style={[styles.trendingCardsRow, { flexDirection: "row" }]}>
               {[1, 2, 3].map((skelId) => (
-                <View key={`dest-skel-${skelId}`} style={styles.trendingSkeletonBox}>
-                  <Skeleton variant="rect" width={145} height={190} borderRadius={18} />
+                <View key={`dest-skel-${skelId}`} style={[styles.destCard, { backgroundColor: colors.card }]}>
+                  <Skeleton width={140} height={180} borderRadius={16} />
                 </View>
               ))}
             </View>
-          ) : trendingDestinations.length > 0 ? (
+          )}
+
+          {/* 2. Error State with Retry Button */}
+          {!isLoadingData && fetchError && trendingDestinations.length === 0 && (
+            <ErrorStateCard
+              title="গন্তব্য লোড করা যায়নি"
+              message={fetchError}
+              onRetry={() => {
+                setIsLoadingData(true);
+                fetchData();
+              }}
+              retryText="আবার চেষ্টা করুন"
+            />
+          )}
+
+          {/* 3. Empty State */}
+          {!isLoadingData && !fetchError && trendingDestinations.length === 0 && (
+            <EmptyStateView
+              title="কোনো গন্তব্য পাওয়া যায়নি"
+              description="এই মুহূর্তে কোনো ভ্রমণ গন্তব্য তালিকাভুক্ত নেই।"
+              actionText="রিফ্রেশ করুন"
+              onAction={() => fetchData()}
+            />
+          )}
+
+          {/* 4. Success State */}
+          {trendingDestinations.length > 0 && (
             <Animated.ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.trendingCardsRow}
             >
               {trendingDestinations.map((dest) => (
-                <DestinationCard
-                  key={dest.id}
-                  dest={dest}
-                  onSelect={handleDestinationPress}
-                />
-              ))}
-            </Animated.ScrollView>
-          ) : null}
-        </View>
-
-        {/* ================================================================== */}
-        {/* Section 3: Dual Column Masonry Discovery Feed                      */}
-        {/* ================================================================== */}
-        <View style={styles.masonryFeedGrid}>
-          {/* Left Column */}
-          <View style={styles.masonryColumn}>
-            {/* Card L1: Dynamic Hero Banner (Reanimated Transform, Strictly Dynamic) */}
-            {activeHeroAd ? (
-              <Animated.View style={[styles.cardContainer, animatedHeroBannerStyle]}>
                 <Pressable
+                  key={dest.id}
+                  style={styles.destCard}
                   onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    if (activeHeroAd.target_url) {
-                      router.push(activeHeroAd.target_url as any);
-                    } else {
-                      setShowPromoModal(true);
-                    }
+                    try {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    } catch {}
+                    router.push({
+                      pathname: "/screens/search" as any,
+                      params: { q: dest.city || dest.name },
+                    });
                   }}
                 >
-                  <View style={styles.heroCardImageWrapper}>
-                    {activeHeroAd.banner_url ? (
-                      <Image
-                        source={{ uri: activeHeroAd.banner_url }}
-                        style={styles.heroCardImage}
-                      />
-                    ) : null}
-                    <LinearGradient
-                      colors={["rgba(0,0,0,0.15)", "rgba(10,37,64,0.85)"]}
-                      style={StyleSheet.absoluteFill}
-                    />
-
-                    <View style={styles.heroOverlayContent}>
-                      <Badge
-                        status="vip"
-                        variant="solid"
-                        size="sm"
-                        label="Exclusive Offer"
-                        style={{ alignSelf: "flex-start", marginBottom: 6 }}
-                      />
-                      <Text style={styles.heroBannerTitle} numberOfLines={2}>
-                        {activeHeroAd.title.split("—")[0].trim()}
-                      </Text>
-                    </View>
-
-                    <View style={styles.dealPillBanner}>
-                      <Text style={styles.dealPillText}>Special Deals</Text>
-                    </View>
-
-                    {/* Pagination Indicator */}
-                    {ads.length > 1 && (
-                      <Pressable
-                        style={styles.pageCountBadge}
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setActiveHeroAdIndex((prev) => (prev + 1) % ads.length);
-                        }}
-                      >
-                        <Text style={styles.pageCountText}>
-                          {(activeHeroAdIndex % ads.length) + 1}/{ads.length}
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-
-                  <View style={styles.heroCardFooter}>
-                    <Button
-                      label="Claim Deal"
-                      size="sm"
-                      variant="primary"
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        if (activeHeroAd.target_url) {
-                          router.push(activeHeroAd.target_url as any);
-                        } else {
-                          setShowPromoModal(true);
-                        }
-                      }}
-                    />
-                    <Text style={styles.disclaimerText}>
-                      *Verified inventory. Terms & Conditions apply.
+                  <OptimizedImage
+                    source={
+                      dest.hero_image_url ||
+                      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500"
+                    }
+                    style={styles.destImage}
+                    targetWidth={180}
+                  />
+                  <LinearGradient
+                    colors={["transparent", "rgba(15,23,42,0.85)"]}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View style={styles.destContent}>
+                    <Text style={styles.destName} numberOfLines={1}>
+                      {dest.name}
+                    </Text>
+                    <Text style={styles.destCountry} numberOfLines={1}>
+                      {dest.city ? `${dest.city}, ` : ""}{dest.country || "বাংলাদেশ"}
                     </Text>
                   </View>
                 </Pressable>
-              </Animated.View>
-            ) : isInitialLoading ? (
-              <View style={styles.heroSkeletonWrap}>
-                <Skeleton variant="card" width="100%" height={180} borderRadius={18} />
-              </View>
-            ) : null}
-
-            {/* Left Column Feed Items: Interleaving Posts and Hotels */}
-            {leftPosts.map((post, postIdx) => {
-              const matchedHotel = leftHotels[postIdx];
-              const isLiked = likedPostIds.has(post.id);
-              const postImage =
-                post.media?.[0]?.media_url ||
-                "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=500";
-              const authorAvatar =
-                post.author?.avatar_url ||
-                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
-              const authorName =
-                post.author?.username || post.author?.display_name || "Traveler";
-              const viewsCount = post.metadata?.views_count || post.likes_count * 2 || 350;
-
-              return (
-                <React.Fragment key={`l-feed-${post.id}`}>
-                  {/* Community Post Card */}
-                  <Pressable
-                    style={styles.cardContainer}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push({
-                        pathname: "/(tabs)/community" as any,
-                        params: { postId: post.id },
-                      });
-                    }}
-                  >
-                    <Image source={{ uri: postImage }} style={styles.postCardImage} />
-                    <View style={styles.cardContentPadding}>
-                      <Text style={styles.postCardTitle} numberOfLines={2}>
-                        {post.title}
-                      </Text>
-
-                      <View style={styles.postAuthorRow}>
-                        <Pressable
-                          style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 6 }}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            const authorId = post.author?.id || post.user_id;
-                            if (authorId) {
-                              router.push({
-                                pathname: "/screens/user-profile" as any,
-                                params: { userId: authorId },
-                              });
-                            }
-                          }}
-                        >
-                          <Image source={{ uri: authorAvatar }} style={styles.authorAvatar} />
-                          <Text style={styles.authorName} numberOfLines={1}>
-                            {authorName}
-                          </Text>
-                        </Pressable>
-
-                        <View style={styles.postStatsContainer}>
-                          <View style={styles.viewsCounter}>
-                            <Ionicons name="eye-outline" size={11} color="#94A3B8" />
-                            <Text style={styles.viewsCountText}>{viewsCount}</Text>
-                          </View>
-
-                          {/* Like Button */}
-                          <Pressable
-                            style={styles.likeButton}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              handleToggleLike(post);
-                            }}
-                          >
-                            <Ionicons
-                              name={isLiked ? "heart" : "heart-outline"}
-                              size={14}
-                              color={isLiked ? "#EF4444" : "#94A3B8"}
-                            />
-                            <Text
-                              style={[
-                                styles.likeCountNumber,
-                                isLiked && styles.likeCountNumberActive,
-                              ]}
-                            >
-                              {post.likes_count}
-                            </Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  </Pressable>
-
-                  {/* Interleaved Hotel Card (if available) */}
-                  {matchedHotel && (
-                    <Pressable
-                      key={`l-hotel-${matchedHotel.id}`}
-                      style={styles.cardContainer}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        router.push({
-                          pathname: "/screens/search-stays" as any,
-                          params: { hotelId: matchedHotel.id },
-                        });
-                      }}
-                    >
-                      <View style={{ position: "relative" }}>
-                        <Image
-                          source={{
-                            uri:
-                              matchedHotel.image_url ||
-                              "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500",
-                          }}
-                          style={styles.hotelCardImage}
-                        />
-                        <View style={styles.hotelLocationPill}>
-                          <Ionicons name="location-sharp" size={10} color="#FFFFFF" />
-                          <Text style={styles.hotelLocationText}>{matchedHotel.city}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.cardContentPadding}>
-                        <Text style={styles.hotelCardName} numberOfLines={2}>
-                          {matchedHotel.name}
-                        </Text>
-                        <View style={styles.hotelPriceRow}>
-                          <View style={styles.starRow}>
-                            {Array.from({
-                              length: Math.min(5, Math.round(Number(matchedHotel.star_rating) || 5)),
-                            }).map((_, i) => (
-                              <Ionicons key={i} name="star" size={10} color="#F59E0B" />
-                            ))}
-                          </View>
-                          {matchedHotel.base_price ? (
-                            <Text style={styles.hotelPrice}>
-                              ${matchedHotel.base_price}
-                              <Text style={styles.hotelNightText}>/nt</Text>
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
-                    </Pressable>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </View>
-
-          {/* Right Column */}
-          <View style={styles.masonryColumn}>
-            {/* Card R1: Dynamic Secondary Promo Card from Repository */}
-            {secondaryAd ? (
-              <Pressable
-                style={styles.cardContainer}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push((secondaryAd.target_url || "/screens/flights") as any);
-                }}
-              >
-                <LinearGradient
-                  colors={["#0284C7", "#0369A1"]}
-                  style={styles.dealGradientCard}
-                >
-                  <View style={styles.dealHeaderRow}>
-                    <Text style={styles.dealHeaderTitle} numberOfLines={1}>
-                      {secondaryAd.title ? secondaryAd.title.split("—")[0].trim() : "Featured Deal"}
-                    </Text>
-                    <Badge
-                      status="verified"
-                      variant="solid"
-                      size="sm"
-                      label="VERIFIED"
-                    />
-                  </View>
-
-                  <Text style={styles.dealSubtitle} numberOfLines={2}>
-                    {secondaryAd.title}
-                  </Text>
-
-                  <View style={styles.promoTagBox}>
-                    <Text style={styles.promoTagText}>SPECIAL OFFER</Text>
-                  </View>
-                </LinearGradient>
-              </Pressable>
-            ) : null}
-
-            {/* Right Column Feed Items: Interleaving Hotels and Posts */}
-            {rightPosts.map((post, postIdx) => {
-              const matchedHotel = rightHotels[postIdx];
-              const isLiked = likedPostIds.has(post.id);
-              const postImage =
-                post.media?.[0]?.media_url ||
-                "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=500";
-              const authorAvatar =
-                post.author?.avatar_url ||
-                "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100";
-              const authorName =
-                post.author?.username || post.author?.display_name || "Traveler";
-              const viewsCount = post.metadata?.views_count || post.likes_count * 2 || 210;
-
-              return (
-                <React.Fragment key={`r-feed-${post.id}`}>
-                  {/* Interleaved Hotel Card (if available) */}
-                  {matchedHotel && (
-                    <Pressable
-                      key={`r-hotel-${matchedHotel.id}`}
-                      style={styles.cardContainer}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        router.push({
-                          pathname: "/screens/search-stays" as any,
-                          params: { hotelId: matchedHotel.id },
-                        });
-                      }}
-                    >
-                      <View style={{ position: "relative" }}>
-                        <Image
-                          source={{
-                            uri:
-                              matchedHotel.image_url ||
-                              "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500",
-                          }}
-                          style={styles.featuredHotelImage}
-                        />
-                        <View style={styles.hotelSelectBadgeBox}>
-                          <Text style={styles.hotelSelectCity}>{matchedHotel.city}</Text>
-                          <Text style={styles.hotelSelectSubtitle}>Top Choice</Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.cardContentPadding}>
-                        <Text style={styles.hotelCardName} numberOfLines={2}>
-                          {matchedHotel.name}
-                        </Text>
-
-                        <View style={styles.hotelPriceRow}>
-                          <Badge
-                            status="warning"
-                            variant="subtle"
-                            size="sm"
-                            label="Trip.Best"
-                          />
-                          {matchedHotel.base_price ? (
-                            <Text style={styles.hotelPrice}>
-                              ${matchedHotel.base_price}
-                              <Text style={styles.hotelNightText}>/nt</Text>
-                            </Text>
-                          ) : null}
-                        </View>
-
-                        <Text style={styles.recentViewersText}>
-                          Viewed by travelers recently
-                        </Text>
-                      </View>
-                    </Pressable>
-                  )}
-
-                  {/* Dynamic Community Post Card */}
-                  <Pressable
-                    style={styles.cardContainer}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push({
-                        pathname: "/(tabs)/community" as any,
-                        params: { postId: post.id },
-                      });
-                    }}
-                  >
-                    <Image source={{ uri: postImage }} style={styles.postCardImageTall} />
-                    <View style={styles.cardContentPadding}>
-                      <Text style={styles.postCardTitle} numberOfLines={2}>
-                        {post.title}
-                      </Text>
-
-                      <View style={styles.postAuthorRow}>
-                        <Pressable
-                          style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 6 }}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            const authorId = post.author?.id || post.user_id;
-                            if (authorId) {
-                              router.push({
-                                pathname: "/screens/user-profile" as any,
-                                params: { userId: authorId },
-                              });
-                            }
-                          }}
-                        >
-                          <Image source={{ uri: authorAvatar }} style={styles.authorAvatar} />
-                          <Text style={styles.authorName} numberOfLines={1}>
-                            {authorName}
-                          </Text>
-                        </Pressable>
-
-                        <View style={styles.postStatsContainer}>
-                          <View style={styles.viewsCounter}>
-                            <Ionicons name="eye-outline" size={11} color="#94A3B8" />
-                            <Text style={styles.viewsCountText}>{viewsCount}</Text>
-                          </View>
-
-                          {/* Interactive Like Button */}
-                          <Pressable
-                            style={styles.likeButton}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              handleToggleLike(post);
-                            }}
-                          >
-                            <Ionicons
-                              name={isLiked ? "heart" : "heart-outline"}
-                              size={14}
-                              color={isLiked ? "#EF4444" : "#94A3B8"}
-                            />
-                            <Text
-                              style={[
-                                styles.likeCountNumber,
-                                isLiked && styles.likeCountNumberActive,
-                              ]}
-                            >
-                              {post.likes_count}
-                            </Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  </Pressable>
-                </React.Fragment>
-              );
-            })}
-          </View>
+              ))}
+            </Animated.ScrollView>
+          )}
         </View>
 
-        {/* Bottom Tab Inset Spacer */}
-        <View style={{ height: 110, backgroundColor: "#F8FAFC" }} />
+        {/* ================================================================== */}
+        {/* 6. Special Voucher Banner                                          */}
+        {/* ================================================================== */}
+        <Pressable
+          style={styles.bannerContainer}
+          onPress={() => setShowPromoModal(true)}
+        >
+          <LinearGradient
+            colors={["#1E3A8A", "#1D4ED8"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.bannerGradient}
+          >
+            <View style={{ flex: 1, gap: 4 }}>
+              <Badge status="vip" variant="solid" size="sm" label="এক্সক্লুসিভ অফার" />
+              <Text style={styles.bannerTitle}>নতুন ব্যবহারকারীদের জন্য বিশেষ ছাড়!</Text>
+              <Text style={styles.bannerSubtitle}>প্রথম বুকিংয়ে সর্বোচ্চ ১৫% পর্যন্ত ভাউচার ক্লেম করুন</Text>
+            </View>
+            <View style={styles.bannerBtn}>
+              <Text style={styles.bannerBtnText}>ক্লেম করুন</Text>
+            </View>
+          </LinearGradient>
+        </Pressable>
+
+        <View style={{ height: 120 }} />
       </Animated.ScrollView>
 
-      {/* Promo Voucher Overlay Modal */}
+      {/* Promo Modal */}
       <PromoExclusiveModal
         visible={showPromoModal}
         onClose={() => setShowPromoModal(false)}
         onClaimAll={() => setShowPromoModal(false)}
+      />
+
+      {/* 40+ Feature Discovery Directory & Tour Guide Modal */}
+      <FeatureDiscoveryModal
+        visible={showAllServicesModal}
+        onClose={() => setShowAllServicesModal(false)}
       />
     </SafeAreaView>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPONENT STYLESHEET (PRODUCTION-TIER TYPOGRAPHY & LAYOUT STABILITY)
+// STYLES
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  featureGuideBanner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 6,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#0055F2",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.2)" } : {}),
+  },
+  featureGuideGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  featureGuideIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  featureGuideTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  featureCountBadge: {
+    backgroundColor: "#FACC15",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  featureCountText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  featureGuideSubtitle: {
+    fontSize: 11,
+    color: "#E0F2FE",
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  featureGuideArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   shell: {
     flex: 1,
     backgroundColor: TRIP_BLUE,
   },
   scrollContent: {
-    backgroundColor: TRIP_BLUE,
+    backgroundColor: "#F8FAFC",
   },
-  topSectionWrapper: {
+  topHeader: {
     backgroundColor: TRIP_BLUE,
-  },
-  headerBar: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 14,
-    backgroundColor: TRIP_BLUE,
-  },
-  headerLeftContainer: {
-    justifyContent: "center",
-  },
-  logoPressArea: {
-    paddingVertical: 1,
   },
   brandTitle: {
-    color: "#FFFFFF",
-    fontSize: 27,
+    fontSize: 26,
     fontWeight: "900",
-    letterSpacing: -0.6,
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
   },
-  greetingSubtitle: {
-    color: "rgba(255, 255, 255, 0.8)",
-    fontSize: 12,
+  greetingText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
     fontWeight: "600",
-    marginTop: 1,
+    marginTop: 2,
   },
-  headerRightActions: {
+  headerRightRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
   },
-  offlineBadge: {
-    marginRight: 8,
-  },
-  rewardsButton: {
+  savedHeaderBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 20,
     gap: 5,
   },
-  goldCoinGradient: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  goldCoinSymbol: {
-    color: "#78350F",
-    fontWeight: "900",
-    fontSize: 12,
-  },
-  rewardsLabel: {
+  savedHeaderText: {
     color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "800",
+    fontSize: 12,
+    fontWeight: "700",
   },
-  curvedSheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingTop: 16,
-    paddingBottom: 12,
-    marginTop: -1,
-  },
-  quickGridHeader: {
-    paddingHorizontal: 18,
-    marginBottom: 12,
-  },
-  quickGridTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#0F172A",
-    letterSpacing: -0.2,
-  },
-  quickGridSubtitle: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#64748B",
-    marginTop: 1,
-  },
-  // Modular 6-Service Grid
-  serviceGrid: {
+  pointsBtn: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    rowGap: 12,
-  },
-  serviceCard: {
-    width: "31%",
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 5,
   },
-  serviceCardPressed: {
-    opacity: 0.72,
-    transform: [{ scale: 0.96 }],
-  },
-  serviceIconContainer: {
-    position: "relative",
-    marginBottom: 6,
-  },
-  serviceIconGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  coinDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
+  },
+  coinText: {
+    fontSize: 10,
+    color: "#854D0E",
+    fontWeight: "900",
+  },
+  pointsText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  servicesContainer: {
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 16,
+    marginTop: -8,
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.08)" } : {}),
+  },
+  primaryServicesGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  serviceActionCard: {
+    flex: 1,
+    alignItems: "center",
+  },
+  serviceIconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
-    shadowRadius: 5,
+    shadowRadius: 6,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 6px rgba(15, 23, 42, 0.15)" } : {}),
   },
-  serviceMiniTag: {
-    position: "absolute",
-    top: -4,
-    right: -10,
-    backgroundColor: "#EF4444",
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-    borderRadius: 6,
-  },
-  serviceMiniTagText: {
-    color: "#FFFFFF",
-    fontSize: 8,
-    fontWeight: "900",
-    letterSpacing: 0.3,
-  },
-  serviceCardTitle: {
-    fontSize: 12,
+  serviceLabel: {
+    fontSize: 14,
     fontWeight: "800",
     color: "#0F172A",
     textAlign: "center",
   },
-  serviceCardSubtitle: {
-    fontSize: 9,
+  serviceSublabel: {
+    fontSize: 10,
     fontWeight: "600",
     color: "#64748B",
+    marginTop: 2,
     textAlign: "center",
-    marginTop: 1,
   },
-  // Sticky Search Bar & Sub-Actions
-  stickySearchWrapper: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
+  expandServicesBtn: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    alignItems: "center",
+  },
+  expandServicesText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0055F2",
+  },
+  secondaryServicesGrid: {
+    marginTop: 12,
     paddingTop: 8,
-    paddingBottom: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-  },
-  searchBarPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F1F5F9",
-    borderRadius: 24,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    marginBottom: 8,
-  },
-  aiAssistantIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#E0ECFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  searchInputTouchArea: {
-    flex: 1,
-    paddingHorizontal: 10,
-  },
-  searchInputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1E293B",
-  },
-  searchActionSubmit: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: TRIP_BLUE,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: TRIP_BLUE,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  chipsScrollContent: {
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
     gap: 8,
-    paddingVertical: 4,
-    alignItems: "center",
   },
-  chipPill: {
+  secondaryServiceItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
     backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 10,
+    gap: 12,
   },
-  chipPillActive: {
-    backgroundColor: TRIP_LIGHT_BLUE,
-    borderColor: TRIP_BLUE,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#334155",
-  },
-  chipTextActive: {
-    color: TRIP_BLUE,
-    fontWeight: "800",
-  },
-  mapActionChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: TRIP_LIGHT_BLUE,
-  },
-  mapActionText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: TRIP_BLUE,
-  },
-  quickActionsBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 10,
-    paddingBottom: 6,
-  },
-  quickActionItem: {
-    alignItems: "center",
-    gap: 4,
-  },
-  quickActionIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F8FAFC",
+  secondaryIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
   },
-  quickActionLabel: {
-    fontSize: 11,
+  secondaryLabel: {
+    fontSize: 13,
     fontWeight: "700",
-    color: "#475569",
-  },
-  feedTabsContainer: {
-    flexDirection: "row",
-    gap: 12,
-    paddingTop: 10,
-    paddingBottom: 2,
-  },
-  feedTabPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-  },
-  feedTabPillActive: {},
-  feedTabText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#94A3B8",
-  },
-  feedTabTextActive: {
     color: "#0F172A",
-    fontWeight: "900",
   },
-  tabActiveIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: ACCENT_YELLOW,
+  secondarySublabel: {
+    fontSize: 11,
+    color: "#64748B",
   },
-  // Trending Section
-  trendingSection: {
-    backgroundColor: "#FFFFFF",
-    paddingTop: 14,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+  searchCardWrapper: {
+    marginTop: 16,
+  },
+  recSection: {
+    marginTop: 24,
+    paddingHorizontal: 16,
   },
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  sectionHeadingTitle: {
-    fontSize: 15,
-    fontWeight: "900",
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "800",
     color: "#0F172A",
   },
-  seeAllText: {
+  sectionSubtitle: {
     fontSize: 12,
-    fontWeight: "800",
-    color: TRIP_BLUE,
+    color: "#64748B",
+    marginTop: 2,
   },
-  trendingCardsRow: {
-    paddingHorizontal: 16,
-    gap: 12,
+  recTabsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
   },
-  trendingSkeletonBox: {
-    width: 145,
-    height: 190,
-  },
-  trendingCard: {
-    width: 145,
-    height: 190,
-    borderRadius: 18,
-    overflow: "hidden",
+  recTabChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
     backgroundColor: "#E2E8F0",
-    position: "relative",
   },
-  trendingCardImage: {
-    width: "100%",
-    height: "100%",
+  recTabChipActive: {
+    backgroundColor: "#0055F2",
   },
-  trendingCardGradient: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 110,
+  recTabChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475569",
   },
-  trendingCardTopRow: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-  },
-  trendingRatingBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: "rgba(15, 23, 42, 0.65)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  trendingRatingText: {
+  recTabChipTextActive: {
     color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "800",
   },
-  trendingCardContent: {
-    position: "absolute",
-    left: 10,
-    right: 10,
-    bottom: 10,
+  recCardsList: {
+    gap: 16,
   },
-  trendingCardName: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  trendingCardCountry: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 11,
-    fontWeight: "600",
-    marginTop: 1,
-  },
-  trendingPromoPill: {
-    backgroundColor: "#EF4444",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    alignSelf: "flex-start",
-    marginTop: 4,
-  },
-  trendingPromoPillText: {
-    color: "#FFFFFF",
-    fontSize: 9,
-    fontWeight: "900",
-  },
-  // Masonry Discovery Feed
-  masonryFeedGrid: {
-    flexDirection: "row",
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    gap: 10,
-  },
-  masonryColumn: {
-    flex: 1,
-    gap: 10,
-  },
-  cardContainer: {
+  recCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
     overflow: "hidden",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 8px rgba(15, 23, 42, 0.06)" } : {}),
   },
-  heroSkeletonWrap: {
-    height: 180,
-    borderRadius: 18,
-    overflow: "hidden",
-  },
-  heroCardImageWrapper: {
+  recImageWrap: {
+    height: 170,
     position: "relative",
-    height: 155,
-    backgroundColor: TRIP_NAVY,
   },
-  heroCardImage: {
+  recImage: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#E2E8F0",
+  },
+  recBadgePill: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: "#059669",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  recBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  heartButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recRatingPill: {
+    position: "absolute",
+    bottom: 10,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 3,
+  },
+  recRatingText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  recReviewsText: {
+    fontSize: 11,
+    color: "#64748B",
+  },
+  recCardBody: {
+    padding: 14,
+    gap: 5,
+  },
+  recTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  recSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+  recLocRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  recLocText: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  recPriceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  recPriceLabel: {
+    fontSize: 10,
+    color: "#94A3B8",
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  recBasePrice: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
+  recNightUnit: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  totalPriceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  totalPriceBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#065F46",
+  },
+  trendingSection: {
+    marginTop: 24,
+    paddingHorizontal: 16,
+  },
+  seeAllText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0055F2",
+  },
+  trendingCardsRow: {
+    gap: 12,
+    paddingVertical: 6,
+  },
+  destCard: {
+    width: 140,
+    minHeight: 180,
+    borderRadius: 16,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#E2E8F0",
+  },
+  destImage: {
     width: "100%",
     height: "100%",
   },
-  heroOverlayContent: {
+  destContent: {
     position: "absolute",
-    top: 10,
+    bottom: 12,
     left: 10,
     right: 10,
   },
-  heroBannerTitle: {
-    color: "#FFFFFF",
+  destName: {
     fontSize: 14,
-    fontWeight: "900",
-    lineHeight: 18,
-  },
-  dealPillBanner: {
-    position: "absolute",
-    bottom: 8,
-    left: 10,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  dealPillText: {
-    color: "#FFFFFF",
-    fontSize: 10,
     fontWeight: "800",
-  },
-  heroCardFooter: {
-    padding: 10,
-  },
-  disclaimerText: {
-    fontSize: 9,
-    color: "#94A3B8",
-    textAlign: "center",
-    marginTop: 6,
-  },
-  pageCountBadge: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  pageCountText: {
     color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "800",
   },
-  dealGradientCard: {
-    padding: 14,
+  destCountry: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.8)",
+  },
+  bannerContainer: {
+    marginHorizontal: 16,
+    marginTop: 24,
     borderRadius: 18,
+    overflow: "hidden",
   },
-  dealHeaderRow: {
+  bannerGradient: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
+    padding: 18,
+    gap: 12,
   },
-  dealHeaderTitle: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "900",
-    flex: 1,
-    marginRight: 6,
-  },
-  dealSubtitle: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-    lineHeight: 16,
-  },
-  promoTagBox: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: "flex-start",
-    marginTop: 8,
-  },
-  promoTagText: {
-    color: "#FFFFFF",
-    fontSize: 9,
-    fontWeight: "900",
-  },
-  postCardImage: {
-    width: "100%",
-    height: 155,
-  },
-  postCardImageTall: {
-    width: "100%",
-    height: 175,
-  },
-  cardContentPadding: {
-    padding: 10,
-  },
-  postCardTitle: {
-    fontSize: 13,
+  bannerTitle: {
+    fontSize: 15,
     fontWeight: "800",
-    color: "#0F172A",
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  postAuthorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  authorAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#E2E8F0",
-  },
-  authorName: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#475569",
-    flex: 1,
-  },
-  postStatsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  viewsCounter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  viewsCountText: {
-    fontSize: 10,
-    color: "#94A3B8",
-    fontWeight: "600",
-  },
-  likeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    paddingVertical: 2,
-    paddingHorizontal: 2,
-  },
-  likeCountNumber: {
-    fontSize: 11,
-    color: "#94A3B8",
-    fontWeight: "700",
-  },
-  likeCountNumberActive: {
-    color: "#EF4444",
-  },
-  hotelCardImage: {
-    width: "100%",
-    height: 115,
-  },
-  featuredHotelImage: {
-    width: "100%",
-    height: 125,
-  },
-  hotelLocationPill: {
-    position: "absolute",
-    bottom: 6,
-    left: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  hotelLocationText: {
     color: "#FFFFFF",
-    fontSize: 9,
-    fontWeight: "700",
   },
-  hotelSelectBadgeBox: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
+  bannerSubtitle: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.85)",
   },
-  hotelSelectCity: {
+  bannerBtn: {
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  bannerBtnText: {
     fontSize: 12,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
-  hotelSelectSubtitle: {
-    fontSize: 8,
-    color: "#475569",
-    fontWeight: "600",
-  },
-  hotelCardName: {
-    fontSize: 13,
     fontWeight: "800",
-    color: "#0F172A",
-    marginBottom: 4,
-  },
-  hotelPriceRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  starRow: {
-    flexDirection: "row",
-    gap: 1.5,
-  },
-  hotelPrice: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
-  hotelNightText: {
-    fontSize: 10,
-    color: "#64748B",
-    fontWeight: "500",
-  },
-  recentViewersText: {
-    fontSize: 9,
-    color: "#94A3B8",
-    marginTop: 2,
+    color: "#0055F2",
   },
 });

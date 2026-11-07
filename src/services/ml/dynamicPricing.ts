@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 /**
  * Algorithmic Dynamic Pricing & Fare Guarantee Engine (Client ML/Heuristic Service).
  *

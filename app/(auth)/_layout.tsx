@@ -7,6 +7,7 @@ export default function AuthLayout() {
         headerShown: false,
       }}
     >
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="login" />
       <Stack.Screen name="callback" />
       <Stack.Screen name="otp" />

@@ -140,13 +140,19 @@ export interface ScreenRoutesParams {
     bookingReference?: string;
     bookingId?: string;
   };
-  "/screens/payments-enhanced": {
+  /** @deprecated Use /screens/payments instead */
+  "/screens/payments-enhanced"?: {
     bookingId?: string;
-  } | undefined;
+    amount?: string | number;
+    reference?: string;
+  };
   "/screens/transaction-history": undefined;
-  "/screens/profile": undefined;
-  "/screens/user-profile": {
-    userId: string;
+  "/screens/profile": {
+    userId?: string;
+  } | undefined;
+  /** @deprecated Use /screens/profile instead */
+  "/screens/user-profile"?: {
+    userId?: string;
   };
   "/screens/settings": undefined;
   "/screens/reviews": {
@@ -172,6 +178,8 @@ export interface ScreenRoutesParams {
   };
   "/screens/events": undefined;
   "/screens/invite-earn": undefined;
+  "/screens/agencies": undefined;
+  /** @deprecated Use /screens/customer-support instead */
   "/screens/help": undefined;
   "/screens/emergency": undefined;
   "/screens/offline-survival": undefined;

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Clipboard,
   Dimensions,
   FlatList,
   Image,
@@ -44,6 +46,12 @@ export function DirectChatModal({
 
   const otherUser = conversation.other_participant;
   const flatListRef = useRef<FlatList>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
+  }, []);
 
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [inputText, setInputText] = useState("");
@@ -51,6 +59,8 @@ export function DirectChatModal({
   const [isSending, setIsSending] = useState(false);
   const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null);
   const [selectedMediaType, setSelectedMediaType] = useState<"image" | "video" | null>(null);
+  const [selectedContextMenuMsg, setSelectedContextMenuMsg] = useState<DirectMessage | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<DirectMessage | null>(null);
 
   // Load messages and subscribe to realtime updates
   useEffect(() => {
@@ -106,7 +116,11 @@ export function DirectChatModal({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsSending(true);
 
-    const textToSend = inputText.trim() || (selectedMediaType === "video" ? "Shared a travel video clip 🎥" : "Shared a photo 📷");
+    let textToSend = inputText.trim() || (selectedMediaType === "video" ? "Shared a travel video clip 🎥" : "Shared a photo 📷");
+    if (replyingToMessage) {
+      textToSend = `[রিপ্লাই: "${replyingToMessage.content.slice(0, 35)}..."]\n${textToSend}`;
+      setReplyingToMessage(null);
+    }
     const mediaUrl = selectedMediaUrl || undefined;
     const mediaType = selectedMediaType || undefined;
 
@@ -120,6 +134,7 @@ export function DirectChatModal({
       media_url: mediaUrl,
       media_type: mediaType,
       is_read: false,
+      status: "sending",
       created_at: new Date().toISOString(),
     };
 
@@ -137,12 +152,64 @@ export function DirectChatModal({
         mediaType
       );
       setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? savedMsg : m))
+        prev.map((m) => (m.id === tempId ? { ...savedMsg, status: "sent" } : m))
       );
     } catch (e) {
       console.warn("Send direct message error:", e);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, status: "failed" } : m))
+      );
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleRetryFailedMessage = async (msg: DirectMessage) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msg.id ? { ...m, status: "sending" } : m))
+    );
+    try {
+      const savedMsg = await messengerRepository.sendMessage(
+        conversation.id,
+        currentUserId,
+        msg.content,
+        msg.media_url,
+        msg.media_type
+      );
+      setMessages((prev) =>
+        prev.map((m) => (m.id === msg.id ? { ...savedMsg, status: "sent" } : m))
+      );
+    } catch (e) {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === msg.id ? { ...m, status: "failed" } : m))
+      );
+    }
+  };
+
+  const renderStatus = (status?: DirectMessage["status"], msgItem?: DirectMessage) => {
+    switch (status) {
+      case "sending":
+        return <Ionicons name="time-outline" size={12} color="#94A3B8" />;
+      case "sent":
+        return <Ionicons name="checkmark" size={13} color="#94A3B8" />;
+      case "delivered":
+        return <Ionicons name="checkmark-done" size={13} color="#94A3B8" />;
+      case "read":
+        return <Ionicons name="checkmark-done" size={13} color="#38BDF8" />;
+      case "failed":
+        return (
+          <Pressable
+            style={styles.failedStatusRow}
+            onPress={() => msgItem && handleRetryFailedMessage(msgItem)}
+            hitSlop={6}
+          >
+            <Ionicons name="alert-circle" size={13} color="#EF4444" />
+            <Text style={styles.retryStatusText}>আবার পাঠান</Text>
+          </Pressable>
+        );
+      default:
+        return <Ionicons name="checkmark" size={13} color="#94A3B8" />;
     }
   };
 
@@ -176,7 +243,18 @@ export function DirectChatModal({
           </Pressable>
         )}
 
-        <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
+        <Pressable
+          onLongPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setSelectedContextMenuMsg(item);
+          }}
+          delayLongPress={280}
+          style={({ pressed }) => [
+            styles.bubble,
+            isMe ? styles.bubbleMe : styles.bubbleThem,
+            pressed && { opacity: 0.9 },
+          ]}
+        >
           {item.media_url && item.media_type === "video" && (
             <View style={styles.bubbleMediaWrapper}>
               <TravelVideoPlayer videoUrl={item.media_url} height={180} borderRadius={10} />
@@ -199,13 +277,16 @@ export function DirectChatModal({
             </Text>
           )}
 
-          <Text style={[styles.msgTime, isMe ? styles.msgTimeMe : styles.msgTimeThem]}>
-            {new Date(item.created_at).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </Text>
-        </View>
+          <View style={styles.msgFooterRow}>
+            <Text style={[styles.msgTime, isMe ? styles.msgTimeMe : styles.msgTimeThem]}>
+              {new Date(item.created_at).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+            {isMe && renderStatus(item.status || "sent", item)}
+          </View>
+        </Pressable>
       </View>
     );
   };
@@ -305,6 +386,26 @@ export function DirectChatModal({
           </View>
         )}
 
+        {/* Reply Preview Bar */}
+        {replyingToMessage && (
+          <View style={styles.replyPreviewBar}>
+            <View style={styles.replyBarLeft}>
+              <Ionicons name="arrow-undo" size={16} color={TRIP_BLUE} />
+              <View style={{ flex: 1, marginStart: 8 }}>
+                <Text style={styles.replySenderText}>
+                  {replyingToMessage.sender_id === currentUserId ? "আপনাকে" : (otherUser?.display_name || "বার্তা")} রিপ্লাই করছেন
+                </Text>
+                <Text style={styles.replySnippetText} numberOfLines={1}>
+                  {replyingToMessage.content}
+                </Text>
+              </View>
+            </View>
+            <Pressable onPress={() => setReplyingToMessage(null)} hitSlop={8}>
+              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            </Pressable>
+          </View>
+        )}
+
         {/* Composer Bar */}
         <View style={styles.composerBar}>
           <Pressable style={styles.mediaPickerBtn} onPress={attachPhotoPreset}>
@@ -337,6 +438,82 @@ export function DirectChatModal({
             <Ionicons name="send" size={16} color="#fff" />
           </Pressable>
         </View>
+
+        {/* Long-Press Context Menu Modal */}
+        <Modal
+          visible={!!selectedContextMenuMsg}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedContextMenuMsg(null)}
+        >
+          <Pressable
+            style={styles.contextModalOverlay}
+            onPress={() => setSelectedContextMenuMsg(null)}
+          >
+            {selectedContextMenuMsg && (
+              <View style={styles.contextModalCard}>
+                <View style={styles.contextModalHeader}>
+                  <Text style={styles.contextModalTitle}>বার্তার বিকল্প</Text>
+                  <Text style={styles.contextModalSnippet} numberOfLines={1}>
+                    "{selectedContextMenuMsg.content}"
+                  </Text>
+                </View>
+
+                <Pressable
+                  style={styles.contextActionRow}
+                  onPress={() => {
+                    Clipboard.setString(selectedContextMenuMsg.content);
+                    setSelectedContextMenuMsg(null);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Alert.alert("কপি সম্পন্ন", "বার্তা ক্লিপবোর্ডে কপি করা হয়েছে 📋");
+                  }}
+                >
+                  <Ionicons name="copy-outline" size={18} color="#0F172A" />
+                  <Text style={styles.contextActionText}>কপি করুন (Copy)</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.contextActionRow}
+                  onPress={() => {
+                    setReplyingToMessage(selectedContextMenuMsg);
+                    setSelectedContextMenuMsg(null);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                >
+                  <Ionicons name="arrow-undo-outline" size={18} color={TRIP_BLUE} />
+                  <Text style={[styles.contextActionText, { color: TRIP_BLUE }]}>রিপ্লাই দিন (Reply)</Text>
+                </Pressable>
+
+                {selectedContextMenuMsg.status === "failed" && (
+                  <Pressable
+                    style={styles.contextActionRow}
+                    onPress={() => {
+                      const target = selectedContextMenuMsg;
+                      setSelectedContextMenuMsg(null);
+                      handleRetryFailedMessage(target);
+                    }}
+                  >
+                    <Ionicons name="refresh-outline" size={18} color="#DC2626" />
+                    <Text style={[styles.contextActionText, { color: "#DC2626" }]}>আবার পাঠান (Retry)</Text>
+                  </Pressable>
+                )}
+
+                <Pressable
+                  style={[styles.contextActionRow, { borderBottomWidth: 0 }]}
+                  onPress={() => {
+                    const targetId = selectedContextMenuMsg.id;
+                    setSelectedContextMenuMsg(null);
+                    setMessages((prev) => prev.filter((m) => m.id !== targetId));
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  <Text style={[styles.contextActionText, { color: "#EF4444" }]}>মুছুন (Delete)</Text>
+                </Pressable>
+              </View>
+            )}
+          </Pressable>
+        </Modal>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -360,7 +537,7 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     padding: 6,
-    marginRight: 6,
+    marginEnd: 6,
   },
   headerUserInfo: {
     flex: 1,
@@ -546,5 +723,103 @@ const styles = StyleSheet.create({
   sendBtnDisabled: {
     backgroundColor: "#CBD5E1",
   },
+  msgFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+    marginTop: 4,
+  },
+  failedStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  retryStatusText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#EF4444",
+  },
+  replyPreviewBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F0F7FF",
+    borderLeftWidth: 3,
+    borderLeftColor: TRIP_BLUE,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 12,
+    marginBottom: 6,
+    borderRadius: 8,
+  },
+  replyBarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  replySenderText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: TRIP_BLUE,
+  },
+  replySnippetText: {
+    fontSize: 12,
+    color: "#475569",
+    marginTop: 1,
+  },
+  contextModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  contextModalCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.15)" } : {}),
+  },
+  contextModalHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: 10,
+    marginBottom: 8,
+  },
+  contextModalTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  contextModalSnippet: {
+    fontSize: 13,
+    color: "#0F172A",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  contextActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F8FAFC",
+  },
+  contextActionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
 });
-

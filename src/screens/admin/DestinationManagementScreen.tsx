@@ -23,7 +23,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { destinationService, adminService } from "@/services/adminService";
 import { DestinationCMS, AdminUser } from "@/types/admin";
 
-const { width } = Dimensions.get("window");
+
 
 /**
  * Destination Category Badge
@@ -386,7 +386,7 @@ export const DestinationManagementScreen: React.FC<{
               onPress={handleDestinationPress}
             />
           )}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => item?.id ? String(item.id) : `dest-${index}`}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardIcon: {
-    marginRight: 12,
+    marginEnd: 12,
   },
   iconGradient: {
     width: 48,
@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   actionOptionContent: {
     flex: 1,

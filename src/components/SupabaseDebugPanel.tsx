@@ -118,7 +118,7 @@ export const SupabaseDebugPanel = ({
           <Text style={styles.sectionTitle}>Quick Actions</Text>
 
           <Pressable
-            style={[styles.button, styles.checkButton]}
+            style={[styles.button, styles.checkButton, loading && { opacity: 0.5 }]}
             onPress={checkStatus}
             disabled={loading}
           >
@@ -127,7 +127,7 @@ export const SupabaseDebugPanel = ({
           </Pressable>
 
           <Pressable
-            style={[styles.button, styles.testButton]}
+            style={[styles.button, styles.testButton, loading && { opacity: 0.5 }]}
             onPress={runTests}
             disabled={loading}
           >
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    marginRight: 12,
+    marginEnd: 12,
   },
   statusGreen: {
     backgroundColor: "#10B981",
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   userId: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#666",
     fontFamily: "monospace",
   },
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#fff",
-    marginLeft: 8,
+    marginStart: 8,
   },
   output: {
     backgroundColor: "#1e1e1e",
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
   outputText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#10B981",
     fontFamily: "monospace",
   },

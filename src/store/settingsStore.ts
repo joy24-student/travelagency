@@ -10,15 +10,39 @@ export type CurrencyCode = "BDT" | "USD" | "EUR" | "INR" | "GBP" | "SAR";
 
 export interface NotificationPreferences {
   pushEnabled: boolean;
+  bookingUpdates: boolean;
   priceAlerts: boolean;
   tripUpdates: boolean;
   promoOffers: boolean;
   communityActivity: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string; // "22:00"
+  quietHoursEnd: string;   // "07:00"
+}
+
+export function isQuietHourActive(
+  start = "22:00",
+  end = "07:00"
+): boolean {
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const [startH, startM] = start.split(":").map(Number);
+  const [endH, endM] = end.split(":").map(Number);
+  const startMinutes = (startH || 22) * 60 + (startM || 0);
+  const endMinutes = (endH || 7) * 60 + (endM || 0);
+
+  if (startMinutes > endMinutes) {
+    // Crosses midnight: e.g. 22:00 to 07:00
+    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  }
+  return currentMinutes >= startMinutes && currentMinutes < endMinutes;
 }
 
 export interface SecuritySettings {
   biometricLockEnabled: boolean;
   requireAuthOnPayment: boolean;
+  twoFactorEnabled: boolean;
 }
 
 export interface AccessibilitySettings {
@@ -29,6 +53,7 @@ export interface AccessibilitySettings {
 export interface OfflineSettings {
   downloadOverWifiOnly: boolean;
   autoDownloadVouchers: boolean;
+  dataSaverMode: boolean;
 }
 
 export interface SettingsState {
@@ -39,15 +64,17 @@ export interface SettingsState {
   security: SecuritySettings;
   accessibility: AccessibilitySettings;
   offline: OfflineSettings;
+  dataSaverMode: boolean;
   isHydrated: boolean;
 
   // Actions
   setThemeMode: (mode: ThemeMode) => void;
   setLanguage: (lang: LanguageCode) => void;
   setCurrency: (currency: CurrencyCode) => void;
+  setDataSaverMode: (enabled: boolean) => void;
   updateNotificationPreference: (
     key: keyof NotificationPreferences,
-    value: boolean
+    value: boolean | string
   ) => void;
   toggleBiometric: (enabled: boolean) => void;
   updateSecurityPreference: (
@@ -130,14 +157,19 @@ export const useSettingsStore = create<SettingsState>()(
       currency: "BDT",
       notifications: {
         pushEnabled: true,
+        bookingUpdates: true,
         priceAlerts: true,
         tripUpdates: true,
         promoOffers: false,
         communityActivity: true,
+        quietHoursEnabled: true,
+        quietHoursStart: "22:00",
+        quietHoursEnd: "07:00",
       },
       security: {
         biometricLockEnabled: false,
         requireAuthOnPayment: true,
+        twoFactorEnabled: false,
       },
       accessibility: {
         hapticFeedbackEnabled: true,
@@ -146,7 +178,9 @@ export const useSettingsStore = create<SettingsState>()(
       offline: {
         downloadOverWifiOnly: true,
         autoDownloadVouchers: true,
+        dataSaverMode: false,
       },
+      dataSaverMode: false,
       isHydrated: false,
 
       setThemeMode: (themeMode: ThemeMode) => set({ themeMode }),
@@ -154,6 +188,15 @@ export const useSettingsStore = create<SettingsState>()(
       setLanguage: (language: LanguageCode) => set({ language }),
 
       setCurrency: (currency: CurrencyCode) => set({ currency }),
+
+      setDataSaverMode: (dataSaverMode: boolean) =>
+        set((state) => ({
+          dataSaverMode,
+          offline: {
+            ...state.offline,
+            dataSaverMode,
+          },
+        })),
 
       updateNotificationPreference: (key, value) =>
         set((state) => ({
@@ -188,12 +231,17 @@ export const useSettingsStore = create<SettingsState>()(
         })),
 
       updateOfflinePreference: (key, value) =>
-        set((state) => ({
-          offline: {
+        set((state) => {
+          const nextOffline = {
             ...state.offline,
             [key]: value,
-          },
-        })),
+          };
+          return {
+            offline: nextOffline,
+            dataSaverMode:
+              key === "dataSaverMode" ? Boolean(value) : state.dataSaverMode,
+          };
+        }),
 
       clearAppCache: async () => {
         try {
@@ -246,3 +294,8 @@ export const useSettingsStore = create<SettingsState>()(
     }
   )
 );
+
+export const useDataSaver = (): boolean =>
+  useSettingsStore(
+    (state) => state.dataSaverMode || state.offline?.dataSaverMode || false
+  );

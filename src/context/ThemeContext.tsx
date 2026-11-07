@@ -9,54 +9,18 @@ import { Appearance, Platform } from "react-native";
 import { useColorScheme as useNativeWindColorScheme } from "nativewind";
 import * as SystemUI from "expo-system-ui";
 import { useSettingsStore, ThemeMode } from "../store/settingsStore";
+import {
+  SemanticThemeColors,
+  lightSemanticColors,
+  darkSemanticColors,
+  oledSemanticColors,
+} from "../theme/colors";
 
-export interface ThemeColors {
-  background: string;
-  card: string;
-  text: string;
-  subtext: string;
-  border: string;
-  primary: string;
-  surface: string;
-  accent: string;
-  danger: string;
-}
+export type ThemeColors = SemanticThemeColors;
 
-const LIGHT_COLORS: ThemeColors = {
-  background: "#f8f9fa",
-  card: "#ffffff",
-  text: "#0f172a",
-  subtext: "#64748b",
-  border: "#e2e8f0",
-  primary: "#287dfa",
-  surface: "#f1f5f9",
-  accent: "#fed65b",
-  danger: "#ef4444",
-};
-
-const DARK_COLORS: ThemeColors = {
-  background: "#0f172a",
-  card: "#1e293b",
-  text: "#f8fafc",
-  subtext: "#94a3b8",
-  border: "#334155",
-  primary: "#3b82f6",
-  surface: "#1e293b",
-  accent: "#fed65b",
-  danger: "#ef4444",
-};
-
-const OLED_COLORS: ThemeColors = {
-  background: "#000000",
-  card: "#0a0a0a",
-  text: "#ffffff",
-  subtext: "#a1a1aa",
-  border: "#27272a",
-  primary: "#3b82f6",
-  surface: "#050505",
-  accent: "#fed65b",
-  danger: "#ef4444",
-};
+const LIGHT_COLORS = lightSemanticColors;
+const DARK_COLORS = darkSemanticColors;
+const OLED_COLORS = oledSemanticColors;
 
 export interface ThemeContextType {
   themeMode: ThemeMode;
@@ -153,10 +117,34 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
   );
 };
 
+const DEFAULT_THEME_FALLBACK: ThemeContextType = {
+  themeMode: "light",
+  isDark: false,
+  isOled: false,
+  colors: LIGHT_COLORS,
+  setThemeMode: () => {},
+};
+
 export const useTheme = (): ThemeContextType => {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider");
+    return DEFAULT_THEME_FALLBACK;
   }
   return context;
 };
+
+export const useAppTheme = useTheme;
+
+/**
+ * Hook to generate dynamic StyleSheet styles that react to theme / dark mode changes.
+ * Memoizes the style object based on current theme colors.
+ */
+export function useThemedStyles<T>(
+  styleFactory: (colors: ThemeColors, isDark: boolean, isOled: boolean) => T
+): T {
+  const { colors, isDark, isOled } = useTheme();
+  return useMemo(
+    () => styleFactory(colors, isDark, isOled),
+    [colors, isDark, isOled, styleFactory]
+  );
+}

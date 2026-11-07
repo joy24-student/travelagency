@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import {
+import { Platform,
   View,
   ScrollView,
   Text,
@@ -23,7 +23,7 @@ import {
 } from "@expo/vector-icons";
 import { supabase } from "@/utils/supabase";
 
-const { width } = Dimensions.get("window");
+
 
 interface PlatformMetrics {
   total_agencies: number;
@@ -79,7 +79,7 @@ const MetricCard: React.FC<{
           <Text
             style={{
               color: trend > 0 ? "#10b981" : "#ef4444",
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: "600",
             }}
           >
@@ -274,12 +274,7 @@ export default function AgenPlatformMonitoringScreen() {
       }
     >
       {/* Header */}
-      <LinearGradient
-        colors={["#667eea", "#764ba2"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
+      <View style={[styles.actionGradient, { backgroundColor: "#667eea" }]}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Platform Monitor</Text>
           <Text style={styles.headerSubtitle}>
@@ -296,7 +291,7 @@ export default function AgenPlatformMonitoringScreen() {
             </Text>
           </View>
         )}
-      </LinearGradient>
+      </View>
 
       {/* Key Metrics */}
       <View style={styles.section}>
@@ -385,59 +380,39 @@ export default function AgenPlatformMonitoringScreen() {
 
         <View style={styles.actionGrid}>
           <TouchableOpacity style={styles.actionButton}>
-            <LinearGradient
-              colors={["#667eea", "#764ba2"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.actionGradient}
-            >
+            <View style={[styles.actionGradient, { backgroundColor: "#667eea" }]}>
               <MaterialCommunityIcons name="plus" size={24} color="#fff" />
               <Text style={styles.actionText}>Verify Agencies</Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionButton}>
-            <LinearGradient
-              colors={["#f59e0b", "#f97316"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.actionGradient}
-            >
+            <View style={[styles.actionGradient, { backgroundColor: "#f59e0b" }]}>
               <MaterialCommunityIcons
                 name="alert-circle"
                 size={24}
                 color="#fff"
               />
               <Text style={styles.actionText}>Manage Alerts</Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionButton}>
-            <LinearGradient
-              colors={["#10b981", "#34d399"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.actionGradient}
-            >
+            <View style={[styles.actionGradient, { backgroundColor: "#10b981" }]}>
               <MaterialCommunityIcons name="chart-line" size={24} color="#fff" />
               <Text style={styles.actionText}>View Reports</Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionButton}>
-            <LinearGradient
-              colors={["#3b82f6", "#60a5fa"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.actionGradient}
-            >
+            <View style={[styles.actionGradient, { backgroundColor: "#3b82f6" }]}>
               <MaterialCommunityIcons
                 name="cog-outline"
                 size={24}
                 color="#fff"
               />
               <Text style={styles.actionText}>Settings</Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </View>
       </View>
@@ -554,7 +529,7 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   metricSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     marginTop: 2,
   },
@@ -601,7 +576,7 @@ const styles = StyleSheet.create({
     height: "100%",
     borderTopLeftRadius: 12,
     borderBottomLeftRadius: 12,
-    marginRight: 12,
+    marginEnd: 12,
   },
   alertContent: {
     flex: 1,
@@ -619,7 +594,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   alertTime: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#9ca3af",
   },
   actionGrid: {
@@ -628,7 +603,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionButton: {
-    width: (width - 52) / 2,
+    width: "48%",
   },
   actionGradient: {
     borderRadius: 12,

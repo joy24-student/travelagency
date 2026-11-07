@@ -1,9 +1,9 @@
 """
-Centralized Error Handling with RFC 7807 Problem Details for HTTP APIs.
-Ensures uniform error responses adhering to RFC 7807 (application/problem+json).
+RFC 7807 Compliant Problem Details & Application Exception Hierarchy.
+Ensures unified, secure error schemas across all API endpoints with correlation IDs.
 """
 
-from datetime import datetime, timezone
+import logging
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -12,35 +12,31 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.config import settings
 from app.core.logging import get_correlation_id
+
+logger = logging.getLogger(__name__)
 
 
 class InvalidParam(BaseModel):
-    name: str = Field(..., description="Field path or query parameter name")
-    reason: str = Field(..., description="Validation failure explanation")
+    name: str = Field(..., description="Field name that failed validation")
+    reason: str = Field(..., description="Explanation of validation constraint violation")
 
 
 class ProblemDetail(BaseModel):
-    """RFC 7807 Problem Details representation."""
-    type: str = Field(
-        default="about:blank",
-        description="A URI reference that identifies the problem type"
-    )
-    title: str = Field(..., description="Short, human-readable summary of the problem type")
+    """RFC 7807 Standard Error Response."""
+    type: str = Field(default="about:blank", description="URI reference identifying problem type")
+    title: str = Field(..., description="Short, human-readable summary of problem")
     status: int = Field(..., description="HTTP status code")
     detail: Optional[str] = Field(None, description="Human-readable explanation of this occurrence")
-    instance: Optional[str] = Field(None, description="URI identifying this specific occurrence")
-    correlation_id: str = Field(default_factory=get_correlation_id, description="Tracing correlation ID")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
-        description="UTC timestamp of the error"
-    )
-    invalid_params: Optional[List[InvalidParam]] = Field(None, description="Detailed validation errors")
-    code: Optional[str] = Field(None, description="Internal error code for client localization")
+    instance: Optional[str] = Field(None, description="URI reference of specific occurrence")
+    correlation_id: str = Field(..., description="Unique tracing correlation ID")
+    code: Optional[str] = Field(None, description="Application error code for programmatic handling")
+    invalid_params: Optional[List[InvalidParam]] = Field(None, description="Field validation errors")
 
 
-# Base Application Exception
 class AppException(Exception):
+    """Base class for all business domain exceptions."""
     def __init__(
         self,
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -49,42 +45,31 @@ class AppException(Exception):
         code: Optional[str] = None,
         type_uri: Optional[str] = None,
     ):
-        super().__init__(detail or title)
         self.status_code = status_code
         self.title = title
         self.detail = detail
-        self.code = code or "INTERNAL_ERROR"
-        self.type_uri = type_uri or f"https://api.shopnojatra.com/errors/{self.code.lower().replace('_', '-')}"
+        self.code = code
+        self.type_uri = type_uri
+        super().__init__(detail or title)
 
 
 class NotFoundError(AppException):
-    def __init__(self, resource: str, identifier: Any):
+    def __init__(self, resource_name: str, identifier: Any):
         super().__init__(
             status_code=status.HTTP_404_NOT_FOUND,
             title="Resource Not Found",
-            detail=f"{resource} identified by '{identifier}' was not found.",
-            code="RESOURCE_NOT_FOUND",
-        )
-
-
-class ConflictError(AppException):
-    """Raised when an operation would violate consistency (e.g., double-booking seats/rooms)."""
-    def __init__(self, detail: str, code: str = "DOUBLE_BOOKING_CONFLICT"):
-        super().__init__(
-            status_code=status.HTTP_409_CONFLICT,
-            title="Resource Conflict",
-            detail=detail,
-            code=code,
+            detail=f"{resource_name} with identifier '{identifier}' was not found.",
+            code="NOT_FOUND",
         )
 
 
 class AuthenticationError(AppException):
-    def __init__(self, detail: str = "Invalid or expired authentication credentials."):
+    def __init__(self, detail: str = "Authentication credentials were invalid or missing."):
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
             title="Unauthorized",
             detail=detail,
-            code="AUTHENTICATION_FAILED",
+            code="UNAUTHORIZED",
         )
 
 
@@ -94,7 +79,17 @@ class PermissionDeniedError(AppException):
             status_code=status.HTTP_403_FORBIDDEN,
             title="Forbidden",
             detail=detail,
-            code="PERMISSION_DENIED",
+            code="FORBIDDEN",
+        )
+
+
+class ConflictError(AppException):
+    def __init__(self, detail: str, code: str = "CONFLICT"):
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            title="Resource Conflict",
+            detail=detail,
+            code=code,
         )
 
 
@@ -105,6 +100,16 @@ class BadRequestError(AppException):
             title="Bad Request",
             detail=detail,
             code=code,
+        )
+
+
+class RateLimitExceededError(AppException):
+    def __init__(self, detail: str = "Rate limit exceeded. Please retry later."):
+        super().__init__(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            title="Too Many Requests",
+            detail=detail,
+            code="RATE_LIMIT_EXCEEDED",
         )
 
 
@@ -127,7 +132,7 @@ def create_problem_response(
     type_uri: Optional[str] = None,
     invalid_params: Optional[List[InvalidParam]] = None,
 ) -> JSONResponse:
-    """Helper to build RFC 7807 compliant responses."""
+    """Builds RFC 7807 compliant problem response."""
     problem = ProblemDetail(
         type=type_uri or f"https://api.shopnojatra.com/errors/{(code or 'http-error').lower().replace('_', '-')}",
         title=title,
@@ -146,7 +151,7 @@ def create_problem_response(
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """Register all custom exception handlers on the FastAPI application."""
+    """Registers exception handlers on the FastAPI application."""
 
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
@@ -189,7 +194,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             invalid_params.append(InvalidParam(name=loc, reason=msg))
 
         return create_problem_response(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
             title="Validation Failed",
             detail="The request body or parameters failed schema validation.",
             instance=str(request.url.path),
@@ -199,7 +204,6 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(IntegrityError)
     async def db_integrity_exception_handler(request: Request, exc: IntegrityError):
-        # Translate database integrity failures into 409 Conflict
         return create_problem_response(
             status_code=status.HTTP_409_CONFLICT,
             title="Database Conflict",
@@ -210,20 +214,24 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(SQLAlchemyError)
     async def db_exception_handler(request: Request, exc: SQLAlchemyError):
+        logger.error(f"Database error on {request.url.path}: {exc}", exc_info=True)
+        detail = str(exc) if settings.DEBUG else "A persistence layer error occurred. Please try again later."
         return create_problem_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             title="Database Error",
-            detail=str(exc),
+            detail=detail,
             instance=str(request.url.path),
             code="DATABASE_ERROR",
         )
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
+        logger.error(f"Unhandled exception on {request.url.path}: {exc}", exc_info=True)
+        detail = str(exc) if settings.DEBUG else "An unexpected error occurred while processing your request."
         return create_problem_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             title="Internal Server Error",
-            detail="An unexpected error occurred while processing your request.",
+            detail=detail,
             instance=str(request.url.path),
             code="INTERNAL_SERVER_ERROR",
         )

@@ -64,6 +64,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerSection}>
           <TouchableOpacity
@@ -92,6 +93,11 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
+              accessibilityLabel="Email Address"
+              returnKeyType="done"
+              onSubmitEditing={handleReset}
               value={email}
               onChangeText={setEmail}
             />

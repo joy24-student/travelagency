@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:560123613595:android:b0ebd64bc0c981677d513e",
         "android_client_info": {
-          "package_name": "com.s025.convertedtravelui"
+          "package_name": "com.shopnojatra.app"
         }
       },
       "oauth_client": [],
@@ -27,4 +27,3 @@
   ],
   "configuration_version": "1"
 }
-

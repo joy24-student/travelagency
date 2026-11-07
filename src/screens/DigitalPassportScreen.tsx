@@ -1,3 +1,6 @@
+import { RTLIcon } from "../components/ui";
+import { formatLocalizedDate } from "../utils/formatters";
+import { FocusAwareStatusBar } from "../components/ui/AppStatusBar";
 /**
  * DigitalPassportScreen.tsx
  *
@@ -11,7 +14,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import {
+import { Platform,
   View,
   Text,
   StyleSheet,
@@ -26,12 +29,16 @@ import {
   ActivityIndicator,
   Share,
   Clipboard,
+  AppState,
+  AppStateStatus,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Sharing from "expo-sharing";
+import * as LocalAuthentication from "expo-local-authentication";
+import { GlassView } from '../components/ui/GlassView';
 import { captureRef } from "react-native-view-shot";
 import { router } from "expo-router";
 
@@ -53,7 +60,7 @@ import {
   sharePassportStory,
 } from "../services/gamification/passportService";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 
 type TabType = "map" | "stamps" | "milestones";
 
@@ -75,6 +82,90 @@ export default function DigitalPassportScreen() {
   const [showSimulateModal, setShowSimulateModal] = useState<boolean>(false);
   const [showToast, setShowToast] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState<boolean>(false);
+
+  // Privacy & Biometric State
+  const [isMasked, setIsMasked] = useState<boolean>(true);
+  const [isAppBlurred, setIsAppBlurred] = useState<boolean>(false);
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
+  const remaskTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // AppState listener for App Switcher / Background Privacy Shield
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
+      if (nextAppState === "inactive" || nextAppState === "background") {
+        setIsAppBlurred(true);
+        setIsMasked(true); // Always re-mask when switching away
+      } else if (nextAppState === "active") {
+        setIsAppBlurred(false);
+      }
+    });
+
+    return () => {
+      sub.remove();
+      if (remaskTimeoutRef.current) clearTimeout(remaskTimeoutRef.current);
+    };
+  }, []);
+
+  const maskIdentityNumber = (rawNumber?: string, visibleLastDigits: number = 4) => {
+    if (!rawNumber) return "•••• •••• ••••";
+    const trimmed = rawNumber.trim();
+    if (trimmed.length <= visibleLastDigits) return trimmed;
+    const prefix = trimmed.includes("-") ? trimmed.split("-")[0] + "-" : "";
+    const lastDigits = trimmed.slice(-visibleLastDigits);
+    return `${prefix}•••• •••• ${lastDigits}`;
+  };
+
+  const scheduleAutoRemask = () => {
+    if (remaskTimeoutRef.current) clearTimeout(remaskTimeoutRef.current);
+    remaskTimeoutRef.current = setTimeout(() => {
+      setIsMasked(true);
+    }, 30000);
+  };
+
+  const handleToggleMask = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (!isMasked) {
+      setIsMasked(true);
+      triggerToast("পাসপোর্ট নম্বর পুনরায় মাস্ক করা হয়েছে");
+      return;
+    }
+
+    try {
+      setIsAuthenticating(true);
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasHardware || !isEnrolled) {
+        setIsMasked(false);
+        triggerToast("পাসপোর্ট তথ্য প্রদর্শিত হচ্ছে (৩০ সেকেন্ড)");
+        scheduleAutoRemask();
+        return;
+      }
+
+      const authResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: "ডিজিটাল পাসপোর্ট ও সংবেদনশীল তথ্য দেখতে বায়োমেট্রিক নিশ্চিত করুন",
+        fallbackLabel: "ডিভাইস পাসকোড ব্যবহার করুন",
+        cancelLabel: "বাতিল",
+        disableDeviceFallback: false,
+      });
+
+      if (authResult.success) {
+        setIsMasked(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        triggerToast("বায়োমেট্রিক সফল: পাসপোর্ট তথ্য উন্মোচিত");
+        scheduleAutoRemask();
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        triggerToast("বায়োমেট্রিক প্রমাণীকরণ ব্যর্থ হয়েছে");
+      }
+    } catch (err) {
+      console.warn("Biometric auth error:", err);
+      triggerToast("প্রমাণীকরণ ত্রুটি ঘটেছে");
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
 
   // New level unlocked celebration banner
   const [celebrationLevel, setCelebrationLevel] = useState<MilestoneLevel | null>(null);
@@ -327,7 +418,7 @@ export default function DigitalPassportScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#0B1329" />
+      <FocusAwareStatusBar style="light" backgroundColor="#0B1329" />
 
       {/* ── TOAST NOTIFICATION ── */}
       {showToast && (
@@ -344,7 +435,7 @@ export default function DigitalPassportScreen() {
           onPress={() => router.back()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="chevron-back" size={24} color="#F8FAFC" />
+          <RTLIcon name="chevron-back" size={24} color="#F8FAFC" />
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
@@ -433,10 +524,46 @@ export default function DigitalPassportScreen() {
                       {passport.holderName}
                     </Text>
 
-                    <Text style={styles.labelMuted}>PASSPORT NO / নম্বর</Text>
+                    <View style={styles.passportNoHeaderRow}>
+                      <Text style={styles.labelMuted}>PASSPORT NO / নম্বর</Text>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={handleToggleMask}
+                        style={styles.maskToggleBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={isMasked ? "Reveal passport number" : "Mask passport number"}
+                      >
+                        {isAuthenticating ? (
+                          <ActivityIndicator size="small" color="#FDE047" />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name={isMasked ? "eye-outline" : "eye-off-outline"}
+                              size={13}
+                              color="#FDE047"
+                            />
+                            <Text style={styles.maskToggleBtnText}>
+                              {isMasked ? "বায়োমেট্রিক আনলক" : "লুকান"}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.passportNumber}>
-                      {passport.passportNumber}
+                      {isMasked
+                        ? maskIdentityNumber(passport.passportNumber)
+                        : passport.passportNumber}
                     </Text>
+                    <View style={styles.securitySubRow}>
+                      <Ionicons
+                        name={isMasked ? "shield-checkmark" : "shield-half"}
+                        size={11}
+                        color={isMasked ? "#4ADE80" : "#FDE047"}
+                      />
+                      <Text style={styles.securitySubText}>
+                        {isMasked ? "এনক্রিপ্টেড ও মাস্ক করা (E-Passport)" : "বায়োমেট্রিক যাচাইকৃত (সক্রিয়)"}
+                      </Text>
+                    </View>
 
                     <View style={styles.badgeRow}>
                       <View style={styles.nationalityBadge}>
@@ -503,7 +630,7 @@ export default function DigitalPassportScreen() {
               onPress={() => setShowLevelModal(true)}
             >
               <Text style={styles.viewPerksText}>All 10 Levels</Text>
-              <Ionicons name="chevron-forward" size={14} color="#38BDF8" />
+              <RTLIcon name="chevron-forward" size={14} color="#38BDF8" />
             </TouchableOpacity>
           </View>
 
@@ -936,7 +1063,7 @@ export default function DigitalPassportScreen() {
                           <Text
                             style={[styles.stampDate, { color: stamp.inkColor }]}
                           >
-                            {new Date(stamp.stampedAt).toLocaleDateString()}
+                            {formatLocalizedDate(stamp.stampedAt)}
                           </Text>
 
                           <Text
@@ -1229,7 +1356,7 @@ export default function DigitalPassportScreen() {
                   <View style={styles.stampInfoRow}>
                     <Text style={styles.stampInfoLabel}>DATE OF TRAVEL:</Text>
                     <Text style={styles.stampInfoValue}>
-                      {new Date(selectedStamp.stampedAt).toLocaleString()}
+                      {formatLocalizedDate(selectedStamp.stampedAt, { dateStyle: "medium", timeStyle: "short" })}
                     </Text>
                   </View>
 
@@ -1451,12 +1578,12 @@ export default function DigitalPassportScreen() {
                       <View style={styles.storyAvatarWrap}>
                         <Ionicons name="person" size={26} color="#FFFFFF" />
                       </View>
-                      <View style={{ marginLeft: 12 }}>
+                      <View style={{ marginStart: 12 }}>
                         <Text style={styles.storyHolderName}>
                           {passport.holderName}
                         </Text>
                         <Text style={styles.storyPassNo}>
-                          {passport.passportNumber}
+                          {maskIdentityNumber(passport.passportNumber)}
                         </Text>
                       </View>
                     </View>
@@ -1569,6 +1696,23 @@ export default function DigitalPassportScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* App-Switcher / Background Privacy Shield Overlay */}
+      {isAppBlurred && (
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="auto">
+          <GlassView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject}>
+            <View style={styles.privacyShieldContainer}>
+              <View style={styles.privacyShieldCard}>
+                <Ionicons name="shield-checkmark" size={46} color="#10B981" />
+                <Text style={styles.privacyShieldTitle}>ডিজিটাল পাসপোর্ট গোপনীয়তা সক্রিয়</Text>
+                <Text style={styles.privacyShieldDesc}>
+                  স্ক্রিনশট ও অ্যাপ-সুইচারে সংবেদনশীল পাসপোর্ট তথ্য সুরক্ষিত রাখতে ঝাপসা করা হয়েছে
+                </Text>
+              </View>
+            </View>
+          </GlassView>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1581,6 +1725,77 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#060D1E",
+  },
+  passportNoHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+  maskToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(253, 224, 71, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(253, 224, 71, 0.3)",
+  },
+  maskToggleBtnText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FDE047",
+  },
+  securitySubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  securitySubText: {
+    fontSize: 9,
+    color: "#94A3B8",
+    fontWeight: "500",
+  },
+  privacyShieldContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: "rgba(6, 13, 30, 0.85)",
+  },
+  privacyShieldCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#0F172A",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 20px rgba(15, 23, 42, 0.5)" } : {}),
+  },
+  privacyShieldTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#F8FAFC",
+    marginTop: 14,
+    textAlign: "center",
+  },
+  privacyShieldDesc: {
+    fontSize: 12,
+    color: "#94A3B8",
+    marginTop: 8,
+    textAlign: "center",
+    lineHeight: 18,
   },
   loadingContainer: {
     flex: 1,
@@ -1612,12 +1827,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.3)" } : {}),
   },
   toastText: {
     color: "#F8FAFC",
     fontSize: 13,
     fontWeight: "600",
-    marginLeft: 10,
+    marginStart: 10,
     flex: 1,
   },
   header: {
@@ -1649,7 +1865,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     color: "#38BDF8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   headerRightActions: {
@@ -1671,7 +1887,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "700",
-    marginLeft: 4,
+    marginStart: 4,
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -1686,6 +1902,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 16,
     elevation: 10,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 16px rgba(15, 23, 42, 0.45)" } : {}),
   },
   passportCard: {
     borderRadius: 20,
@@ -1727,13 +1944,13 @@ const styles = StyleSheet.create({
   },
   cardGovEn: {
     color: "#FDE047",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1.5,
   },
   cardGovBn: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "600",
   },
   biometricChip: {
@@ -1771,12 +1988,12 @@ const styles = StyleSheet.create({
     borderColor: "#0F172A",
   },
   identityDetails: {
-    marginLeft: 16,
+    marginStart: 16,
     flex: 1,
   },
   labelMuted: {
     color: "#64748B",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
   },
@@ -1802,13 +2019,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    marginRight: 8,
+    marginEnd: 8,
     borderWidth: 1,
     borderColor: "#334155",
   },
   nationalityText: {
     color: "#E2E8F0",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   xpBadge: {
@@ -1823,9 +2040,9 @@ const styles = StyleSheet.create({
   },
   xpText: {
     color: "#FDE047",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
-    marginLeft: 3,
+    marginStart: 3,
   },
   cardFooter: {
     flexDirection: "row",
@@ -1848,9 +2065,9 @@ const styles = StyleSheet.create({
   },
   levelPillText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
-    marginLeft: 5,
+    marginStart: 5,
   },
   cardFooterStats: {
     flexDirection: "row",
@@ -1858,7 +2075,7 @@ const styles = StyleSheet.create({
   },
   footerStatText: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
   },
   footerStatBold: {
     color: "#FDE047",
@@ -1890,7 +2107,7 @@ const styles = StyleSheet.create({
   },
   milestoneSub: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   viewPerksBtn: {
@@ -1903,9 +2120,9 @@ const styles = StyleSheet.create({
   },
   viewPerksText: {
     color: "#38BDF8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
-    marginRight: 2,
+    marginEnd: 2,
   },
   progressBarTrack: {
     height: 8,
@@ -1930,8 +2147,8 @@ const styles = StyleSheet.create({
   },
   activePerkText: {
     color: "#CBD5E1",
-    fontSize: 11,
-    marginLeft: 6,
+    fontSize: 12,
+    marginStart: 6,
   },
   activePerkBold: {
     color: "#F59E0B",
@@ -1963,7 +2180,7 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 12,
     fontWeight: "600",
-    marginLeft: 6,
+    marginStart: 6,
   },
   tabTextActive: {
     color: "#FDE047",
@@ -1997,7 +2214,7 @@ const styles = StyleSheet.create({
   },
   scratchStatsSub: {
     color: "#64748B",
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 2,
   },
   scratchAllBtn: {
@@ -2010,9 +2227,9 @@ const styles = StyleSheet.create({
   },
   scratchAllBtnText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
-    marginLeft: 4,
+    marginStart: 4,
   },
 
   // Division Carousel
@@ -2027,7 +2244,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
-    marginRight: 8,
+    marginEnd: 8,
   },
   divisionPillActive: {
     backgroundColor: "#38BDF8",
@@ -2050,7 +2267,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   districtTileWrap: {
-    width: (SCREEN_WIDTH - 44) / 2,
+    width: "48%",
     marginBottom: 12,
     borderRadius: 16,
     overflow: "hidden",
@@ -2081,11 +2298,11 @@ const styles = StyleSheet.create({
   },
   unvisitedBn: {
     color: "#475569",
-    fontSize: 11,
+    fontSize: 12,
   },
   unvisitedCode: {
     color: "#334155",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "800",
     marginTop: 4,
     letterSpacing: 1,
@@ -2108,7 +2325,7 @@ const styles = StyleSheet.create({
   },
   scratchPillTitle: {
     color: "#FEF08A",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 1,
   },
@@ -2126,7 +2343,7 @@ const styles = StyleSheet.create({
   },
   tapToRevealText: {
     color: "#FDE047",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
 
@@ -2150,7 +2367,7 @@ const styles = StyleSheet.create({
   },
   rarityText: {
     color: "#FFFFFF",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
   },
   scratchedIcon: {
@@ -2164,11 +2381,11 @@ const styles = StyleSheet.create({
   },
   scratchedBn: {
     color: "rgba(255,255,255,0.8)",
-    fontSize: 10,
+    fontSize: 12,
   },
   scratchedLandmark: {
     color: "rgba(255,255,255,0.7)",
-    fontSize: 9,
+    fontSize: 12,
     marginTop: 2,
   },
 
@@ -2179,7 +2396,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   countryCard: {
-    width: (SCREEN_WIDTH - 44) / 2,
+    width: "48%",
     marginBottom: 12,
     borderRadius: 16,
     overflow: "hidden",
@@ -2211,9 +2428,9 @@ const styles = StyleSheet.create({
   },
   visitedPillText: {
     color: "#FFFFFF",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
-    marginLeft: 3,
+    marginStart: 3,
   },
   lockPill: {
     flexDirection: "row",
@@ -2225,9 +2442,9 @@ const styles = StyleSheet.create({
   },
   lockPillText: {
     color: "#94A3B8",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
-    marginLeft: 3,
+    marginStart: 3,
   },
   countryName: {
     color: "#FFFFFF",
@@ -2237,11 +2454,11 @@ const styles = StyleSheet.create({
   },
   countryBn: {
     color: "rgba(255,255,255,0.8)",
-    fontSize: 11,
+    fontSize: 12,
   },
   countryLandmark: {
     color: "rgba(255,255,255,0.7)",
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 2,
   },
   stampSerialBadge: {
@@ -2254,7 +2471,7 @@ const styles = StyleSheet.create({
   },
   stampSerialText: {
     color: "#FDE047",
-    fontSize: 8,
+    fontSize: 12,
     fontFamily: "monospace",
     fontWeight: "700",
   },
@@ -2273,7 +2490,7 @@ const styles = StyleSheet.create({
   },
   stampsSubTitle: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
   },
   simulateTravelBtn: {
     flexDirection: "row",
@@ -2287,7 +2504,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "700",
-    marginLeft: 4,
+    marginStart: 4,
   },
   parchmentPage: {
     backgroundColor: "#FDFBF7",
@@ -2301,6 +2518,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.25)" } : {}),
   },
   parchmentHeader: {
     flexDirection: "row",
@@ -2312,13 +2530,13 @@ const styles = StyleSheet.create({
   },
   parchmentTitle: {
     color: "#78716C",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 2,
   },
   parchmentPageNo: {
     color: "#A8A29E",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   emptyStampsWrap: {
@@ -2345,7 +2563,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   stampItemWrap: {
-    width: (SCREEN_WIDTH - 76) / 2,
+    width: "48%",
     marginBottom: 16,
   },
   stampBox: {
@@ -2363,7 +2581,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   stampAuthority: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 1.5,
   },
@@ -2375,15 +2593,15 @@ const styles = StyleSheet.create({
   stampDest: {
     fontSize: 13,
     fontWeight: "900",
-    marginLeft: 4,
+    marginStart: 4,
   },
   stampDate: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     fontFamily: "monospace",
   },
   stampSerial: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
     fontFamily: "monospace",
     marginTop: 2,
@@ -2400,7 +2618,7 @@ const styles = StyleSheet.create({
   },
   perksHeaderSub: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
   },
   milestoneLevelCard: {
     backgroundColor: "#0B1329",
@@ -2430,11 +2648,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    marginRight: 10,
+    marginEnd: 10,
   },
   milestoneLevelNumber: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   milestoneLevelTitle: {
@@ -2444,7 +2662,7 @@ const styles = StyleSheet.create({
   },
   milestoneLevelBn: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
   },
   unlockedTag: {
     flexDirection: "row",
@@ -2456,9 +2674,9 @@ const styles = StyleSheet.create({
   },
   unlockedTagText: {
     color: "#10B981",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
-    marginLeft: 3,
+    marginStart: 3,
   },
   lockedTag: {
     flexDirection: "row",
@@ -2470,9 +2688,9 @@ const styles = StyleSheet.create({
   },
   lockedTagText: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
-    marginLeft: 4,
+    marginStart: 4,
   },
   perksListWrap: {},
   perkRowItem: {
@@ -2488,7 +2706,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   perkDetailsWrap: {
-    marginLeft: 10,
+    marginStart: 10,
     flex: 1,
   },
   perkTitle: {
@@ -2501,7 +2719,7 @@ const styles = StyleSheet.create({
   },
   perkDesc: {
     color: "#94A3B8",
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 1,
   },
   copyCouponBtn: {
@@ -2516,10 +2734,10 @@ const styles = StyleSheet.create({
   },
   copyCouponText: {
     color: "#38BDF8",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     fontFamily: "monospace",
-    marginRight: 4,
+    marginEnd: 4,
   },
 
   // Modals common
@@ -2568,7 +2786,7 @@ const styles = StyleSheet.create({
   },
   modalRarityText: {
     color: "#FDE047",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   districtModalBody: {
@@ -2580,12 +2798,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalFieldText: {
-    marginLeft: 12,
+    marginStart: 12,
     flex: 1,
   },
   modalFieldLabel: {
     color: "#64748B",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
   },
@@ -2630,7 +2848,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   stampModalAuthority: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 1.5,
   },
@@ -2656,7 +2874,7 @@ const styles = StyleSheet.create({
   },
   stampInfoLabel: {
     color: "#78716C",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   stampInfoValue: {
@@ -2668,7 +2886,7 @@ const styles = StyleSheet.create({
   stampVerifiedBadge: {
     backgroundColor: "#DCFCE7",
     color: "#15803D",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -2706,7 +2924,7 @@ const styles = StyleSheet.create({
   },
   simulateModalSubtitle: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     textAlign: "center",
     marginTop: 4,
     paddingHorizontal: 10,
@@ -2733,7 +2951,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     flex: 1,
-    marginLeft: 10,
+    marginStart: 10,
   },
 
   // Levels Modal
@@ -2756,7 +2974,7 @@ const styles = StyleSheet.create({
   },
   levelsModalSub: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     textAlign: "center",
     marginTop: 2,
   },
@@ -2774,7 +2992,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(234, 179, 8, 0.1)",
   },
   levelTrackBadge: {
-    marginRight: 12,
+    marginEnd: 12,
   },
   levelTrackGradient: {
     width: 38,
@@ -2809,22 +3027,22 @@ const styles = StyleSheet.create({
   },
   currentLvlTagText: {
     color: "#0F172A",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
   },
   levelTrackBn: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
   },
   levelTrackRequirement: {
     color: "#38BDF8",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     marginTop: 2,
   },
   levelTrackDiscount: {
     color: "#FDE047",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     marginTop: 1,
   },
@@ -2836,7 +3054,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: "#1E293B",
-    maxHeight: SCREEN_HEIGHT * 0.9,
+    maxHeight: "90%",
   },
   shareModalHeader: {
     alignItems: "center",
@@ -2850,7 +3068,7 @@ const styles = StyleSheet.create({
   },
   shareModalSub: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 12,
     textAlign: "center",
     marginTop: 2,
   },
@@ -2867,6 +3085,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 10,
     elevation: 8,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 10px rgba(15, 23, 42, 0.5)" } : {}),
   },
   storyCardGradient: {
     padding: 4,
@@ -2882,13 +3101,13 @@ const styles = StyleSheet.create({
   },
   storyGovEn: {
     color: "#FDE047",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 2,
   },
   storyGovBn: {
     color: "#94A3B8",
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     marginBottom: 10,
   },
@@ -2916,7 +3135,7 @@ const styles = StyleSheet.create({
   },
   storyPassNo: {
     color: "#38BDF8",
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: "monospace",
     fontWeight: "700",
   },
@@ -2929,7 +3148,7 @@ const styles = StyleSheet.create({
   },
   storyMilestoneText: {
     color: "#34D399",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   storyStatsRow: {
@@ -2952,7 +3171,7 @@ const styles = StyleSheet.create({
   },
   storyStatLbl: {
     color: "#94A3B8",
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "700",
   },
   storyStatDivider: {
@@ -2962,7 +3181,7 @@ const styles = StyleSheet.create({
   },
   storyRecentTitle: {
     color: "#64748B",
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
     marginBottom: 4,
@@ -2982,7 +3201,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 3,
   },
   storyMiniStampText: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
   },
   storyFooter: {
@@ -2995,12 +3214,12 @@ const styles = StyleSheet.create({
   },
   storyBrand: {
     color: "#94A3B8",
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "700",
   },
   storyTag: {
     color: "#FDE047",
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: "800",
   },
 
@@ -3012,7 +3231,7 @@ const styles = StyleSheet.create({
   },
   igShareBtn: {
     flex: 1,
-    marginRight: 6,
+    marginEnd: 6,
     borderRadius: 14,
     overflow: "hidden",
   },
@@ -3026,11 +3245,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "800",
-    marginLeft: 6,
+    marginStart: 6,
   },
   waShareBtn: {
     flex: 1,
-    marginLeft: 6,
+    marginStart: 6,
     backgroundColor: "#1E293B",
     borderRadius: 14,
     borderWidth: 1,
@@ -3044,6 +3263,6 @@ const styles = StyleSheet.create({
     color: "#25D366",
     fontSize: 13,
     fontWeight: "800",
-    marginLeft: 6,
+    marginStart: 6,
   },
 });

@@ -13,6 +13,7 @@ import Animated, {
   useAnimatedStyle,
   Easing,
 } from "react-native-reanimated";
+import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 
 export type SkeletonVariant = "rect" | "circle" | "text" | "card";
@@ -42,6 +43,7 @@ export const Skeleton: React.FC<SkeletonProps> & {
   style,
   testID,
 }) => {
+  const { colors: themeColors, isDark } = useTheme();
   const shimmer = useSharedValue(0);
   const resolvedVariant: SkeletonVariant = variant;
 
@@ -70,6 +72,9 @@ export const Skeleton: React.FC<SkeletonProps> & {
       className={className}
       style={[
         styles.skeletonBase,
+        {
+          backgroundColor: isDark ? themeColors.border : themeColors.borderSubtle,
+        },
         variantStyle,
         style,
       ]}
@@ -78,6 +83,9 @@ export const Skeleton: React.FC<SkeletonProps> & {
         style={[
           StyleSheet.absoluteFillObject,
           styles.shimmerLayer,
+          {
+            backgroundColor: isDark ? themeColors.surface : themeColors.card,
+          },
           animatedStyle,
         ]}
       />
@@ -161,8 +169,20 @@ export const SkeletonCard: React.FC<SkeletonCardProps> = ({
   className,
   style,
 }) => {
+  const { colors: themeColors } = useTheme();
+
   return (
-    <View className={className} style={[styles.cardContainer, style]}>
+    <View
+      className={className}
+      style={[
+        styles.cardContainer,
+        {
+          backgroundColor: themeColors.card,
+          borderColor: themeColors.borderSubtle,
+        },
+        style,
+      ]}
+    >
       {hasImage ? (
         <Skeleton
           width="100%"
@@ -176,7 +196,7 @@ export const SkeletonCard: React.FC<SkeletonCardProps> = ({
         <SkeletonCircle size={40} />
         <View style={styles.cardHeaderMeta}>
           <Skeleton width="60%" height={14} borderRadius={7} style={{ marginBottom: 6 }} />
-          <Skeleton width="40%" height={11} borderRadius={5.5} />
+          <Skeleton width="40%" height={13} borderRadius={6.5} />
         </View>
       </View>
 
@@ -255,7 +275,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cardHeaderMeta: {
-    marginLeft: 12,
+    marginStart: 12,
     flex: 1,
   },
 });

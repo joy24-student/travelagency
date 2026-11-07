@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/GlassView';
 
 export function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   async function signInWithEmail() {
     setLoading(true);
@@ -36,7 +38,12 @@ export function LoginScreen({ navigation }: any) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 pt-20">
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          className="px-6 pt-20"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             className="w-12 h-12 bg-white/5 items-center justify-center rounded-2xl border border-white/10 mb-10"
@@ -49,37 +56,61 @@ export function LoginScreen({ navigation }: any) {
 
           <View className="space-y-6">
             <View>
-              <Text className="text-[#c7c4d7] text-xs font-bold uppercase tracking-widest mb-3 ml-1">Email Address</Text>
-              <BlurView intensity={10} tint="dark" className="rounded-2xl border border-white/10 overflow-hidden">
+              <Text className="text-[#c7c4d7] text-xs font-bold uppercase tracking-widest mb-3 ms-1">Email Address</Text>
+              <GlassView intensity={10} tint="dark" className="rounded-2xl border border-white/10 overflow-hidden">
                 <TextInput
                   placeholder="Enter your email"
                   placeholderTextColor="#464554"
                   onChangeText={(text) => setEmail(text)}
                   value={email}
-                  autoCapitalize={'none'}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  accessibilityLabel="Email Address"
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
                   className="px-5 py-4 text-white text-base"
                 />
-              </BlurView>
+              </GlassView>
             </View>
 
             <View>
               <View className="flex-row justify-between items-center mb-3">
-                <Text className="text-[#c7c4d7] text-xs font-bold uppercase tracking-widest ml-1">Password</Text>
+                <Text className="text-[#c7c4d7] text-xs font-bold uppercase tracking-widest ms-1">Password</Text>
                 <TouchableOpacity onPress={() => navigation.navigate('resetPassword')}>
                   <Text className="text-[#8083ff] text-xs font-bold uppercase">Forgot?</Text>
                 </TouchableOpacity>
               </View>
-              <BlurView intensity={10} tint="dark" className="rounded-2xl border border-white/10 overflow-hidden">
+              <GlassView intensity={10} tint="dark" className="rounded-2xl border border-white/10 overflow-hidden flex-row items-center pe-4">
                 <TextInput
+                  ref={passwordRef}
                   placeholder="Enter your password"
                   placeholderTextColor="#464554"
                   onChangeText={(text) => setPassword(text)}
                   value={password}
-                  secureTextEntry={true}
-                  autoCapitalize={'none'}
-                  className="px-5 py-4 text-white text-base"
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoComplete="current-password"
+                  textContentType="password"
+                  accessibilityLabel="Password"
+                  returnKeyType="done"
+                  onSubmitEditing={signInWithEmail}
+                  className="flex-1 px-5 py-4 text-white text-base"
                 />
-              </BlurView>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                  onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <MaterialIcons
+                    name={showPassword ? "visibility-off" : "visibility"}
+                    size={20}
+                    color="#94a3b8"
+                  />
+                </TouchableOpacity>
+              </GlassView>
             </View>
 
             <TouchableOpacity

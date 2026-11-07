@@ -193,12 +193,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#f59e0b15",
   },
   statusTextDone: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#10b981",
   },
   statusTextPending: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#f59e0b",
   },
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   subtext: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
   },
   actionsRow: {

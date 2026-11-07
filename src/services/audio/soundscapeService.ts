@@ -389,11 +389,11 @@ class SoundscapeService {
     if (this.isAudioSessionInitialized) return true;
 
     try {
-      const { Audio } = require('expo-av');
+      const { Audio } = require('../../utils/media/expoMedia');
       if (Audio && Audio.setAudioModeAsync) {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
+          playsInSilentModeIOS: false, // Respects hardware silent/mute switch! No sudden noise in office/transit
           staysActiveInBackground: true,
           interruptionModeIOS: 2, // InterruptionModeIOS.DuckOthers
           interruptionModeAndroid: 2, // InterruptionModeAndroid.DuckOthers
@@ -404,7 +404,7 @@ class SoundscapeService {
         return true;
       }
     } catch (err) {
-      console.warn('[SoundscapeService] expo-av Audio.setAudioModeAsync fallback:', err);
+      console.warn('[SoundscapeService] Audio.setAudioModeAsync fallback:', err);
     }
     return false;
   }
@@ -472,7 +472,8 @@ class SoundscapeService {
         console.log(
           `[SoundscapeService] 📍 Geo-Fenced Arrived at: ${nearestTrack.title} (${distanceMeters}m away)`
         );
-        await this.playTrack(nearestTrack, this.state.playbackMode);
+        // Stage track ready for user to play, without sudden unprompted playback
+        await this.prepareTrack(nearestTrack, this.state.playbackMode);
       }
 
       this.notifyListeners();
@@ -530,7 +531,8 @@ class SoundscapeService {
    */
   public async playTrack(
     trackOrId: SoundscapeTrack | string,
-    mode: SoundscapeAudioMode = this.state.playbackMode
+    mode: SoundscapeAudioMode = this.state.playbackMode,
+    userExplicitPlay: boolean = true
   ): Promise<boolean> {
     const track =
       typeof trackOrId === 'string'
@@ -562,9 +564,13 @@ class SoundscapeService {
 
       let Audio: any = null;
       try {
-        Audio = require('expo-av').Audio;
-      } catch (_) {
-        // Expo-av fallback
+        Audio = require('../../utils/media/expoMedia').Audio;
+      } catch {
+        try {
+          Audio = require('expo-av').Audio;
+        } catch (audioReqErr) {
+          console.warn("[SoundscapeService] audio engine fallback:", audioReqErr);
+        }
       }
 
       if (Audio && Audio.Sound) {
@@ -594,7 +600,7 @@ class SoundscapeService {
 
         // Load sound with loop enabled and background playback metadata
         const initialStatus = {
-          shouldPlay: true,
+          shouldPlay: userExplicitPlay,
           isLooping: true,
           volume: this.state.isDucked ? this.state.volume * 0.25 : this.state.volume,
           progressUpdateIntervalMillis: 500,
@@ -606,12 +612,12 @@ class SoundscapeService {
           true // downloadFirst
         );
 
-        this.state.isPlaying = true;
+        this.state.isPlaying = userExplicitPlay;
         this.state.isBuffering = false;
         this.notifyListeners();
       } else {
         // Fallback for mocked or simulator environments without native AV binary
-        this.state.isPlaying = true;
+        this.state.isPlaying = userExplicitPlay;
         this.state.isBuffering = false;
         this.notifyListeners();
       }
@@ -633,10 +639,17 @@ class SoundscapeService {
   /**
    * Resume playback
    */
+  public async prepareTrack(
+    trackOrId: SoundscapeTrack | string,
+    mode: SoundscapeAudioMode = this.state.playbackMode
+  ): Promise<boolean> {
+    return this.playTrack(trackOrId, mode, false);
+  }
+
   public async play(): Promise<boolean> {
     if (!this.currentSound) {
       if (this.state.currentTrack) {
-        return this.playTrack(this.state.currentTrack, this.state.playbackMode);
+        return this.playTrack(this.state.currentTrack, this.state.playbackMode, true);
       }
       return false;
     }
@@ -701,10 +714,14 @@ class SoundscapeService {
     if (this.currentSound) {
       try {
         await this.currentSound.stopAsync();
-      } catch (_) {}
+      } catch (err) {
+        console.warn("[SoundscapeService] stopAsync warning:", err);
+      }
       try {
         await this.currentSound.unloadAsync();
-      } catch (_) {}
+      } catch (err) {
+        console.warn("[SoundscapeService] unloadAsync warning:", err);
+      }
       this.currentSound = null;
     }
   }
@@ -760,7 +777,9 @@ class SoundscapeService {
       if (this.currentSound) {
         try {
           await this.currentSound.setVolumeAsync(Math.max(0, currentStepVol));
-        } catch (_) {}
+        } catch (duckErr) {
+          console.warn("[SoundscapeService] duckVolume warning:", duckErr);
+        }
       }
 
       if (stepCount >= steps) {
@@ -800,7 +819,9 @@ class SoundscapeService {
       if (this.currentSound) {
         try {
           await this.currentSound.setVolumeAsync(Math.min(1, currentStepVol));
-        } catch (_) {}
+        } catch (unduckErr) {
+          console.warn("[SoundscapeService] unduckVolume warning:", unduckErr);
+        }
       }
 
       if (stepCount >= steps) {
@@ -834,7 +855,7 @@ class SoundscapeService {
       (t) => t.id === this.state.currentTrack?.id
     );
     const nextIndex = (currentIndex + 1) % SOUNDSCAPE_CATALOG.length;
-    return this.playTrack(SOUNDSCAPE_CATALOG[nextIndex], this.state.playbackMode);
+    return this.playTrack(SOUNDSCAPE_CATALOG[nextIndex], this.state.playbackMode, true);
   }
 
   /**
@@ -846,7 +867,7 @@ class SoundscapeService {
     );
     const prevIndex =
       currentIndex <= 0 ? SOUNDSCAPE_CATALOG.length - 1 : currentIndex - 1;
-    return this.playTrack(SOUNDSCAPE_CATALOG[prevIndex], this.state.playbackMode);
+    return this.playTrack(SOUNDSCAPE_CATALOG[prevIndex], this.state.playbackMode, true);
   }
 
   // ==========================================
@@ -907,7 +928,8 @@ class SoundscapeService {
                 } else {
                   delete this.cacheManifest[key];
                 }
-              } catch (_) {
+              } catch (infoErr) {
+                console.warn("[SoundscapeService] Local file check error:", infoErr);
                 verifiedTrackIds.add(item.trackId);
               }
             }
@@ -990,7 +1012,8 @@ class SoundscapeService {
       if (info && info.exists) {
         return entry.localUri;
       }
-    } catch (_) {
+    } catch (uriErr) {
+      console.warn("[SoundscapeService] Local URI resolve warning:", uriErr);
       return entry.localUri;
     }
     return null;
@@ -1074,7 +1097,9 @@ class SoundscapeService {
           if (fileInfo && fileInfo.size) {
             sizeBytes = fileInfo.size;
           }
-        } catch (_) {}
+        } catch (infoErr) {
+          console.warn("[SoundscapeService] Size query warning:", infoErr);
+        }
       }
 
       this.cacheManifest[`${trackId}_${mode}`] = {
@@ -1149,7 +1174,9 @@ class SoundscapeService {
       if (item && item.localUri && FileSystem && FileSystem.deleteAsync) {
         try {
           await FileSystem.deleteAsync(item.localUri, { idempotent: true });
-        } catch (_) {}
+        } catch (delErr) {
+          console.warn("[SoundscapeService] Cached file delete warning:", delErr);
+        }
       }
       delete this.cacheManifest[key];
     }
@@ -1226,8 +1253,8 @@ class SoundscapeService {
           trigger: null,
         }).catch(() => {});
       }
-    } catch (_) {
-      // Graceful fallback if expo-notifications is not configured
+    } catch (notifErr) {
+      console.warn("[SoundscapeService] Notification schedule fallback:", notifErr);
     }
   }
 

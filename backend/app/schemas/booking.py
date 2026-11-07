@@ -1,23 +1,12 @@
 """
-Pydantic v2 schemas for Booking State Machine and Reservations.
+Booking Schemas and State Machine Transitions.
 """
 
 import uuid
 from datetime import date, datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import EmailStr, Field
-
-from app.schemas.common import BaseSchema
-
-
-class BookingStatus(str, Enum):
-    DRAFT = "draft"
-    PENDING_PAYMENT = "pending_payment"
-    CONFIRMED = "confirmed"
-    CANCELLED = "cancelled"
-    COMPLETED = "completed"
-    REFUNDED = "refunded"
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProductType(str, Enum):
@@ -29,106 +18,102 @@ class ProductType(str, Enum):
     CAR = "car"
 
 
-class BookingPassengerCreate(BaseSchema):
-    first_name: str
-    last_name: str
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
-    date_of_birth: Optional[date] = None
-    gender: Optional[str] = None
-    nationality: Optional[str] = None
-    passport_number: Optional[str] = None
-    passport_expiry: Optional[date] = None
-    passenger_type: str = Field(default="adult", description="adult, child, infant")
-    seat_preference: Optional[str] = None
-    meal_preference: Optional[str] = None
-    is_primary: bool = False
+class BookingStatus(str, Enum):
+    DRAFT = "draft"
+    DETAILS_PENDING = "details_pending"
+    PENDING_PAYMENT = "payment_pending"
+    CONFIRMED = "confirmed"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
 
 
-class BookingPassengerResponse(BookingPassengerCreate):
-    id: uuid.UUID
-    booking_id: uuid.UUID
-
-
-class BookingItemCreate(BaseSchema):
-    product_id: uuid.UUID = Field(..., description="Target room ID or flight ID")
+class BookingItemCreate(BaseModel):
     product_type: ProductType
+    product_id: uuid.UUID
     product_name: str
     description: Optional[str] = None
-    quantity: int = Field(default=1, ge=1)
+    quantity: int = Field(1, ge=1)
     unit_price: float = Field(..., ge=0)
-    # Metadata contains booking-specific attributes (e.g. check_in/check_out or seat_numbers)
-    item_metadata: Dict[str, Any] = Field(default_factory=dict, alias="metadata")
+    item_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class BookingItemResponse(BaseSchema):
+class BookingPassengerCreate(BaseModel):
+    first_name: str = Field(..., min_length=1)
+    last_name: str = Field(..., min_length=1)
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    passenger_type: str = "adult"
+    passport_number: Optional[str] = None
+    seat_preference: Optional[str] = None
+    seat_id: Optional[uuid.UUID] = None
+
+
+class BookingCreateRequest(BaseModel):
+    product_type: ProductType
+    destination_city: str
+    origin_city: Optional[str] = None
+    destination_country: Optional[str] = "Bangladesh"
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    number_of_guests: int = Field(1, ge=1)
+    agency_id: Optional[uuid.UUID] = None
+    items: List[BookingItemCreate] = Field(..., min_length=1)
+    passengers: List[BookingPassengerCreate] = Field(default_factory=list)
+    special_requests: Optional[str] = None
+    notes: Optional[str] = None
+    idempotency_key: Optional[str] = Field(None, description="Client nonce to prevent duplicate bookings")
+
+
+class BookingStatusUpdateRequest(BaseModel):
+    target_status: BookingStatus
+    payment_transaction_id: Optional[str] = None
+    cancellation_reason: Optional[str] = None
+    admin_override: bool = False
+
+
+class BookingItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
-    booking_id: uuid.UUID
-    product_id: Optional[uuid.UUID]
     product_type: str
     product_name: str
-    description: Optional[str]
     quantity: int
     unit_price: float
     line_total: float
-    item_metadata: Dict[str, Any]
+    item_metadata: Dict[str, Any] = Field(default_factory=dict, alias="item_metadata")
 
 
-class BookingPaymentResponse(BaseSchema):
+class BookingPassengerResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
-    booking_id: uuid.UUID
-    amount: float
-    currency: str
-    payment_method: str
-    payment_status: str
-    transaction_id: Optional[str]
-    created_at: datetime
+    first_name: str
+    last_name: str
+    passenger_type: str
+    seat_preference: Optional[str] = None
 
 
-class BookingCreateRequest(BaseSchema):
-    product_type: ProductType
-    origin_city: Optional[str] = None
-    destination_city: str
-    destination_country: Optional[str] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    number_of_guests: int = Field(default=1, ge=1)
-    special_requests: Optional[str] = None
-    items: List[BookingItemCreate] = Field(..., min_length=1)
-    passengers: List[BookingPassengerCreate] = Field(default_factory=list)
+class BookingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
 
-
-class BookingStatusUpdateRequest(BaseSchema):
-    target_status: BookingStatus
-    reason: Optional[str] = None
-    payment_transaction_id: Optional[str] = None
-
-
-class BookingResponse(BaseSchema):
     id: uuid.UUID
-    user_id: uuid.UUID
     booking_reference: str
     product_type: str
-    status: BookingStatus
+    status: str
     flow_step: str
-    origin_city: Optional[str]
+    origin_city: Optional[str] = None
     destination_city: str
-    destination_country: Optional[str]
-    start_date: Optional[date]
-    end_date: Optional[date]
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     number_of_guests: int
     total_price: float
-    currency: str
     discount_amount: float
     tax_amount: float
     service_fee: float
     final_price: float
-    special_requests: Optional[str]
+    currency: str
     created_at: datetime
-    updated_at: datetime
-    confirmed_at: Optional[datetime]
-    cancelled_at: Optional[datetime]
-    completed_at: Optional[datetime]
+    confirmed_at: Optional[datetime] = None
     items: List[BookingItemResponse] = Field(default_factory=list)
     passengers: List[BookingPassengerResponse] = Field(default_factory=list)
-    payments: List[BookingPaymentResponse] = Field(default_factory=list)

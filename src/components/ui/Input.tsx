@@ -15,14 +15,30 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { z } from "zod";
+import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
+import { hitSlopPresets } from "../../theme/spacing";
+import { FONTS } from "../../theme/typography";
+import { getLocalizedValidationError, getLocalizedPlaceholder } from "../../utils/validation";
+import i18n from "../../locales/i18n";
+
+import { PasswordStrengthMeter } from "./PasswordStrengthMeter";
+import { maskBangladeshiPhone, maskCurrencyInput } from "../../utils/masking";
+
+export type InputMaskType = "phone" | "currency" | "number" | "none";
 
 export interface InputProps extends Omit<TextInputProps, "style"> {
   label?: string;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  required?: boolean;
   floatingLabel?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   isPassword?: boolean;
+  isNewPassword?: boolean;
+  showStrengthMeter?: boolean;
+  mask?: InputMaskType;
   error?: string | null;
   helperText?: string;
   schema?: z.ZodTypeAny;
@@ -46,6 +62,9 @@ export const Input = React.forwardRef<TextInput, InputProps>(
       leftIcon,
       rightIcon,
       isPassword = false,
+      isNewPassword = false,
+      showStrengthMeter = false,
+      mask,
       error: externalError,
       helperText,
       schema,
@@ -70,14 +89,80 @@ export const Input = React.forwardRef<TextInput, InputProps>(
     },
     ref
   ) => {
+    const { colors: themeColors, isDark } = useTheme();
     const [isFocused, setIsFocused] = useState(false);
     const [secureVisible, setSecureVisible] = useState(false);
     const [internalError, setInternalError] = useState<string | null>(null);
     const [currentValue, setCurrentValue] = useState(value || defaultValue || "");
 
-    const activeError = externalError !== undefined ? externalError : internalError;
+    const rawError = externalError !== undefined ? externalError : internalError;
+    const activeError = rawError ? getLocalizedValidationError(rawError) : null;
+    const localizedPlaceholder = getLocalizedPlaceholder(placeholder);
+    const localizedLabel = label ? i18n.t(label, { defaultValue: label }) : undefined;
+    const effectiveLabel = localizedLabel || localizedPlaceholder;
     const hasValue = currentValue.length > 0;
     const isFloating = floatingLabel && (isFocused || hasValue);
+
+    // Resolve active mask
+    const effectiveMask: InputMaskType = (() => {
+      if (mask) return mask;
+      const lower = (effectiveLabel || "").toLowerCase();
+      if (rest.keyboardType === "phone-pad" || lower.includes("phone") || lower.includes("mobile") || lower.includes("ফোন")) {
+        return "phone";
+      }
+      if (lower.includes("amount") || lower.includes("budget") || lower.includes("price") || lower.includes("টাকা") || lower.includes("দাম")) {
+        return "currency";
+      }
+      return "none";
+    })();
+
+    // Smart AutoFill inference based on field context, names and types
+    const inferAutofill = () => {
+      const labelText = (effectiveLabel || "").toLowerCase();
+      if (isPassword || secureTextEntry) {
+        const isNew = isNewPassword || labelText.includes("new") || labelText.includes("create") || labelText.includes("confirm");
+        return {
+          autoComplete: rest.autoComplete || (isNew ? ("new-password" as const) : ("current-password" as const)),
+          textContentType: rest.textContentType || (isNew ? ("newPassword" as const) : ("password" as const)),
+        };
+      }
+      if (rest.keyboardType === "email-address" || labelText.includes("email")) {
+        return {
+          autoComplete: rest.autoComplete || ("email" as const),
+          textContentType: rest.textContentType || ("emailAddress" as const),
+        };
+      }
+      if (labelText.includes("otp") || labelText.includes("code") || labelText.includes("token") || labelText.includes("verification")) {
+        return {
+          autoComplete: rest.autoComplete || ("one-time-code" as const),
+          textContentType: rest.textContentType || ("oneTimeCode" as const),
+        };
+      }
+      if (rest.keyboardType === "phone-pad" || labelText.includes("phone") || labelText.includes("mobile")) {
+        return {
+          autoComplete: rest.autoComplete || ("tel" as const),
+          textContentType: rest.textContentType || ("telephoneNumber" as const),
+        };
+      }
+      if (labelText.includes("name") && !labelText.includes("user")) {
+        return {
+          autoComplete: rest.autoComplete || ("name" as const),
+          textContentType: rest.textContentType || ("name" as const),
+        };
+      }
+      if (labelText.includes("user") || labelText.includes("username")) {
+        return {
+          autoComplete: rest.autoComplete || ("username" as const),
+          textContentType: rest.textContentType || ("username" as const),
+        };
+      }
+      return {
+        autoComplete: rest.autoComplete,
+        textContentType: rest.textContentType,
+      };
+    };
+
+    const autofillProps = inferAutofill();
 
     // Floating label animated position and font size
     const labelAnim = useRef(new Animated.Value(hasValue ? 1 : 0)).current;
@@ -97,11 +182,18 @@ export const Input = React.forwardRef<TextInput, InputProps>(
     }, [value]);
 
     const handleTextChange = (text: string) => {
-      setCurrentValue(text);
+      let formattedText = text;
+      if (effectiveMask === "phone") {
+        formattedText = maskBangladeshiPhone(text);
+      } else if (effectiveMask === "currency" || effectiveMask === "number") {
+        formattedText = maskCurrencyInput(text);
+      }
+
+      setCurrentValue(formattedText);
       if (internalError) {
         setInternalError(null);
       }
-      onChangeText?.(text);
+      onChangeText?.(formattedText);
     };
 
     const validateValue = (text: string) => {
@@ -134,7 +226,9 @@ export const Input = React.forwardRef<TextInput, InputProps>(
       if (Platform.OS !== "web") {
         try {
           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        } catch {}
+        } catch (hapticErr) {
+          if (__DEV__) console.warn("[Input] Haptics unavailable:", hapticErr);
+        }
       }
       setSecureVisible((prev) => !prev);
     };
@@ -159,28 +253,46 @@ export const Input = React.forwardRef<TextInput, InputProps>(
 
     return (
       <View className={containerClassName} style={[styles.wrapper, containerStyle]}>
-        {label && !floatingLabel ? (
+        {localizedLabel && !floatingLabel ? (
           <Text
             className={labelClassName}
-            style={[styles.staticLabel, !!activeError && styles.labelError, labelStyle]}
+            style={[
+              styles.staticLabel,
+              { color: themeColors.text, fontFamily: FONTS.bengali.medium },
+              !!activeError && styles.labelError,
+              labelStyle,
+            ]}
           >
-            {label}
+            {localizedLabel}
           </Text>
         ) : null}
 
         <View
           style={[
             styles.inputBox,
+            { backgroundColor: themeColors.card, borderColor: themeColors.border },
             floatingLabel && styles.inputBoxFloating,
-            isFocused && styles.inputBoxFocused,
-            !!activeError && styles.inputBoxError,
+            isFocused && [
+              styles.inputBoxFocused,
+              {
+                borderColor: themeColors.primary,
+                backgroundColor: isDark ? themeColors.surface : "#FFFFFF",
+              },
+            ],
+            !!activeError && [
+              styles.inputBoxError,
+              {
+                borderColor: themeColors.danger,
+                backgroundColor: themeColors.dangerLight,
+              },
+            ],
             disabled && styles.inputBoxDisabled,
           ]}
         >
           {leftIcon ? <View style={styles.leftIconContainer}>{leftIcon}</View> : null}
 
           <View style={styles.inputInnerContainer}>
-            {label && floatingLabel ? (
+            {effectiveLabel && floatingLabel ? (
               <Animated.Text
                 numberOfLines={1}
                 className={labelClassName}
@@ -191,7 +303,7 @@ export const Input = React.forwardRef<TextInput, InputProps>(
                   labelStyle,
                 ]}
               >
-                {label}
+                {effectiveLabel}
               </Animated.Text>
             ) : null}
 
@@ -201,13 +313,30 @@ export const Input = React.forwardRef<TextInput, InputProps>(
               onChangeText={handleTextChange}
               onFocus={handleFocus}
               onBlur={handleBlur}
-              placeholder={floatingLabel && !isFocused ? undefined : placeholder}
-              placeholderTextColor={colors.text.muted}
+              placeholder={floatingLabel && !isFocused ? undefined : localizedPlaceholder}
+              placeholderTextColor={themeColors.textMuted}
               editable={!disabled}
               secureTextEntry={isPassword ? !secureVisible : secureTextEntry}
+              autoComplete={autofillProps.autoComplete}
+              textContentType={autofillProps.textContentType}
               className={inputClassName}
+              accessible={true}
+              accessibilityLabel={rest.accessibilityLabel || effectiveLabel || placeholder}
+              accessibilityHint={
+                rest.accessibilityHint ||
+                (effectiveLabel ? `Enter ${effectiveLabel}` : activeError ? `Error: ${activeError}` : helperText)
+              }
+              accessibilityState={{ disabled }}
+              allowFontScaling={true}
+              maxFontSizeMultiplier={1.4}
+              {...(Platform.OS === "web" && {
+                "aria-label": rest.accessibilityLabel || effectiveLabel || placeholder,
+                "aria-invalid": !!activeError,
+                "aria-errormessage": activeError ? `${label || "input"}-error` : undefined,
+              })}
               style={[
                 styles.textInput,
+                { color: themeColors.text, fontFamily: FONTS.bengali.regular },
                 floatingLabel && hasValue && styles.textInputWithFloating,
                 inputStyle,
               ]}
@@ -219,32 +348,63 @@ export const Input = React.forwardRef<TextInput, InputProps>(
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={secureVisible ? "Hide password" : "Show password"}
+              hitSlop={hitSlopPresets.md}
               onPress={togglePasswordVisibility}
               style={styles.rightActionContainer}
             >
               <Ionicons
+                accessible={false}
+                importantForAccessibility="no"
                 name={secureVisible ? "eye-off-outline" : "eye-outline"}
                 size={20}
                 color={colors.neutral[500]}
               />
             </Pressable>
           ) : rightIcon ? (
-            <View style={styles.rightActionContainer}>{rightIcon}</View>
+            <View accessible={false} importantForAccessibility="no" style={styles.rightActionContainer}>
+              {rightIcon}
+            </View>
           ) : null}
         </View>
 
+        {showStrengthMeter && (isPassword || secureTextEntry) && (
+          <PasswordStrengthMeter password={currentValue} showCriteria={isFocused} />
+        )}
+
         {activeError ? (
-          <View style={styles.errorRow}>
+          <View
+            style={styles.errorRow}
+            accessibilityLiveRegion="polite"
+            {...(Platform.OS === "web" && {
+              id: `${label || "input"}-error`,
+              "aria-live": "polite",
+            })}
+          >
             <Ionicons
+              accessible={false}
+              importantForAccessibility="no"
               name="alert-circle"
               size={14}
               color={colors.status.danger.main}
               style={styles.errorIcon}
             />
-            <Text style={[styles.errorText, errorStyle]}>{activeError}</Text>
+            <Text
+              accessibilityRole="alert"
+              allowFontScaling={true}
+              maxFontSizeMultiplier={1.3}
+              style={[styles.errorText, errorStyle]}
+            >
+              {activeError}
+            </Text>
           </View>
         ) : helperText ? (
-          <Text style={styles.helperText}>{helperText}</Text>
+          <Text
+            allowFontScaling={true}
+            maxFontSizeMultiplier={1.3}
+            style={styles.helperText}
+          >
+            {helperText}
+          </Text>
         ) : null}
       </View>
     );
@@ -312,12 +472,12 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   leftIconContainer: {
-    marginRight: 10,
+    marginEnd: 10,
     justifyContent: "center",
     alignItems: "center",
   },
   rightActionContainer: {
-    marginLeft: 10,
+    marginStart: 10,
     justifyContent: "center",
     alignItems: "center",
     padding: 4,
@@ -332,7 +492,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   errorIcon: {
-    marginRight: 5,
+    marginEnd: 5,
   },
   errorText: {
     fontSize: 12,

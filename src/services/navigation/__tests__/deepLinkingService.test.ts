@@ -134,7 +134,7 @@ describe("DeepLinkingService Specification Tests", () => {
       expect(parsed).not.toBeNull();
       expect(parsed?.type).toBe("split");
       expect(parsed?.originalIdentifier).toBe("ledger_chander_gari_441");
-      expect(parsed?.targetRoute).toBe("/screens/payments-enhanced");
+      expect(parsed?.targetRoute).toBe("/screens/payments");
       expect(parsed?.params.ledgerId).toBe("ledger_chander_gari_441");
       expect(parsed?.params.bookingId).toBe("ledger_chander_gari_441");
       expect(parsed?.params.split).toBe("true");
@@ -167,7 +167,7 @@ describe("DeepLinkingService Specification Tests", () => {
       const parsedSplit = deepLinkingService.parseUrl("https://shopnojatra.com/split/led_resort_split");
       expect(parsedSplit?.type).toBe("split");
       expect(parsedSplit?.requiresAuth).toBe(true);
-      expect(parsedSplit?.targetRoute).toBe("/screens/payments-enhanced");
+      expect(parsedSplit?.targetRoute).toBe("/screens/payments");
     });
   });
 
@@ -253,7 +253,7 @@ describe("DeepLinkingService Specification Tests", () => {
       expect(metaTags["product:price:amount"]).toBe("12500");
       expect(metaTags["product:price:currency"]).toBe("BDT");
       expect(metaTags["al:ios:url"]).toContain("shopnojatra://hotel/");
-      expect(metaTags["al:android:package"]).toBe("com.s025.convertedtravelui");
+      expect(metaTags["al:android:package"]).toBe("com.shopnojatra.app");
     });
 
     it("renders complete HTML5 document for preview crawlers with Schema.org JSON-LD", async () => {
@@ -306,13 +306,13 @@ describe("DeepLinkingService Specification Tests", () => {
 
       expect(resolution.handled).toBe(true);
       expect(resolution.action).toBe("AUTH_REQUIRED");
-      expect(resolution.targetRoute).toBe("/screens/payments-enhanced");
+      expect(resolution.targetRoute).toBe("/screens/payments");
 
       // Verify routing through auth screen
       expect(mockRouter.push).toHaveBeenCalledWith({
         pathname: "/(auth)/login",
         params: {
-          returnTo: "/screens/payments-enhanced",
+          returnTo: "/screens/payments",
           requiresDeepLinkResume: "true",
           destinationType: "split",
         },
@@ -321,7 +321,7 @@ describe("DeepLinkingService Specification Tests", () => {
       // Verify target destination is preserved in memory and storage
       const retained = await deepLinkingService.getPendingAuthDestination();
       expect(retained).not.toBeNull();
-      expect(retained?.targetRoute).toBe("/screens/payments-enhanced");
+      expect(retained?.targetRoute).toBe("/screens/payments");
       expect(retained?.params.ledgerId).toBe("ledger_trip_expenses_552");
       expect(retained?.params.amount).toBe(1800);
       expect(retained?.originalUrl).toBe(splitUrl);
@@ -330,7 +330,7 @@ describe("DeepLinkingService Specification Tests", () => {
     it("resumes retained destination after authentication completes", async () => {
       // Retain a pending destination
       await deepLinkingService.setPendingAuthDestination({
-        targetRoute: "/screens/payments-enhanced",
+        targetRoute: "/screens/payments",
         params: { ledgerId: "ledger_dinner_split", split: "true", amount: 1250 },
         originalUrl: "shopnojatra://split/ledger_dinner_split",
         timestamp: Date.now(),
@@ -343,7 +343,7 @@ describe("DeepLinkingService Specification Tests", () => {
 
       // Verify target destination was navigated to with original parameters
       expect(mockRouter.push).toHaveBeenCalledWith({
-        pathname: "/screens/payments-enhanced",
+        pathname: "/screens/payments",
         params: {
           ledgerId: "ledger_dinner_split",
           split: "true",
@@ -368,7 +368,7 @@ describe("DeepLinkingService Specification Tests", () => {
       expect(resolution.handled).toBe(true);
       expect(resolution.action).toBe("NAVIGATED");
       expect(mockRouter.push).toHaveBeenCalledWith({
-        pathname: "/screens/payments-enhanced",
+        pathname: "/screens/payments",
         params: expect.objectContaining({
           ledgerId: "ledger_hotel_split",
           amount: 4500,
