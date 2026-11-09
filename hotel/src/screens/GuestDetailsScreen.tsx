@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-export function GuestDetailsScreen() {
+export function GuestDetailsScreen({ navigation, route }: any) {
   const InfoRow = ({ label, value, icon, isCopyable, isPaid }: any) => (
     <View className={`flex-row justify-between items-center py-4 ${!isPaid && 'border-b border-gray-800'}`}>
       <Text className="text-gray-400 text-sm">{label}</Text>
@@ -35,11 +35,11 @@ export function GuestDetailsScreen() {
 
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4">
-        <TouchableOpacity className="p-2 bg-gray-800/40 rounded-full">
+        <TouchableOpacity className="p-2 bg-gray-800/40 rounded-full" onPress={() => navigation?.goBack?.()}>
           <MaterialIcons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Text className="text-lg font-bold text-white">Guest Details</Text>
-        <TouchableOpacity className="p-2 bg-gray-800/40 rounded-full">
+        <TouchableOpacity className="p-2 bg-gray-800/40 rounded-full" onPress={() => navigation?.goBack?.()}>
           <MaterialIcons name="share" size={24} color="white" />
         </TouchableOpacity>
       </View>

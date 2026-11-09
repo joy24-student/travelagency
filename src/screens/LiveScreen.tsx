@@ -144,7 +144,16 @@ const StreamCardItem = memo(function StreamCardItem({
   );
 });
 
-export function LiveScreen({ screen }: { screen: UIScreen }) {
+const DEFAULT_SCREEN: UIScreen = {
+  slug: "live",
+  source: "screens/live.tsx",
+  title: "Live",
+  subtitle: "Live Stream & Stories",
+  kind: "live",
+  theme: "trip",
+};
+
+export function LiveScreen({ screen = DEFAULT_SCREEN }: { screen?: UIScreen } = {}) {
   const storeUser = useAuthStore((s) => s.user);
   const { user: authUser } = useAuth();
   const currentUser = storeUser || authUser;

@@ -106,3 +106,39 @@ class PropertyVibeResponse(BaseModel):
     bot_percentage: float
     summary: str
 
+
+class AIChatMessage(BaseModel):
+    role: str = Field(..., description="Role: 'user', 'assistant', 'model', or 'system'")
+    content: str = Field(..., description="Message content text")
+
+
+class AIChatRequest(BaseModel):
+    messages: List[AIChatMessage] = Field(..., min_length=1, description="List of previous conversation messages")
+    temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0)
+    model: Optional[str] = Field(None, description="Optional Gemini model override")
+    max_tokens: Optional[int] = Field(2048, ge=1, le=8192)
+
+
+class AIChatResponse(BaseModel):
+    content: str
+    raw: str
+    provider: str = "gemini"
+    model: str
+    tokens_used: Optional[int] = None
+
+
+class AICompletionRequest(BaseModel):
+    user_prompt: str = Field(..., min_length=1, description="User prompt text")
+    system_prompt: Optional[str] = Field(None, description="System instruction prompt")
+    temperature: Optional[float] = Field(0.2, ge=0.0, le=2.0)
+    max_tokens: Optional[int] = Field(3500, ge=1, le=8192)
+    response_mime_type: Optional[str] = Field("text/plain", description="'application/json' or 'text/plain'")
+    provider: Optional[str] = Field("gemini", description="Preferred AI provider")
+    model: Optional[str] = Field(None, description="Optional model override")
+
+
+class AICompletionResponse(BaseModel):
+    text: str
+    provider: str = "gemini"
+    model: str
+    tokens_used: Optional[int] = None

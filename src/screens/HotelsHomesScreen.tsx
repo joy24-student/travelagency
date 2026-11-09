@@ -11,6 +11,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -375,32 +376,22 @@ export function HotelsHomesScreen() {
       id: h.id,
       title: h.name,
       subtitle: `${h.location} • ${h.propertyType}`,
+      type: "hotel" as const,
       price: h.pricePerNight,
       priceUnit: "/রাত",
       rating: h.rating,
       reviewsCount: h.reviewsCount,
       specs: [
         { label: "ধরণ", value: h.propertyType },
-        { label: "অতিথি", value: `${h.maxGuests} জন` },
-        { label: "বেডরুম", value: `${h.bedrooms}টি` },
-        { label: "বাথরুম", value: `${h.bathrooms}টি` },
+        { label: "অতিথি", value: `${h.specs?.guests || 2} জন` },
+        { label: "বেডরুম", value: `${h.specs?.bedrooms || 1}টি` },
+        { label: "বাথরুম", value: `${h.specs?.baths || 1}টি` },
       ],
       features: h.amenities || [],
-      policies: [h.freeCancellation ? "ফ্রি বাতিলকরণ সুবিধা" : "বাতিলকরণ প্রযোজ্য নয়"],
+      policies: [h.is_free_cancellation ? "ফ্রি বাতিলকরণ সুবিধা" : "বাতিলকরণ প্রযোজ্য নয়"],
     }));
   }, [selectedCompareHotels]);
 
-  // Progressive list pagination
-  const [pageLimit, setPageLimit] = useState(8);
-  const pagedRentals = useMemo(() => {
-    return filteredRentals.slice(0, pageLimit);
-  }, [filteredRentals, pageLimit]);
-
-  const handleEndReached = useCallback(() => {
-    if (pageLimit < filteredRentals.length) {
-      setPageLimit((prev) => Math.min(prev + 6, filteredRentals.length));
-    }
-  }, [pageLimit, filteredRentals.length]);
 
   // Direct Messenger Chat State
   const [activeChatConvo, setActiveChatConvo] = useState<ConversationItem | null>(null);
@@ -622,6 +613,13 @@ export function HotelsHomesScreen() {
     },
     [searchQuery, guestRatingFilter, minPriceSlider, maxPriceSlider, mapHotelsToRentals]
   );
+
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchInventory(true);
+    setRefreshing(false);
+  }, [fetchInventory]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1643,6 +1641,14 @@ export function HotelsHomesScreen() {
       {/* Optimized Virtualized FlatList with Progressive Pagination */}
       <FlatList
         data={pagedRentals}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={["#0055F2"]}
+            tintColor="#0055F2"
+          />
+        }
         renderItem={renderVillaItem}
         keyExtractor={keyExtractor}
         getItemLayout={getItemLayout}

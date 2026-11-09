@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -32,6 +33,8 @@ import { useAuthStore } from "../store/authStore";
 import { useBookingStore } from "../store/bookingStore";
 import { TrainTicketReleaseCountdown } from "../components/trains/TrainTicketReleaseCountdown";
 import { SeatPickerModal } from "../components/trains/SeatPickerModal";
+import { FareCalendar } from "../components/common/FareCalendar";
+import { PriceAlertCard } from "../components/flights/PriceAlertCard";
 import { RTLIcon } from "../components/ui";
 import { formatPrice } from "../utils/currency";
 
@@ -765,6 +768,13 @@ export function TrainsScreen() {
     }
   }, [fromStation, toStation, travelDate, generateTrainsForRoute]);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchTrainSchedules();
+    setRefreshing(false);
+  }, [fetchTrainSchedules]);
+
   useEffect(() => {
     fetchTrainSchedules();
   }, [fetchTrainSchedules]);
@@ -1055,6 +1065,7 @@ export function TrainsScreen() {
         travelers: passengersCount.toString(),
         timeSlot: `${train.departure_time} - ${train.arrival_time}`,
         duration: train.duration,
+        selectedSeats: selectedSeats.join(", "),
       },
     } as any);
   };
@@ -1157,7 +1168,18 @@ export function TrainsScreen() {
 
   return (
     <SafeAreaView style={styles.shell}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={["#059669"]}
+            tintColor="#059669"
+          />
+        }
+      >
         {/* =========================================================================
             Hero Section & Government Header
            ========================================================================= */}
@@ -1378,6 +1400,31 @@ export function TrainsScreen() {
           travelDate={travelDate}
           originStationName={fromStation.name}
           destStationName={toStation.name}
+        />
+
+        {/* Fare Calendar & Lowest Fare Day Highlight */}
+        <View style={{ marginHorizontal: 16 }}>
+          <FareCalendar
+            origin={fromStation.code || "DAC"}
+            destination={toStation.code || "CXB"}
+            serviceType="train"
+            selectedDate={travelDate.toISOString().slice(0, 10)}
+            onSelectDate={(dateStr) => {
+              handleSelectTravelDate(new Date(dateStr));
+            }}
+          />
+        </View>
+
+        {/* Train Price Alert Card */}
+        <PriceAlertCard
+          originCode={fromStation.code || "DAC"}
+          destCode={toStation.code || "CXB"}
+          originCity={fromStation.name}
+          destCity={toStation.name}
+          travelDate={travelDate.toISOString().slice(0, 10)}
+          currentLowestPrice={850}
+          currency="BDT"
+          serviceType="train"
         />
 
         {/* =========================================================================

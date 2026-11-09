@@ -19,6 +19,7 @@ import { ShopnoWalletProvider } from "./payment/shopnoWallet";
 import { GooglePayProvider } from "./payment/googlePay";
 import { generateSecureNonce, storePendingTransaction } from "./payment/paymentSecurity";
 import { sanitizePaymentPayload, securePaymentLogger } from "./payment/pciDssCompliance";
+import { appEventBus, APP_EVENTS } from "./events/appEventBus";
 import type {
   IPaymentProvider,
   PaymentMethod,
@@ -104,6 +105,27 @@ export const paymentService = {
       await storePendingTransaction(result.transactionId, request.method);
     }
 
+    if (result.success && result.status === "completed") {
+      appEventBus.publish(APP_EVENTS.PAYMENT_COMPLETED, {
+        transactionId: result.transactionId || request.reference || `TXN-${Date.now()}`,
+        amount: request.amount,
+        currency: request.currency,
+        paymentMethod: request.method,
+        status: "completed",
+        bookingId: request.bookingId,
+        timestamp: Date.now(),
+      });
+      if (request.bookingId) {
+        appEventBus.publish(APP_EVENTS.BOOKING_STATUS_CHANGED, {
+          bookingId: request.bookingId,
+          currentStatus: "confirmed",
+          totalPrice: request.amount,
+          currency: request.currency,
+          timestamp: Date.now(),
+        });
+      }
+    }
+
     return result;
   },
 
@@ -129,6 +151,17 @@ export const paymentService = {
         .eq("transaction_id", transactionId);
     } catch (err) {
       securePaymentLogger.error("Error updating verified payment status", err);
+    }
+
+    if (verifiedStatus === "completed") {
+      appEventBus.publish(APP_EVENTS.PAYMENT_COMPLETED, {
+        transactionId,
+        amount: 0,
+        currency: "BDT",
+        paymentMethod: method,
+        status: "completed",
+        timestamp: Date.now(),
+      });
     }
 
     return verifiedStatus;

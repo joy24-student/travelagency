@@ -1,6 +1,8 @@
 import { AppImage } from "../../src/components/ui/AppImage";
 import React, { useState, useEffect, useCallback } from "react";
 import {
+  FlatList,
+
   ActivityIndicator,
   Alert,
   Dimensions,
@@ -464,7 +466,14 @@ export default function MessagesTab() {
                 </Text>
               </View>
             ) : (
-              filteredConversations.map((convo) => (
+              <FlatList
+                data={filteredConversations}
+                keyExtractor={(convo) => convo.id}
+                scrollEnabled={false}
+                initialNumToRender={8}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                renderItem={({ item: convo }) => (
                 <Pressable
                   key={convo.id}
                   style={styles.convoCard}
@@ -522,7 +531,8 @@ export default function MessagesTab() {
                     </View>
                   )}
                 </Pressable>
-              ))
+              )}
+              />
             )}
           </View>
         )}
@@ -833,9 +843,14 @@ export default function MessagesTab() {
               ))}
             </View>
             {notifications.filter((n) => notifCategory === "all" || n.category === notifCategory).length > 0 ? (
-              notifications
-                .filter((n) => notifCategory === "all" || n.category === notifCategory)
-                .map((n) => (
+              <FlatList
+                data={notifications.filter((n) => notifCategory === "all" || n.category === notifCategory)}
+                keyExtractor={(n) => n.id}
+                scrollEnabled={false}
+                initialNumToRender={8}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                renderItem={({ item: n }) => (
                 <Pressable key={n.id} style={[styles.notifCard, n.unread && styles.notifUnread]}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -869,7 +884,8 @@ export default function MessagesTab() {
                     <Text style={styles.notifTime}>{n.time}</Text>
                   </View>
                 </Pressable>
-              ))
+              )}
+              />
             ) : (
               <View style={styles.emptyContainer}>
                 <Ionicons name="notifications-off-outline" size={48} color="#94A3B8" />

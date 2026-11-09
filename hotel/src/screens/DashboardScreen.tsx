@@ -14,8 +14,9 @@ import { MaterialIcons, MaterialCommunityIcons, Ionicons } from '@expo/vector-ic
 import { LinearGradient } from 'expo-linear-gradient';
 import { useHotelRBAC, HOTEL_ROLES_META } from '../context/HotelRBACContext';
 import { hotelService, HotelTelemetry } from '../services/hotelService';
+import { subscribeToHotelRealtime } from '../services/hotelRealtimeBridge';
 
-export function DashboardScreen() {
+export function DashboardScreen({ navigation }: any) {
   const { role, switchRole, roleMeta } = useHotelRBAC();
   const [roleModalVisible, setRoleModalVisible] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,10 @@ export function DashboardScreen() {
 
   useEffect(() => {
     loadData();
+    const unsub = subscribeToHotelRealtime(() => {
+      loadData();
+    });
+    return () => unsub();
   }, []);
 
   const onRefresh = async () => {

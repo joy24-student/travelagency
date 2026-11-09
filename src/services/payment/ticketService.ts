@@ -20,7 +20,7 @@ export interface ETicket {
   bookingReference: string;
   passengerName: string;
   title: string;
-  type: "hotel" | "flight" | "train" | "tour" | "package";
+  type: "hotel" | "flight" | "train" | "bus" | "launch" | "tour" | "package";
   destination: string;
   origin?: string;
   departureTime?: string;

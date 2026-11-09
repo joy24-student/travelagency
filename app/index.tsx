@@ -23,6 +23,12 @@ export default function IndexScreen() {
       }
 
       try {
+        const demoMode = await AsyncStorage.getItem("@app:demo_mode");
+        if (demoMode === "true") {
+          router.replace("/(tabs)");
+          return;
+        }
+
         const hasSeenOnboarding = await AsyncStorage.getItem("@app:has_seen_onboarding");
         if (!isMounted) return;
 

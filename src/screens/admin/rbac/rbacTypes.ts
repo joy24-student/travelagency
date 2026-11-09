@@ -156,14 +156,14 @@ export const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
  */
 export const ROLE_ALLOWED_TABS: Record<AdminRole, AdminTab[]> = {
   [AdminRole.SUPER_ADMIN]: [
-    "dashboard", "booking-ops", "users", "hotels", "agencies", "agency-ops",
+    "dashboard", "booking-ops", "users", "hotels", "agencies", "agency-ops", "agency-kyc",
     "payment-ops", "refunds", "commissions", "destinations", "reviews",
     "support", "notifications", "marketing", "ads", "reports", "demand-heatmap", "monitoring",
     "audit-trail", "settings",
   ],
 
   [AdminRole.ADMIN]: [
-    "dashboard", "booking-ops", "users", "hotels", "agencies", "agency-ops",
+    "dashboard", "booking-ops", "users", "hotels", "agencies", "agency-ops", "agency-kyc",
     "destinations", "reviews", "support", "notifications", "marketing", "ads",
     "reports", "demand-heatmap", "monitoring", "audit-trail", "settings",
   ],
@@ -185,7 +185,7 @@ export const ROLE_ALLOWED_TABS: Record<AdminRole, AdminTab[]> = {
   ],
 
   [AdminRole.AGENCY_MANAGER]: [
-    "dashboard", "agencies", "agency-ops", "booking-ops", "commissions", "reports", "demand-heatmap",
+    "dashboard", "agencies", "agency-ops", "agency-kyc", "booking-ops", "commissions", "reports", "demand-heatmap",
   ],
 
   [AdminRole.READONLY]: [

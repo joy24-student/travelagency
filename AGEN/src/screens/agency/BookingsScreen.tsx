@@ -8,20 +8,25 @@ import {
   TextInput,
   Animated,
   Image,
+  ScrollView,
 } from 'react-native';
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SectionHeader, Badge } from "../ui/UIComponents";
 import { useAuth } from "../../hooks/useAuth";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { agencyBookingsService } from "../../services/agencyService";
 import { supabase } from "../../services/supabaseClient";
 import { BookingsStackParamList } from "../../App";
+import { useScreenCollaboration } from "../../hooks/useScreenCollaboration";
+import { APP_EVENTS } from "../../services/events/appEventBus";
+import { useTranslation } from "react-i18next";
 
 const UI_COLORS = {
   brandDark: "#0B101B",
   brandCard: "#161C2C",
   brandPrimary: "#6366F1",
+  brandText: "#F8FAFC",
   brandTextMuted: "#94A3B8",
   white: "#FFFFFF",
   border: "rgba(31, 41, 55, 0.5)", // border-gray-800/50
@@ -86,6 +91,61 @@ export default function BookingsScreen({ navigation }: Props) {
       return status;
     return "pending";
   };
+
+  const { t } = useTranslation();
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    const timer = setTimeout(() => {
+      setToastMessage((cur) => (cur === msg ? null : cur));
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useScreenCollaboration(
+    APP_EVENTS.BOOKING_STATUS_CHANGED,
+    useCallback(
+      (payload) => {
+        if (!payload?.bookingId) return;
+        setBookings((prev) =>
+          prev.map((b) => {
+            if (b.id === payload.bookingId) {
+              const mappedStatus = normalizeStatus(payload.currentStatus);
+              return { ...b, status: mappedStatus };
+            }
+            return b;
+          })
+        );
+        const statusLabel = t(payload.currentStatus, {
+          defaultValue: payload.currentStatus,
+        });
+        showToast(t("bookingStatusUpdated", { status: statusLabel }));
+      },
+      [t, showToast]
+    ),
+    { replayLast: true, screenId: "AgencyBookingsScreen" }
+  );
+
+  useScreenCollaboration(
+    APP_EVENTS.PAYMENT_COMPLETED,
+    useCallback(
+      (payload) => {
+        if (!payload?.bookingId) return;
+        setBookings((prev) =>
+          prev.map((b) => {
+            if (b.id === payload.bookingId) {
+              return { ...b, status: "confirmed" };
+            }
+            return b;
+          })
+        );
+        showToast(t("paymentReceivedToast", { bookingId: payload.bookingId.slice(0, 8) }));
+      },
+      [t, showToast]
+    ),
+    { replayLast: true, screenId: "AgencyBookingsScreen" }
+  );
 
   const formatDateRange = (start?: string | null, end?: string | null) => {
     if (!start && !end) return "Dates pending";
@@ -192,6 +252,12 @@ export default function BookingsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {toastMessage && (
+        <View style={styles.floatingToast}>
+          <MaterialCommunityIcons name="information" size={18} color="#6366F1" />
+          <Text style={styles.floatingToastText}>{toastMessage}</Text>
+        </View>
+      )}
       <Animated.View style={[styles.stickyHeader, { opacity: headerOpacity }]}>
         <Text style={styles.stickyHeaderTitle}>Bookings</Text>
       </Animated.View>
@@ -872,6 +938,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#111624",
     borderBottomColor: "rgba(255, 255, 255, 0.08)",
   },
+  tableHeaderCell: {
+    height: 44,
+    justifyContent: "center",
+  },
   tableCell: {
     justifyContent: "center",
   },
@@ -936,4 +1006,29 @@ const styles = StyleSheet.create({
     padding: 4,
     marginLeft: 4,
   },
+  floatingToast: {
+    position: "absolute",
+    top: 50,
+    alignSelf: "center",
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#6366F1",
+    zIndex: 9999,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  floatingToastText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+  }
 });

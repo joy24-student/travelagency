@@ -220,4 +220,5 @@ export interface AuthContextType {
   updatePassword: (password: string) => Promise<unknown>;
   refreshSession: () => Promise<unknown>;
   getUserRole: () => Promise<UserRole | null>;
+  loginAsDemo?: (role?: UserRole) => Promise<unknown>;
 }

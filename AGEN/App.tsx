@@ -4,7 +4,8 @@
  * Production-ready with full Supabase integration
  */
 
-import React from "react";
+import React, { useEffect } from "react";
+import { initAgencyRealtimeBridge } from "./src/services/events/supabaseRealtimeBridge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -30,10 +31,12 @@ import ProfileScreen from "./src/screens/agency/ProfileScreen";
 import AgencyInfoScreen from "./src/screens/agency/AgencyInfoScreen";
 import TeamManagementScreen from "./src/screens/agency/TeamManagementScreen";
 import BankAccountsScreen from "./src/screens/agency/BankAccountsScreen";
+import EarningsScreen from "./src/screens/agency/EarningsScreen";
 import VerificationScreen from "./src/screens/agency/VerificationScreen";
 import CustomerProfileScreen from "./src/screens/agency/CustomerProfileScreen"; // Import the new screen
 import SupportCenterScreen from "./src/screens/agency/SupportCenterScreen";
 import SettingsScreen from "./src/screens/agency/SettingsScreen";
+import AgencyScannerScreen from "./src/screens/agency/ScannerScreen";
 
 // Authentication
 import { useAuth } from "./src/hooks/useAuth";
@@ -58,6 +61,7 @@ export type DashboardStackParamList = {
 
 export type OperationsStackParamList = {
   OperationsList: undefined;
+  Scanner: undefined;
 };
 
 export type BookingsStackParamList = {
@@ -81,6 +85,7 @@ export type ProfileStackParamList = {
   AgencyInfo: undefined;
   TeamManagement: undefined;
   BankAccounts: undefined;
+  Earnings: undefined;
   Verification: undefined;
   SupportCenter: undefined;
   Settings: undefined;
@@ -129,6 +134,11 @@ function OperationsStackNavigator() {
         name="OperationsList"
         component={OperationsScreen}
         options={{ headerShown: false }}
+      />
+      <OperationsStack.Screen
+        name="Scanner"
+        component={AgencyScannerScreen}
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
     </OperationsStack.Navigator>
   );
@@ -236,6 +246,13 @@ function ProfileStackNavigator() {
         component={TeamManagementScreen}
         options={{
           presentation: "modal",
+        }}
+      />
+      <ProfileStack.Screen
+        name="Earnings"
+        component={EarningsScreen}
+        options={{
+          presentation: "card",
         }}
       />
       <ProfileStack.Screen
@@ -347,6 +364,12 @@ function DashboardTabNavigator() {
 // Main App Component
 export default function App() {
   const { user, loading } = useAuth();
+
+  // Initialize Realtime bridge across apps (Consumer, AGEN, Hotel)
+  useEffect(() => {
+    const cleanup = initAgencyRealtimeBridge(user?.agency?.id);
+    return () => cleanup?.();
+  }, [user?.agency?.id]);
 
   if (loading) {
     return (

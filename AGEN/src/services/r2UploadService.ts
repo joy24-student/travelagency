@@ -506,3 +506,144 @@ export async function deleteFileFromR2(
     throw error;
   }
 }
+
+
+// ============================================================================
+// AGENCY KYC DOCUMENT VERIFICATION UPLOAD APIS
+// ============================================================================
+
+export interface KycPresignResult {
+  upload_url: string;
+  key: string;
+  expires_in: number;
+  mime_type: string;
+  size_bytes: number;
+}
+
+export interface KycSubmitDocItem {
+  doc_type: "trade_licence" | "tin" | "owner_id" | "address_proof";
+  r2_key: string;
+  mime: string;
+  size_bytes: number;
+  sha256: string;
+  expires_on?: string | null;
+}
+
+/**
+ * Request ephemeral presigned PUT upload URL with 5-minute expiry for KYC documents
+ */
+export async function getKycPresignedUrl(
+  fileName: string,
+  mimeType: string,
+  sizeBytes: number,
+  docType: "trade_licence" | "tin" | "owner_id" | "address_proof"
+): Promise<KycPresignResult> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error("Authentication required");
+
+  const response = await fetch(`${R2_API_BASE}/api/v1/kyc/documents/presign`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      doc_type: docType,
+      file_name: fileName,
+      mime_type: mimeType,
+      size_bytes: sizeBytes,
+    }),
+  });
+
+  const resJson = await response.json();
+  if (!response.ok) {
+    throw new Error(resJson.detail || resJson.message || "Failed to generate KYC upload URL");
+  }
+  return resJson.data || resJson;
+}
+
+/**
+ * Upload raw file bytes directly to R2 using the ephemeral presigned PUT URL
+ */
+export async function uploadKycBinaryToR2(
+  presignedUrl: string,
+  fileUri: string,
+  mimeType: string,
+  onProgress?: (progress: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", presignedUrl);
+    xhr.setRequestHeader("Content-Type", mimeType);
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`R2 PUT upload failed with status ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Network error during R2 binary upload"));
+
+    // Fetch local file as blob for React Native
+    fetch(fileUri)
+      .then((res) => res.blob())
+      .then((blob) => xhr.send(blob))
+      .catch((err) => reject(err));
+  });
+}
+
+/**
+ * Submit complete KYC application to backend
+ */
+export async function submitKycApplication(documents: KycSubmitDocItem[]): Promise<any> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error("Authentication required");
+
+  const response = await fetch(`${R2_API_BASE}/api/v1/kyc/submit`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ documents }),
+  });
+
+  const resJson = await response.json();
+  if (!response.ok) {
+    throw new Error(resJson.detail || resJson.message || "Failed to submit KYC application");
+  }
+  return resJson.data || resJson;
+}
+
+/**
+ * Fetch current agency KYC status, documents, checks and decision notes
+ */
+export async function fetchMyKycSubmission(): Promise<any> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error("Authentication required");
+
+  const response = await fetch(`${R2_API_BASE}/api/v1/kyc/my-submission`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const resJson = await response.json();
+  if (!response.ok) {
+    throw new Error(resJson.detail || resJson.message || "Failed to fetch KYC submission");
+  }
+  return resJson.data || resJson;
+}

@@ -34,6 +34,12 @@ import { Badge, Skeleton } from "../components/ui";
 import { UnifiedSearchCard } from "../components/search/UnifiedSearchCard";
 import { savedItemsService } from "../services/savedItemsService";
 import { formatPrice } from "../utils/currency";
+import { useScreenCollaboration } from "../hooks/useScreenCollaboration";
+import {
+  APP_EVENTS,
+  BookingStatusChangedPayload,
+  WeatherAlertTriggeredPayload,
+} from "../services/events/appEventBus";
 import { withNetworkTimeout } from "../utils/networkTimeout";
 import { useAppStateRefresh } from "../hooks/useAppStateRefresh";
 import { networkStatusService } from "../services/network/networkStatusService";
@@ -303,6 +309,8 @@ export function HomeScreen() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set());
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [activeBookingAlert, setActiveBookingAlert] = useState<BookingStatusChangedPayload | null>(null);
+  const [activeWeatherAlert, setActiveWeatherAlert] = useState<WeatherAlertTriggeredPayload | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const scrollY = useSharedValue(0);

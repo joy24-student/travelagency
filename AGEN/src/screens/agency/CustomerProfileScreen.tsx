@@ -293,6 +293,8 @@ export default function CustomerProfileScreen({ navigation, route }: any) {
   );
 }
 
+const { width } = Dimensions.get("window");
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -339,7 +341,7 @@ const styles = StyleSheet.create({
     borderRightColor: "rgba(0, 0, 0, 0.3)",
     borderRadius: 16,
     shadowColor: "rgba(0, 0, 0, 0.3)",
-    shadowOffset: { 360: 0, height: 12 },
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.3,
     shadowRadius: 32,
     elevation: 5, // For Android shadow
@@ -348,7 +350,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: "rgba(0, 0, 0, 0.3)",
-        shadowOffset: { 360: 0, height: 12 },
+        shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.3,
         shadowRadius: 32,
       },
@@ -374,7 +376,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -96,
     right: -96,
-    360: 256,
+    width: 256,
     height: 256,
     backgroundColor: "rgba(195, 192, 255, 0.2)", // primary/20
     borderRadius: 128,
@@ -390,7 +392,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   avatarBorder: {
-    360: 128,
+    width: 128,
     height: 128,
     borderRadius: 64,
     borderWidth: 4,
@@ -398,7 +400,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   avatar: {
-    360: "100%",
+    width: "100%",
     height: "100%",
     borderRadius: 60,
     objectFit: "cover",
@@ -412,7 +414,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 9999, // full
     shadowColor: "rgba(0,0,0,0.3)",
-    shadowOffset: { 360: 0, height: 4 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 3,
@@ -462,7 +464,7 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
     gap: 8,
     shadowColor: "rgba(67,56,202,0.4)",
-    shadowOffset: { 360: 0, height: 0 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
     elevation: 5,
@@ -505,7 +507,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: "rgba(0, 0, 0, 0.3)",
-        shadowOffset: { 360: 0, height: 12 },
+        shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.3,
         shadowRadius: 32,
       },
@@ -578,7 +580,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   destinationCard: {
-    360: (360 - 40 - 16 * 2) / 3, // (screen 360 - horizontal padding - 2 gaps) / 3
+    width: (width - 40 - 16 * 2) / 3, // (screen width - horizontal padding - 2 gaps) / 3
     aspectRatio: 1, // Make it square
     borderRadius: 16,
     overflow: "hidden",
@@ -593,13 +595,13 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(0, 0, 0, 0.3)",
     borderRightColor: "rgba(0, 0, 0, 0.3)",
     shadowColor: "rgba(0, 0, 0, 0.3)",
-    shadowOffset: { 360: 0, height: 12 },
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.3,
     shadowRadius: 32,
     elevation: 5,
   },
   destinationImage: {
-    360: "100%",
+    width: "100%",
     height: "100%",
     objectFit: "cover",
   },
@@ -634,7 +636,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: "rgba(0, 0, 0, 0.3)",
-        shadowOffset: { 360: 0, height: 12 },
+        shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.3,
         shadowRadius: 32,
       },

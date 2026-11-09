@@ -34,7 +34,10 @@ import {
 } from "../../src/services/busAndLaunchService";
 import { ErrorStateCard, EmptyStateView } from "../../src/components/common";
 import { BoardingPointMapCard } from "../../src/components/busLaunch/BoardingPointMapCard";
+import { FareCalendar } from "../../src/components/common/FareCalendar";
+import { PriceAlertCard } from "../../src/components/flights/PriceAlertCard";
 import { RTLIcon } from "../../src/components/ui";
+import { ticketService } from "../../src/services/payment/ticketService";
 
 
 // Colors & Design Tokens
@@ -820,6 +823,25 @@ export default function BusLaunchScreen() {
         total_fare: busTotalFare,
       });
 
+      const busTicketPnr = `SJ-BUS-${bookingBus.operator_name.slice(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+      ticketService.cacheTicket("guest", {
+        id: `TK-BUS-${Date.now()}`,
+        bookingReference: busTicketPnr,
+        passengerName: passengerName.trim(),
+        title: `${bookingBus.operator_name} (${bookingBus.bus_type})`,
+        type: "bus",
+        origin: bookingBus.from_city,
+        destination: bookingBus.to_city,
+        departureTime: bookingBus.departure_time,
+        travelDate: travelDate,
+        seatOrRoom: selectedBusSeats.join(", "),
+        amount: busTotalFare,
+        currency: "BDT",
+        status: "confirmed",
+        qrData: `SHOPNO-BUS|PNR:${busTicketPnr}|SEATS:${selectedBusSeats.join(",")}|DATE:${travelDate}`,
+        gateOrHotelAddress: chosenBoarding,
+        cachedAt: new Date().toISOString(),
+      });
       const reportingTime = calculateReportingTime(bookingBus.departure_time, 30);
 
       showLocalizedAlert(
@@ -873,6 +895,25 @@ export default function BusLaunchScreen() {
         total_fare: launchTotalFare,
       });
 
+      const launchTicketPnr = `SJ-LCH-${bookingLaunch.vessel_name.slice(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+      ticketService.cacheTicket("guest", {
+        id: `TK-LCH-${Date.now()}`,
+        bookingReference: launchTicketPnr,
+        passengerName: passengerName.trim(),
+        title: `${bookingLaunch.vessel_name}`,
+        type: "launch",
+        origin: bookingLaunch.terminal_from,
+        destination: bookingLaunch.terminal_to,
+        departureTime: bookingLaunch.departure_time,
+        travelDate: travelDate,
+        seatOrRoom: selectedCabins.map((c) => c.cabinNumber).join(", "),
+        amount: launchTotalFare,
+        currency: "BDT",
+        status: "confirmed",
+        qrData: `SHOPNO-LAUNCH|PNR:${launchTicketPnr}|CABINS:${selectedCabins.map((c) => c.cabinNumber).join(",")}|DATE:${travelDate}`,
+        gateOrHotelAddress: "ঢাকা সদরঘাট (পন্টুন ৩ ও ৪)",
+        cachedAt: new Date().toISOString(),
+      });
       const reportingTime = calculateReportingTime(bookingLaunch.departure_time, 45);
 
       showLocalizedAlert(
@@ -1199,6 +1240,23 @@ export default function BusLaunchScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {/* Fare Calendar & Price Alert Component */}
+        <FareCalendar
+          origin="DAC"
+          destination={selectedBusDest !== "All" ? selectedBusDest : "CXB"}
+          serviceType={activeTab}
+          selectedDate={travelDate}
+          onSelectDate={(newDate) => setTravelDate(newDate)}
+        />
+        <PriceAlertCard
+          originCode="DAC"
+          destCode={selectedBusDest !== "All" ? selectedBusDest : "CXB"}
+          travelDate={travelDate}
+          currentLowestPrice={activeTab === "bus" ? 1100 : 850}
+          currency="BDT"
+          serviceType={activeTab}
+        />
+
         {/* BAGGAGE POLICY & TERMINAL REPORTING SUMMARY BANNER */}
         <View style={styles.policyBannerCard}>
           <View style={styles.policyBannerHeader}>

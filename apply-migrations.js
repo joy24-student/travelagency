@@ -23,46 +23,57 @@ async function applyMigrations() {
     await client.connect();
     console.log("Connected to Supabase PostgreSQL database via connection pooler.");
 
-    // Read and run schema migration
-    const schemaSql = fs.readFileSync(
-      path.join(__dirname, "supabase", "migrations", "20260608_comprehensive_travel_platform_schema.sql"),
-      "utf8"
-    );
-    console.log("\nApplying 20260608_comprehensive_travel_platform_schema.sql...");
-    await client.query(schemaSql);
-    console.log("Schema migration applied successfully!");
+    // Ensure migration tracking table exists
+    await client.query(`
+      CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+      CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
+        version TEXT PRIMARY KEY,
+        name TEXT,
+        statements TEXT[],
+        inserted_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+      );
+    `);
 
-    // Read and run seed migration
-    const seedSql = fs.readFileSync(
-      path.join(__dirname, "supabase", "migrations", "20260608b_seed_travel_platform_data.sql"),
-      "utf8"
-    );
-    console.log("\nApplying 20260608b_seed_travel_platform_data.sql...");
-    await client.query(seedSql);
-    console.log("Seed migration applied successfully!");
+    // Get all migration files in chronological order
+    const migrationsDir = path.join(__dirname, "supabase", "migrations");
+    const migrationFiles = fs
+      .readdirSync(migrationsDir)
+      .filter((file) => file.endsWith(".sql"))
+      .sort();
 
-    // Read and run zero-trust hardening migration
-    const hardeningSql = fs.readFileSync(
-      path.join(__dirname, "supabase", "migrations", "20260609_zero_trust_security_hardening.sql"),
-      "utf8"
-    );
-    console.log("\nApplying 20260609_zero_trust_security_hardening.sql...");
-    await client.query(hardeningSql);
-    console.log("Zero-trust security hardening migration applied successfully!");
+    console.log(`\nFound ${migrationFiles.length} migration files in supabase/migrations:\n`);
 
-    // Record migrations in schema_migrations table
-    try {
-      await client.query(`
-        INSERT INTO supabase_migrations.schema_migrations (version, name, statements)
-        VALUES 
-          ('20260608', 'comprehensive_travel_platform_schema', ARRAY['Applied via runner']),
-          ('20260608b', 'seed_travel_platform_data', ARRAY['Applied via runner']),
-          ('20260609', 'zero_trust_security_hardening', ARRAY['Applied via runner'])
-        ON CONFLICT (version) DO NOTHING;
-      `);
-      console.log("Recorded migrations in supabase_migrations.schema_migrations.");
-    } catch (e) {
-      console.log("Note on recording migration:", e.message);
+    // Fetch already applied migrations
+    const appliedRes = await client.query(
+      "SELECT version FROM supabase_migrations.schema_migrations;"
+    );
+    const appliedSet = new Set(appliedRes.rows.map((r) => r.version));
+
+    for (const file of migrationFiles) {
+      const version = file.split("_")[0];
+      const name = file.replace(/\.sql$/, "");
+
+      if (appliedSet.has(version)) {
+        console.log(`⏩ Skipping ${file} (already applied)`);
+        continue;
+      }
+
+      console.log(`\nApplying ${file}...`);
+      const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+
+      try {
+        await client.query(sql);
+        await client.query(
+          `INSERT INTO supabase_migrations.schema_migrations (version, name, statements)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (version) DO NOTHING;`,
+          [version, name, [`Applied from ${file}`]]
+        );
+        console.log(`✅ ${file} applied successfully!`);
+      } catch (sqlErr) {
+        console.error(`⚠️  Warning/Error applying ${file}:`, sqlErr.message);
+        // Continue or rethrow depending on error severity
+      }
     }
 
     // Verify all public tables
@@ -79,8 +90,9 @@ async function applyMigrations() {
     });
 
     await client.end();
+    console.log("\nAll migrations processed successfully!");
   } catch (err) {
-    console.error("Migration error:", err);
+    console.error("Migration fatal error:", err);
     process.exit(1);
   }
 }

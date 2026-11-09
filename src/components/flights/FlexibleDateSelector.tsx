@@ -10,11 +10,16 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { FareCalendar } from "../common/FareCalendar";
+import { ServiceType } from "../../services/priceAlertService";
 
 interface FlexibleDateSelectorProps {
   currentDate: Date;
   basePrice: number;
   currency?: string;
+  origin?: string;
+  destination?: string;
+  serviceType?: ServiceType;
   onSelectDate: (d: Date) => void;
 }
 
@@ -32,6 +37,9 @@ export const FlexibleDateSelector: React.FC<FlexibleDateSelectorProps> = ({
   currentDate,
   basePrice,
   currency = "USD",
+  origin = "DAC",
+  destination = "CXB",
+  serviceType = "flight",
   onSelectDate,
 }) => {
   const [isFlexible, setIsFlexible] = useState(false);
@@ -237,57 +245,17 @@ export const FlexibleDateSelector: React.FC<FlexibleDateSelectorProps> = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              contentContainerStyle={styles.monthlyGrid}
-              showsVerticalScrollIndicator={false}
-            >
-              {monthlyDates.map((item) => (
-                <TouchableOpacity
-                  key={item.dateStr}
-                  style={[
-                    styles.monthlyGridItem,
-                    item.isSelected && styles.monthlyGridItemSelected,
-                    item.isLowest && !item.isSelected && styles.monthlyGridItemLowest,
-                  ]}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    onSelectDate(item.date);
-                    setShowMonthlyModal(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.gridDayName,
-                      item.isSelected && styles.textWhite,
-                    ]}
-                  >
-                    {item.dayName}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.gridDateNum,
-                      item.isSelected && styles.textWhite,
-                    ]}
-                  >
-                    {item.date.getDate()}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.gridPrice,
-                      item.isSelected
-                        ? styles.textWhite
-                        : item.isLowest
-                        ? styles.textGreen
-                        : styles.textSlate,
-                    ]}
-                  >
-                    {curSymbol}{item.price.toLocaleString()}
-                  </Text>
-                  {item.isLowest && (
-                    <Text style={styles.miniLowestTag}>কম</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <FareCalendar
+                origin={origin}
+                destination={destination}
+                serviceType={serviceType}
+                selectedDate={currentDate.toISOString().slice(0, 10)}
+                onSelectDate={(dateStr) => {
+                  onSelectDate(new Date(dateStr));
+                  setShowMonthlyModal(false);
+                }}
+              />
             </ScrollView>
           </View>
         </View>

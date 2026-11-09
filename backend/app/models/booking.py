@@ -46,6 +46,7 @@ class Booking(Base, TimestampMixin, UUIDMixin):
     items: Mapped[List["BookingItem"]] = relationship("BookingItem", back_populates="booking", cascade="all, delete-orphan")
     passengers: Mapped[List["BookingPassenger"]] = relationship("BookingPassenger", back_populates="booking", cascade="all, delete-orphan")
     payments: Mapped[List["BookingPayment"]] = relationship("BookingPayment", back_populates="booking", cascade="all, delete-orphan")
+    events: Mapped[List["BookingEvent"]] = relationship("BookingEvent", back_populates="booking", cascade="all, delete-orphan")
 
 
 class BookingItem(Base, UUIDMixin):
@@ -103,3 +104,20 @@ class BookingPayment(Base, TimestampMixin, UUIDMixin):
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     booking: Mapped["Booking"] = relationship("Booking", back_populates="payments")
+
+
+class BookingEvent(Base, UUIDMixin):
+    """Corresponds to public.booking_events."""
+    __tablename__ = "booking_events"
+
+    booking_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(Text, nullable=False)  # created, paid, confirmed, rescheduled, cancelled, refunded, checked_in
+    actor_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
+    payload: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    booking: Mapped["Booking"] = relationship("Booking", back_populates="events")
+
+

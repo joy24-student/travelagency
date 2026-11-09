@@ -26,6 +26,7 @@ import { DialogContainer } from "../src/components/ui/Dialog";
 import { initAlertPolyfill } from "../src/utils/alertPolyfill";
 import { initGlobalErrorHandlers } from "../src/services/telemetry/crashReporter";
 import { useDeepLinking } from "../src/services/navigation/deepLinkingService";
+import { initSupabaseRealtimeBridge } from "../src/services/events/supabaseRealtimeBridge";
 
 // Initialize global crash and unhandled exception reporter
 initGlobalErrorHandlers();
@@ -65,6 +66,12 @@ const RootLayoutContent = () => {
 
   // Initialize Deep Linking lifecycle (universal links, custom schemes, deferred links)
   useDeepLinking(router);
+
+  // Initialize Supabase Realtime to appEventBus bridge for live cross-app updates
+  useEffect(() => {
+    const cleanupRealtime = initSupabaseRealtimeBridge();
+    return () => cleanupRealtime?.();
+  }, []);
 
   // Initialize unified encrypted session store & token refresh interceptor
   useEffect(() => {

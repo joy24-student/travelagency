@@ -27,6 +27,13 @@
     }
   },
   "include": ["src", "app", "../nativewind-env.d.ts"],
-  "exclude": ["node_modules", "dist", "build"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ],
   "extends": "expo/tsconfig.base"
 }

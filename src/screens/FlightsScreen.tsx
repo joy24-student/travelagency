@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -33,6 +34,7 @@ import { supabase } from "../utils/supabase";
 import { generateDynamicFlights } from "../data/flightCatalog";
 import { PriceAlertCard } from "../components/flights/PriceAlertCard";
 import { FlexibleDateSelector } from "../components/flights/FlexibleDateSelector";
+import { FlightSeatPickerModal } from "../components/flights/FlightSeatPickerModal";
 import { ListSkeleton, ErrorStateCard, EmptyStateView, OptimizedList, StickyHeader, ResultsSummaryHeader, ComparisonModal, CompareItem } from "../components/common";
 import { useResponsive } from "../hooks/useResponsive";
 import { useTheme } from "../context/ThemeContext";
@@ -412,6 +414,7 @@ export function FlightsScreen() {
   const [bookingInProgress, setBookingInProgress] = useState<string | null>(null);
   const [compareFlightIds, setCompareFlightIds] = useState<string[]>([]);
   const [showCompareModal, setShowCompareModal] = useState(false);
+  const [activeFlightForSeatPicker, setActiveFlightForSeatPicker] = useState<FlightItem | null>(null);
 
   // Animation values
   const drawerAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -583,6 +586,13 @@ export function FlightsScreen() {
       setIsSearching(false);
     }
   }, [originAirport, destAirport, cabinClass, departureIso, returnIso, activeTab, totalPassengersCount]);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchLiveFlights();
+    setRefreshing(false);
+  }, [fetchLiveFlights]);
 
   // Re-fetch on criteria changes
   useEffect(() => {
@@ -866,7 +876,7 @@ export function FlightsScreen() {
     setShowDetailsDrawer(false);
   };
 
-  // Requirement 4: Fare Breakdown Drawer "Select Flight" Button -> Dispatch to useBookingStore
+  // Requirement 4: Fare Breakdown Drawer "Select Flight" Button -> Open Interactive Seat Picker Modal
   const handleSelectFlight = async (flight: FlightItem) => {
     // Validate seat availability
     if (flight.available_seats <= 0 || flight.available_seats < totalPassengersCount) {
@@ -881,11 +891,24 @@ export function FlightsScreen() {
       return;
     }
 
+    if (showDetailsDrawer) {
+      setShowDetailsDrawer(false);
+    }
+    // Launch interactive Aircraft Cabin Seat Picker Modal
+    setActiveFlightForSeatPicker(flight);
+  };
+
+  const handleCompleteFlightSeatSelection = async (selectedSeats: string[], seatAddonFee: number) => {
+    if (!activeFlightForSeatPicker) return;
+    const flight = activeFlightForSeatPicker;
+    setActiveFlightForSeatPicker(null);
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setBookingInProgress(flight.id);
 
     try {
       const breakdown = calculateFareBreakdown(flight, passengers, cabinClass, includeCarbonOffset);
+      const totalWithSeats = breakdown.total + seatAddonFee;
       let bookingId = `draft-${Date.now()}`;
       let bookingRef = `BK-FL-${flight.flight_number}-${Date.now().toString(36).toUpperCase()}`;
 
@@ -897,7 +920,7 @@ export function FlightsScreen() {
         destinationCountry: flight.arrival_airport?.country || destAirport.country || "International",
         startDate: departureIso,
         endDate: activeTab === "Round-trip" ? returnIso : undefined,
-        basePrice: breakdown.baseFare,
+        basePrice: breakdown.baseFare + seatAddonFee,
         currency: flight.currency || "USD",
         numberOfGuests: totalPassengersCount,
       });
@@ -905,14 +928,14 @@ export function FlightsScreen() {
       // Update useBookingStore with detailed fare breakdown matrix
       useBookingStore.setState({
         pricing: {
-          basePrice: breakdown.baseFare,
+          basePrice: breakdown.baseFare + seatAddonFee,
           taxAmount: breakdown.airportTaxes,
           serviceFee: breakdown.fuelSurcharge + breakdown.carbonOffset,
           discountAmount: 0,
-          finalPrice: breakdown.total,
+          finalPrice: totalWithSeats,
           currency: flight.currency || "USD",
         },
-        notes: `Flight ${flight.flight_number} (${flight.cabin_class}) ${flight.departure_airport?.iata_code} -> ${flight.arrival_airport?.iata_code} | Taxes: ${breakdown.currencySymbol}${breakdown.airportTaxes}, Fuel: ${breakdown.currencySymbol}${breakdown.fuelSurcharge}, Carbon Offset: ${breakdown.currencySymbol}${breakdown.carbonOffset}`,
+        notes: `Flight ${flight.flight_number} (${flight.cabin_class}) [Seats: ${selectedSeats.join(", ")}] ${flight.departure_airport?.iata_code} -> ${flight.arrival_airport?.iata_code} | Taxes: ${breakdown.currencySymbol}${breakdown.airportTaxes}, Fuel: ${breakdown.currencySymbol}${breakdown.fuelSurcharge}, Carbon Offset: ${breakdown.currencySymbol}${breakdown.carbonOffset}${seatAddonFee > 0 ? `, Seat Addon: ${breakdown.currencySymbol}${seatAddonFee}` : ""}`,
       });
 
       // If user is authenticated in Supabase, create real pending booking in 'bookings' table
@@ -927,16 +950,17 @@ export function FlightsScreen() {
             destination_country: destAirport.country,
             start_date: departureIso,
             number_of_guests: totalPassengersCount,
-            total_price: breakdown.baseFare,
+            total_price: breakdown.baseFare + seatAddonFee,
             tax_amount: breakdown.airportTaxes,
             service_fee: breakdown.fuelSurcharge + breakdown.carbonOffset,
-            final_price: breakdown.total,
+            final_price: totalWithSeats,
             currency: flight.currency || "USD",
-            notes: `Flight ${flight.flight_number} (${flight.cabin_class}) from ${originAirport.code} to ${destAirport.code} for ${totalPassengersCount} passenger(s)`,
+            notes: `Flight ${flight.flight_number} (${flight.cabin_class}) from ${originAirport.code} to ${destAirport.code} for ${totalPassengersCount} passenger(s). Seats: ${selectedSeats.join(", ")}`,
             booking_reference: bookingRef,
             cancellation_policy: {
               policy: flight.cancellation_policy,
               baggage: flight.baggage_allowance,
+              seats: selectedSeats,
             },
           });
           if (createdBooking?.id) {
@@ -948,17 +972,13 @@ export function FlightsScreen() {
         }
       }
 
-      if (showDetailsDrawer) {
-        setShowDetailsDrawer(false);
-      }
-
-      // Route to /screens/payments with selected flight parameters
+      // Route to /screens/payments with selected flight parameters + seats
       router.push({
         pathname: "/screens/payments" as any,
         params: {
           bookingId: bookingId,
           reference: bookingRef,
-          amount: breakdown.total.toString(),
+          amount: totalWithSeats.toString(),
           currency: flight.currency || "USD",
           flightNumber: flight.flight_number,
           airline: flight.airline?.name || "Airline Carrier",
@@ -972,6 +992,8 @@ export function FlightsScreen() {
           children: passengers.children.toString(),
           infants: passengers.infants.toString(),
           productType: "flight",
+          selectedSeats: selectedSeats.join(", "),
+          seatAddon: seatAddonFee.toString(),
         },
       });
     } catch (err: any) {
@@ -1000,6 +1022,14 @@ export function FlightsScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={["#0055F2"]}
+                tintColor="#0055F2"
+              />
+            }
             onScrollBeginDrag={() => {
               Keyboard.dismiss();
               setIsOriginInputFocused(false);
@@ -1400,6 +1430,9 @@ export function FlightsScreen() {
               currentDate={departureDateObj}
               basePrice={flightTabMetrics.lowestPrice || 250}
               currency={flightTabMetrics.currency}
+              origin={originAirport.code}
+              destination={destAirport.code}
+              serviceType="flight"
               onSelectDate={(newDate) => {
                 setDepartureDateObj(newDate);
                 fetchLiveFlights();
@@ -1412,8 +1445,10 @@ export function FlightsScreen() {
               destCode={destAirport.code}
               originCity={originAirport.city}
               destCity={destAirport.city}
+              travelDate={formatIsoDate(departureDateObj)}
               currentLowestPrice={flightTabMetrics.lowestPrice || 250}
               currency={flightTabMetrics.currency}
+              serviceType="flight"
             />
 
             {/* Requirement 2: Live Flight Results & Controls */}
@@ -2693,7 +2728,8 @@ export function FlightsScreen() {
                                   </>
                                 ) : (
                                   <>
-                                    <Text style={styles.reserveCTAButtonText}>Select Flight</Text>
+                                    <Ionicons name="airplane" size={17} color="#FFFFFF" style={{ marginEnd: 6 }} />
+                                    <Text style={styles.reserveCTAButtonText}>আসন নির্বাচন ও বুকিং (Select Seats)</Text>
                                     <RTLIcon name="arrow-forward" size={18} color="#FFFFFF" style={{ marginStart: 6 }} />
                                   </>
                                 )}
@@ -2744,6 +2780,23 @@ export function FlightsScreen() {
           if (flight) openFlightDetails(flight);
         }}
       />
+
+      {/* Interactive Aircraft Cabin Seat Picker Modal */}
+      {activeFlightForSeatPicker && (
+        <FlightSeatPickerModal
+          visible={!!activeFlightForSeatPicker}
+          flightNumber={activeFlightForSeatPicker.flight_number}
+          airlineName={activeFlightForSeatPicker.airline?.name || "Aviation Carrier"}
+          origin={originAirport.city || originAirport.code}
+          destination={destAirport.city || destAirport.code}
+          cabinClass={cabinClass}
+          passengersCount={totalPassengersCount}
+          baseFare={calculateFareBreakdown(activeFlightForSeatPicker, passengers, cabinClass, includeCarbonOffset).total}
+          currency={activeFlightForSeatPicker.currency || "BDT"}
+          onClose={() => setActiveFlightForSeatPicker(null)}
+          onConfirmSeats={handleCompleteFlightSeatSelection}
+        />
+      )}
     </SafeAreaView>
   );
 }

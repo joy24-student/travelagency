@@ -18,6 +18,8 @@ import { useTheme } from "../context/ThemeContext";
 import { FONTS } from "../theme/typography";
 import { useLanguage } from "../context/LanguageContext";
 import { AudioMiniBar } from "../components/audio/AudioMiniBar";
+import { useAuthStore } from "../store/authStore";
+import { useNotificationStore } from "../store/notificationStore";
 
 // ─── Tab Config Matching Reference Screenshots & Clean Expo Router Paths ─────
 export const TABS = [
@@ -41,7 +43,7 @@ export const TABS = [
     route: "/(tabs)/trips",
   },
   {
-    label: "Sign In",
+    label: "Account",
     name: "account",
     icon: "person-circle-outline" as const,
     route: "/(tabs)/account",
@@ -62,9 +64,12 @@ export function getLocalizedTabLabel(t: (k: string, d?: string) => string, label
     case "My Trips":
     case "trips":
       return t("nav.trips", "My Trips");
+    case "Account":
+      return t("nav.account", "Account");
     case "Sign In":
+      return t("nav.signIn", "Sign In");
     case "account":
-      return t("nav.account", "Sign In");
+      return t("nav.account", "Account");
     case "Back to top":
       return t("nav.backToTop", "Back to top");
     default:
@@ -76,6 +81,9 @@ export function getLocalizedTabLabel(t: (k: string, d?: string) => string, label
 export function AiPill({ color, extraBottomOffset = 0 }: { color: string; extraBottomOffset?: number }) {
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+
   const insets = useSafeAreaInsets();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -163,6 +171,9 @@ export function CustomBottomTabBar(props: BottomTabBarProps) {
   const [isAudioMiniBarVisible, setIsAudioMiniBarVisible] = useState(false);
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+
   const { state, descriptors, navigation, insets } = props;
   const currentRoute = state.routes[state.index];
   const currentOptions = descriptors[currentRoute.key]?.options;
@@ -228,9 +239,12 @@ export function CustomBottomTabBar(props: BottomTabBarProps) {
                   route: `/(tabs)/${route.name}` as any,
                 };
 
-              const rawLabel = options?.title ?? tabConfig.label;
+              const accountLabel = isAuthenticated ? "Account" : "Sign In";
+              const rawLabel = options?.title ?? (route.name === "account" ? accountLabel : tabConfig.label);
               const displayLabel = getLocalizedTabLabel(t, rawLabel);
-              const badge = options?.tabBarBadge;
+              const badge = route.name === "messages"
+                ? (options?.tabBarBadge ?? (unreadCount > 0 ? unreadCount : undefined))
+                : options?.tabBarBadge;
 
               const onPress = () => {
                 const event = navigation.emit({
@@ -337,7 +351,11 @@ export function BottomNav({
   const translateX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const index = TABS.findIndex((tab) => tab.label === active);
+    const index = TABS.findIndex((tab) =>
+      tab.label === active ||
+      tab.name === active.toLowerCase() ||
+      (tab.name === "account" && (active === "Account" || active === "Sign In"))
+    );
     if (index !== -1) {
       Animated.spring(translateX, {
         toValue: index * tabWidth,
@@ -400,9 +418,13 @@ interface TabItemProps {
 function TabItem({ tab, selected, color, isScrolled, onScrollToTop }: TabItemProps) {
   const { colors } = useTheme();
   const { t } = useLanguage();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+
   const isHomeTab = tab.label === "Home";
   const isScrolledActive = selected && isScrolled;
-  const rawLabel = isScrolledActive ? "Back to top" : tab.label;
+  const fallbackLabel = tab.name === "account" ? (isAuthenticated ? "Account" : "Sign In") : tab.label;
+  const rawLabel = isScrolledActive ? "Back to top" : fallbackLabel;
   const displayLabel = getLocalizedTabLabel(t, rawLabel);
 
   const handlePress = () => {

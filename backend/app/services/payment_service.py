@@ -21,7 +21,7 @@ from app.core.security import (
     verify_rocket_webhook_signature,
     verify_stripe_webhook_signature,
 )
-from app.models.booking import Booking, BookingPayment
+from app.models.booking import Booking, BookingEvent, BookingPayment
 from app.models.payment import Payment
 from app.repositories.agency_repository import AgencyRepository
 from app.repositories.booking_repository import BookingRepository
@@ -185,6 +185,44 @@ class PaymentService:
                 processed_at=now,
             )
             db.add(payment_record)
+
+            # Record booking paid and confirmed event in atomic transaction
+            booking_event = BookingEvent(
+                booking_id=locked_booking.id,
+                type="paid",
+                actor_id=locked_booking.user_id,
+                payload={
+                    "booking_id": str(locked_booking.id),
+                    "booking_reference": locked_booking.booking_reference,
+                    "status": BookingStatus.CONFIRMED.value,
+                    "previous_status": BookingStatus.PENDING_PAYMENT.value,
+                    "provider": provider,
+                    "transaction_id": transaction_id,
+                    "final_price": float(locked_booking.final_price),
+                    "amount": float(locked_booking.final_price),
+                    "currency": locked_booking.currency,
+                    "payment_status": "completed",
+                },
+                created_at=now,
+            )
+            db.add(booking_event)
+
+            # Double-entry ledger: record inbound payment into gateway & escrow hold
+            from app.services.ledger_service import LedgerService
+            await LedgerService.record_payment(
+                db=db,
+                payment={
+                    "booking_id": locked_booking.id,
+                    "amount": locked_booking.final_price,
+                    "currency": locked_booking.currency,
+                    "agency_id": locked_booking.agency_id,
+                },
+                booking=locked_booking,
+            )
+
+            # Create offline-capable, tamper-proof signed e-tickets inside transaction
+            from app.services.ticket_service import TicketService
+            await TicketService.create_tickets_for_booking(db, locked_booking)
 
         commission_amount: Optional[float] = None
         # Credit agency commission if booking was booked through a partner agency

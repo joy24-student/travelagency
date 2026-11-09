@@ -402,7 +402,51 @@ export const backendApi = {
       }),
     }),
 
-  // 3. AI Travel Concierge (Google Gemini 3.8 Flash)
+  // 3. AI Travel Concierge (Backend Google Gemini)
+  chatWithAI: (payload: {
+    messages: Array<{ role: string; content: string }>;
+    temperature?: number;
+    model?: string;
+    max_tokens?: number;
+  }) =>
+    apiRequest<{
+      success: boolean;
+      message: string;
+      data: {
+        content: string;
+        raw: string;
+        provider: string;
+        model: string;
+        tokens_used?: number;
+      };
+    }>("/ai/chat", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  completeWithAI: (payload: {
+    user_prompt: string;
+    system_prompt?: string;
+    temperature?: number;
+    max_tokens?: number;
+    response_mime_type?: string;
+    provider?: string;
+    model?: string;
+  }) =>
+    apiRequest<{
+      success: boolean;
+      message: string;
+      data: {
+        text: string;
+        provider: string;
+        model: string;
+        tokens_used?: number;
+      };
+    }>("/ai/complete", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   planTripWithAI: (payload: {
     destination: string;
     origin?: string;
@@ -453,3 +497,5 @@ export const backendApi = {
       body: JSON.stringify(payload),
     }),
 };
+
+export const apiClient = backendApi;

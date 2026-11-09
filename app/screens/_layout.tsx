@@ -63,6 +63,11 @@ export default function ScreensLayout() {
       <Stack.Screen name="payment-failed" />
       <Stack.Screen name="user-profile" />
       <Stack.Screen name="payments-enhanced" />
+      <Stack.Screen name="e-ticket" />
+      <Stack.Screen name="price-alerts" />
+      <Stack.Screen name="group-trip" />
+      <Stack.Screen name="live" />
+      <Stack.Screen name="agency-chat" />
     </Stack>
   );
 }

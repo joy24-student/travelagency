@@ -79,6 +79,9 @@ class Agency(Base, TimestampMixin, UUIDMixin):
     verification_status: Mapped[str] = mapped_column(Text, default="pending")
     status: Mapped[str] = mapped_column(Text, default="active")
     rating: Mapped[float] = mapped_column(Numeric(3, 2), default=0.0)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    verified_by: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
+    trade_licence_number: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     team_members: Mapped[list["AgencyTeamMember"]] = relationship("AgencyTeamMember", back_populates="agency")
 

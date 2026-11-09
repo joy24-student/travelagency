@@ -13,14 +13,99 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { hotelService, HotelReservation } from '../services/hotelService';
+import { useScreenCollaboration } from '../hooks/useScreenCollaboration';
+import { APP_EVENTS } from '../services/events/appEventBus';
+import { t } from '../utils/i18n';
+import { subscribeToHotelRealtime } from '../services/hotelRealtimeBridge';
 
-export function ReservationsScreen() {
+export function ReservationsScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
   const [reservations, setReservations] = useState<HotelReservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    const timer = setTimeout(() => {
+      setToastMessage((cur) => (cur === msg ? null : cur));
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const normalizeHotelStatus = (status: string): HotelReservation["status"] => {
+    const s = (status || "").toLowerCase();
+    if (s === "confirmed" || s === "paid") return "Confirmed";
+    if (s === "checked_in" || s === "checked in") return "Checked In";
+    if (s === "checked_out" || s === "checked out") return "Checked Out";
+    if (s === "cancelled" || s === "refunded") return "Cancelled";
+    if (s === "upcoming") return "Upcoming";
+    return "Pending";
+  };
+
+  useScreenCollaboration(
+    APP_EVENTS.BOOKING_STATUS_CHANGED,
+    useCallback(
+      (payload) => {
+        if (!payload?.bookingId) return;
+        setReservations((prev) =>
+          prev.map((r) =>
+            r.bookingId === payload.bookingId || r.id === payload.bookingId
+              ? {
+                  ...r,
+                  status: normalizeHotelStatus(payload.currentStatus),
+                  isPaid:
+                    payload.currentStatus === "confirmed" ||
+                    payload.currentStatus === "paid"
+                      ? true
+                      : r.isPaid,
+                }
+              : r
+          )
+        );
+        const translatedStatus = t(
+          ("status" +
+            normalizeHotelStatus(payload.currentStatus).replace(
+              /\s+/g,
+              ""
+            )) as any
+        );
+        showToast(t("bookingStatusUpdated", { status: translatedStatus }));
+      },
+      [showToast]
+    ),
+    { replayLast: true, screenId: "HotelReservationsScreen" }
+  );
+
+  useScreenCollaboration(
+    APP_EVENTS.PAYMENT_COMPLETED,
+    useCallback(
+      (payload) => {
+        if (!payload?.bookingId) return;
+        setReservations((prev) =>
+          prev.map((r) =>
+            r.bookingId === payload.bookingId || r.id === payload.bookingId
+              ? {
+                  ...r,
+                  status: "Confirmed",
+                  isPaid: true,
+                }
+              : r
+          )
+        );
+        showToast(
+          t("paymentReceivedToast", {
+            reference:
+              payload.bookingReference || payload.bookingId.slice(0, 8),
+          })
+        );
+      },
+      [showToast]
+    ),
+    { replayLast: true, screenId: "HotelReservationsScreen_Payment" }
+  );
 
   const loadReservations = useCallback(async () => {
     try {
@@ -35,6 +120,10 @@ export function ReservationsScreen() {
 
   useEffect(() => {
     loadReservations();
+    const unsub = subscribeToHotelRealtime(() => {
+      loadReservations();
+    });
+    return () => unsub();
   }, [loadReservations]);
 
   const onRefresh = async () => {
@@ -61,6 +150,12 @@ export function ReservationsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#0d1117]">
+      {toastMessage && (
+        <View className="absolute top-12 self-center z-50 bg-[#161b22] border border-[#6366f1] px-4 py-2.5 rounded-full flex-row items-center space-x-2 shadow-lg">
+          <MaterialIcons name="info" size={18} color="#6366f1" />
+          <Text className="text-white text-xs font-semibold ml-2">{toastMessage}</Text>
+        </View>
+      )}
       <StatusBar barStyle="light-content" />
 
       {/* Header */}
@@ -158,6 +253,7 @@ export function ReservationsScreen() {
                 <TouchableOpacity
                   key={item.id}
                   className="bg-[#161b22] rounded-2xl p-4 border border-gray-800 shadow-sm"
+                  onPress={() => navigation?.navigate?.('guest', { reservation: item, bookingId: item.bookingId })}
                 >
                   <View className="flex-row justify-between items-start">
                     <View className="flex-row flex-1">

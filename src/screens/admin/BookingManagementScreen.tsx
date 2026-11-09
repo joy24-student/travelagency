@@ -21,6 +21,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { bookingAdminService, refundService } from "@/services/adminService";
+import { useBookingRealtimeSync } from "../../services/bookingRealtimeService";
 import { AdminPagination } from "./AdminPagination";
 import { DestructiveConfirmModal } from "./DestructiveConfirmModal";
 import { useRBAC } from "./rbac";
@@ -72,6 +73,22 @@ const BookingManagementScreenComponent: React.FC = () => {
   useEffect(() => {
     loadBookings();
   }, []);
+
+  // Supabase Realtime synchronization for Admin Portal
+  useBookingRealtimeSync({
+    onStatusChange: (payload) => {
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === payload.bookingId || b.booking_reference === payload.bookingReference
+            ? { ...b, status: payload.newStatus }
+            : b
+        )
+      );
+    },
+    onBookingCreated: () => {
+      loadBookings();
+    },
+  });
 
   const onRefresh = async () => {
     setRefreshing(true);

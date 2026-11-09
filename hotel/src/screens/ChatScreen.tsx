@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 
-export function ChatScreen() {
+export function ChatScreen({ navigation, route }: any) {
   const [message, setMessage] = useState('');
 
   return (
@@ -23,7 +23,7 @@ export function ChatScreen() {
       {/* Header */}
       <View className="bg-[#0b1326] flex-row justify-between items-center px-4 py-2 border-b border-white/5 shadow-lg">
         <View className="flex-row items-center space-x-3">
-          <TouchableOpacity className="p-2">
+          <TouchableOpacity className="p-2" onPress={() => navigation?.goBack?.()}>
             <MaterialIcons name="arrow-back" size={24} color="#c0c1ff" />
           </TouchableOpacity>
           <View className="flex-row items-center space-x-2">
@@ -46,7 +46,7 @@ export function ChatScreen() {
           </View>
         </View>
         <View className="flex-row items-center space-x-2">
-          <TouchableOpacity className="p-2">
+          <TouchableOpacity className="p-2" onPress={() => navigation?.goBack?.()}>
             <MaterialIcons name="search" size={24} color="white" />
           </TouchableOpacity>
           <TouchableOpacity className="bg-[#8083ff] p-2 rounded-full">

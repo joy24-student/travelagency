@@ -200,6 +200,14 @@ export default function ProfileScreen({ navigation }: Props) {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Operational Settings</Text>
           <View style={[styles.glassList, { backgroundColor: isDarkMode ? UI_COLORS.glassBg : 'rgba(0,0,0,0.03)' }]}>
             <NavListItem
+              title="Earnings & Payouts"
+              subtitle="Balances, statements & tax invoices"
+              icon="payments"
+              color={UI_COLORS.secondary}
+              onPress={() => (navigation as any).navigate('Earnings')}
+            />
+            <View style={styles.separator} />
+            <NavListItem
               title="Bank Accounts"
               subtitle="Payout settings and withdrawal history"
               icon="account-balance"
@@ -303,7 +311,7 @@ const styles = StyleSheet.create({
   header: {
     position: 'absolute',
     top: 0,
-    360: '100%',
+    width: '100%',
     zIndex: 100,
     height: 80,
     justifyContent: 'center',
@@ -316,7 +324,7 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerLogoBox: {
-    360: 36,
+    width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: UI_COLORS.primaryContainer,
@@ -338,8 +346,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   content: { flex: 1 },
-  heroSection: { height: 340, 360: '100%', overflow: 'hidden' },
-  coverImage: { ...StyleSheet.absoluteFillObject, opacity: 0.5 },
+  heroSection: { height: 340, width: '100%', overflow: 'hidden' },
+  coverImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: 0.5 },
   heroOverlay: { ...StyleSheet.absoluteFillObject },
   heroIdentity: {
     position: 'absolute',
@@ -352,7 +360,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: { position: 'relative' },
   logoFrame: {
-    360: 80,
+    width: 80,
     height: 80,
     borderRadius: 16,
     backgroundColor: UI_COLORS.surfaceContainer,
@@ -362,13 +370,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  fullLogo: { 360: '100%', height: '100%' },
+  fullLogo: { width: '100%', height: '100%' },
   verifiedBadge: {
     position: 'absolute',
     bottom: -4,
     right: -4,
     backgroundColor: UI_COLORS.secondary,
-    360: 24,
+    width: 24,
     height: 24,
     borderRadius: 12,
     alignItems: 'center',
@@ -392,7 +400,7 @@ const styles = StyleSheet.create({
   statusTagText: { fontSize: 10, fontWeight: '700', color: UI_COLORS.primary },
   eliteTag: { backgroundColor: 'rgba(3, 181, 211, 0.2)', borderColor: 'rgba(76, 215, 246, 0.2)' },
   editFab: {
-    360: 44,
+    width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: UI_COLORS.primary,
@@ -440,7 +448,7 @@ const styles = StyleSheet.create({
   },
   navItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   navIconBox: {
-    360: 44,
+    width: 44,
     height: 44,
     borderRadius: 22,
     alignItems: 'center',
@@ -514,7 +522,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalIconBox: {
-    360: 44,
+    width: 44,
     height: 44,
     borderRadius: 22,
     alignItems: 'center',

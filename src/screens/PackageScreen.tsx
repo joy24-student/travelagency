@@ -1102,19 +1102,20 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
       .map((p) => ({
         id: p.id,
         title: p.name,
-        subtitle: `${p.durationDays} দিন / ${p.durationNights} রাত • ${p.destination}`,
-        price: p.basePrice,
+        subtitle: `${p.duration || `${p.durationDays} দিন`} • ${p.destinationCity}`,
+        type: "package" as const,
+        price: p.pricePerPerson,
         priceUnit: "/জন",
         rating: p.rating,
         reviewsCount: p.reviewsCount,
         specs: [
-          { label: "গন্তব্য", value: p.destination },
+          { label: "গন্তব্য", value: `${p.destinationCity}, ${p.destinationCountry}` },
           { label: "হোটেল", value: p.hotel?.name || "পার্টনার হোটেল" },
-          { label: "খাবার", value: p.mealsIncluded ? "অন্তর্ভুক্ত" : "ব্যক্তিগত" },
-          { label: "সিট বাকি", value: `${p.seatsLeft}টি` },
+          { label: "খাবার", value: (p.meals && p.meals.length > 0) ? p.meals.join(", ") : "অন্তর্ভুক্ত" },
+          { label: "সিট বাকি", value: `${p.seatsLeft || 10}টি` },
         ],
         features: p.inclusions || [],
-        policies: [p.cancellationPolicy || "শর্ত প্রযোজ্য"],
+        policies: ["শর্ত প্রযোজ্য"],
       }));
   }, [packages, comparePackageIds]);
 
@@ -2803,7 +2804,7 @@ export function PackageScreen({ screen }: { screen?: UIScreen } = {}) {
         onClose={() => setShowCompareModal(false)}
         title="ভ্যাকেশন প্যাকেজ তুলনা"
         items={packageComparisonItems}
-        onSelect={(item) => {
+        onSelect={(item: any) => {
           setShowCompareModal(false);
           const pkg = packages.find((p) => p.id === item.id);
           if (pkg) openDrawer(pkg);

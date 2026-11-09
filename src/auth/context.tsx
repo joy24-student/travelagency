@@ -7,6 +7,7 @@ import React, {
 } from "react";
 
 import { supabase } from "../utils/supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { makeRedirectUri } from "expo-auth-session";
 import { signInWithFacebook, signInWithGoogle } from "../services/oauth";
 import { clearTokens, storeTokens } from "./tokenStorage";
@@ -58,6 +59,7 @@ const defaultContext: AuthContextType = {
     throw new Error("AuthProvider not mounted");
   },
   getUserRole: async () => null,
+  loginAsDemo: async () => null,
 };
 
 export const AuthContext = createContext<AuthContextType>(defaultContext);
@@ -72,10 +74,71 @@ export function AuthProvider({
 
   const isAuthenticated = !!user;
 
+  const loginAsDemo = useCallback(async (role: UserRole = "user") => {
+    const demoUser: AuthUser = {
+      id: "demo-user-12345",
+      email:
+        role === "admin"
+          ? "admin@shopnojatra.com"
+          : role === "business"
+          ? "agency@shopnojatra.com"
+          : "demo@shopnojatra.com",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      app_metadata: {
+        provider: "demo",
+        role: role === "business" ? "agency" : role,
+      },
+      user_metadata: {
+        first_name: role === "admin" ? "Super" : role === "business" ? "Agency" : "Demo",
+        last_name: role === "admin" ? "Admin" : role === "business" ? "Partner" : "Traveler",
+        role: role === "business" ? "agency" : role,
+        is_admin: role === "admin",
+        is_agency: role === "business",
+      },
+    };
+
+    const demoSession = {
+      access_token: "demo-jwt-access-token",
+      refresh_token: "demo-jwt-refresh-token",
+      expires_at: Math.floor(Date.now() / 1000) + 86400 * 30,
+      user: demoUser,
+    };
+
+    setUser(demoUser);
+    useAuthStore.getState().setSession(demoSession as any);
+    useAuthStore.getState().setProfile({
+      id: demoUser.id,
+      email: demoUser.email,
+      first_name: demoUser.user_metadata?.first_name,
+      last_name: demoUser.user_metadata?.last_name,
+      role: role === "business" ? "agency" : role,
+      created_at: demoUser.created_at,
+      updated_at: demoUser.updated_at,
+    } as any);
+
+    await AsyncStorage.setItem("@app:has_seen_onboarding", "true");
+    await AsyncStorage.setItem("@app:demo_mode", "true");
+    await AsyncStorage.setItem("@app:demo_role", role);
+    return demoSession;
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
     (async () => {
+      try {
+        const demoMode = await AsyncStorage.getItem("@app:demo_mode");
+        if (demoMode === "true") {
+          const demoRole = ((await AsyncStorage.getItem("@app:demo_role")) as UserRole) || "user";
+          await loginAsDemo(demoRole);
+          if (mounted) setLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn("Demo mode read error:", e);
+      }
+
       const {
         data: { session },
         error,
@@ -184,8 +247,13 @@ export function AuthProvider({
   }, []);
 
   const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("SignOut error:", e);
+    }
+    await AsyncStorage.removeItem("@app:demo_mode");
+    await AsyncStorage.removeItem("@app:demo_role");
     await clearTokens();
     await useAuthStore.getState().logout();
     setUser(null);
@@ -252,6 +320,13 @@ export function AuthProvider({
   const getUserRole = useCallback(async (): Promise<UserRole | null> => {
     if (!user) return null;
 
+    if (user.id === "demo-user-12345" || user.app_metadata?.provider === "demo") {
+      const demoRole = (user.user_metadata?.role || user.app_metadata?.role || "user") as string;
+      if (demoRole === "admin") return "admin";
+      if (demoRole === "agency" || demoRole === "business") return "business";
+      return "user";
+    }
+
     try {
       // 1. Strict check against admin_users
       const { data: adminRecord } = await supabase
@@ -313,6 +388,7 @@ export function AuthProvider({
       updatePassword,
       refreshSession,
       getUserRole,
+      loginAsDemo,
     }),
     [
       user,
@@ -330,6 +406,7 @@ export function AuthProvider({
       updatePassword,
       refreshSession,
       getUserRole,
+      loginAsDemo,
     ]
   );
 

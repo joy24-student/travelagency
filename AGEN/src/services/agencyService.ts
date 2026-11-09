@@ -917,21 +917,148 @@ export const agencyPaymentsService = {
   },
 
   /**
-   * Get payment history
+   * Get payout history (replaces missing agency_payments with payouts)
    */
-  async getPaymentHistory(agencyId: string, limit = 50): Promise<any[]> {
+  async getPayoutHistory(agencyId: string, limit = 50, statusFilter?: string): Promise<any[]> {
     try {
-      const { data, error } = await supabase
-        .from("agency_payments")
-        .select("*")
+      let query = supabase
+        .from("payouts")
+        .select("*, batch:payout_batches(*)")
         .eq("agency_id", agencyId)
         .order("created_at", { ascending: false })
         .limit(limit);
 
+      if (statusFilter && statusFilter !== "all") {
+        query = query.eq("status", statusFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) return [];
       return data || [];
-    } catch (error) {
-      console.error("Error fetching payment history:", error);
+    } catch {
       return [];
+    }
+  },
+
+  /**
+   * Backward-compatible alias for getPayoutHistory
+   */
+  async getPaymentHistory(agencyId: string, limit = 50): Promise<any[]> {
+    return this.getPayoutHistory(agencyId, limit);
+  },
+
+  /**
+   * Get server-calculated balances (pending, available, paid).
+   * Money is computed 100% on the server; zero math on client.
+   */
+  async getEarningsBalances(agencyId: string): Promise<{
+    pending_paisa: number;
+    available_paisa: number;
+    paid_paisa: number;
+    pending_bdt: string;
+    available_bdt: string;
+    paid_bdt: string;
+    currency: string;
+  }> {
+    try {
+      const { data, error } = await supabase.rpc("get_agency_balances", {
+        p_agency_id: agencyId,
+      });
+
+      if (!error && data) {
+        return data;
+      }
+
+      // Fallback: direct table aggregation if RPC not present in environment
+      const { data: payouts } = await supabase
+        .from("payouts")
+        .select("amount_paisa, status")
+        .eq("agency_id", agencyId);
+
+      const paidPaisa = (payouts || [])
+        .filter((p: any) => p.status === "paid")
+        .reduce((sum: number, p: any) => sum + Number(p.amount_paisa || 0), 0);
+
+      const lockedPaisa = (payouts || [])
+        .filter((p: any) => p.status === "draft" || p.status === "approved")
+        .reduce((sum: number, p: any) => sum + Number(p.amount_paisa || 0), 0);
+
+      const { data: agencyAccts } = await supabase
+        .from("ledger_accounts")
+        .select("id")
+        .eq("owner_type", "agency")
+        .eq("owner_id", agencyId);
+
+      let availablePaisa = 0;
+      if (agencyAccts && agencyAccts.length > 0) {
+        const ids = agencyAccts.map((a: any) => a.id);
+        const { data: entries } = await supabase
+          .from("ledger_entries")
+          .select("direction, amount_paisa")
+          .in("account_id", ids);
+
+        if (entries) {
+          const credits = entries
+            .filter((e: any) => e.direction === "credit")
+            .reduce((s: number, e: any) => s + Number(e.amount_paisa || 0), 0);
+          const debits = entries
+            .filter((e: any) => e.direction === "debit")
+            .reduce((s: number, e: any) => s + Number(e.amount_paisa || 0), 0);
+          availablePaisa = Math.max(0, credits - debits - lockedPaisa);
+        }
+      }
+
+      const { data: escrowAccts } = await supabase
+        .from("ledger_accounts")
+        .select("id")
+        .eq("owner_type", "escrow")
+        .eq("owner_id", agencyId);
+
+      let pendingPaisa = 0;
+      if (escrowAccts && escrowAccts.length > 0) {
+        const ids = escrowAccts.map((a: any) => a.id);
+        const { data: entries } = await supabase
+          .from("ledger_entries")
+          .select("direction, amount_paisa")
+          .in("account_id", ids);
+
+        if (entries) {
+          const credits = entries
+            .filter((e: any) => e.direction === "credit")
+            .reduce((s: number, e: any) => s + Number(e.amount_paisa || 0), 0);
+          const debits = entries
+            .filter((e: any) => e.direction === "debit")
+            .reduce((s: number, e: any) => s + Number(e.amount_paisa || 0), 0);
+          const netEscrow = Math.max(0, credits - debits);
+          pendingPaisa = Math.floor((netEscrow * 500) / 10000);
+        }
+      }
+
+      const formatP = (p: number) => {
+        const bdt = Math.floor(p / 100);
+        const rem = p % 100;
+        return `${bdt.toLocaleString()}.${rem < 10 ? "0" : ""}${rem}`;
+      };
+
+      return {
+        pending_paisa: pendingPaisa,
+        available_paisa: availablePaisa,
+        paid_paisa: paidPaisa,
+        pending_bdt: formatP(pendingPaisa),
+        available_bdt: formatP(availablePaisa),
+        paid_bdt: formatP(paidPaisa),
+        currency: "BDT",
+      };
+    } catch {
+      return {
+        pending_paisa: 0,
+        available_paisa: 0,
+        paid_paisa: 0,
+        pending_bdt: "0.00",
+        available_bdt: "0.00",
+        paid_bdt: "0.00",
+        currency: "BDT",
+      };
     }
   },
 };

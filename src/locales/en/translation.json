@@ -178,7 +178,8 @@
   "nav.messages": "Messages",
   "nav.community": "Community",
   "nav.trips": "My Trips",
-  "nav.account": "Sign In",
+  "nav.account": "Account",
+  "nav.signIn": "Sign In",
   "nav.askAi": "Ask AI or hold to speak",
   "nav.backToTop": "Back to top",
   "exploreServices": "Explore Services",
@@ -991,5 +992,7 @@
   "resetPasswordSubtitle": "Open the recovery link, or enter the recovery code, then set a new password.",
   "enterVerificationCode": "Enter verification code",
   "updatePassword": "Update Password",
-  "emptyRecoveryNote": "If you opened the recovery link directly, you can leave these fields empty."
+  "emptyRecoveryNote": "If you opened the recovery link directly, you can leave these fields empty.",
+  "bookingStatusUpdated": "Booking status updated: {{status}}",
+  "paymentReceivedToast": "Payment completed for booking {{reference}}"
 }

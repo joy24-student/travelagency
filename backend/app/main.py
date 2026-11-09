@@ -17,6 +17,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 
 from app.api.v1.router import api_v1_router
+from app.api.v1.endpoints.price_alerts import router as price_alerts_router
+from app.api.v1.endpoints.tickets import router as tickets_router
 from app.core.config import settings
 from app.core.database import engine
 from app.core.exceptions import create_problem_response, register_exception_handlers
@@ -118,6 +120,8 @@ def create_application() -> FastAPI:
     # 3. Mount Routers
     app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
     app.include_router(ws_router)
+    app.include_router(price_alerts_router)
+    app.include_router(tickets_router)
 
     # 4. Prometheus Metrics Endpoint
     @app.get("/metrics", tags=["Observability & Telemetry"])

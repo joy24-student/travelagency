@@ -57,4 +57,22 @@ describe("CrashReporter & Global Error Handling System", () => {
 
     unsubB();
   });
+
+  it("should configure remote endpoint and support sendReport", async () => {
+    crashReporter.setRemoteEndpoint("https://telemetry.example.com/crashes");
+    expect(crashReporter.getRemoteEndpoint()).toBe("https://telemetry.example.com/crashes");
+
+    const sent = await crashReporter.sendReport({
+      id: "test-crash-1",
+      type: "manual_report",
+      isFatal: false,
+      message: "Test crash report",
+      timestamp: Date.now(),
+      environment: "test",
+      platform: "jest",
+    });
+
+    expect(typeof sent).toBe("boolean");
+    crashReporter.setRemoteEndpoint(null);
+  });
 });

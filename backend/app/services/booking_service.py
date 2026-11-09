@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
-from app.models.booking import Booking, BookingItem, BookingPassenger, BookingPayment
+from app.models.booking import Booking, BookingEvent, BookingItem, BookingPassenger, BookingPayment
 from app.models.flight import FlightSeat
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.flight_repository import FlightRepository
@@ -174,6 +174,23 @@ class BookingService:
             )
 
         await booking_repo.add(booking)
+
+        # Record booking creation event in the same atomic transaction
+        booking.events.append(
+            BookingEvent(
+                type="created",
+                actor_id=user_id,
+                payload={
+                    "booking_reference": booking.booking_reference,
+                    "status": booking.status,
+                    "product_type": booking.product_type,
+                    "destination_city": booking.destination_city,
+                    "final_price": float(booking.final_price),
+                    "currency": booking.currency,
+                },
+                created_at=datetime.now(timezone.utc),
+            )
+        )
         await db.commit()
         await db.refresh(booking)
 
@@ -232,6 +249,10 @@ class BookingService:
                 )
                 db.add(payment_record)
 
+            # Create offline-capable, tamper-proof signed e-tickets inside transaction
+            from app.services.ticket_service import TicketService
+            await TicketService.create_tickets_for_booking(db, booking)
+
             # Enqueue asynchronous Celery tasks for PDF ticket & confirmation email
             ticket_payload = {
                 "booking_reference": booking.booking_reference,
@@ -271,6 +292,35 @@ class BookingService:
         elif target_status == BookingStatus.COMPLETED:
             booking.completed_at = now
             booking.flow_step = "completed"
+
+        # Record booking lifecycle event in the same atomic transaction
+        status_event_map = {
+            BookingStatus.CONFIRMED: "confirmed",
+            BookingStatus.CANCELLED: "cancelled",
+            BookingStatus.REFUNDED: "refunded",
+            BookingStatus.COMPLETED: "checked_in",
+            BookingStatus.PENDING_PAYMENT: "created",
+        }
+        event_type = status_event_map.get(target_status, "confirmed")
+
+        booking_event = BookingEvent(
+            booking_id=booking.id,
+            type=event_type,
+            actor_id=booking.user_id,
+            payload={
+                "booking_id": str(booking.id),
+                "booking_reference": booking.booking_reference,
+                "status": target_status.value,
+                "previous_status": current_status.value,
+                "destination_city": booking.destination_city,
+                "product_type": booking.product_type,
+                "final_price": float(booking.final_price),
+                "currency": booking.currency,
+                "payment_transaction_id": request.payment_transaction_id,
+            },
+            created_at=now,
+        )
+        db.add(booking_event)
 
         await db.commit()
         full_booking = await booking_repo.get_booking_with_details(booking.id)

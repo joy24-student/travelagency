@@ -13,7 +13,7 @@ from app.models.user import (
 )
 from app.models.hotel import Hotel, HotelReview, HotelRoom, HotelRoomAvailability
 from app.models.flight import Airline, Airport, Flight, FlightSeat
-from app.models.booking import Booking, BookingItem, BookingPassenger, BookingPayment
+from app.models.booking import Booking, BookingEvent, BookingItem, BookingPassenger, BookingPayment
 from app.models.payment import (
     Payment,
     PaymentSecurityNonce,
@@ -23,6 +23,10 @@ from app.models.payment import (
 from app.models.loyalty import LoyaltyAccount, LoyaltyPointsTransaction
 from app.models.agency import AgencyBankAccount, AgencyCommission
 from app.models.ai import AiConversation, AiMessage, TripPlan
+from app.models.price_alert import PriceAlert, PriceSnapshot
+from app.models.ledger import LedgerAccount, LedgerEntry, PayoutBatch, Payout
+from app.models.kyc import KYCSubmission, KYCDocument, KYCCheck, KYCAuditLog
+from app.models.ticket import Ticket, TicketScan
 
 __all__ = [
     "UUIDMixin",
@@ -42,6 +46,7 @@ __all__ = [
     "Flight",
     "FlightSeat",
     "Booking",
+    "BookingEvent",
     "BookingItem",
     "BookingPassenger",
     "BookingPayment",
@@ -56,4 +61,16 @@ __all__ = [
     "TripPlan",
     "AiConversation",
     "AiMessage",
+    "PriceAlert",
+    "PriceSnapshot",
+    "LedgerAccount",
+    "LedgerEntry",
+    "PayoutBatch",
+    "Payout",
+    "KYCSubmission",
+    "KYCDocument",
+    "KYCCheck",
+    "KYCAuditLog",
+    "Ticket",
+    "TicketScan",
 ]

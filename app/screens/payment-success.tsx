@@ -9,7 +9,7 @@
  * 5. Fixed Broken Routes: Replaces legacy /home with type-safe ROUTES.HOME and ROUTES.TABS.TRIPS.
  */
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { Platform,
@@ -30,6 +30,11 @@ import { backendApi } from "../../src/services/apiClient";
 import { supabase } from "../../src/utils/supabase";
 import { ROUTES } from "../../src/constants/routes";
 import { ticketService, ETicket } from "../../src/services/payment/ticketService";
+import { appEventBus, APP_EVENTS } from "../../src/services/events/appEventBus";
+import { useScreenCollaboration } from "../../src/hooks/useScreenCollaboration";
+import { useTranslation } from "react-i18next";
+import { toast } from "../../src/components/ui/Toast";
+import { BoardingPassModal, BoardingPassData } from "../../src/components/trips";
 import { BookingStepper } from "../../src/components/common/BookingStepper";
 import { CopyableText } from "../../src/components/common/CopyableText";
 import { usePreventBackToPayment } from "../../src/utils/navigationHelper";
@@ -45,10 +50,12 @@ export default function PaymentSuccessScreen() {
     transactionId?: string;
     bookingReference?: string;
     amount?: string;
+    selectedSeats?: string;
   }>();
 
   const [loading, setLoading] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [showBoardingPassModal, setShowBoardingPassModal] = useState(false);
   const [payment, setPayment] = useState<any>(null);
   const [booking, setBooking] = useState<any>(null);
 
@@ -59,6 +66,33 @@ export default function PaymentSuccessScreen() {
 
   const txId = params.paymentId || params.transactionId;
   const bookingId = params.bookingId;
+  const { t } = useTranslation();
+
+  // Cross-Screen Collaboration: Keep booking status synchronized in place
+  useScreenCollaboration(
+    APP_EVENTS.BOOKING_STATUS_CHANGED,
+    useCallback(
+      (payload: any) => {
+        if (!payload?.bookingId) return;
+        setBooking((prev: any) => {
+          if (!prev) return prev;
+          if (
+            prev.id === payload.bookingId ||
+            prev.booking_reference === payload.bookingReference
+          ) {
+            return { ...prev, status: payload.currentStatus };
+          }
+          return prev;
+        });
+        const statusLabel = t(payload.currentStatus, {
+          defaultValue: payload.currentStatus,
+        });
+        toast.info(t("bookingStatusUpdated", { status: statusLabel }));
+      },
+      [t]
+    ),
+    { replayLast: true, screenId: "PaymentSuccess_Status" }
+  );
 
   useEffect(() => {
     loadTransactionAndBooking();
@@ -111,6 +145,7 @@ export default function PaymentSuccessScreen() {
         destination: bookingRecord?.hotel?.city || bookingRecord?.destination || "Bangladesh",
         origin: bookingRecord?.flight?.origin_city || "Dhaka",
         travelDate: bookingRecord?.check_in_date || bookingRecord?.travel_date || new Date().toISOString().split("T")[0],
+        seatOrRoom: params.selectedSeats || (booking?.notes?.match(/Seats:\s*([^|)]+)/)?.[1]?.trim()) || "12A",
         amount: totalAmt,
         currency: "BDT",
         status: "confirmed",
@@ -120,6 +155,28 @@ export default function PaymentSuccessScreen() {
 
       if (user?.id) {
         await ticketService.cacheTicket(user.id, eTicket);
+      }
+
+      // Publish cross-screen events so Trips and Home screens update immediately
+      appEventBus.publish(APP_EVENTS.PAYMENT_COMPLETED, {
+        transactionId: txId || `TK-${Date.now()}`,
+        seatOrRoom: params.selectedSeats || (booking?.notes?.match(/Seats:\s*([^|)]+)/)?.[1]?.trim()) || "12A",
+        amount: totalAmt,
+        currency: "BDT",
+        paymentMethod: paymentRecord?.payment_method || paymentRecord?.method || "card",
+        status: "completed",
+        bookingId: targetBookingId,
+        timestamp: Date.now(),
+      });
+      if (targetBookingId) {
+        appEventBus.publish(APP_EVENTS.BOOKING_STATUS_CHANGED, {
+          bookingId: targetBookingId,
+          currentStatus: "confirmed",
+          bookingReference: bRef,
+          totalPrice: totalAmt,
+          currency: "BDT",
+          timestamp: Date.now(),
+        });
       }
     } catch (err) {
       console.warn("Payment success data load notice:", err);
@@ -162,6 +219,7 @@ export default function PaymentSuccessScreen() {
         destination: booking?.hotel?.city || booking?.destination || "Bangladesh",
         origin: booking?.flight?.origin_city || "Dhaka",
         travelDate: booking?.check_in_date || booking?.travel_date || new Date().toISOString().split("T")[0],
+        seatOrRoom: params.selectedSeats || (booking?.notes?.match(/Seats:\s*([^|)]+)/)?.[1]?.trim()) || "12A",
         amount: totalAmt,
         currency: "BDT",
         status: "confirmed",
@@ -294,6 +352,18 @@ export default function PaymentSuccessScreen() {
               <Pressable style={styles.ticketViewTabBtn} onPress={handleGoToMyTickets}>
                 <Ionicons name="folder-open-outline" size={16} color={PRIMARY} />
                 <Text style={styles.ticketViewTabBtnText}>আমার টিকিট ট্যাবে দেখুন</Text>
+            </Pressable>
+
+            {/* Direct Digital Boarding Pass Button */}
+            <Pressable
+              style={styles.openBoardingPassAction}
+              onPress={() => setShowBoardingPassModal(true)}
+            >
+              <Ionicons name="airplane" size={16} color="#FFFFFF" />
+              <Text style={styles.openBoardingPassActionText}>
+                ডিজিটাল বোর্ডিং পাস ও সিট দেখুন
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
               </Pressable>
             </View>
           </View>
@@ -365,6 +435,40 @@ export default function PaymentSuccessScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+
+      {/* Digital Boarding Pass Modal */}
+      <BoardingPassModal
+        visible={showBoardingPassModal}
+        passData={{
+          id: txId || `TK-${Date.now()}`,
+          bookingReference: bookingRef,
+          passengerName: user?.email?.split("@")[0] || "Valued Traveler",
+          transportType: booking?.flight ? "flight" : "hotel",
+          operatorOrAirline: booking?.flight ? "বিমান বাংলাদেশ এয়ারলাইন্স" : booking?.hotel?.name || "স্বপ্নযাত্রা ট্রাভেল",
+          serviceNumber: booking?.flight?.flight_number || "BG-433",
+          origin: booking?.flight?.origin_city || "ঢাকা (DAC)",
+          originCode: "DAC",
+          originTerminal: "Terminal 1",
+          destination: booking?.hotel?.city || booking?.destination || "কক্সবাজার (CXB)",
+          destinationCode: "CXB",
+          departureDate: booking?.check_in_date || booking?.travel_date || new Date().toISOString().split("T")[0],
+          departureTime: "11:45 AM",
+          arrivalTime: "12:50 PM",
+          boardingTime: "11:00 AM",
+          gate: "Gate 04",
+          terminal: "T1",
+          seatNumbers: params.selectedSeats || (booking?.notes?.match(/Seats:\s*([^|)]+)/)?.[1]?.trim()) || "12A, 12B",
+          cabinClass: "ইকোনমি ক্লাস",
+          boardingGroup: "গ্রুপ ২ (Zone 2)",
+          status: "confirmed",
+          qrPayload: qrVerificationPayload,
+          fareAmount: payment?.amount || parseFloat(params.amount || "0") || booking?.total_price || 0,
+          currency: "BDT",
+        }}
+        onClose={() => setShowBoardingPassModal(false)}
+      />
+
 
     </SafeAreaView>
   );
@@ -550,6 +654,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
+  },
+  openBoardingPassAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: PRIMARY,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginTop: 12,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  openBoardingPassActionText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
   },
   ticketViewTabBtnText: {
     color: PRIMARY,

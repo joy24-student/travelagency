@@ -1,4 +1,4 @@
-import { Platform, FocusAwareStatusBar } from "../../components/ui/AppStatusBar";
+import { FocusAwareStatusBar } from "../../components/ui/AppStatusBar";
 import { showLocalizedAlert } from "../../utils/localizedAlert";
 /**
  * Admin User Management Screen - Executive Compliance & Governance Edition
@@ -14,6 +14,7 @@ import { showLocalizedAlert } from "../../utils/localizedAlert";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
+  Platform,
   View,
   ScrollView,
   Text,

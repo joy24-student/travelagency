@@ -36,6 +36,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "../../src/hooks/useAuth";
 import { userRepository } from "../../src/services/repositories/user";
 import { paymentService } from "../../src/services/paymentService";
+import { appEventBus, APP_EVENTS } from "../../src/services/events/appEventBus";
 import { ShopnoWalletProvider } from "../../src/services/payment/shopnoWallet";
 import {
   generateSecureNonce,
@@ -722,6 +723,25 @@ export default function EnhancedPaymentScreen() {
             } catch (err) {
               console.warn("Booking status transition notice:", err);
             }
+          }
+
+          appEventBus.publish(APP_EVENTS.PAYMENT_COMPLETED, {
+            transactionId: txnId,
+            amount: financials.totalPayable,
+            currency: "BDT",
+            paymentMethod: selectedProvider?.id || "card",
+            status: "completed",
+            bookingId: params.bookingId || undefined,
+            timestamp: Date.now(),
+          });
+          if (params.bookingId) {
+            appEventBus.publish(APP_EVENTS.BOOKING_STATUS_CHANGED, {
+              bookingId: params.bookingId,
+              currentStatus: "confirmed",
+              totalPrice: financials.totalPayable,
+              currency: "BDT",
+              timestamp: Date.now(),
+            });
           }
 
           setPollingActive(false);

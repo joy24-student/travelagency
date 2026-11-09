@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "./useAuth";
 import { bookingRepository } from "../services/repositories/booking";
 import { offlineQueueService } from "../services/offline/offlineQueueService";
 import { networkStatusService } from "../services/network/networkStatusService";
+import { useBookingRealtimeSync } from "../services/bookingRealtimeService";
 
 // Hook for user bookings with SWR cache and background revalidation
 export const useUserBookings = (userId?: string, status?: string) => {
@@ -29,6 +30,17 @@ export const useUserBookings = (userId?: string, status?: string) => {
       refetchOnReconnect: true,
     },
   );
+
+  // Supabase Realtime CDC Sync: Automatically refetch when any booking status changes
+  useBookingRealtimeSync({
+    userId,
+    onStatusChange: () => {
+      refetch();
+    },
+    onBookingCreated: () => {
+      refetch();
+    },
+  });
 
   return {
     bookings: bookings || [],
@@ -65,6 +77,15 @@ export const useBooking = (bookingId?: string) => {
       refetchOnReconnect: true,
     },
   );
+
+  // Single booking Realtime Sync
+  useBookingRealtimeSync({
+    onStatusChange: (payload) => {
+      if (payload.bookingId === bookingId) {
+        refetch();
+      }
+    },
+  });
 
   return {
     booking,

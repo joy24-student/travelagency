@@ -213,3 +213,40 @@ async def cancel_booking(
         current_user=current_user,
         db=db,
     )
+
+@router.post("/{booking_id}/scan-ticket", response_model=StandardResponse[BookingResponse])
+async def scan_booking_ticket(
+    booking_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Scan digital travel ticket voucher at station / hotel / airport counter.
+    Atomically transitions booking step and releases escrow funds to agency account.
+    """
+    booking_repo = BookingRepository(db)
+    booking = await booking_repo.lock_booking_for_update(booking_id)
+    if not booking:
+        raise NotFoundError("Booking", booking_id)
+
+    is_admin = current_user.role == UserRole.ADMIN or UserRole.ADMIN.value in current_user.roles
+    is_agency = booking.agency_id and (booking.agency_id == current_user.agency_id or current_user.role == UserRole.AGENCY)
+    is_staff = current_user.role == UserRole.HOTEL_STAFF or UserRole.HOTEL_STAFF.value in current_user.roles
+    if not (is_admin or is_agency or is_staff):
+        raise PermissionDeniedError("Permission denied: only agency staff, travel staff, or admin can scan tickets")
+
+    from app.services.ledger_service import LedgerService
+    await LedgerService.release_to_agency(db=db, booking=booking)
+
+    if booking.flow_step != "completed":
+        booking.flow_step = "ticket_scanned"
+
+    await db.commit()
+    full_booking = await booking_repo.get_booking_with_details(booking.id)
+
+    return StandardResponse[BookingResponse](
+        success=True,
+        message="Ticket successfully scanned and agency payout balance released",
+        data=BookingResponse.model_validate(full_booking),
+    )
+

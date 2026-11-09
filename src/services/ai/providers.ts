@@ -4,6 +4,7 @@ import type {
   LLMCompletionOptions,
   LLMResponse,
 } from "./types";
+import { apiClient } from "../apiClient";
 
 // ─── Utility Helpers ──────────────────────────────────────────────────────────
 
@@ -35,70 +36,93 @@ export class GeminiProvider implements ILLMProvider {
   }
 
   isAvailable(): boolean {
-    const key = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-    return Boolean(key && key.trim().length > 0);
+    return true;
   }
 
   async complete(options: LLMCompletionOptions): Promise<LLMResponse> {
-    const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("Missing EXPO_PUBLIC_GEMINI_API_KEY");
-    }
-
     const model = this.defaultModel;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    const body: Record<string, unknown> = {
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: options.userPrompt }],
-        },
-      ],
-      generationConfig: {
+    // 1. Secure Backend AI Completion (Primary)
+    try {
+      const backendRes = await apiClient.completeWithAI({
+        user_prompt: options.userPrompt,
+        system_prompt: options.systemPrompt,
         temperature: options.temperature ?? 0.2,
-        maxOutputTokens: options.maxTokens ?? 3500,
-        responseMimeType:
-          options.responseMimeType === "application/json"
-            ? "application/json"
-            : "text/plain",
-      },
-    };
+        max_tokens: options.maxTokens ?? 3500,
+        response_mime_type: options.responseMimeType,
+        provider: "gemini",
+        model,
+      });
 
-    if (options.systemPrompt) {
-      body.systemInstruction = {
-        parts: [{ text: options.systemPrompt }],
+      if (backendRes?.data?.text) {
+        return {
+          text: backendRes.data.text,
+          provider: "gemini",
+          model,
+          tokensUsed: backendRes.data.tokens_used,
+        };
+      }
+    } catch (backendErr: any) {
+      console.warn("Backend AI completion call error, checking client fallback:", backendErr?.message || backendErr);
+    }
+
+    // 2. Client-side fallback if dev key is provided
+    const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    if (apiKey) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      const body: Record<string, unknown> = {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: options.userPrompt }],
+          },
+        ],
+        generationConfig: {
+          temperature: options.temperature ?? 0.2,
+          maxOutputTokens: options.maxTokens ?? 3500,
+          responseMimeType:
+            options.responseMimeType === "application/json"
+              ? "application/json"
+              : "text/plain",
+        },
       };
+
+      if (options.systemPrompt) {
+        body.systemInstruction = {
+          parts: [{ text: options.systemPrompt }],
+        };
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: options.abortSignal,
+      });
+
+      await assertResponseOk(response, "Gemini");
+      const json = await response.json();
+
+      const text =
+        json.candidates?.[0]?.content?.parts
+          ?.map((part: { text?: string }) => part.text)
+          ?.filter((val: unknown): val is string => typeof val === "string")
+          ?.join("\n") ?? "";
+
+      if (text) {
+        return {
+          text,
+          provider: "gemini",
+          model,
+          tokensUsed: json.usageMetadata?.totalTokenCount,
+        };
+      }
     }
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: options.abortSignal,
-    });
-
-    await assertResponseOk(response, "Gemini");
-    const json = await response.json();
-
-    const text =
-      json.candidates?.[0]?.content?.parts
-        ?.map((part: { text?: string }) => part.text)
-        ?.filter((val: unknown): val is string => typeof val === "string")
-        ?.join("\n") ?? "";
-
-    if (!text) {
-      throw new Error("Gemini returned empty candidate text");
-    }
-
-    return {
-      text,
-      provider: "gemini",
-      model,
-      tokensUsed: json.usageMetadata?.totalTokenCount,
-    };
+    throw new Error("Unable to complete AI request: backend service and offline keys are unavailable.");
   }
 }
 
@@ -116,17 +140,41 @@ export class OpenAIProvider implements ILLMProvider {
   }
 
   isAvailable(): boolean {
-    const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-    return Boolean(key && key.trim().length > 0);
+    return true;
   }
 
   async complete(options: LLMCompletionOptions): Promise<LLMResponse> {
-    const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("Missing EXPO_PUBLIC_OPENAI_API_KEY");
+    const model = this.defaultModel;
+
+    // 1. First attempt via secure backend completion
+    try {
+      const backendRes = await apiClient.completeWithAI({
+        user_prompt: options.userPrompt,
+        system_prompt: options.systemPrompt,
+        temperature: options.temperature ?? 0.3,
+        max_tokens: options.maxTokens ?? 3500,
+        response_mime_type: options.responseMimeType,
+        provider: "openai",
+        model,
+      });
+
+      if (backendRes?.data?.text) {
+        return {
+          text: backendRes.data.text,
+          provider: "openai",
+          model,
+          tokensUsed: backendRes.data.tokens_used,
+        };
+      }
+    } catch (backendErr: any) {
+      console.warn("Backend OpenAI completion error, checking dev fallback:", backendErr?.message || backendErr);
     }
 
-    const model = this.defaultModel;
+    const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("Unable to complete request: backend service and offline keys are unavailable.");
+    }
+
     const messages = [];
 
     if (options.systemPrompt) {

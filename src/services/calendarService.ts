@@ -9,6 +9,7 @@ export interface CalendarEventPayload {
   location?: string;
   startDate: Date;
   endDate?: Date;
+  notes?: string;
 }
 
 function formatDateToIcsString(d: Date): string {

@@ -991,5 +991,7 @@
   "resetPasswordSubtitle": "রিকভারি লিংকটি খুলুন অথবা কোডটি লিখে নতুন পাসওয়ার্ড সেট করুন।",
   "enterVerificationCode": "ভেরিফিকেশন কোড লিখুন",
   "updatePassword": "পাসওয়ার্ড আপডেট করুন",
-  "emptyRecoveryNote": "লিংক থেকে সরাসরি খুলে থাকলে এই ঘরগুলো খালি রাখতে পারেন।"
+  "emptyRecoveryNote": "লিংক থেকে সরাসরি খুলে থাকলে এই ঘরগুলো খালি রাখতে পারেন।",
+  "bookingStatusUpdated": "বুকিং স্ট্যাটাস পরিবর্তিত হয়েছে: {{status}}",
+  "paymentReceivedToast": "বুকিং {{reference}} এর পেমেন্ট সম্পন্ন হয়েছে"
 }

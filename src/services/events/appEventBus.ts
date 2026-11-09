@@ -26,6 +26,10 @@ export const APP_EVENTS = {
   WEATHER_ALERT_TRIGGERED: "WEATHER_ALERT_TRIGGERED",
   PAYMENT_COMPLETED: "PAYMENT_COMPLETED",
   CURRENCY_CHANGED: "CURRENCY_CHANGED",
+  GROUP_TRIP_UPDATED: "GROUP_TRIP_UPDATED",
+  TRIP_ITEM_MUTATED: "TRIP_ITEM_MUTATED",
+  TRIP_PROPOSAL_MUTATED: "TRIP_PROPOSAL_MUTATED",
+  TRIP_EXPENSE_MUTATED: "TRIP_EXPENSE_MUTATED",
 } as const;
 
 export type AppEventType = (typeof APP_EVENTS)[keyof typeof APP_EVENTS];
@@ -36,6 +40,10 @@ export const ITINERARY_UPDATED = APP_EVENTS.ITINERARY_UPDATED;
 export const WEATHER_ALERT_TRIGGERED = APP_EVENTS.WEATHER_ALERT_TRIGGERED;
 export const PAYMENT_COMPLETED = APP_EVENTS.PAYMENT_COMPLETED;
 export const CURRENCY_CHANGED = APP_EVENTS.CURRENCY_CHANGED;
+export const GROUP_TRIP_UPDATED = APP_EVENTS.GROUP_TRIP_UPDATED;
+export const TRIP_ITEM_MUTATED = APP_EVENTS.TRIP_ITEM_MUTATED;
+export const TRIP_PROPOSAL_MUTATED = APP_EVENTS.TRIP_PROPOSAL_MUTATED;
+export const TRIP_EXPENSE_MUTATED = APP_EVENTS.TRIP_EXPENSE_MUTATED;
 
 /**
  * Payload emitted when a booking changes status (e.g., from draft to confirmed,
@@ -133,6 +141,43 @@ export interface CurrencyChangedPayload {
   metadata?: Record<string, unknown>;
 }
 
+export interface GroupTripUpdatedPayload {
+  tripId: string;
+  action: "created" | "updated" | "deleted" | "member_joined" | "member_left";
+  title?: string;
+  timestamp: number;
+  data?: Record<string, unknown>;
+}
+
+export interface TripItemMutatedPayload {
+  itemId: string;
+  tripId: string;
+  action: "inserted" | "updated" | "deleted" | "reordered";
+  day?: string;
+  version?: number;
+  timestamp: number;
+  data?: Record<string, unknown>;
+}
+
+export interface TripProposalMutatedPayload {
+  proposalId: string;
+  tripId: string;
+  action: "created" | "voted" | "accepted" | "rejected" | "expired";
+  status?: string;
+  timestamp: number;
+  data?: Record<string, unknown>;
+}
+
+export interface TripExpenseMutatedPayload {
+  expenseId: string;
+  tripId: string;
+  action: "created" | "updated" | "deleted";
+  amountPaisa?: bigint | number;
+  paidBy?: string;
+  timestamp: number;
+  data?: Record<string, unknown>;
+}
+
 /**
  * Strongly typed registry mapping each AppEvent to its corresponding payload contract.
  */
@@ -142,6 +187,10 @@ export interface AppEventPayloadMap {
   [APP_EVENTS.WEATHER_ALERT_TRIGGERED]: WeatherAlertTriggeredPayload;
   [APP_EVENTS.PAYMENT_COMPLETED]: PaymentCompletedPayload;
   [APP_EVENTS.CURRENCY_CHANGED]: CurrencyChangedPayload;
+  [APP_EVENTS.GROUP_TRIP_UPDATED]: GroupTripUpdatedPayload;
+  [APP_EVENTS.TRIP_ITEM_MUTATED]: TripItemMutatedPayload;
+  [APP_EVENTS.TRIP_PROPOSAL_MUTATED]: TripProposalMutatedPayload;
+  [APP_EVENTS.TRIP_EXPENSE_MUTATED]: TripExpenseMutatedPayload;
 }
 
 export type AppEventKey = keyof AppEventPayloadMap;

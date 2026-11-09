@@ -52,7 +52,7 @@ function maskEmail(email: string): string {
 }
 
 export default function LoginScreen() {
-  const { signIn, signInWithOAuth, sendOtp, verifyOtp, updatePassword } = useAuth();
+  const { signIn, signInWithOAuth, sendOtp, verifyOtp, updatePassword, loginAsDemo } = useAuth();
   const searchParams = useLocalSearchParams<{ expired?: string; returnTo?: string }>();
   const { security, toggleBiometric } = useSettingsStore();
   const { isDark, isOled } = useTheme();
@@ -773,6 +773,73 @@ export default function LoginScreen() {
               <Text style={styles.biometricButtonText}>বায়োমেট্রিক দিয়ে দ্রুত লগইন</Text>
             </Pressable>
           )}
+
+          {/* Quick Access / Direct Dashboard Access without external OAuth dependency */}
+          <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: isDark ? "#334155" : "#e2e8f0", width: "100%" }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: themeStyles.textSecondary, marginBottom: 12, textAlign: "center" }}>
+              🛠️ সরাসরি ড্যাশবোর্ডে প্রবেশ করুন (Quick Access)
+            </Text>
+
+            {/* Direct Traveler Dashboard */}
+            <Pressable
+              style={({ pressed }) => [
+                {
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isDark ? "#1e293b" : "#f1f5f9",
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  marginBottom: 10,
+                  borderWidth: 1,
+                  borderColor: isDark ? "#475569" : "#cbd5e1",
+                },
+                pressed && { opacity: 0.8 },
+              ]}
+              onPress={async () => {
+                triggerHaptic("success");
+                if (loginAsDemo) {
+                  await loginAsDemo("user");
+                }
+                router.replace("/(tabs)");
+              }}
+            >
+              <Ionicons name="compass" size={20} color="#2563eb" style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 15, fontWeight: "700", color: isDark ? "#f8fafc" : "#0f172a" }}>
+                মেইন ট্রাভেলার ড্যাশবোর্ড (Guest / Demo)
+              </Text>
+            </Pressable>
+
+            {/* Direct Admin Portal */}
+            <Pressable
+              style={({ pressed }) => [
+                {
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isDark ? "#0f172a" : "#f8fafc",
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  marginBottom: 10,
+                  borderWidth: 1,
+                  borderColor: "#0284c7",
+                },
+                pressed && { opacity: 0.8 },
+              ]}
+              onPress={async () => {
+                triggerHaptic("success");
+                if (loginAsDemo) {
+                  await loginAsDemo("admin");
+                }
+                router.replace("/admin");
+              }}
+            >
+              <Ionicons name="shield-checkmark" size={18} color="#0284c7" style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#0284c7" }}>
+                অ্যাডমিন ড্যাশবোর্ড (Admin Portal)
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Referral Link Toggle */}

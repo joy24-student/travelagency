@@ -189,6 +189,20 @@ export const fcmNotificationService = {
             case "flight":
               router.push("/(tabs)/trips" as any);
               break;
+            case "price_alert": {
+              const service = data.service_type || "flight";
+              const date = data.travel_date || data.date || "";
+              const from = data.origin || "";
+              const to = data.destination || "";
+              if (service === "train") {
+                router.push(`/screens/trains?from=${from}&to=${to}&date=${date}` as any);
+              } else if (service === "bus" || service === "launch") {
+                router.push(`/screens/bus-launch?from=${from}&to=${to}&date=${date}` as any);
+              } else {
+                router.push(`/screens/flights?from=${from}&to=${to}&date=${date}` as any);
+              }
+              break;
+            }
             case "promo":
             case "offer":
             case "discount":

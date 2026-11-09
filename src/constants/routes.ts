@@ -54,6 +54,11 @@ export const ROUTES = {
     REVIEWS: "/screens/reviews" as const,
     REWARDS: "/screens/rewards" as const,
     SAVED: "/screens/saved" as const,
+    E_TICKET: "/screens/e-ticket" as const,
+    PRICE_ALERTS: "/screens/price-alerts" as const,
+    GROUP_TRIP: "/screens/group-trip" as const,
+    LIVE: "/screens/live" as const,
+    AGENCY_CHAT: "/screens/agency-chat" as const,
   },
 
   // Authentication Routes

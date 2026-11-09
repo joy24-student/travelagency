@@ -389,6 +389,25 @@ export class DeepLinkingService {
         }
       }
 
+      // 1b. GROUP TRIPS: shopnojatra://group-trip/[id] or shopnojatra://group-trip/join/[token]
+      else if (
+        primarySegment === "group-trip" ||
+        primarySegment === "group_trip" ||
+        primarySegment === "grouptrip"
+      ) {
+        type = "trip";
+        targetRoute = "/screens/group-trip";
+        requiresAuth = true;
+
+        if (secondarySegment === "join") {
+          originalIdentifier = tertiarySegment || searchParams.token || "";
+          params.joinToken = originalIdentifier;
+        } else {
+          originalIdentifier = secondarySegment;
+          params.tripId = secondarySegment;
+        }
+      }
+
       // 2. HOTELS & ROOMS: shopnojatra://hotel/[slug] or https://shopnojatra.com/hotel/[slug]
       else if (primarySegment === "hotel" || primarySegment === "hotels") {
         type = "hotel";
@@ -433,8 +452,50 @@ export class DeepLinkingService {
         type = "flight";
         originalIdentifier = secondarySegment;
         params.flightId = secondarySegment;
+        if (searchParams.date) params.date = searchParams.date;
+        if (searchParams.from || searchParams.origin) params.from = searchParams.from || searchParams.origin;
+        if (searchParams.to || searchParams.destination) params.to = searchParams.to || searchParams.destination;
         targetRoute = "/screens/flights";
         requiresAuth = false; // Flight searching/viewing is public
+      }
+      else if (primarySegment === "train" || primarySegment === "trains") {
+        type = "screen";
+        originalIdentifier = secondarySegment;
+        if (searchParams.date) params.date = searchParams.date;
+        if (searchParams.from || searchParams.origin) params.from = searchParams.from || searchParams.origin;
+        if (searchParams.to || searchParams.destination) params.to = searchParams.to || searchParams.destination;
+        targetRoute = "/screens/trains";
+        requiresAuth = false;
+      }
+      else if (primarySegment === "bus" || primarySegment === "launch") {
+        type = "screen";
+        originalIdentifier = secondarySegment;
+        if (searchParams.date) params.date = searchParams.date;
+        if (searchParams.from || searchParams.origin) params.from = searchParams.from || searchParams.origin;
+        if (searchParams.to || searchParams.destination) params.to = searchParams.to || searchParams.destination;
+        targetRoute = "/screens/bus-launch";
+        requiresAuth = false;
+      }
+      else if (primarySegment === "price-alert" || primarySegment === "price-alerts") {
+        const service = (searchParams.service || searchParams.service_type || "flight").toLowerCase();
+        if (service === "train") {
+          targetRoute = "/screens/trains";
+        } else if (service === "bus" || service === "launch") {
+          targetRoute = "/screens/bus-launch";
+        } else {
+          targetRoute = "/screens/flights";
+        }
+        if (searchParams.date || searchParams.travel_date) {
+          params.date = searchParams.date || searchParams.travel_date;
+        }
+        if (searchParams.from || searchParams.origin) {
+          params.from = searchParams.from || searchParams.origin;
+        }
+        if (searchParams.to || searchParams.destination) {
+          params.to = searchParams.to || searchParams.destination;
+        }
+        type = "flight";
+        requiresAuth = false;
       }
 
       // 5. ITINERARIES: shopnojatra://itinerary/[id]

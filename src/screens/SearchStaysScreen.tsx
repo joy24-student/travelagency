@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -846,6 +847,14 @@ export function SearchStaysScreen() {
   }, [selectedHotel]);
 
   const activeSelectedRoom = activeRooms[selectedRoomIndex] || activeRooms[0];
+
+  // Pull to refresh state
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchHotels(true);
+    setRefreshing(false);
+  }, [fetchHotels]);
 
   // Progressive list pagination
   const [pageLimit, setPageLimit] = useState(8);
@@ -1721,6 +1730,14 @@ export function SearchStaysScreen() {
         /* Optimized Virtualized FlatList */
         <FlatList
           data={pagedHotels}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={["#0055F2"]}
+              tintColor="#0055F2"
+            />
+          }
           renderItem={renderHotelItem}
           keyExtractor={keyExtractor}
           getItemLayout={getItemLayout}

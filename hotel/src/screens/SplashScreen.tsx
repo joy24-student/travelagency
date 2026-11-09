@@ -35,7 +35,7 @@ export function SplashScreen({ navigation }: any) {
       <StatusBar style="light" />
       <LinearGradient
         colors={['transparent', 'rgba(99, 102, 241, 0.05)', 'transparent']}
-        style={{ position: 'absolute', 360, 640 }}
+        style={{ position: 'absolute', width: 360, height: 640 }}
       />
 
       {/* Background Decorative Glows */}

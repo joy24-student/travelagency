@@ -1,8 +1,13 @@
 import { Tabs } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { CustomBottomTabBar } from "../../src/screens/Navigation";
+import { useAuthStore } from "../../src/store/authStore";
+import { useNotificationStore } from "../../src/store/notificationStore";
 
 export default function TabLayout() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+
   return (
     <View style={styles.container}>
       <Tabs
@@ -22,7 +27,7 @@ export default function TabLayout() {
           name="messages"
           options={{
             title: "Messages",
-            tabBarBadge: 3,
+            tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
           }}
         />
         <Tabs.Screen
@@ -40,7 +45,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="account"
           options={{
-            title: "Sign In",
+            title: isAuthenticated ? "Account" : "Sign In",
           }}
         />
         {/* Action Route: Dedicated post composer (hidden from bottom bar, accessed via /post or (+) actions) */}

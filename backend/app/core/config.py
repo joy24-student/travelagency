@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     # Financial & Business Parameters (No Hardcoded Numbers)
     AGENCY_COMMISSION_PERCENTAGE: float = 5.0
     VAT_TAX_PERCENTAGE: float = 5.0
+    MINIMUM_PAYOUT_THRESHOLD_PAISA: int = 50000
     BOOKING_SERVICE_FEE: float = 50.0
     LOYALTY_POINTS_PER_CURRENCY_SPENT: float = 0.1  # 1 point per 10 BDT
     LOYALTY_TIER_SILVER_THRESHOLD: float = 1000.0
@@ -100,6 +101,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.8-flash"
 
+    # Ed25519 Ticket Cryptographic Signing (Offline-Capable E-Tickets)
+    TICKET_SIGNING_PRIVATE_KEY: Optional[str] = "d185746f92486759278795d65a9407683ee5f8b625eeb73d035c87cd94b7cd9c"
+    TICKET_SIGNING_PUBLIC_KEY: Optional[str] = "70b511e90e27ee772c128f9f22a8e5bfe0510b898718a5c955d0976c42d9c2b6"
+
     # Cloudflare R2 Storage (S3-Compatible)
     R2_ACCOUNT_ID: str = ""
     R2_ACCESS_KEY_ID: str = ""
@@ -114,6 +119,18 @@ class Settings(BaseSettings):
         "image/jpeg",
         "image/jpg",
     ]
+
+    # KYC Document Verification Settings
+    KYC_MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB
+    KYC_PRESIGNED_URL_EXPIRES_IN: int = 300  # 5 minutes
+    KYC_ALLOWED_MIME_TYPES: List[str] = [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+    ]
+    KYC_AGENCY_NAME_SIMILARITY_THRESHOLD: float = 0.70
+    KYC_EXPIRY_WARNING_DAYS: int = 30
 
     @property
     def r2_endpoint_url(self) -> str:
@@ -200,6 +217,7 @@ class Settings(BaseSettings):
             "rocket-secure-webhook-hmac-secret-key",
             "whsec_mock_stripe_webhook_secret",
             "card-secure-webhook-hmac-secret-key",
+            "d185746f92486759278795d65a9407683ee5f8b625eeb73d035c87cd94b7cd9c",
         }
 
         if is_production:
@@ -210,6 +228,9 @@ class Settings(BaseSettings):
 
             if not self.SUPABASE_JWT_SECRET or self.SUPABASE_JWT_SECRET in insecure_secrets or len(self.SUPABASE_JWT_SECRET) < 32:
                 violations.append("SUPABASE_JWT_SECRET must not use predictable default values in production.")
+
+            if not self.TICKET_SIGNING_PRIVATE_KEY or self.TICKET_SIGNING_PRIVATE_KEY in insecure_secrets or len(self.TICKET_SIGNING_PRIVATE_KEY.strip()) < 32:
+                violations.append("TICKET_SIGNING_PRIVATE_KEY must be configured with a unique, cryptographically secure Ed25519 private key in production.")
 
             webhook_secrets = [
                 ("BKASH_WEBHOOK_SECRET", self.BKASH_WEBHOOK_SECRET),

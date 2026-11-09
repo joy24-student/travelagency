@@ -5,6 +5,7 @@
 
 import { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "../utils/supabase";
+import { appEventBus, APP_EVENTS } from "../services/events/appEventBus";
 import { BaseRepository } from "./baseRepository";
 import {
   BookingDetails,
@@ -194,6 +195,17 @@ export class BookingRepository
         });
       }
 
+      appEventBus.publish(APP_EVENTS.BOOKING_STATUS_CHANGED, {
+        bookingId: fullBooking.id,
+        currentStatus: fullBooking.status,
+        bookingReference: fullBooking.booking_reference,
+        userId: fullBooking.user_id,
+        productType: fullBooking.product_type,
+        destinationCity: fullBooking.destination_city,
+        totalPrice: fullBooking.total_price,
+        currency: fullBooking.currency || "BDT",
+        timestamp: Date.now(),
+      });
       return fullBooking;
     } catch (err) {
       // Compensating Transaction (Rollback): clean up orphaned records if partial failure occurred
@@ -313,7 +325,15 @@ export class BookingRepository
         // Non-critical audit trail
       }
 
-      return this.mapToBookingDetails(data);
+      const mapped = this.mapToBookingDetails(data);
+      appEventBus.publish(APP_EVENTS.BOOKING_STATUS_CHANGED, {
+        bookingId,
+        currentStatus: mapped.status,
+        bookingReference: mapped.booking_reference,
+        userId: mapped.user_id,
+        timestamp: Date.now(),
+      });
+      return mapped;
     } catch (err) {
       throw this.normalizeError(err, `updateBookingStatus(${bookingId})`);
     }

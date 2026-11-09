@@ -16,6 +16,7 @@ import {
   Dimensions,
   TextInput,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -468,43 +469,44 @@ export default function SettingsScreen({ navigation }: any) {
         </Modal>
         {/* Currency Selection Modal */}
         <Modal
+          animationType="slide"
+          transparent={true}
           visible={isCurrencyModalVisible}
-          transparent
-          animationType="fade"
           onRequestClose={() => setIsCurrencyModalVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>মুদ্রা নির্বাচন করুন (Currency)</Text>
-              {['BDT (৳)', 'USD ($)', 'EUR (€)', 'GBP (£)', 'INR (₹)'].map((curr) => (
-                <TouchableOpacity
-                  key={curr}
-                  style={[
-                    styles.langOption,
-                    { borderBottomColor: theme.border },
-                    selectedCurrency === curr && { backgroundColor: 'rgba(99, 102, 241, 0.15)' }
-                  ]}
-                  onPress={() => {
-                    setSelectedCurrency(curr);
-                    setIsCurrencyModalVisible(false);
-                  }}
-                >
-                  <Text style={[styles.langText, { color: theme.text, fontWeight: selectedCurrency === curr ? '700' : '400' }]}>
-                    {curr}
-                  </Text>
-                  {selectedCurrency === curr && (
-                    <MaterialCommunityIcons name="check" size={20} color={COLORS.primary} />
-                  )}
+          <TouchableOpacity 
+            style={[styles.modalOverlay, { backgroundColor: theme.overlay }]} 
+            activeOpacity={1} 
+            onPress={() => setIsCurrencyModalVisible(false)}
+          >
+            <SafeAreaView style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>মুদ্রা নির্বাচন করুন (Currency)</Text>
+                <TouchableOpacity onPress={() => setIsCurrencyModalVisible(false)}>
+                  <MaterialCommunityIcons name="close" size={24} color={theme.text} />
                 </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={[styles.modalCloseBtn, { marginTop: 16 }]}
-                onPress={() => setIsCurrencyModalVisible(false)}
-              >
-                <Text style={styles.modalCloseBtnText}>বন্ধ করুন</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+              </View>
+              <View style={styles.modalBody}>
+                {['BDT (৳)', 'USD ($)', 'EUR (€)', 'GBP (£)', 'INR (₹)'].map((curr, index) => (
+                  <TouchableOpacity 
+                    key={index} 
+                    style={[styles.modalActionItem, { borderBottomColor: theme.border }]}
+                    onPress={() => {
+                      setSelectedCurrency(curr);
+                      setIsCurrencyModalVisible(false);
+                    }}
+                  >
+                    <Text style={[styles.modalActionText, { color: theme.text }, selectedCurrency === curr && { color: COLORS.primary, fontWeight: '700' }]}>
+                      {curr}
+                    </Text>
+                    {selectedCurrency === curr && (
+                      <MaterialCommunityIcons name="check" size={20} color={COLORS.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </SafeAreaView>
+          </TouchableOpacity>
         </Modal>
       </View>
     </SafeAreaView>

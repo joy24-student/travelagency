@@ -78,6 +78,7 @@ export const Input = React.forwardRef<TextInput, InputProps>(
       labelStyle,
       errorStyle,
       disabled = false,
+      required,
       value,
       defaultValue,
       onChangeText,
@@ -327,6 +328,7 @@ export const Input = React.forwardRef<TextInput, InputProps>(
                 (effectiveLabel ? `Enter ${effectiveLabel}` : activeError ? `Error: ${activeError}` : helperText)
               }
               accessibilityState={{ disabled }}
+              {...({ accessibilityInvalid: !!activeError } as any)}
               allowFontScaling={true}
               maxFontSizeMultiplier={1.4}
               {...(Platform.OS === "web" && {

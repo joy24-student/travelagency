@@ -549,7 +549,7 @@ export function CustomerSupportScreen() {
           <ScrollView style={{ flex: 1, padding: 16 }}>
             {chatMessages.map((msg, idx) => (
               <View
-                key={msg.id || `msg-${msg.sender}-${idx}`}
+                key={`msg-${msg.sender}-${idx}`}
                 style={[
                   styles.chatBubble,
                   msg.sender === "user" ? styles.userBubble : styles.agentBubble,

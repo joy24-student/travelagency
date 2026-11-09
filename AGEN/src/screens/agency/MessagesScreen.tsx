@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { COLORS } from "../../App";
+import { useScreenCollaboration } from "../../hooks/useScreenCollaboration";
+import { APP_EVENTS } from "../../services/events/appEventBus";
 
 interface Message {
   id: string;

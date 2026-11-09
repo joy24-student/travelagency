@@ -53,6 +53,7 @@ const ReviewModerationScreen = React.lazy(() => import("./ReviewModerationScreen
 const NotificationCenterScreen = React.lazy(() => import("./NotificationCenterScreen").then((m) => ({ default: m.NotificationCenterScreen })));
 const HotelManagementScreen = React.lazy(() => import("./HotelManagementScreen").then((m) => ({ default: m.HotelManagementScreen })));
 const DemandHeatmapScreen = React.lazy(() => import("./DemandHeatmapScreen").then((m) => ({ default: m.DemandHeatmapScreen })));
+const AgencyKycReviewScreen = React.lazy(() => import("./AgencyKycReviewScreen").then((m) => ({ default: m.AgencyKycReviewScreen })));
 
 export type AdminTab =
   | "dashboard"
@@ -74,6 +75,7 @@ export type AdminTab =
   | "demand-heatmap"
   | "monitoring"
   | "audit-trail"
+  | "agency-kyc"
   | "settings";
 
 export interface AdminPortalShellProps {
@@ -141,6 +143,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     description: "Travel partner directory & licenses",
     badge: "B2B",
     color: "#7c3aed",
+  },
+  {
+    id: "agency-kyc",
+    label: "Agency KYC Approvals",
+    shortLabel: "KYC Review",
+    icon: "shield-check",
+    category: "Operations",
+    description: "Review trade licenses, TIN, and identity verification",
+    badge: "KYC",
+    color: "#10b981",
   },
   {
     id: "agency-ops",
@@ -457,6 +469,8 @@ const AdminPortalShellInner: React.FC<AdminPortalShellProps> = ({
         return <AgencyManagementScreen admin={admin} />;
       case "agency-ops":
         return <AgenAgencyManagementScreen />;
+      case "agency-kyc":
+        return <AgencyKycReviewScreen />;
       case "destinations":
         return <DestinationManagementScreen admin={admin} />;
       case "refunds":

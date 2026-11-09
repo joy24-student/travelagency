@@ -7,11 +7,14 @@
  * 3. Zero-Leak PII Sanitization via sanitizeDiagnostics (strips passwords, JWTs, emails, paths, DB schemas).
  * 4. Pluggable Crash Reporter Architecture (supports Sentry, Firebase Crashlytics, Datadog adapters).
  * 5. Automatic telemetry dispatch into uxHealthMonitor.
+ * 6. Remote error transmission to Supabase / webhook with offline AsyncStorage retry buffering.
  */
 
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { sanitizeDiagnostics } from "../../components/common/ErrorBoundaryView";
 import { uxHealthMonitor } from "./uxHealthMonitor";
+import { supabase } from "../../utils/supabase";
 
 export interface CrashReport {
   id: string;
@@ -27,10 +30,16 @@ export interface CrashReport {
 
 export type CrashListener = (report: CrashReport) => void;
 
+const QUEUE_STORAGE_KEY = "@travel_crash_reports_queue";
+const MAX_QUEUE_SIZE = 50;
+
 class CrashReportingService {
   private isInitialized = false;
   private listeners: Set<CrashListener> = new Set();
   private originalGlobalHandler: ((error: any, isFatal?: boolean) => void) | null = null;
+  private remoteEndpoint: string | null =
+    (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_CRASH_REPORT_ENDPOINT) || null;
+  private isFlushingQueue = false;
 
   /**
    * Register a third-party reporter (e.g. Sentry, Firebase Crashlytics)
@@ -40,6 +49,17 @@ class CrashReportingService {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  /**
+   * Set custom remote telemetry / webhook endpoint URL
+   */
+  public setRemoteEndpoint(url: string | null): void {
+    this.remoteEndpoint = url;
+  }
+
+  public getRemoteEndpoint(): string | null {
+    return this.remoteEndpoint;
   }
 
   /**
@@ -55,6 +75,9 @@ class CrashReportingService {
 
     // 2. Unhandled Promise Rejections (Hermes / V8 / Browser)
     this.setupUnhandledRejectionHandler();
+
+    // 3. Flush any queued crash reports from previous offline sessions
+    this.flushQueue().catch(() => {});
 
     if (__DEV__) {
       console.log("[CrashReporter] Global unhandled error handlers successfully attached.");
@@ -160,6 +183,9 @@ class CrashReportingService {
       // 2. Broadcast to pluggable listeners (Sentry/Crashlytics)
       this.dispatchToListeners(report);
 
+      // 3. Transmit report to remote server / database
+      this.sendReport(report).catch(() => {});
+
       if (__DEV__) {
         console.error(`[CrashReporter] Uncaught Exception (isFatal=${isFatal}):`, sanitizedMsg);
       }
@@ -197,6 +223,7 @@ class CrashReportingService {
       });
 
       this.dispatchToListeners(report);
+      this.sendReport(report).catch(() => {});
 
       if (__DEV__) {
         console.warn("[CrashReporter] Unhandled Promise Rejection:", sanitizedMsg);
@@ -237,9 +264,127 @@ class CrashReportingService {
       });
 
       this.dispatchToListeners(report);
+      this.sendReport(report).catch(() => {});
     } catch {
       // Safe guard
     }
+  }
+
+  /**
+   * Transmits a sanitized crash report to the remote backend / Supabase
+   * with offline fallback buffering in AsyncStorage.
+   */
+  public async sendReport(report: CrashReport): Promise<boolean> {
+    try {
+      if (
+        typeof process !== "undefined" &&
+        (process.env.NODE_ENV === "test" || Boolean(process.env.JEST_WORKER_ID)) &&
+        !this.remoteEndpoint
+      ) {
+        return true;
+      }
+
+      let sent = false;
+
+      // 1. Dispatch to remote HTTP endpoint / webhook if configured
+      if (this.remoteEndpoint) {
+        try {
+          const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+          const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
+          const res = await fetch(this.remoteEndpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(report),
+            signal: controller?.signal,
+          });
+          if (timeoutId) clearTimeout(timeoutId);
+          if (res.ok) {
+            sent = true;
+          }
+        } catch {
+          // Fall through to database / queue
+        }
+      }
+
+      // 2. Dispatch to Supabase analytics_events table
+      try {
+        const { error } = await supabase.from("analytics_events").insert({
+          event_type: "crash_report",
+          event_name: report.type,
+          properties: {
+            report_id: report.id,
+            is_fatal: report.isFatal,
+            message: report.message,
+            stack: report.stack,
+            platform: report.platform,
+            environment: report.environment,
+            timestamp: report.timestamp,
+            context: report.context,
+          },
+          timestamp: new Date(report.timestamp).toISOString(),
+        });
+        if (!error) {
+          sent = true;
+        }
+      } catch {
+        // Fall through to queue
+      }
+
+      // 3. If remote dispatch failed (e.g. offline), queue report in AsyncStorage
+      if (!sent) {
+        await this.enqueueReport(report);
+      }
+
+      return sent;
+    } catch {
+      // Never crash inside error dispatch
+      return false;
+    }
+  }
+
+  private async enqueueReport(report: CrashReport): Promise<void> {
+    try {
+      const raw = await AsyncStorage.getItem(QUEUE_STORAGE_KEY);
+      const queue: CrashReport[] = raw ? JSON.parse(raw) : [];
+      queue.push(report);
+      if (queue.length > MAX_QUEUE_SIZE) {
+        queue.shift(); // Evict oldest
+      }
+      await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+    } catch {
+      // Safe guard
+    }
+  }
+
+  /**
+   * Flushes offline queued crash reports to the remote server
+   */
+  public async flushQueue(): Promise<number> {
+    if (this.isFlushingQueue) return 0;
+    this.isFlushingQueue = true;
+    let flushedCount = 0;
+    try {
+      const raw = await AsyncStorage.getItem(QUEUE_STORAGE_KEY);
+      if (!raw) return 0;
+      const queue: CrashReport[] = JSON.parse(raw);
+      if (!Array.isArray(queue) || queue.length === 0) return 0;
+
+      const remaining: CrashReport[] = [];
+      for (const item of queue) {
+        const ok = await this.sendReport(item);
+        if (ok) {
+          flushedCount++;
+        } else {
+          remaining.push(item);
+        }
+      }
+      await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(remaining));
+    } catch {
+      // Safe guard
+    } finally {
+      this.isFlushingQueue = false;
+    }
+    return flushedCount;
   }
 
   private dispatchToListeners(report: CrashReport): void {

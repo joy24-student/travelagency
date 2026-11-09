@@ -53,7 +53,7 @@ interface Tour {
   location: string;
 }
 
-export default function OperationsScreen() {
+export default function OperationsScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form, setForm] = useState({
@@ -152,6 +152,13 @@ export default function OperationsScreen() {
         <Text style={styles.headerTitle}>Operations</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#6366F1', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginRight: 8, gap: 6 }}
+            onPress={() => navigation?.navigate?.('Scanner')}
+          >
+            <MaterialCommunityIcons name="qrcode-scan" size={16} color="#FFFFFF" />
+            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Scanner</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.addScheduleBtn}
             onPress={() => setIsModalVisible(true)}
           >
@@ -239,7 +246,7 @@ export default function OperationsScreen() {
                             style={[
                               styles.capacityFill,
                               {
-                                360: `${(tour.capacity.current / tour.capacity.total) * 100}%`,
+                                width: `${(tour.capacity.current / tour.capacity.total) * 100}%`,
                                 backgroundColor:
                                   idx === 0 ? THEME.accent : THEME.cyan,
                               },
@@ -487,7 +494,7 @@ const styles = StyleSheet.create({
     color: "white",
   },
   notificationBtn: {
-    360: 42,
+    width: 42,
     height: 42,
     borderRadius: 21,
     backgroundColor: THEME.card,
@@ -499,7 +506,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 10,
     right: 10,
-    360: 8,
+    width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: THEME.danger,
@@ -527,7 +534,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   tourCard: {
-    360: 200,
+    width: 200,
     backgroundColor: THEME.card,
     borderRadius: 24,
     padding: 12,
@@ -540,7 +547,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -40,
     right: -40,
-    360: 120,
+    width: 120,
     height: 120,
     borderRadius: 60,
     opacity: 0.05,
@@ -631,7 +638,7 @@ const styles = StyleSheet.create({
     color: "white",
   },
   locationIconBox: {
-    360: 36,
+    width: 36,
     height: 36,
     borderRadius: 10,
     backgroundColor: "rgba(239, 68, 68, 0.15)",
@@ -682,7 +689,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activityIconBox: {
-    360: 40,
+    width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: "center",

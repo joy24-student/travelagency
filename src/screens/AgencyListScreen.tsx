@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../hooks/useAuth";
+import { AgencyVerifiedBadge } from "../components/AgencyVerifiedBadge";
 import {
   agencyService,
   type Agency,
@@ -231,8 +232,11 @@ export function AgencyListScreen() {
             <Text style={s.agencyName} numberOfLines={1}>
               {item.name}
             </Text>
+            {item.verified && (
+              <AgencyVerifiedBadge isVerified={item.verified} size="small" showText={false} style={{ marginLeft: 6 }} />
+            )}
             {item.is_certified && (
-              <Ionicons name="ribbon" size={14} color="#f59e0b" />
+              <Ionicons name="ribbon" size={14} color="#f59e0b" style={{ marginLeft: 4 }} />
             )}
           </View>
 

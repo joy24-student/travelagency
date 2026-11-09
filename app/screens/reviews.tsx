@@ -1,20 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "../../src/hooks/useAuth";
 import { supabase } from "../../src/utils/supabase";
 import { withErrorBoundary } from "../../src/components/common/ErrorBoundaryView";
-import { ErrorStateCard } from "../../src/components/common/ErrorStateCard";
-import { LoadingState } from "../../src/components/ui/LoadingState";
-import { EmptyState } from "../../src/components/ui/EmptyState";
 
 const PRIMARY = "#287dfa";
 
 function ReviewsScreenInner() {
-  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,21 +73,28 @@ function ReviewsScreenInner() {
           <ActivityIndicator size="large" color={PRIMARY} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* Trust & Authenticity Guarantee Banner */}
-          <View style={styles.trustBanner}>
-            <View style={styles.trustBannerHeader}>
-              <Ionicons name="shield-checkmark" size={18} color="#059669" />
-              <Text style={styles.trustBannerTitle}>
-                বিশ্বস্ততা ও সততা নিশ্চয়তা (Trust & Honesty)
+        <FlatList
+          data={reviews}
+          keyExtractor={(item) => item.id || `review-${Math.random()}`}
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          ListHeaderComponent={
+            <View style={styles.trustBanner}>
+              <View style={styles.trustBannerHeader}>
+                <Ionicons name="shield-checkmark" size={18} color="#059669" />
+                <Text style={styles.trustBannerTitle}>
+                  বিশ্বস্ততা ও সততা নিশ্চয়তা (Trust & Honesty)
+                </Text>
+              </View>
+              <Text style={styles.trustBannerText}>
+                শুধুমাত্র প্ল্যাটফর্মে সম্পন্ন ভ্রমণের পরই অতিথিরা রিভিউ জমা দিতে পারেন। প্রতিটি আসল রিভিউতে "যাচাইকৃত অতিথি" ব্যাজ সংযুক্ত থাকে।
               </Text>
             </View>
-            <Text style={styles.trustBannerText}>
-              শুধুমাত্র প্ল্যাটফর্মে সম্পন্ন ভ্রমণের পরই অতিথিরা রিভিউ জমা দিতে পারেন। প্রতিটি আসল রিভিউতে "যাচাইকৃত অতিথি" ব্যাজ সংযুক্ত থাকে।
-            </Text>
-          </View>
-
-          {reviews.length === 0 ? (
+          }
+          ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="star-outline" size={64} color="#d1d5db" />
               <Text style={styles.emptyTitle}>কোনো রিভিউ নেই</Text>
@@ -99,42 +102,41 @@ function ReviewsScreenInner() {
                 আপনার ভ্রমণ সম্পন্ন হওয়ার পর এখানে যাচাইকৃত রিভিউ লিখুন
               </Text>
             </View>
-          ) : (
-            reviews.map((review) => (
-              <View key={review.id} style={styles.reviewCard}>
-                <View style={styles.reviewHeader}>
-                  <View style={{ flex: 1, marginEnd: 8 }}>
-                    <Text style={styles.reviewLocation}>{review.hotel_name || review.location}</Text>
-                    {/* Verified Guest & Completed Stay Badges */}
-                    <View style={styles.verifiedRow}>
-                      <View style={styles.verifiedBadge}>
-                        <Ionicons name="shield-checkmark" size={11} color="#059669" />
-                        <Text style={styles.verifiedBadgeText}>যাচাইকৃত অতিথি (Verified Guest)</Text>
-                      </View>
-                      <View style={styles.completedStayBadge}>
-                        <Ionicons name="checkmark-done" size={11} color="#2563EB" />
-                        <Text style={styles.completedStayBadgeText}>সম্পন্ন ভ্রমণ</Text>
-                      </View>
+          }
+          ListFooterComponent={<View style={{ height: 100 }} />}
+          renderItem={({ item: review }) => (
+            <View style={styles.reviewCard}>
+              <View style={styles.reviewHeader}>
+                <View style={{ flex: 1, marginEnd: 8 }}>
+                  <Text style={styles.reviewLocation}>{review.hotel_name || review.location}</Text>
+                  {/* Verified Guest & Completed Stay Badges */}
+                  <View style={styles.verifiedRow}>
+                    <View style={styles.verifiedBadge}>
+                      <Ionicons name="shield-checkmark" size={11} color="#059669" />
+                      <Text style={styles.verifiedBadgeText}>যাচাইকৃত অতিথি (Verified Guest)</Text>
+                    </View>
+                    <View style={styles.completedStayBadge}>
+                      <Ionicons name="checkmark-done" size={11} color="#2563EB" />
+                      <Text style={styles.completedStayBadgeText}>সম্পন্ন ভ্রমণ</Text>
                     </View>
                   </View>
-                  <View style={styles.ratingRow}>
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Ionicons
-                        key={`star-${(review as any).id || "r"}-${i}`}
-                        name={i < (review.rating || 0) ? "star" : "star-outline"}
-                        size={14}
-                        color="#f59e0b"
-                      />
-                    ))}
-                  </View>
                 </View>
-                <Text style={styles.reviewText}>{review.comment || review.review}</Text>
-                <Text style={styles.reviewDate}>{formatDate(review.created_at)}</Text>
+                <View style={styles.ratingRow}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Ionicons
+                      key={`star-${review.id || "r"}-${i}`}
+                      name={i < (review.rating || 0) ? "star" : "star-outline"}
+                      size={14}
+                      color="#f59e0b"
+                    />
+                  ))}
+                </View>
               </View>
-            ))
+              <Text style={styles.reviewText}>{review.comment || review.review}</Text>
+              <Text style={styles.reviewDate}>{formatDate(review.created_at)}</Text>
+            </View>
           )}
-          <View style={{ height: 100 }} />
-        </ScrollView>
+        />
       )}
     </SafeAreaView>
   );

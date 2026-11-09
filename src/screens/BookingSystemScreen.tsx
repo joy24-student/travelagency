@@ -43,6 +43,10 @@ import { TopBar } from "./TopBar";
 import { BookingStepper } from "../components/common/BookingStepper";
 import { safeGoBack } from "../utils/navigationHelper";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { toast } from "../components/ui/Toast";
+import { useScreenCollaboration } from "../hooks/useScreenCollaboration";
+import { APP_EVENTS } from "../services/events/appEventBus";
 
 // ============================================================================
 // DESIGN SYSTEM TOKENS & PALETTE
@@ -566,6 +570,60 @@ export function BookingSystemScreen({
   const [actionMessage, setActionMessage] = useState("");
   const [isPassportScannerOpen, setIsPassportScannerOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { t } = useTranslation();
+
+  // Cross-Screen Collaboration: Listen for booking status changes and payment completions
+  useScreenCollaboration(
+    APP_EVENTS.BOOKING_STATUS_CHANGED,
+    useCallback(
+      (payload) => {
+        if (!payload?.bookingId) return;
+        setDraftBookingRecord((prev: any) => {
+          if (!prev) return prev;
+          if (
+            prev.id === payload.bookingId ||
+            prev.booking_reference === payload.bookingReference
+          ) {
+            return { ...prev, status: payload.currentStatus };
+          }
+          return prev;
+        });
+        const statusLabel = t(payload.currentStatus, {
+          defaultValue: payload.currentStatus,
+        });
+        toast.info(t("bookingStatusUpdated", { status: statusLabel }));
+      },
+      [t]
+    ),
+    { replayLast: true, screenId: "BookingSystemScreen_Status" }
+  );
+
+  useScreenCollaboration(
+    APP_EVENTS.PAYMENT_COMPLETED,
+    useCallback(
+      (payload) => {
+        if (!payload?.bookingId) return;
+        setDraftBookingRecord((prev: any) => {
+          if (!prev) return prev;
+          if (
+            prev.id === payload.bookingId ||
+            prev.booking_reference === payload.bookingReference
+          ) {
+            return { ...prev, status: "confirmed", is_paid: true };
+          }
+          return prev;
+        });
+        toast.success(
+          t("paymentReceivedToast", {
+            reference:
+              payload.bookingReference || payload.bookingId.slice(0, 8),
+          })
+        );
+      },
+      [t]
+    ),
+    { replayLast: true, screenId: "BookingSystemScreen_Payment" }
+  );
 
   const navigation = useNavigation<any>();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -3504,7 +3562,7 @@ export function BookingSystemScreen({
                 </View>
               ) : (
                 savedPassengers.map((p, idx) => (
-                  <View key={p.id || `pax-${p.first_name}-${p.last_name}-${idx}`} style={styles.savedPassengerCard}>
+                  <View key={`pax-${p.first_name}-${p.last_name}-${idx}`} style={styles.savedPassengerCard}>
                     <View style={styles.savedPassengerAvatar}>
                       <Ionicons name="person-circle" size={36} color={primary} />
                     </View>

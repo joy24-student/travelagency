@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Platform,
   ActivityIndicator,
+  FlatList,
   Animated,
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
+import { formatPrice } from "../../src/utils/currency";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -23,6 +27,12 @@ import { ticketService, ETicket } from "../../src/services/payment/ticketService
 import { ROUTES } from "../../src/constants/routes";
 import { BookingManageModal, BookingManageData } from "../../src/components/booking/BookingManageModal";
 import { calendarService } from "../../src/services/calendarService";
+import { BoardingPassModal, BoardingPassData, LiveTripCompanion } from "../../src/components/trips";
+import { useScreenCollaboration } from "../../src/hooks/useScreenCollaboration";
+import { APP_EVENTS } from "../../src/services/events/appEventBus";
+import { useTranslation } from "react-i18next";
+import { toast } from "../../src/components/ui/Toast";
+import { useBookingRealtimeSync } from "../../src/services/bookingRealtimeService";
 
 const TRIP_BLUE = "#0055F2";
 const TRIP_PINK = "#FFF0F3";
@@ -30,6 +40,7 @@ const ACCENT_YELLOW = "#FACC15";
 
 export default function TripsTab() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [showWidgetModal, setShowWidgetModal] = useState(false);
   const params = useLocalSearchParams();
   const [activeSegment, setActiveSegment] = useState<"bookings" | "tickets" | "planner">(
@@ -37,6 +48,44 @@ export default function TripsTab() {
   );
   const [offlineTickets, setOfflineTickets] = useState<ETicket[]>([]);
   const [exportingTicketId, setExportingTicketId] = useState<string | null>(null);
+  const [selectedPass, setSelectedPass] = useState<BoardingPassData | null>(null);
+  const [showPassModal, setShowPassModal] = useState<boolean>(false);
+
+  const openTicketAsBoardingPass = (ticket: ETicket) => {
+    const isFlight = ticket.type === "flight";
+    const isTrain = ticket.type === "train";
+
+    const passData: BoardingPassData = {
+      id: ticket.id,
+      bookingReference: ticket.bookingReference,
+      passengerName: ticket.passengerName || user?.email?.split("@")[0] || "Valued Traveler",
+      transportType: ticket.type as any,
+      operatorOrAirline: ticket.title || (isFlight ? "বিমান বাংলাদেশ এয়ারলাইন্স" : isTrain ? "বাংলাদেশ রেলওয়ে" : "গ্রীন লাইন পরিবহন"),
+      serviceNumber: ticket.title.match(/[A-Z0-9]+-\d+/)?.[0] || (isFlight ? "BG-433" : isTrain ? "701" : "GL-102"),
+      origin: ticket.origin || "ঢাকা (DAC)",
+      originCode: ticket.origin?.slice(0, 3).toUpperCase() || "DAC",
+      originTerminal: isFlight ? "Terminal 1" : "কমলাপুর রেল স্টেশন",
+      destination: ticket.destination || "কক্সবাজার",
+      destinationCode: ticket.destination?.slice(0, 3).toUpperCase() || "CXB",
+      departureDate: ticket.travelDate || new Date().toISOString().split("T")[0],
+      departureTime: ticket.departureTime || "11:45 AM",
+      arrivalTime: "12:50 PM",
+      boardingTime: "11:00 AM",
+      gate: isFlight ? "Gate 04" : undefined,
+      terminal: isFlight ? "T1" : undefined,
+      platform: isTrain ? "প্ল্যাটফর্ম ৩" : undefined,
+      seatNumbers: ticket.seatOrRoom || "12A, 12B",
+      cabinClass: isFlight ? "ইকোনমি ক্লাস" : isTrain ? "শোভন চেয়ার" : "এসি বিজনেস",
+      boardingGroup: "গ্রুপ ২ (Zone 2)",
+      status: "boarding",
+      qrPayload: ticket.qrData,
+      fareAmount: ticket.amount,
+      currency: ticket.currency || "BDT",
+    };
+
+    setSelectedPass(passData);
+    setShowPassModal(true);
+  };
 
   useEffect(() => {
     if (params?.filter === "tickets" || params?.tab === "tickets") {
@@ -47,6 +96,8 @@ export default function TripsTab() {
   const [isScrolled, setIsScrolled] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<any>(null);
+
+  // Pull-to-refresh state
 
   // Live Supabase Data States
   const [bookings, setBookings] = useState<any[]>([]);
@@ -127,9 +178,88 @@ export default function TripsTab() {
     }
   }, [user?.id]);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchTripsData();
+    setRefreshing(false);
+  }, [fetchTripsData]);
+
   useEffect(() => {
     fetchTripsData();
   }, [fetchTripsData]);
+
+  // Supabase Realtime Synchronization: Sync booking status across all apps
+  useBookingRealtimeSync({
+    userId: user?.id,
+    onStatusChange: (payload) => {
+      setBookings((prev) =>
+        prev.map((b) => {
+          if (b.id !== payload.bookingId) return b;
+          const { status: _ignored, ...restBooking } = (payload.booking || {}) as any;
+          return { ...b, ...restBooking, status: payload.newStatus };
+        })
+      );
+      if (payload.newStatus === "confirmed" || payload.newStatus === "cancelled") {
+        fetchTripsData();
+      }
+    },
+    onBookingCreated: () => {
+      fetchTripsData();
+    },
+    onBookingUpdated: (updated) => {
+      setBookings((prev) =>
+        prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
+      );
+    },
+  });
+
+  // Cross-Screen Collaboration: Update bookings in place and notify user
+  useScreenCollaboration(
+    APP_EVENTS.BOOKING_STATUS_CHANGED,
+    useCallback(
+      (payload) => {
+        if (!payload?.bookingId) return;
+        setBookings((prev) =>
+          prev.map((b) =>
+            b.id === payload.bookingId
+              ? { ...b, status: payload.currentStatus }
+              : b
+          )
+        );
+        const statusLabel = t(payload.currentStatus, {
+          defaultValue: payload.currentStatus,
+        });
+        toast.info(t("bookingStatusUpdated", { status: statusLabel }));
+      },
+      [t]
+    ),
+    { replayLast: true, screenId: "TripsTab_Bookings" }
+  );
+
+  useScreenCollaboration(
+    APP_EVENTS.PAYMENT_COMPLETED,
+    useCallback(
+      (payload) => {
+        if (!payload?.bookingId) return;
+        setBookings((prev) =>
+          prev.map((b) =>
+            b.id === payload.bookingId
+              ? { ...b, status: "confirmed", is_paid: true }
+              : b
+          )
+        );
+        toast.success(
+          t("paymentReceivedToast", {
+            reference:
+              payload.bookingReference || payload.bookingId.slice(0, 8),
+          })
+        );
+      },
+      [t]
+    ),
+    { replayLast: true, screenId: "TripsTab_Payments" }
+  );
 
   // Monitor scroll position to trigger morphing Back-to-Top button
   useEffect(() => {
@@ -247,18 +377,204 @@ export default function TripsTab() {
             AI প্ল্যানার
           </Text>
         </Pressable>
+
+        <Pressable
+          style={styles.segmentButton}
+          onPress={() => router.push("/screens/group-trip" as any)}
+        >
+          <Ionicons
+            name="people"
+            size={15}
+            color="#0055F2"
+          />
+          <Text
+            style={[
+              styles.segmentText,
+              { color: "#0055F2", fontWeight: "700" }
+            ]}
+          >
+            গ্রুপ ট্রিপ
+          </Text>
+        </Pressable>
       </View>
 
       <Animated.ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[TRIP_BLUE]}
+            tintColor={TRIP_BLUE}
+          />
+        }
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
       >
+        {activeSegment === "tickets" ? (
+          <View style={{ flex: 1, paddingBottom: 40 }}>
+            {/* Live Journey Assistant Card */}
+            <LiveTripCompanion
+              tripData={
+                offlineTickets.length > 0
+                  ? {
+                      id: offlineTickets[0].id,
+                      bookingReference: offlineTickets[0].bookingReference,
+                      passengerName: offlineTickets[0].passengerName,
+                      transportType: offlineTickets[0].type as any,
+                      operatorOrAirline: offlineTickets[0].title,
+                      serviceNumber: offlineTickets[0].title.match(/[A-Z0-9]+-\d+/)?.[0] || "BG-433",
+                      origin: offlineTickets[0].origin || "ঢাকা (DAC)",
+                      originCode: offlineTickets[0].origin?.slice(0, 3).toUpperCase() || "DAC",
+                      destination: offlineTickets[0].destination,
+                      destinationCode: offlineTickets[0].destination?.slice(0, 3).toUpperCase() || "CXB",
+                      departureDate: offlineTickets[0].travelDate,
+                      departureTime: offlineTickets[0].departureTime || "11:45 AM",
+                      seatNumbers: offlineTickets[0].seatOrRoom || "12A, 12B",
+                      gate: "Gate 04",
+                      terminal: "T1",
+                      boardingTime: "11:00 AM",
+                    }
+                  : null
+              }
+              onOpenSupport={() => router.push("/screens/customer-support" as any)}
+            />
+
+            {/* Offline Saved Tickets List */}
+            <View style={styles.ticketSectionHeader}>
+              <View>
+                <Text style={styles.ticketSectionTitle}>সংরক্ষিত টিকিট ও বোর্ডিং পাস</Text>
+                <Text style={styles.ticketSectionSub}>
+                  ইন্টারনেট সংযোগ ছাড়াও যেকোনো সময় টিকিট প্রদর্শনের সুবিধা
+                </Text>
+              </View>
+              <View style={styles.ticketCountBadge}>
+                <Text style={styles.ticketCountBadgeText}>{offlineTickets.length}টি টিকিট</Text>
+              </View>
+            </View>
+
+            {offlineTickets.length > 0 ? (
+              <View style={styles.ticketsListWrapper}>
+                {offlineTickets.map((tkt) => {
+                  const isFlight = tkt.type === "flight";
+                  const isTrain = tkt.type === "train";
+                  const isBus = tkt.type === "bus";
+                  const isLaunch = tkt.type === "launch";
+
+                  const tIcon = isFlight
+                    ? "airplane"
+                    : isTrain
+                    ? "train"
+                    : isLaunch
+                    ? "boat"
+                    : isBus
+                    ? "bus"
+                    : "ticket";
+
+                  return (
+                    <View key={tkt.id} style={styles.ticketCardItem}>
+                      <View style={styles.ticketCardHeader}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <View style={styles.ticketTypeCircle}>
+                            <Ionicons name={tIcon as any} size={16} color="#FFFFFF" />
+                          </View>
+                          <View>
+                            <Text style={styles.ticketCardTitle} numberOfLines={1}>
+                              {tkt.title}
+                            </Text>
+                            <Text style={styles.ticketCardPnr}>
+                              PNR: {tkt.bookingReference}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.ticketSeatBadge}>
+                          <Text style={styles.ticketSeatBadgeLabel}>আসন নং</Text>
+                          <Text style={styles.ticketSeatBadgeVal}>
+                            {tkt.seatOrRoom || "নির্ধারিত"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Route Row */}
+                      <View style={styles.ticketCardRouteRow}>
+                        <View>
+                          <Text style={styles.ticketCityName}>{tkt.origin || "ঢাকা"}</Text>
+                          <Text style={styles.ticketDepartureTime}>
+                            {tkt.departureTime || "সময়মতো"}
+                          </Text>
+                        </View>
+                        <View style={styles.ticketRouteArrow}>
+                          <Ionicons name="arrow-forward" size={16} color={TRIP_BLUE} />
+                          <Text style={styles.ticketDateSmall}>{tkt.travelDate}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={styles.ticketCityName}>{tkt.destination}</Text>
+                          <Text style={styles.ticketStatusTag}>কনফার্মড</Text>
+                        </View>
+                      </View>
+
+                      {/* Card Actions */}
+                      <View style={styles.ticketCardActionRow}>
+                        <TouchableOpacity
+                          style={styles.viewBoardingPassBtn}
+                          onPress={() => openTicketAsBoardingPass(tkt)}
+                        >
+                          <Ionicons name="qr-code" size={16} color="#FFFFFF" />
+                          <Text style={styles.viewBoardingPassBtnText}>
+                            বোর্ডিং পাস দেখুন
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.pdfDownloadBtn}
+                          disabled={exportingTicketId === tkt.id}
+                          onPress={async () => {
+                            setExportingTicketId(tkt.id);
+                            await ticketService.generateAndShareTicketPdf(tkt);
+                            setExportingTicketId(null);
+                          }}
+                        >
+                          <Ionicons name="download-outline" size={16} color={TRIP_BLUE} />
+                          <Text style={styles.pdfDownloadBtnText}>
+                            {exportingTicketId === tkt.id ? "ডাউনলোড..." : "PDF"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.emptyTicketsBox}>
+                <Ionicons name="ticket-outline" size={48} color="#94A3B8" />
+                <Text style={styles.emptyTitle}>কোনো সক্রিয় টিকিট পাওয়া যায়নি</Text>
+                <Text style={styles.emptySubtitle}>
+                  ফ্লাইট, ট্রেন বা বাসের টিকিট বুকিং নিশ্চিত হলে এখানে অফলাইন ডিজিটাল বোর্ডিং পাস দেখা যাবে।
+                </Text>
+                <View style={styles.emptyButtonsRow}>
+                  <Pressable
+                    style={styles.emptyStaysBtn}
+                    onPress={() => router.push("/screens/flights" as any)}
+                  >
+                    <Text style={styles.emptyStaysBtnText}>ফ্লাইট খুঁজুন</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.emptyFlightsBtn}
+                    onPress={() => router.push("/screens/trains" as any)}
+                  >
+                    <Text style={styles.emptyFlightsBtnText}>ট্রেন বুকিং</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </View>
+        ) : (
+          <>
         {/* Horizontal Navigation Pills (Screenshot 2) */}
         <ScrollView
           horizontal
@@ -302,12 +618,16 @@ export default function TripsTab() {
             <ActivityIndicator size="small" color={TRIP_BLUE} />
           </View>
         ) : bookings.length > 0 ? (
-          <ScrollView
+          <FlatList
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.hotelCardsRow}
-          >
-            {bookings.map((booking) => {
+            data={bookings}
+            keyExtractor={(b) => b.id || `booking-${Math.random()}`}
+            initialNumToRender={4}
+            maxToRenderPerBatch={4}
+            windowSize={3}
+            renderItem={({ item: booking }) => {
               const hotel = booking.hotel;
               const flight = booking.flight;
               const title = hotel?.name || flight?.flight_number ? `Flight ${flight.flight_number}` : booking.title || "Travel Reservation";
@@ -351,7 +671,7 @@ export default function TripsTab() {
                     </Text>
 
                     <View style={styles.priceRow}>
-                      <Text style={styles.priceText}>${price}</Text>
+                      <Text style={styles.priceText}>{formatPrice(price)}</Text>
                       <View style={styles.pinkDiscountBadge}>
                         <Text style={styles.pinkDiscountText} onPress={() => {
                           calendarService.addToCalendar({
@@ -365,8 +685,8 @@ export default function TripsTab() {
                   </View>
                 </Pressable>
               );
-            })}
-          </ScrollView>
+            }}
+          />
         ) : (
           <View style={styles.emptyBookingsCard}>
             <Ionicons name="calendar-outline" size={44} color="#94A3B8" />
@@ -458,6 +778,8 @@ export default function TripsTab() {
             );
           })}
         </View>
+          </>
+        )}
 
         {/* Bottom Scroll Padding */}
         <View style={{ height: 120 }} />
@@ -484,6 +806,13 @@ export default function TripsTab() {
             prev.map((b) => (b.id === bookingId ? { ...b, travel_date: newDate, check_in_date: newDate } : b))
           );
         }}
+      />
+
+      {/* Interactive Digital Boarding Pass Modal */}
+      <BoardingPassModal
+        visible={showPassModal}
+        passData={selectedPass}
+        onClose={() => setShowPassModal(false)}
       />
       {isScrolled && (
         <Pressable
@@ -1052,5 +1381,198 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "700",
+  },
+  boardingPassPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginRight: 6,
+  },
+  boardingPassPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: TRIP_BLUE,
+  },
+  ticketSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  ticketSectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  ticketSectionSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  ticketCountBadge: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  ticketCountBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: TRIP_BLUE,
+  },
+  ticketsListWrapper: {
+    paddingHorizontal: 16,
+    marginTop: 6,
+    gap: 12,
+  },
+  ticketCardItem: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  ticketCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: 12,
+  },
+  ticketTypeCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: TRIP_BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ticketCardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0F172A",
+    maxWidth: 180,
+  },
+  ticketCardPnr: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+    marginTop: 2,
+  },
+  ticketSeatBadge: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    alignItems: "center",
+  },
+  ticketSeatBadgeLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: TRIP_BLUE,
+  },
+  ticketSeatBadgeVal: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: TRIP_BLUE,
+  },
+  ticketCardRouteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+  },
+  ticketCityName: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  ticketDepartureTime: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  ticketRouteArrow: {
+    alignItems: "center",
+  },
+  ticketDateSmall: {
+    fontSize: 10,
+    color: "#94A3B8",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  ticketStatusTag: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#16A34A",
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 2,
+  },
+  ticketCardActionRow: {
+    flexDirection: "row",
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    paddingTop: 12,
+  },
+  viewBoardingPassBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: TRIP_BLUE,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  viewBoardingPassBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  pdfDownloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  pdfDownloadBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: TRIP_BLUE,
+  },
+  emptyTicketsBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    marginHorizontal: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginTop: 16,
   },
 });

@@ -68,7 +68,7 @@ const conversations = [
   },
 ];
 
-export function MessagesScreen() {
+export function MessagesScreen({ navigation }: any) {
   const [activeFilter, setActiveFilter] = useState('All');
 
   return (
@@ -132,6 +132,7 @@ export function MessagesScreen() {
               key={item.id}
               className="bg-[#1e293b]/40 border border-white/10 rounded-2xl p-4 flex-row items-center relative overflow-hidden"
               style={{ elevation: 2 }}
+              onPress={() => navigation?.navigate?.('chat', { guestName: item.name, avatar: item.avatar })}
             >
               {item.unread > 0 && (
                 <View className="absolute left-0 top-0 bottom-0 w-1 bg-[#c0c1ff]" />
