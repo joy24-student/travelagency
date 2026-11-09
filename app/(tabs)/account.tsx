@@ -28,7 +28,7 @@ import { userRepository } from "../../src/services/repositories/user";
 import { supabase } from "../../src/utils/supabase";
 import { BottomNav, AiPill } from "../../src/screens/Navigation";
 
-const PRIMARY = "#287dfa";
+const PRIMARY = "#E5A93C";
 const BG_COLOR = "#F8FAFC";
 const SLATE_900 = "#0F172A";
 const SLATE_600 = "#475569";

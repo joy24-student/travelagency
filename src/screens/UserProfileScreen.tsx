@@ -25,7 +25,7 @@ import {
 import { TravelVideoPlayer } from "../components/TravelVideoPlayer";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const TRIP_BLUE = "#0055F2";
+const TRIP_BLUE = "#E5A93C";
 
 export function UserProfileScreen() {
   const params = useLocalSearchParams<{ userId?: string }>();

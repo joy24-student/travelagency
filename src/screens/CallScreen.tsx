@@ -853,7 +853,7 @@ const styles = StyleSheet.create({
     maxWidth: "80%",
   },
   inCallBubbleMe: {
-    backgroundColor: "#0055F2",
+    backgroundColor: "#E5A93C",
     alignSelf: "flex-end",
   },
   inCallBubbleThem: {
@@ -897,7 +897,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#0055F2",
+    backgroundColor: "#E5A93C",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -995,7 +995,7 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: "#0055F2",
+    backgroundColor: "#E5A93C",
   },
   audioBigAvatar: {
     width: 110,

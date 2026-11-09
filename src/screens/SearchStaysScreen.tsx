@@ -22,8 +22,8 @@ import { supabase } from "../utils/supabase";
 import { AiPill, BottomNav } from "./Navigation";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const TRIP_BLUE = "#0055F2";
-const TRIP_DARK_BLUE = "#000666";
+const TRIP_BLUE = "#E5A93C"; // Luxury Gold Design Token
+const TRIP_DARK_BLUE = "#121622"; // Obsidian Dark Design Token
 
 interface HotelRoom {
   id: string;

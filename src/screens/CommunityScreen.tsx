@@ -35,8 +35,8 @@ import { supabase } from "../utils/supabase";
 import { communityRepository } from "../services/repositories/community";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const TRIP_BLUE = "#0055F2";
-const TRIP_DARK_BLUE = "#000666";
+const TRIP_BLUE = "#E5A93C";
+const TRIP_DARK_BLUE = "#121622";
 const ACCENT_YELLOW = "#FACC15";
 
 const DEMO_USER_ID = "5e491c34-50b4-4d2a-8cac-d09fddd7745c"; // Elvis Mittra (seeded auth.user)

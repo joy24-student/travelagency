@@ -7,38 +7,44 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "../theme";
 
 // ─── Tab Config Matching Reference Screenshots & Clean Expo Router Paths ─────
 const TABS = [
-  { label: "Home", icon: "home-outline" as const, route: "/(tabs)" },
+  { label: "Home", icon: "home" as const, outlineIcon: "home-outline" as const, route: "/(tabs)" },
   {
     label: "Messages",
-    icon: "mail-outline" as const,
+    icon: "mail" as const,
+    outlineIcon: "mail-outline" as const,
     route: "/(tabs)/messages",
   },
   {
     label: "Community",
-    icon: "people-outline" as const,
+    icon: "people" as const,
+    outlineIcon: "people-outline" as const,
     route: "/(tabs)/community",
   },
   {
     label: "My Trips",
-    icon: "briefcase-outline" as const,
+    icon: "briefcase" as const,
+    outlineIcon: "briefcase-outline" as const,
     route: "/(tabs)/trips",
   },
   {
     label: "Sign In",
-    icon: "person-circle-outline" as const,
+    icon: "person-circle" as const,
+    outlineIcon: "person-circle-outline" as const,
     route: "/(tabs)/account",
   },
 ] as const;
 
-// ─── Floating AI Assistant Pill ───────────────────────────────────────────────
-export function AiPill({ color }: { color: string }) {
+// ─── Floating AI Assistant Pill with Gold Mic Button ────────────────────────
+export function AiPill({ color }: { color?: string }) {
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -60,7 +66,7 @@ export function AiPill({ color }: { color: string }) {
   }, []);
 
   const aiPillBottom = useMemo(
-    () => insets.bottom + 68,
+    () => insets.bottom + 66,
     [insets.bottom]
   );
 
@@ -76,31 +82,78 @@ export function AiPill({ color }: { color: string }) {
       ]}
       pointerEvents="box-none"
     >
-      <Pressable
-        style={({ pressed }) => [
-          styles.aiPillContainer,
-          pressed && styles.aiPillPressed,
-        ]}
-        onPress={() => router.push("/screens/trip-planner" as any)}
-      >
-        <LinearGradient
-          colors={["#E0F2FE", "#FFFFFF", "#EFF6FF"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.aiGradientBg}
+      <View style={styles.aiRow}>
+        {/* Main Pill Button */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.aiPillContainer,
+            {
+              backgroundColor: isDark ? "rgba(24, 28, 38, 0.95)" : "#FFFFFF",
+              borderColor: isDark ? "rgba(229, 169, 60, 0.35)" : "#EAD9C2",
+              shadowColor: isDark ? "#000000" : "#D4A03D",
+            },
+            pressed && styles.aiPillPressed,
+          ]}
+          onPress={() => router.push("/screens/trip-planner" as any)}
         >
+          {/* Subtle audio waveform in light mode */}
+          {!isDark && (
+            <View style={styles.waveformContainer}>
+              <View style={[styles.waveBar, { height: 10, backgroundColor: "#E5B252" }]} />
+              <View style={[styles.waveBar, { height: 16, backgroundColor: "#D4A03D" }]} />
+              <View style={[styles.waveBar, { height: 12, backgroundColor: "#E5B252" }]} />
+              <View style={[styles.waveBar, { height: 7, backgroundColor: "#FDE68A" }]} />
+            </View>
+          )}
+
           {/* Robot AI Icon */}
-          <View style={styles.aiRobotBadge}>
-            <Ionicons name="chatbox-ellipses-outline" size={14} color="#0055F2" />
+          <View
+            style={[
+              styles.aiRobotBadge,
+              {
+                backgroundColor: isDark ? "rgba(229, 169, 60, 0.2)" : "#FEF3C7",
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="robot"
+              size={16}
+              color={theme.gold}
+            />
           </View>
-          <Text style={styles.aiText}>Ask AI or hold to speak</Text>
-        </LinearGradient>
-      </Pressable>
+          <Text
+            style={[
+              styles.aiText,
+              { color: isDark ? "#F8FAFC" : "#1E293B" },
+            ]}
+          >
+            Ask AI or hold to speak
+          </Text>
+        </Pressable>
+
+        {/* Circular Gold Microphone Button */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.aiMicBtn,
+            pressed && { transform: [{ scale: 0.94 }], opacity: 0.9 },
+          ]}
+          onPress={() => router.push("/screens/trip-planner" as any)}
+        >
+          <LinearGradient
+            colors={theme.goldGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.aiMicGradient}
+          >
+            <Ionicons name="mic" size={20} color="#18181B" />
+          </LinearGradient>
+        </Pressable>
+      </View>
     </Animated.View>
   );
 }
 
-// ─── Bottom Navigation Bar ───────────────────────────────────────────────────
+// ─── Bottom Navigation Bar Matching Reference Screenshots ───────────────────
 export function BottomNav({
   active,
   color,
@@ -108,30 +161,33 @@ export function BottomNav({
   onScrollToTop,
 }: {
   active: string;
-  color: string;
+  color?: string;
   isScrolled?: boolean;
   onScrollToTop?: () => void;
 }) {
-  const { width } = useWindowDimensions();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const tabWidth = (width - 16) / TABS.length;
-  const translateX = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const index = TABS.findIndex((tab) => tab.label === active);
-    if (index !== -1) {
-      Animated.spring(translateX, {
-        toValue: index * tabWidth,
-        useNativeDriver: true,
-        friction: 10,
-        tension: 60,
-      }).start();
-    }
-  }, [active, tabWidth]);
+  const activeColor = theme.gold;
 
   return (
-    <View style={styles.navContainer}>
-      <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 4 }]}>
+    <View
+      style={[
+        styles.navContainer,
+        {
+          backgroundColor: theme.navBg,
+          borderTopColor: theme.navBorder,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.bottomNav,
+          {
+            paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+            backgroundColor: theme.navBg,
+          },
+        ]}
+      >
         <View style={styles.tabWrapper}>
           {TABS.map((tab) => {
             const selected = tab.label === active;
@@ -140,32 +196,42 @@ export function BottomNav({
                 key={tab.label}
                 tab={tab}
                 selected={selected}
-                color={color}
+                activeColor={activeColor}
+                inactiveColor={theme.navInactive}
+                isDark={isDark}
                 isScrolled={isScrolled}
                 onScrollToTop={onScrollToTop}
               />
             );
           })}
         </View>
-        <View style={styles.homeIndicator} />
       </View>
     </View>
   );
 }
 
-// ─── Individual Tab Item with Morphing Back to Top Logic ─────────────────────
+// ─── Individual Tab Item with Gold Active Indicator Underneath ───────────────
 interface TabItemProps {
   tab: (typeof TABS)[number];
   selected: boolean;
-  color: string;
+  activeColor: string;
+  inactiveColor: string;
+  isDark: boolean;
   isScrolled?: boolean;
   onScrollToTop?: () => void;
 }
 
-function TabItem({ tab, selected, color, isScrolled, onScrollToTop }: TabItemProps) {
+function TabItem({
+  tab,
+  selected,
+  activeColor,
+  inactiveColor,
+  isDark,
+  isScrolled,
+  onScrollToTop,
+}: TabItemProps) {
   const isHomeTab = tab.label === "Home";
   const isScrolledActive = selected && isScrolled;
-
   const displayLabel = isScrolledActive ? "Back to top" : tab.label;
 
   const handlePress = () => {
@@ -177,23 +243,19 @@ function TabItem({ tab, selected, color, isScrolled, onScrollToTop }: TabItemPro
   };
 
   return (
-    <Pressable style={styles.bottomItem} onPress={handlePress} hitSlop={8}>
+    <Pressable style={styles.bottomItem} onPress={handlePress} hitSlop={6}>
       <View style={styles.tabContentCenter}>
         {isScrolledActive ? (
-          // Orange / Yellow circle arrow button for "Back to top" (Screenshot 2)
-          <View style={styles.backToTopCircle}>
-            <Ionicons name="arrow-up" size={16} color="#FFFFFF" />
+          <View style={[styles.backToTopCircle, { backgroundColor: activeColor }]}>
+            <Ionicons name="arrow-up" size={16} color="#18181B" />
           </View>
         ) : (
           <View style={styles.iconContainer}>
             <Ionicons
-              name={tab.icon}
+              name={selected ? tab.icon : tab.outlineIcon}
               size={22}
-              color={selected ? color : "#64748B"}
+              color={selected ? activeColor : inactiveColor}
             />
-            {isHomeTab && selected && (
-              <View style={styles.homeYellowRoofDot} />
-            )}
           </View>
         )}
 
@@ -201,14 +263,21 @@ function TabItem({ tab, selected, color, isScrolled, onScrollToTop }: TabItemPro
           style={[
             styles.bottomLabel,
             {
-              color: isScrolledActive ? "#0055F2" : selected ? color : "#64748B",
-              fontWeight: selected || isScrolledActive ? "800" : "500",
+              color: selected ? activeColor : inactiveColor,
+              fontWeight: selected ? "700" : "500",
             },
           ]}
           numberOfLines={1}
         >
           {displayLabel}
         </Text>
+
+        {/* Prominent Gold Underline Bar for Active Tab (as seen in screenshots) */}
+        {selected && !isScrolledActive ? (
+          <View style={[styles.activeUnderlineBar, { backgroundColor: activeColor }]} />
+        ) : (
+          <View style={styles.activeUnderlinePlaceholder} />
+        )}
       </View>
     </Pressable>
   );
@@ -221,42 +290,72 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 0,
     zIndex: 1000,
+    paddingHorizontal: 16,
   },
-  aiPillContainer: {
-    borderRadius: 999,
-    shadowColor: "#0055F2",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 8,
-    borderWidth: 1.5,
-    borderColor: "#93C5FD",
-    overflow: "hidden",
-  },
-  aiPillPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
-  },
-  aiGradientBg: {
+  aiRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 18,
+    justifyContent: "center",
+    gap: 10,
+    width: "100%",
+  },
+  aiPillContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 9999,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    gap: 8,
+    gap: 10,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  aiPillPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
+  },
+  waveformContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginRight: 2,
+  },
+  waveBar: {
+    width: 2.5,
+    borderRadius: 2,
   },
   aiRobotBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#DBEAFE",
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
   },
   aiText: {
-    color: "#0F172A",
     fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.2,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+    flex: 1,
+  },
+  aiMicBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: "hidden",
+    shadowColor: "#E5A93C",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  aiMicGradient: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
   },
   navContainer: {
     left: 0,
@@ -264,23 +363,20 @@ const styles = StyleSheet.create({
     bottom: 0,
     position: "absolute",
     zIndex: 999,
-    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
   },
   bottomNav: {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
   },
   tabWrapper: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    height: 56,
+    height: 54,
     width: "100%",
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
   },
   bottomItem: {
     flex: 1,
@@ -291,47 +387,34 @@ const styles = StyleSheet.create({
   tabContentCenter: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
+    gap: 3,
+    position: "relative",
   },
   iconContainer: {
-    position: "relative",
     alignItems: "center",
     justifyContent: "center",
-  },
-  homeYellowRoofDot: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: "#FACC15",
-    borderWidth: 1,
-    borderColor: "#FFFFFF",
   },
   backToTopCircle: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: "#EAB308",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#EAB308",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
   },
   bottomLabel: {
     fontSize: 10,
     textAlign: "center",
+    letterSpacing: 0.1,
   },
-  homeIndicator: {
-    height: 4,
-    backgroundColor: "#D1D5DB",
-    width: "36%",
-    alignSelf: "center",
-    marginBottom: 4,
+  activeUnderlineBar: {
+    width: 24,
+    height: 2.5,
     borderRadius: 2,
+    marginTop: 1,
+  },
+  activeUnderlinePlaceholder: {
+    width: 24,
+    height: 2.5,
+    marginTop: 1,
   },
 });

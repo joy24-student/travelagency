@@ -27,7 +27,7 @@ import { AiPill, BottomNav } from "./Navigation";
 import { searchRepository } from "../services/repositories/search";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const TRIP_BLUE = "#0055F2";
+const TRIP_BLUE = "#E5A93C"; // Luxury Gold Design Token
 const BD_GREEN = "#006A4E";
 const BD_RED = "#F42A41";
 const ACCENT_GOLD = "#F59E0B";

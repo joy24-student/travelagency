@@ -22,7 +22,7 @@ import { searchRepository } from "../services/repositories/search";
 import { AiPill, BottomNav } from "./Navigation";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const TRIP_BLUE = "#287dfa";
+const TRIP_BLUE = "#E5A93C"; // Luxury Gold Design Token
 
 // Verified community guides with valid IDs from community_profiles table
 const GUIDES_CATALOG = [

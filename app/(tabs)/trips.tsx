@@ -17,7 +17,7 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { AddWidgetModal } from "../../src/components/AddWidgetModal";
 import { supabase } from "../../src/utils/supabase";
 
-const TRIP_BLUE = "#0055F2";
+const TRIP_BLUE = "#E5A93C";
 const TRIP_PINK = "#FFF0F3";
 const ACCENT_YELLOW = "#FACC15";
 

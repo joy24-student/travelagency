@@ -29,7 +29,7 @@ import { TopBar } from "./TopBar";
 import { screens, type UIScreen } from "../data/screens";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const TRIP_BLUE = "#0055F2";
+const TRIP_BLUE = "#E5A93C";
 const TRIP_PURPLE = "#7C3AED";
 const TRIP_ACCENT = "#FF7D00";
 const ACCENT_GREEN = "#10B981";

@@ -27,8 +27,8 @@ import { supabase } from "../utils/supabase";
 import { AiPill, BottomNav } from "./Navigation";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const TRIP_BLUE = "#0055F2";
-const TRIP_ACCENT = "#FF7D00";
+const TRIP_BLUE = "#E5A93C"; // Luxury Gold Design Token
+const TRIP_ACCENT = "#D4A03D";
 const ACCENT_GREEN = "#10B981";
 
 // ============================================================================

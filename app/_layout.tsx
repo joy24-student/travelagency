@@ -8,6 +8,7 @@ import * as SplashScreen from "expo-splash-screen";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { AuthProvider } from "../src/auth/context";
+import { ThemeProvider, useTheme } from "../src/theme";
 import { useAuth } from "../src/hooks/useAuth";
 import { supabase } from "../src/utils/supabase";
 import { initializeOAuthProviders } from "../src/services/oauth";
@@ -146,10 +147,11 @@ const RootLayoutContent = () => {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" backgroundColor="#ffffff" />
-      <AuthProvider>
-        <RootLayoutContent />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <RootLayoutContent />
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
