@@ -28,8 +28,8 @@ export default function TabLayout() {
       </Tabs>
 
       {/* Single Global Navigation Bar Overlay */}
-      <AiPill color="#0055F2" />
-      <BottomNav active={activeTab} color="#0055F2" />
+      <AiPill />
+      <BottomNav active={activeTab} />
     </View>
   );
 }

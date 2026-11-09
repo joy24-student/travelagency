@@ -10,9 +10,9 @@ export default function IndexScreen() {
 
   useEffect(() => {
     if (!loading) {
-      router.replace(isAuthenticated ? "/(tabs)" : "/login");
+      router.replace("/(tabs)");
     }
-  }, [isAuthenticated, loading]);
+  }, [loading]);
 
   return (
     <SafeAreaView className="flex-1 bg-trip-bg items-center justify-center">

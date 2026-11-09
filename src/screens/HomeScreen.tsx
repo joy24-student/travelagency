@@ -24,7 +24,6 @@ import { router } from "expo-router";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../utils/supabase";
 import { PromoExclusiveModal } from "../components/PromoExclusiveModal";
-import { AiPill, BottomNav } from "./Navigation";
 import { useTheme } from "../theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -949,12 +948,6 @@ export function HomeScreen() {
         {/* Space at bottom for floating navigation bar */}
         <View style={{ height: 130 }} />
       </Animated.ScrollView>
-
-      {/* Floating AI Assistant Bar + Mic Button */}
-      <AiPill />
-
-      {/* Bottom Navigation Bar with Gold Active Indicator */}
-      <BottomNav active="Home" isScrolled={isScrolled} />
 
       {/* Promo Exclusive Voucher Modal */}
       <PromoExclusiveModal
