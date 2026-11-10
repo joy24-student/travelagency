@@ -61,6 +61,12 @@ const DEDICATED_ROUTE_MAP: Record<string, string> = {
   settings: "/screens/settings",
   "trip-planner": "/screens/trip-planner",
   "ai-assistant": "/screens/trip-planner",
+  "bus-launch": "/screens/bus-launch",
+  bus: "/screens/bus-launch",
+  launch: "/screens/bus-launch",
+  "travel-match": "/screens/travel-match",
+  buddy: "/screens/travel-match",
+  "travel-buddy": "/screens/travel-match",
 };
 
 function ScreenNotFound({ slug }: { slug?: string }) {

@@ -41,9 +41,9 @@ import { ticketService } from "../../src/services/payment/ticketService";
 
 
 // Colors & Design Tokens
-const PRIMARY_BLUE = "#0055F2";
-const TEAL_WATER = "#0D9488";
-const TEAL_DARK = "#0F766E";
+const PRIMARY_BLUE = "#E5A93C"; // Luxury Gold Design Token
+const TEAL_WATER = "#D4A03D";
+const TEAL_DARK = "#121622"; // Obsidian Dark
 const DANGER_RED = "#DC2626";
 
 // -----------------------------------------------------------------------------

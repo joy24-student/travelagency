@@ -1141,6 +1141,53 @@ export function CommunitySpecializedScreen({ screen }: { screen: UIScreen }) {
     <View>
       {renderStoriesCarousel()}
 
+      {/* Travel Buddy Co-Traveler Discovery Banner */}
+      <Pressable
+        style={{
+          marginHorizontal: 16,
+          marginTop: 6,
+          marginBottom: 12,
+          padding: 14,
+          borderRadius: 16,
+          backgroundColor: isDark ? "#121622" : "#FFF9F0",
+          borderWidth: 1,
+          borderColor: isDark ? "rgba(229, 169, 60, 0.4)" : "#FDE68A",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+        onPress={() => router.push("/screens/travel-match" as any)}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+          <View
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 21,
+              backgroundColor: isDark ? "rgba(229, 169, 60, 0.2)" : "#FEF3C7",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="people" size={22} color="#E5A93C" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: isDark ? "#F8FAFC" : "#111827" }}>
+                Find a Travel Buddy 🤝
+              </Text>
+              <View style={{ backgroundColor: "#E5A93C", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+                <Text style={{ fontSize: 10, fontWeight: "800", color: "#18181B" }}>MATCH</Text>
+              </View>
+            </View>
+            <Text style={{ fontSize: 12, color: isDark ? "#94A3B8" : "#64748B", marginTop: 2 }}>
+              Connect with verified co-travelers heading to your destination
+            </Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color="#E5A93C" />
+      </Pressable>
+
       {/* Feed Sub-filters */}
       <View style={styles.feedFiltersRow}>
         {(["all", "nearby", "trending", "saved"] as const).map((filter) => (

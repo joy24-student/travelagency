@@ -43,12 +43,12 @@ import { useResponsive } from "../../src/hooks/useResponsive";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.26;
 
-const PRIMARY_BLUE = "#0055F2";
+const PRIMARY_BLUE = "#E5A93C"; // Luxury Gold Design Token
 const EMERALD_GREEN = "#10B981";
-const ACCENT_AMBER = "#F59E0B";
+const ACCENT_AMBER = "#D4A03D";
 const CRIMSON_RED = "#EF4444";
 const CARD_BG = "#FFFFFF";
-const DARK_SLATE = "#0F172A";
+const DARK_SLATE = "#080B11"; // Luxury Obsidian Dark
 
 // Guarantee sendMatchRequest exists on service for database update
 if (typeof (travelMatchingService as any).sendMatchRequest !== "function") {

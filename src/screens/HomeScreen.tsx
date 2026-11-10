@@ -436,7 +436,7 @@ export function HomeScreen() {
                 {[
                   { label: "Hotels", icon: "bed", route: "/screens/search-stays" },
                   { label: "Flights", icon: "airplane", route: "/screens/flights" },
-                  { label: "Flight + Hotel", icon: "business", route: "/screens/packages" },
+                  { label: "Launch & Bus", icon: "boat", route: "/screens/bus-launch" },
                   { label: "Trains", icon: "train", route: "/screens/trains" },
                 ].map((item) => (
                   <Pressable
@@ -457,11 +457,11 @@ export function HomeScreen() {
               {/* Row 2 Secondary Categories */}
               <View style={[styles.categoryRow, { marginTop: 14 }]}>
                 {[
-                  { label: "Vacation\nRentals", icon: "home", route: "/screens/hotels-homes" },
-                  { label: "Attractions\n& Tours", icon: "people", route: "/screens/recommended-tours" },
+                  { label: "Travel\nBuddy", icon: "people", route: "/screens/travel-match" },
+                  { label: "Attractions\n& Tours", icon: "map", route: "/screens/recommended-tours" },
                   { label: "Car Rentals", icon: "car", route: "/screens/car-rentals" },
                   { label: "Package\nTours", icon: "earth", route: "/screens/packages" },
-                  { label: "+7 more", icon: "grid", isMore: true, route: "/screens/explore" },
+                  { label: "+More", icon: "grid", isMore: true, route: "/screens/explore" },
                 ].map((item, i) => (
                   <Pressable
                     key={i}
@@ -571,9 +571,9 @@ export function HomeScreen() {
           <View style={styles.quickActionsGrid}>
             {[
               { label: "Deals", icon: "pricetag-outline", route: "deals" },
-              { label: "Events", icon: "calendar-outline", route: "/screens/events" },
+              { label: "Travel Buddy", icon: "people-outline", route: "/screens/travel-match" },
               { label: "Trip.Planner", icon: "flash-outline", route: "/screens/trip-planner" },
-              { label: "Trending", icon: "trending-up-outline", route: "/(tabs)/community" },
+              { label: "Launch & Bus", icon: "boat-outline", route: "/screens/bus-launch" },
             ].map((action) => (
               <Pressable
                 key={action.label}
