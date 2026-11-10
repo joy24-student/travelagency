@@ -40,7 +40,7 @@ import { useTheme } from "../context/ThemeContext";
 import { FONTS } from "../theme/typography";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const TRIP_BLUE = "#0055F2";
+const TRIP_BLUE = "#E5A93C";
 const TRIP_PURPLE = "#7C3AED";
 const TRIP_EMERALD = "#059669";
 const TRIP_ROSE = "#DC2626";

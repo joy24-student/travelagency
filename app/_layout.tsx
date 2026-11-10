@@ -13,7 +13,7 @@ import { AuthProvider } from "../src/auth/context";
 import { NetworkProvider } from "../src/context/NetworkContext";
 import { OfflineBanner } from "../src/components/common";
 import { useAuthStore } from "../src/store/authStore";
-import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
+import { ThemeProvider, useTheme } from "../src/theme";
 import { LanguageProvider } from "../src/context/LanguageContext";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../src/locales/i18n";

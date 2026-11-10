@@ -28,9 +28,8 @@ import { useBookingStore } from "../store/bookingStore";
 import { EmptyStateView, ErrorStateCard, ListSkeleton } from "../components/common";
 import { WeatherWidget } from "../components/weather/WeatherWidget";
 
-
 import { useResponsive } from "../hooks/useResponsive";
-const TRIP_BLUE = "#287dfa";
+const TRIP_BLUE = "#E5A93C"; // Luxury Gold Design Token
 const TRIP_PURPLE = "#7C3AED";
 const TRIP_EMERALD = "#059669";
 const TRIP_ROSE = "#DC2626";

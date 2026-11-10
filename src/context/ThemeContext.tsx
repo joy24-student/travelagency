@@ -3,6 +3,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useCallback,
   ReactNode,
 } from "react";
 import { Appearance, Platform } from "react-native";
@@ -15,6 +16,7 @@ import {
   darkSemanticColors,
   oledSemanticColors,
 } from "../theme/colors";
+import { ThemeColors as LuxuryThemeColors, lightTokens, darkTokens } from "../theme/tokens";
 
 export type ThemeColors = SemanticThemeColors;
 
@@ -27,6 +29,8 @@ export interface ThemeContextType {
   isDark: boolean;
   isOled: boolean;
   colors: ThemeColors;
+  theme: LuxuryThemeColors;
+  toggleTheme: () => void;
   setThemeMode: (mode: ThemeMode) => void;
 }
 
@@ -99,15 +103,25 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
     return LIGHT_COLORS;
   }, [isDark, isOled]);
 
+  const luxuryTokens = useMemo(() => {
+    return isDark ? darkTokens : lightTokens;
+  }, [isDark]);
+
+  const toggleTheme = useCallback(() => {
+    setThemeMode(isDark ? "light" : "dark");
+  }, [isDark, setThemeMode]);
+
   const contextValue = useMemo(
     () => ({
       themeMode,
       isDark,
       isOled,
       colors,
+      theme: luxuryTokens,
+      toggleTheme,
       setThemeMode,
     }),
-    [themeMode, isDark, isOled, colors, setThemeMode]
+    [themeMode, isDark, isOled, colors, luxuryTokens, toggleTheme, setThemeMode]
   );
 
   return (
@@ -122,6 +136,8 @@ const DEFAULT_THEME_FALLBACK: ThemeContextType = {
   isDark: false,
   isOled: false,
   colors: LIGHT_COLORS,
+  theme: lightTokens,
+  toggleTheme: () => {},
   setThemeMode: () => {},
 };
 

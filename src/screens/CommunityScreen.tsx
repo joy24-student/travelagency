@@ -41,6 +41,10 @@ import { colors } from "../theme/colors";
 import { useTheme } from "../context/ThemeContext";
 import { FONTS } from "../theme/typography";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const TRIP_BLUE = "#E5A93C";
+const TRIP_DARK_BLUE = "#121622";
+const ACCENT_YELLOW = "#FACC15";
 
 // Design system tokens
 const PRIMARY = colors.primary.DEFAULT;

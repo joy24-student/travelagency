@@ -33,7 +33,7 @@ import { AccountDeletionModal } from "../../src/components/settings/AccountDelet
 import { userDataExportService } from "../../src/services/userDataExportService";
 import { RTLIcon } from "../../src/components/ui";
 
-const PRIMARY = "#287dfa";
+const PRIMARY = "#E5A93C";
 const BG_COLOR = "#F8FAFC";
 const SLATE_900 = "#0F172A";
 const SLATE_600 = "#475569";

@@ -42,8 +42,8 @@ import { callService } from "../../src/services/callService";
 import { DirectChatModal } from "../../src/components/DirectChatModal";
 import { supabase } from "../../src/utils/supabase";
 
-const PRIMARY = "#0055F2";
-const DARK_BLUE = "#000666";
+const PRIMARY = "#E5A93C";
+const DARK_BLUE = "#121622";
 
 export interface LiveNotification {
   id: string;

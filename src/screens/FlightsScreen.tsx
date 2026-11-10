@@ -42,8 +42,9 @@ import { FONTS } from "../theme/typography";
 import { formatLocalizedDate, formatLocalizedNumber, formatLocalizedCurrency, formatCurrency, formatPlural } from "../utils/formatters";
 import { RTLIcon } from "../components/ui";
 
-const TRIP_BLUE = "#287dfa";
-const ACCENT_ORANGE = "#ff7d00";
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const TRIP_BLUE = "#E5A93C"; // Luxury Gold Design Token
+const ACCENT_ORANGE = "#D4A03D";
 const ACCENT_GREEN = "#10b981";
 
 // ============================================================================

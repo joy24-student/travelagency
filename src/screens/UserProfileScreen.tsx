@@ -38,7 +38,8 @@ import { FONTS } from "../theme/typography";
 import { ProfileCompletenessBar } from "../components/profile/ProfileCompletenessBar";
 
 
-const TRIP_BLUE = "#0055F2";
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const TRIP_BLUE = "#E5A93C";
 const BG_COLOR = "#F8FAFC";
 
 // ============================================================================

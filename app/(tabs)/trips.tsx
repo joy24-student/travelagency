@@ -34,7 +34,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "../../src/components/ui/Toast";
 import { useBookingRealtimeSync } from "../../src/services/bookingRealtimeService";
 
-const TRIP_BLUE = "#0055F2";
+const TRIP_BLUE = "#E5A93C";
 const TRIP_PINK = "#FFF0F3";
 const ACCENT_YELLOW = "#FACC15";
 

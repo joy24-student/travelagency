@@ -25,12 +25,13 @@ import { bookingRepository } from "../services/repositories/booking";
 import { searchRepository } from "../services/repositories/search";
 import { supabase } from "../utils/supabase";
 
-
 import { useResponsive } from "../hooks/useResponsive";
 import { formatPrice, getActiveCurrency } from "../utils/currency";
 import { RTLIcon } from "../components/ui";
-const TRIP_BLUE = "#0055F2";
-const TRIP_ACCENT = "#FF7D00";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const TRIP_BLUE = "#E5A93C"; // Luxury Gold Design Token
+const TRIP_ACCENT = "#D4A03D";
 const ACCENT_GREEN = "#10B981";
 
 // ============================================================================

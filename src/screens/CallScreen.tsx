@@ -1605,8 +1605,8 @@ const styles = StyleSheet.create({
     maxWidth: "80%",
   },
   inCallBubbleMe: {
-    alignSelf: "flex-end" as const,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#E5A93C",
+    alignSelf: "flex-end",
   },
   inCallBubbleThem: {
     alignSelf: "flex-start" as const,
@@ -1647,10 +1647,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   inCallSendBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#2563EB",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#E5A93C",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1723,10 +1723,10 @@ const styles = StyleSheet.create({
   },
   pulsingRing: {
     position: "absolute",
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: "#38BDF8",
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "#E5A93C",
   },
   audioBigAvatar: {
     width: 124,

@@ -20,8 +20,9 @@ import { supabase } from '../utils/supabase';
 import { MysteryBoxModal } from '../components/gamification/MysteryBoxModal';
 
 
-const TRIP_BLUE = "#0077f5";
-const SILVER_TEXT = "#4A6B9E";
+const { width } = Dimensions.get('window');
+const TRIP_BLUE = "#E5A93C";
+const SILVER_TEXT = "#D4A03D";
 
 export default function RewardsScreen() {
   const { user } = useAuth();
