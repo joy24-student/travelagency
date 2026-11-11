@@ -21,10 +21,21 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { bookingAdminService, refundService } from "@/services/adminService";
+import { useBookingRealtimeSync } from "../../services/bookingRealtimeService";
+import { AdminPagination } from "./AdminPagination";
+import { DestructiveConfirmModal } from "./DestructiveConfirmModal";
+import { useRBAC } from "./rbac";
+import { executeAdminCommand, CancelBookingCommand, ConfirmBookingCommand } from "./commands";
+import { withErrorBoundary } from "../../components/common/ErrorBoundaryView";
+import { ErrorStateCard } from "../../components/common/ErrorStateCard";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { EmptyState } from "../../components/ui/EmptyState";
 
-const { width } = Dimensions.get("window");
 
-export const BookingManagementScreen: React.FC = () => {
+
+const BookingManagementScreenComponent: React.FC = () => {
+  const [error, setError] = useState<string | null>(null);
+  const { admin, hasPermission } = useRBAC();
   const [bookings, setBookings] = useState<any[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,14 +46,25 @@ export const BookingManagementScreen: React.FC = () => {
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [actionNotes, setActionNotes] = useState("");
 
+  // Pagination & Destructive Action Modal States
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  const totalPages = Math.ceil(filteredBookings.length / PAGE_SIZE) || 1;
+  const paginatedBookings = filteredBookings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const loadBookings = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await bookingAdminService.getAllBookings();
-      setBookings(data);
-      setFilteredBookings(data);
-    } catch (error) {
-      console.error("Error loading bookings:", error);
+      setBookings(data || []);
+      setFilteredBookings(data || []);
+    } catch (err: any) {
+      console.error("Error loading bookings:", err);
+      setError(err?.message || "Failed to load bookings. Please check database connectivity.");
     } finally {
       setLoading(false);
     }
@@ -51,6 +73,22 @@ export const BookingManagementScreen: React.FC = () => {
   useEffect(() => {
     loadBookings();
   }, []);
+
+  // Supabase Realtime synchronization for Admin Portal
+  useBookingRealtimeSync({
+    onStatusChange: (payload) => {
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === payload.bookingId || b.booking_reference === payload.bookingReference
+            ? { ...b, status: payload.newStatus }
+            : b
+        )
+      );
+    },
+    onBookingCreated: () => {
+      loadBookings();
+    },
+  });
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -74,27 +112,46 @@ export const BookingManagementScreen: React.FC = () => {
     setFilteredBookings(result);
   }, [searchQuery, statusFilter, bookings]);
 
-  const handleCancelBooking = (bookingId: string) => {
-    Alert.alert(
-      "Confirm Cancellation",
-      "Are you sure you want to cancel this booking? This action will trigger supplier notification.",
-      [
-        { text: "No", style: "cancel" },
-        {
-          text: "Yes, Cancel",
-          style: "destructive",
-          onPress: () => {
-            setBookings((prev) =>
-              prev.map((b) =>
-                b.id === bookingId ? { ...b, status: "cancelled" } : b
-              )
-            );
-            setDetailsModalVisible(false);
-            Alert.alert("Success", "Booking cancelled successfully.");
-          },
-        },
-      ]
-    );
+  const handleInitiateCancel = () => {
+    setCancelModalVisible(true);
+  };
+
+  const handleExecuteCancel = async () => {
+    if (!selectedBooking || !admin) return;
+    setCancelLoading(true);
+    try {
+      const command = new CancelBookingCommand(selectedBooking.id, actionNotes || "Administrative cancellation");
+      await executeAdminCommand(command, admin as any);
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === selectedBooking.id ? { ...b, status: "cancelled" } : b
+        )
+      );
+      setCancelModalVisible(false);
+      setDetailsModalVisible(false);
+      Alert.alert("Success", `Booking ${selectedBooking.booking_reference} cancelled successfully.`);
+    } catch (err: any) {
+      Alert.alert("Permission Error", err.message || "Failed to cancel booking due to RBAC policy.");
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleExecuteConfirm = async () => {
+    if (!selectedBooking || !admin) return;
+    try {
+      const command = new ConfirmBookingCommand(selectedBooking.id, actionNotes || "Confirmed by administrator");
+      await executeAdminCommand(command, admin as any);
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === selectedBooking.id ? { ...b, status: "confirmed" } : b
+        )
+      );
+      setDetailsModalVisible(false);
+      Alert.alert("Success", `Booking ${selectedBooking.booking_reference} confirmed successfully.`);
+    } catch (err: any) {
+      Alert.alert("Permission Error", err.message || "Failed to confirm booking due to RBAC policy.");
+    }
   };
 
   const handleResendConfirmation = () => {
@@ -152,7 +209,7 @@ export const BookingManagementScreen: React.FC = () => {
         <ActivityIndicator size="large" color="#4f46e5" style={styles.spinner} />
       ) : (
         <FlatList
-          data={filteredBookings}
+          data={paginatedBookings}
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
@@ -194,17 +251,35 @@ export const BookingManagementScreen: React.FC = () => {
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
-              <MaterialCommunityIcons name="ticket-outline" size={48} color="#94a3b8" />
-              <Text style={{ marginTop: 12, fontSize: 16, color: "#334155", fontWeight: "600" }}>No Bookings Found</Text>
-              <Text style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>Customer bookings across hotels, flights, and tours will display here in real-time.</Text>
-            </View>
+            <EmptyState
+              type="booking"
+              title="No Bookings Found"
+              description="Customer bookings across hotels, flights, and tours will display here in real-time."
+              actionLabel="Reload Bookings"
+              onAction={loadBookings}
+            />
+          }
+          ListFooterComponent={
+            filteredBookings.length > PAGE_SIZE ? (
+              <AdminPagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={filteredBookings.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+              />
+            ) : null
           }
         />
       )}
 
       {/* Booking Details Modal */}
-      <Modal visible={detailsModalVisible} animationType="slide" transparent>
+      <Modal
+        visible={detailsModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDetailsModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -255,14 +330,26 @@ export const BookingManagementScreen: React.FC = () => {
 
                 {/* Booking actions */}
                 <View style={styles.actionsContainer}>
+                  {selectedBooking.status !== "confirmed" && selectedBooking.status !== "completed" && (
+                    <TouchableOpacity
+                      style={[styles.actionBtnConfirm, { backgroundColor: "#10b981", opacity: hasPermission("bookings.modify") ? 1 : 0.5 }]}
+                      onPress={handleExecuteConfirm}
+                      disabled={!hasPermission("bookings.modify")}
+                    >
+                      <MaterialCommunityIcons name="check-circle" size={18} color="#fff" />
+                      <Text style={styles.actionBtnText}>Confirm Booking</Text>
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity style={styles.actionBtnConfirm} onPress={handleResendConfirmation}>
                     <MaterialCommunityIcons name="email-outline" size={18} color="#fff" />
                     <Text style={styles.actionBtnText}>Resend Voucher</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.actionBtnCancel}
-                    onPress={() => handleCancelBooking(selectedBooking.id)}
+                    style={[styles.actionBtnCancel, { opacity: hasPermission("bookings.cancel") ? 1 : 0.5 }]}
+                    onPress={handleInitiateCancel}
+                    disabled={!hasPermission("bookings.cancel")}
                   >
                     <MaterialCommunityIcons name="cancel" size={18} color="#fff" />
                     <Text style={styles.actionBtnText}>Cancel Booking</Text>
@@ -273,6 +360,25 @@ export const BookingManagementScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* High-Visibility Cancellation Modal */}
+      <DestructiveConfirmModal
+        visible={cancelModalVisible}
+        title="Confirm Booking Cancellation"
+        description="Are you sure you want to cancel this booking? This action is permanent and will trigger an automated cancellation notice to the customer and airline/hotel suppliers."
+        targetName={`Ref: ${selectedBooking?.booking_reference || "N/A"}`}
+        targetId={selectedBooking?.id}
+        confirmLabel="Cancel Booking"
+        onConfirm={handleExecuteCancel}
+        onCancel={() => setCancelModalVisible(false)}
+        isLoading={cancelLoading}
+        severity="danger"
+        requireTypedConfirmation={true}
+        confirmationWord="CANCEL"
+        requireReason={true}
+        reasonPlaceholder="Enter cancellation reason for audit record..."
+        auditLogRef={`AUD-BKG-CAN-${selectedBooking?.id?.slice(-6).toUpperCase() || "LOG"}`}
+      />
     </View>
   );
 };
@@ -296,7 +402,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   searchIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   searchInput: {
     flex: 1,
@@ -313,13 +419,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: "#f1f5f9",
-    marginRight: 8,
+    marginEnd: 8,
   },
   filterPillActive: {
     backgroundColor: "#4f46e5",
   },
   filterText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#64748b",
   },
@@ -361,7 +467,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   cardContent: {
@@ -416,7 +522,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   label: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     textTransform: "uppercase",
   },
@@ -483,4 +589,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+});
+
+
+export const BookingManagementScreen = withErrorBoundary(BookingManagementScreenComponent, {
+  screenName: "BookingManagementScreen",
 });

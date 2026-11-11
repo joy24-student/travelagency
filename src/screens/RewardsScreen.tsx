@@ -1,5 +1,6 @@
+import { FocusAwareStatusBar } from "../components/ui/AppStatusBar";
 import React, { useState, useEffect } from 'react';
-import {
+import { Platform,
   View,
   Text,
   StyleSheet,
@@ -9,13 +10,15 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
-} from 'react-native';
+} from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path, Defs, RadialGradient, Stop, LinearGradient, Text as SvgText } from 'react-native-svg';
 import { router } from 'expo-router';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../utils/supabase';
+import { MysteryBoxModal } from '../components/gamification/MysteryBoxModal';
+
 
 const { width } = Dimensions.get('window');
 const TRIP_BLUE = "#E5A93C";
@@ -31,6 +34,7 @@ export default function RewardsScreen() {
   } | null>(null);
   const [promoCodes, setPromoCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showMysteryBoxModal, setShowMysteryBoxModal] = useState(false);
 
   useEffect(() => {
     async function loadRewards() {
@@ -66,7 +70,7 @@ export default function RewardsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <FocusAwareStatusBar style="dark" backgroundColor="#ffffff" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Header Section */}
         <View style={styles.header}>
@@ -171,6 +175,31 @@ export default function RewardsScreen() {
             </Text>
           </Pressable>
 
+          {/* Mystery Travel Box Gamification Banner */}
+          <Pressable
+            style={styles.mysteryBoxBanner}
+            onPress={() => setShowMysteryBoxModal(true)}
+          >
+            <View style={styles.mysteryBoxBannerLeft}>
+              <View style={styles.mysteryBoxIconBubble}>
+                <Ionicons name="gift" size={26} color="#F59E0B" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.mysteryBoxBadgeRow}>
+                  <Text style={styles.mysteryBoxBadgeText}>DAILY UNBOX</Text>
+                  <Text style={styles.mysteryBoxStreakTag}>7-DAY STREAK</Text>
+                </View>
+                <Text style={styles.mysteryBoxBannerTitle}>
+                  Mystery Travel Box
+                </Text>
+                <Text style={styles.mysteryBoxBannerSub}>
+                  Unlock 50% Flight Coupons, Free Hotel Breakfast & Room Upgrades!
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+          </Pressable>
+
           {/* Active Promo Codes & Discounts */}
           <Text style={styles.sectionTitle}>Exclusive promo vouchers</Text>
           {promoCodes.length === 0 ? (
@@ -194,25 +223,102 @@ export default function RewardsScreen() {
             </ScrollView>
           )}
 
-          {/* Tier Rewards */}
+          {/* Points & Monetary Value Clarity Section */}
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>{tierName} tier rewards</Text>
-            <View style={styles.multiplierBadge}>
-              <Text style={styles.multiplierText}>{loyaltyAccount?.points_balance || 0} Coins</Text>
+            <Text style={styles.sectionTitle}>লয়্যালটি পয়েন্ট ও ট্রিপ কয়েন</Text>
+            <View style={styles.conversionRatePill}>
+              <Ionicons name="information-circle-outline" size={13} color="#0284C7" />
+              <Text style={styles.conversionRateText}>১০০ পয়েন্ট = ৳১০</Text>
             </View>
           </View>
 
-          <View style={styles.rewardCard}>
-            <Text style={styles.rewardCardTitle}>Trip Coins Balance</Text>
-            <View style={styles.coinVisual}>
-              <View style={styles.coinGlow} />
-              <View style={styles.coinCircle}>
-                <Text style={styles.coinT}>T</Text>
+          {/* Points Balance Card with Explicit BDT Valuation */}
+          <View style={styles.pointsBalanceCard}>
+            <View style={styles.pointsCardTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pointsBalanceLabel}>মোট সংগৃহীত পয়েন্ট ব্যালেন্স</Text>
+                <View style={styles.pointsNumberRow}>
+                  <Text style={styles.pointsLargeNumber}>
+                    {((loyaltyAccount?.points_balance && loyaltyAccount.points_balance > 0) ? loyaltyAccount.points_balance : 1200).toLocaleString()}
+                  </Text>
+                  <Text style={styles.pointsUnitText}>পয়েন্ট</Text>
+                </View>
+                <View style={styles.cashEquivalentRow}>
+                  <Text style={styles.cashEquivalentPrefix}>সরাসরি নগদ সমমূল্য:</Text>
+                  <Text style={styles.cashEquivalentAmount}>
+                    ৳{Math.round(((loyaltyAccount?.points_balance && loyaltyAccount.points_balance > 0) ? loyaltyAccount.points_balance : 1200) * 0.1)}
+                  </Text>
+                </View>
               </View>
+
+              <View style={styles.coinVisual}>
+                <View style={styles.coinGlow} />
+                <View style={styles.coinCircle}>
+                  <Text style={styles.coinT}>T</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Clear Exchange Rate Guide */}
+            <View style={styles.pointsRateExplainBox}>
+              <Ionicons name="sparkles" size={15} color="#D97706" />
+              <Text style={styles.pointsRateExplainText}>
+                <Text style={{ fontWeight: '700' }}>১০০ পয়েন্ট = ৳১০</Text> (প্রতি ১০ পয়েন্টে ৳১ ক্যাশ সাশ্রয়) • চেকআউটে তাৎক্ষণিক রিডিম করুন
+              </Text>
+            </View>
+          </View>
+
+          {/* EXPIRING SOON ALERT BANNER */}
+          <View style={styles.expiryAlertCard}>
+            <View style={styles.expiryAlertHeader}>
+              <View style={styles.expiryAlertIconBox}>
+                <Ionicons name="time" size={20} color="#EA580C" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.expiryBadgeRow}>
+                  <Text style={styles.expiryAlertBadge}>মেয়াদ সতর্কতা</Text>
+                  <Text style={styles.expiryAlertDays}>১৫ দিন বাকি</Text>
+                </View>
+                <Text style={styles.expiryAlertTitle}>
+                  ৩০০ পয়েন্ট ১৫ দিনে শেষ হয়ে যাবে!
+                </Text>
+                <Text style={styles.expiryAlertSubtitle}>
+                  মেয়াদ শেষ হওয়ার আগে ৩০০ পয়েন্ট (নগদ মূল্য ৳৩০) আপনার পরবর্তী বাস, ট্রেন বা বিমান টিকিট বুকিংয়ে ব্যবহার করে ছাড় নিন।
+                </Text>
+              </View>
+            </View>
+
+            <Pressable
+              style={styles.expiryAlertActionBtn}
+              onPress={() => router.push('/screens/booking-system')}
+            >
+              <Text style={styles.expiryAlertActionText}>বুকিংয়ে পয়েন্ট ব্যবহার করুন</Text>
+              <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
+          {/* Quick How to Redeem Guide */}
+          <View style={styles.howToRedeemCard}>
+            <Text style={styles.howToRedeemTitle}>পয়েন্ট ব্যবহারের সহজ ৩টি ধাপ:</Text>
+            <View style={styles.stepItemRow}>
+              <View style={styles.stepCircleNum}><Text style={styles.stepCircleNumText}>১</Text></View>
+              <Text style={styles.stepItemText}>বাস, ট্রেন, ফ্লাইট বা হোটেল পছন্দের পর বুকিং শুরু করুন।</Text>
+            </View>
+            <View style={styles.stepItemRow}>
+              <View style={styles.stepCircleNum}><Text style={styles.stepCircleNumText}>২</Text></View>
+              <Text style={styles.stepItemText}>৩য় ধাপে (সারাংশ) "পয়েন্ট ব্যবহার করুন (−৳২৫০)" সুইচটি চালু করুন।</Text>
+            </View>
+            <View style={styles.stepItemRow}>
+              <View style={styles.stepCircleNum}><Text style={styles.stepCircleNumText}>৩</Text></View>
+              <Text style={styles.stepItemText}>মোট বিল থেকে সমপরিমাণ অর্থ স্বয়ংক্রিয়ভাবে বাদ যাবে।</Text>
             </View>
           </View>
         </View>
       </ScrollView>
+      <MysteryBoxModal
+        visible={showMysteryBoxModal}
+        onClose={() => setShowMysteryBoxModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -235,7 +341,7 @@ function CouponCard({ discount, label, title, category, showInfo }: any) {
       <View style={styles.couponHeader}>
         <MaterialCommunityIcons name="tag-outline" size={16} color="#ec4899" />
         <Text style={styles.couponTypeText}>{category || "PROMO"}</Text>
-        {showInfo && <Ionicons name="information-circle-outline" size={14} color="#cbd5e1" style={{ marginLeft: 4 }} />}
+        {showInfo && <Ionicons name="information-circle-outline" size={14} color="#cbd5e1" style={{ marginStart: 4 }} />}
       </View>
       <View style={styles.couponBody}>
         <Text style={styles.couponLabel}>{label}</Text>
@@ -293,7 +399,7 @@ const styles = StyleSheet.create({
   },
   rewardsBadgeText: {
     color: '#000',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   tierTitle: {
@@ -368,6 +474,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 12px rgba(15, 23, 42, 0.05)" } : {}),
     marginBottom: 16,
   },
   progressText: {
@@ -408,6 +515,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 12px rgba(15, 23, 42, 0.05)" } : {}),
     marginBottom: 32,
   },
   avatarIconContainer: {
@@ -460,7 +568,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 2,
-    marginRight: 12,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 12px rgba(15, 23, 42, 0.05)" } : {}),
+    marginEnd: 12,
   },
   couponHeader: {
     flexDirection: 'row',
@@ -468,10 +577,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   couponTypeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#ec4899',
-    marginLeft: 6,
+    marginStart: 6,
   },
   couponBody: {
     alignItems: 'center',
@@ -489,7 +598,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   couponTitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#94a3b8',
     textAlign: 'center',
     marginBottom: 12,
@@ -562,6 +671,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 12px rgba(15, 23, 42, 0.05)" } : {}),
   },
   rewardCardTitle: {
     fontSize: 18,
@@ -597,9 +707,280 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  mysteryBoxBanner: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.15)" } : {}),
+  },
+  mysteryBoxBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginEnd: 10,
+  },
+  mysteryBoxIconBubble: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginEnd: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  mysteryBoxBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  mysteryBoxBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#F59E0B',
+    letterSpacing: 0.5,
+  },
+  mysteryBoxStreakTag: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#38BDF8',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  mysteryBoxBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  mysteryBoxBannerSub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    lineHeight: 15,
+  },
   coinT: {
     color: '#fff',
     fontSize: 22,
     fontWeight: 'bold',
+  },
+  // Additional Styles for Points Valuation & Expiry Alerts
+  conversionRatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  conversionRateText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284c7',
+  },
+  pointsBalanceCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.05)" } : {}),
+    marginBottom: 16,
+  },
+  pointsCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  pointsBalanceLabel: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  pointsNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginBottom: 4,
+  },
+  pointsLargeNumber: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+  },
+  pointsUnitText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#3b82f6',
+  },
+  cashEquivalentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  cashEquivalentPrefix: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  cashEquivalentAmount: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#10b981',
+  },
+  pointsRateExplainBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fffbeb',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    gap: 8,
+  },
+  pointsRateExplainText: {
+    fontSize: 12,
+    color: '#92400e',
+    flex: 1,
+    lineHeight: 17,
+  },
+  expiryAlertCard: {
+    backgroundColor: '#fff7ed',
+    borderWidth: 1.5,
+    borderColor: '#fed7aa',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#ea580c',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 8px rgba(15, 23, 42, 0.06)" } : {}),
+  },
+  expiryAlertHeader: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  expiryAlertIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ffedd5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expiryBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 3,
+  },
+  expiryAlertBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ea580c',
+    backgroundColor: '#ffedd5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  expiryAlertDays: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#dc2626',
+  },
+  expiryAlertTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#9a3412',
+    marginBottom: 4,
+  },
+  expiryAlertSubtitle: {
+    fontSize: 12,
+    color: '#7c2d12',
+    lineHeight: 17,
+  },
+  expiryAlertActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ea580c',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 6,
+  },
+  expiryAlertActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  howToRedeemCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 20,
+  },
+  howToRedeemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 10,
+  },
+  stepItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 8,
+  },
+  stepCircleNum: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#0284c7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  stepCircleNumText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  stepItemText: {
+    fontSize: 12,
+    color: '#475569',
+    flex: 1,
+    lineHeight: 18,
   },
 });

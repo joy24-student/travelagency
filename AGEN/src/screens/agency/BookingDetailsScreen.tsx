@@ -16,6 +16,10 @@ import { COLORS, TYPOGRAPHY } from "../../App";
 import { Card, Button, Badge, ListItem } from "../ui/UIComponents";
 import { agencyBookingsService } from "../../services/agencyService";
 import { useAuth } from "../../hooks/useAuth";
+import PdfExportModal from "./PdfExportModal";
+import { useScreenCollaboration } from "../../hooks/useScreenCollaboration";
+import { APP_EVENTS } from "../../services/events/appEventBus";
+import { useTranslation } from "react-i18next";
 
 type BookingsStackParamList = {
   BookingsList: undefined;
@@ -46,6 +50,7 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [pdfModalVisible, setPdfModalVisible] = useState(false);
   const [booking, setBooking] = useState<BookingDetail>({
     id: bookingId,
     tourName: "Bali Explorer Package",
@@ -62,6 +67,41 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   });
 
   const [editData, setEditData] = useState(booking);
+  const { t } = useTranslation();
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = React.useCallback((msg: string) => {
+    setToastMessage(msg);
+    const timer = setTimeout(() => {
+      setToastMessage((cur) => (cur === msg ? null : cur));
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useScreenCollaboration(
+    APP_EVENTS.BOOKING_STATUS_CHANGED,
+    React.useCallback(
+      (payload) => {
+        if (!payload?.bookingId) return;
+        if (payload.bookingId === bookingId) {
+          const mappedStatus: "confirmed" | "pending" | "completed" | "cancelled" =
+            payload.currentStatus === "confirmed" ||
+            payload.currentStatus === "completed" ||
+            payload.currentStatus === "cancelled"
+              ? payload.currentStatus
+              : "pending";
+          setBooking((prev) => ({ ...prev, status: mappedStatus }));
+          setEditData((prev) => ({ ...prev, status: mappedStatus }));
+          const statusLabel = t(payload.currentStatus, {
+            defaultValue: payload.currentStatus,
+          });
+          showToast(t("bookingStatusUpdated", { status: statusLabel }));
+        }
+      },
+      [bookingId, t, showToast]
+    ),
+    { replayLast: true, screenId: "AgencyBookingDetailsScreen" }
+  );
 
   React.useEffect(() => {
     loadBookingDetails();
@@ -114,6 +154,12 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   if (loading) {
     return (
       <View style={styles.container}>
+      {toastMessage && (
+        <View style={styles.floatingToast}>
+          <MaterialCommunityIcons name="information" size={18} color="#6366F1" />
+          <Text style={styles.floatingToastText}>{toastMessage}</Text>
+        </View>
+      )}
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
@@ -121,6 +167,12 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      {toastMessage && (
+        <View style={styles.floatingToast}>
+          <MaterialCommunityIcons name="information" size={18} color="#6366F1" />
+          <Text style={styles.floatingToastText}>{toastMessage}</Text>
+        </View>
+      )}
       {/* Header */}
       <LinearGradient
         colors={[COLORS.primary, COLORS.secondary]}
@@ -272,8 +324,14 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <Button
-            title="Send Confirmation"
+            title="Export Branded PDF"
             variant="primary"
+            onPress={() => setPdfModalVisible(true)}
+            icon="document-text-outline"
+          />
+          <Button
+            title="Send Confirmation"
+            variant="outline"
             onPress={() => {}}
             icon="mail"
           />
@@ -427,6 +485,54 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Branded PDF Export Studio */}
+      <PdfExportModal
+        visible={pdfModalVisible}
+        onClose={() => setPdfModalVisible(false)}
+        bookingData={{
+          bookingReference: booking.id,
+          tripTitle: booking.tourName,
+          destination: booking.location,
+          traveler: {
+            leadPassengerName: booking.customer,
+            contactEmail: booking.email,
+            contactPhone: booking.phone,
+            numberOfGuests: booking.guests,
+            specialRequests: booking.specialRequests,
+          },
+          paymentReceipt: {
+            receiptNumber: `RCPT-${booking.id}`,
+            invoiceDate: booking.date,
+            paymentMethod: "Bank Wire & Online Gateway",
+            transactionId: `TXN-${booking.id}`,
+            paymentStatus:
+              booking.status === "confirmed" ? "Paid in Full" : "Due",
+            currency: "USD",
+            currencySymbol: "$",
+            items: [
+              {
+                description: `${booking.tourName} (Booking for ${booking.guests} Guests)`,
+                quantity: booking.guests,
+                unitPrice: booking.amount / (booking.guests || 1),
+                total: booking.amount,
+              },
+            ],
+            subtotal: booking.amount,
+            taxesAndFees: Math.round(booking.amount * 0.05),
+            totalAmount: booking.amount + Math.round(booking.amount * 0.05),
+            amountPaid:
+              booking.status === "confirmed"
+                ? booking.amount + Math.round(booking.amount * 0.05)
+                : 0,
+            balanceDue:
+              booking.status === "confirmed"
+                ? 0
+                : booking.amount + Math.round(booking.amount * 0.05),
+            notes: booking.notes,
+          },
+        }}
+      />
     </View>
   );
 }
@@ -581,6 +687,31 @@ const styles = StyleSheet.create({
   },
   multilineInput: {
     textAlignVertical: "top",
+  },
+  floatingToast: {
+    position: "absolute",
+    top: 50,
+    alignSelf: "center",
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#6366F1",
+    zIndex: 9999,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  floatingToastText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
   },
   modalActions: {
     gap: 12,

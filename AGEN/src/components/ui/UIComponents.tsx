@@ -16,6 +16,13 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { COLORS, TYPOGRAPHY } from "../../App";
+import { GlassView } from "../../../../src/components/ui/GlassView";
+export { GlassView };
+import {
+  Button as CoreButton,
+  ButtonVariant as CoreButtonVariant,
+  ButtonSize as CoreButtonSize,
+} from "../../../../src/components/ui/Button";
 
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
@@ -44,6 +51,17 @@ export const Card: React.FC<CardProps> = ({ children, style, gradient }) => {
 
   return <View style={[styles.card, style]}>{children}</View>;
 };
+
+export const GlassCard: React.FC<CardProps & { intensity?: number; tint?: "light" | "dark" }> = ({
+  children,
+  style,
+  intensity = 20,
+  tint = "dark",
+}) => (
+  <GlassView intensity={intensity} tint={tint} style={[styles.card, style]}>
+    {children}
+  </GlassView>
+);
 
 export const GradientCard: React.FC<CardProps> = ({ children, style }) => (
   <LinearGradient
@@ -158,43 +176,31 @@ export const Button: React.FC<ButtonProps> = ({
   icon,
   style,
 }) => {
-  const buttonStyles = [
-    styles.button,
-    styles[`button_${size}`],
-    styles[`button_${variant}`],
-    disabled && styles.buttonDisabled,
-    style,
-  ];
-
-  const textStyles = [
-    styles.buttonText,
-    styles[`buttonText_${size}`],
-    variant === "outline" && { color: COLORS.primary },
-  ];
+  const sizeMap: Record<string, CoreButtonSize> = {
+    small: "sm",
+    medium: "md",
+    large: "lg",
+  };
+  const iconNode = icon ? (
+    <Ionicons
+      name={icon as React.ComponentProps<typeof Ionicons>["name"]}
+      size={size === "small" ? 14 : 16}
+      color={variant === "outline" ? COLORS.primary : "white"}
+      style={{ marginEnd: 8 }}
+    />
+  ) : undefined;
 
   return (
-    <TouchableOpacity
-      style={buttonStyles}
+    <CoreButton
+      label={title}
       onPress={onPress}
-      disabled={disabled || loading}
-      activeOpacity={0.7}
-    >
-      {loading ? (
-        <ActivityIndicator color="white" size="small" />
-      ) : (
-        <View style={styles.buttonContent}>
-          {icon && (
-            <Ionicons
-              name={icon as React.ComponentProps<typeof Ionicons>["name"]}
-              size={size === "small" ? 14 : 16}
-              color={variant === "outline" ? COLORS.primary : "white"}
-              style={{ marginRight: 8 }}
-            />
-          )}
-          <Text style={textStyles}>{title}</Text>
-        </View>
-      )}
-    </TouchableOpacity>
+      variant={variant as CoreButtonVariant}
+      size={sizeMap[size] || "md"}
+      loading={loading}
+      disabled={disabled}
+      leftIcon={iconNode}
+      style={style}
+    />
   );
 };
 
@@ -434,7 +440,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
 
   statLabel: {
@@ -578,7 +584,7 @@ const styles = StyleSheet.create({
     backgroundColor: `${COLORS.secondary}15`,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
 
   listItemContent: {
@@ -598,7 +604,7 @@ const styles = StyleSheet.create({
   },
 
   listItemArrow: {
-    marginLeft: 8,
+    marginStart: 8,
   },
 
   // Section Header Styles
@@ -639,7 +645,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
 
   activityContent: {

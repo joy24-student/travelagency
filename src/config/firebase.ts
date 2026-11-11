@@ -1,12 +1,24 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 
+const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+const storageBucket = process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET;
+const messagingSenderId = process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
+const appId = process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
+
+if (!apiKey || !projectId) {
+  throw new Error(
+    "Missing required Firebase configuration!\n" +
+    "Please define EXPO_PUBLIC_FIREBASE_API_KEY and EXPO_PUBLIC_FIREBASE_PROJECT_ID in your .env file."
+  );
+}
+
 export const firebaseConfig = {
-  apiKey: "AIzaSyDbeyALUsZRIQCH6P_v4wmUACnu955xY1Y",
-  projectId: "swapnojatra-c04a0",
-  storageBucket: "swapnojatra-c04a0.firebasestorage.app",
-  messagingSenderId: "560123613595",
-  appId: "1:560123613595:android:b0ebd64bc0c981677d513e",
+  apiKey,
+  projectId,
+  storageBucket: storageBucket || `${projectId}.appspot.com`,
+  messagingSenderId: messagingSenderId || "",
+  appId: appId || "",
 };
 
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-

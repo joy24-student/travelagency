@@ -1,3 +1,4 @@
+import { toast } from "../../src/components/ui/Toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
 import { useState, useRef, useEffect } from "react";
@@ -9,14 +10,27 @@ import { Ionicons } from "@expo/vector-icons";
 import { emailOnlySchema, EmailOnlyFormValues } from "../../src/auth/schemas";
 import { AuthTextField } from "../../src/components/AuthTextField";
 import { authService } from "../../src/services/auth";
+import { OTPInput, PasswordStrengthMeter } from "../../src/components/ui";
 
 const TRIP_BLUE = "#3166ee";
 
+function maskEmail(email: string): string {
+  if (!email || !email.includes("@")) return email || "";
+  const parts = email.split("@");
+  const first = parts[0].charAt(0);
+  return `${first}***@${parts[1]}`;
+}
+
 export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [otpModalVisible, setOtpModalVisible] = useState(false);
   const [userEmail, setUserEmail] = useState("");
-  const [otpValue, setOtpValue] = useState(['', '', '', '', '', '', '', '']);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpLength, setOtpLength] = useState<6 | 8>(8);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +39,7 @@ export default function ForgotPasswordScreen() {
   const [canResend, setCanResend] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const resendRotateAnim = useRef(new Animated.Value(0)).current;
-  const otpRefs = useRef<TextInput[]>([]);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   // Modal Animation and Pan Logic
   const pan = useRef(new Animated.ValueXY()).current;
@@ -109,11 +123,12 @@ export default function ForgotPasswordScreen() {
     if (!canResend) return;
     
     setLoading(true);
+    setOtpError(null);
     try {
       await authService.resetPassword(userEmail);
       setResendTimer(60);
       setCanResend(false);
-      setOtpValue(['', '', '', '', '', '', '', '']);
+      setOtpCode("");
       
       Animated.timing(resendRotateAnim, {
         toValue: 1,
@@ -121,9 +136,9 @@ export default function ForgotPasswordScreen() {
         useNativeDriver: true,
       }).start(() => resendRotateAnim.setValue(0));
       
-      Alert.alert("OTP Sent", "A new code has been sent to your email.");
+      toast.success("একটি নতুন কোড আপনার ইমেইলে পাঠানো হয়েছে।");
     } catch (error) {
-      Alert.alert("Error", "Failed to resend OTP. Please try again.");
+      setOtpError("OTP পুনরায় পাঠাতে সমস্যা হয়েছে। কিছুক্ষণ পর চেষ্টা করুন।");
     } finally {
       setLoading(false);
     }
@@ -131,63 +146,50 @@ export default function ForgotPasswordScreen() {
 
   const onSubmit = handleSubmit(async ({ email }) => {
     setLoading(true);
+    setFormError(null);
     try {
       await authService.resetPassword(email);
       setUserEmail(email);
+      setOtpCode("");
       setOtpModalVisible(true);
-      Alert.alert(
-        "OTP Sent",
-        "Check your email for the verification code.",
-      );
     } catch (error) {
-      Alert.alert(
-        "Recovery failed",
-        error instanceof Error ? error.message : "Please try again.",
+      setFormError(
+        error instanceof Error ? error.message : "পাসওয়ার্ড রিকভারি সম্ভব হয়নি। আবার চেষ্টা করুন।"
       );
     } finally {
       setLoading(false);
     }
   });
 
-  const handleOtpChange = (val: string, index: number) => {
-    const nextOtp = [...otpValue];
-    nextOtp[index] = val;
-    setOtpValue(nextOtp);
-    if (val && index < 7) {
-      otpRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !otpValue[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  };
-
   const handleVerifyAndReset = async () => {
-    const token = otpValue.join("").trim();
-    
-    if (token.length < 1) {
-      Alert.alert("Error", "Please enter the verification code.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match.");
-      return;
+    const token = otpCode.trim();
+    setOtpError(null);
+    setPasswordError(null);
+    setConfirmError(null);
+
+    let hasError = false;
+    if (token.length < 6) {
+      setOtpError("Please enter the complete verification code.");
+      hasError = true;
     }
     if (newPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters.");
-      return;
+      setPasswordError("Password must be at least 6 characters.");
+      hasError = true;
     }
+    if (newPassword !== confirmPassword) {
+      setConfirmError("Passwords do not match.");
+      hasError = true;
+    }
+    if (hasError) return;
 
     setLoading(true);
     try {
       await authService.verifyPasswordResetOtp(userEmail, token, newPassword);
-      Alert.alert("Success", "Password reset successfully!");
+      toast.success("Password reset successfully!");
       setOtpModalVisible(false);
       router.push("/(auth)/login");
     } catch (error) {
-      Alert.alert("Error", error instanceof Error ? error.message : "Invalid code or password reset failed.");
+      setOtpError(error instanceof Error ? error.message : "Invalid code or password reset failed.");
     } finally {
       setLoading(false);
     }
@@ -239,7 +241,18 @@ export default function ForgotPasswordScreen() {
               label="Email Address"
               name="email"
               placeholder="Enter your registered email"
+              autoComplete="email"
+              textContentType="emailAddress"
+              returnKeyType="done"
+              onSubmitEditing={onSubmit}
             />
+
+            {formError && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginVertical: 8 }}>
+                <Ionicons name="alert-circle" size={16} color="#ef4444" />
+                <Text style={{ color: "#ef4444", fontSize: 13, fontWeight: "500" }}>{formError}</Text>
+              </View>
+            )}
 
             <Pressable 
               style={[styles.actionButton, loading && styles.buttonDisabled]} 
@@ -275,31 +288,46 @@ export default function ForgotPasswordScreen() {
                   <Ionicons name="close" size={24} color="#111" />
                 </Pressable>
               </View>
-              <ScrollView contentContainerStyle={styles.modalForm} bounces={false}>
+              <ScrollView
+                contentContainerStyle={styles.modalForm}
+                bounces={false}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
                 <Text style={styles.modalDescription}>
-                  Enter the code sent to {userEmail}
+                  Enter the {otpLength}-digit code sent to {maskEmail(userEmail)}
                 </Text>
                 
-                <View style={styles.otpInputContainer}>
-                  {otpValue.map((digit, i) => (
-                    <TextInput
-                      key={i}
-                      ref={(el) => { otpRefs.current[i] = el!; }}
-                      style={styles.otpInput}
-                      keyboardType="number-pad"
-                      maxLength={1}
-                      value={digit}
-                      onChangeText={(val) => handleOtpChange(val, i)}
-                      onKeyPress={(e) => handleOtpKeyPress(e, i)}
-                      autoFocus={i === 0}
-                      selectTextOnFocus
-                    />
-                  ))}
+                <OTPInput
+                  length={otpLength}
+                  value={otpCode}
+                  onChangeText={(val) => {
+                    setOtpCode(val);
+                    if (otpError) setOtpError(null);
+                  }}
+                  error={otpError}
+                  supportsAlpha={true}
+                  autoFocus
+                />
+
+                <View style={styles.codeFormatToggleRow}>
+                  <Pressable
+                    onPress={() => {
+                      setOtpLength((prev) => (prev === 8 ? 6 : 8));
+                      setOtpCode("");
+                      setOtpError(null);
+                    }}
+                    style={styles.codeFormatToggleBtn}
+                  >
+                    <Text style={styles.codeFormatToggleText}>
+                      {otpLength === 8 ? "Need 6-digit input? Tap here" : "Need 8-digit input? Tap here"}
+                    </Text>
+                  </Pressable>
                 </View>
 
                 <View style={styles.timerRow}>
                   {canResend ? (
-                    <Pressable onPress={handleResendOtp} style={styles.resendBtn} disabled={loading}>
+                    <Pressable onPress={handleResendOtp} style={[styles.resendBtn, loading && { opacity: 0.5 }]} disabled={loading}>
                       <Animated.View style={{
                         transform: [{
                           rotate: resendRotateAnim.interpolate({
@@ -321,14 +349,24 @@ export default function ForgotPasswordScreen() {
                   <Text style={styles.label}>New Password</Text>
                   <View style={styles.passwordInputWrapper}>
                     <TextInput
-                      style={styles.passwordInput}
+                      style={[styles.passwordInput, passwordError && styles.passwordInputError]}
                       placeholder="Enter new password"
+                      placeholderTextColor="#9ca3af"
                       secureTextEntry={!showPassword}
                       value={newPassword}
-                      onChangeText={setNewPassword}
+                      onChangeText={(t) => { setNewPassword(t); if (passwordError) setPasswordError(null); }}
+                      autoComplete="new-password"
+                      textContentType="newPassword"
+                      returnKeyType="next"
+                      onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+                      accessible
+                      accessibilityLabel="New Password"
                     />
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={showPassword ? "Hide password" : "Show password"}
                       onPress={() => setShowPassword(!showPassword)}
+                      hitSlop={8}
                       style={styles.eyeIcon}
                     >
                       <Ionicons
@@ -338,20 +376,38 @@ export default function ForgotPasswordScreen() {
                       />
                     </Pressable>
                   </View>
+                  <PasswordStrengthMeter password={newPassword} />
+                  {passwordError && (
+                    <View style={styles.inlineErrorRow}>
+                      <Ionicons name="alert-circle" size={14} color="#ef4444" />
+                      <Text style={styles.inlineErrorText}>{passwordError}</Text>
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>Confirm Password</Text>
                   <View style={styles.passwordInputWrapper}>
                     <TextInput
-                      style={styles.passwordInput}
+                      ref={confirmPasswordRef}
+                      style={[styles.passwordInput, confirmError && styles.passwordInputError]}
                       placeholder="Confirm new password"
+                      placeholderTextColor="#9ca3af"
                       secureTextEntry={!showConfirmPassword}
                       value={confirmPassword}
-                      onChangeText={setConfirmPassword}
+                      onChangeText={(t) => { setConfirmPassword(t); if (confirmError) setConfirmError(null); }}
+                      autoComplete="new-password"
+                      textContentType="newPassword"
+                      returnKeyType="done"
+                      onSubmitEditing={handleVerifyAndReset}
+                      accessible
+                      accessibilityLabel="Confirm Password"
                     />
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={showConfirmPassword ? "Hide password" : "Show password"}
                       onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      hitSlop={8}
                       style={styles.eyeIcon}
                     >
                       <Ionicons
@@ -361,6 +417,12 @@ export default function ForgotPasswordScreen() {
                       />
                     </Pressable>
                   </View>
+                  {confirmError && (
+                    <View style={styles.inlineErrorRow}>
+                      <Ionicons name="alert-circle" size={14} color="#ef4444" />
+                      <Text style={styles.inlineErrorText}>{confirmError}</Text>
+                    </View>
+                  )}
                 </View>
 
                 <Pressable 
@@ -398,12 +460,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 80,
     paddingVertical: 4,
-    marginLeft: -8,
+    marginStart: -8,
   },
   backButtonText: {
     fontSize: 17,
     color: TRIP_BLUE,
-    marginLeft: -6,
+    marginStart: -6,
   },
   logoContainer: {
     flex: 1,
@@ -518,7 +580,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  codeFormatToggleRow: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  codeFormatToggleBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: '#eff6ff',
+  },
+  codeFormatToggleText: {
+    fontSize: 12,
+    color: TRIP_BLUE,
+    fontWeight: '600',
   },
   otpInputContainer: {
     flexDirection: "row",
@@ -554,6 +631,27 @@ const styles = StyleSheet.create({
     borderColor: "#d1d5db",
     borderRadius: 8,
     backgroundColor: "#f9fafb",
+  },
+  inlineErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingHorizontal: 4,
+  },
+  inlineErrorText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  passwordInputError: {
+    borderColor: '#ef4444',
+    backgroundColor: '#fef2f2',
   },
   passwordInput: {
     flex: 1,

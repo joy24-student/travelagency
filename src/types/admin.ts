@@ -186,6 +186,9 @@ export interface AdminActivityLog {
   module: string;
   entity_type?: string;
   entity_id?: string;
+  resource_type?: string;
+  resource_id?: string;
+  description?: string;
   details?: Record<string, any>;
   ip_address?: string;
   user_agent?: string;
@@ -450,12 +453,22 @@ export interface CommunityModeration {
 export interface PromoCode {
   id: string;
   code: string;
+  title?: string;
+  description?: string;
   discount_type: "percentage" | "fixed";
   discount_value: number;
+  discount_amount?: number;
+  min_spend?: number;
+  min_order_value?: number;
+  max_discount?: number;
+  applicable_category?: string;
   max_usage?: number;
+  usage_limit?: number;
   current_usage: number;
+  used_count?: number;
   start_date: string;
   end_date: string;
+  expires_at?: string;
   is_active: boolean;
   created_by?: string;
   created_at: string;
@@ -486,10 +499,17 @@ export interface MarketingCampaign {
 export interface Advertisement {
   id: string;
   ad_name: string;
+  title?: string;
+  subtitle?: string;
+  badge_text?: string;
+  button_text?: string;
   ad_type: AdType;
+  placement?: string;
   advertiser_id?: string;
   content_url?: string;
+  target_url?: string;
   media_url?: string;
+  banner_url?: string;
   media_path?: string;
   target_audience?: Record<string, any>;
   start_date: string;
@@ -503,6 +523,38 @@ export interface Advertisement {
   created_by?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ScheduledNotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  channel: "push" | "in_app" | "email" | "sms";
+  target_audience: "all" | "travelers" | "agencies" | "inactive" | "vip";
+  deep_link?: string;
+  scheduled_time: string;
+  status: "scheduled" | "sent" | "cancelled" | "failed";
+  sent_at?: string;
+  sent_count?: number;
+  click_count?: number;
+  created_by?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface DynamicAppConfig {
+  app_hero_title: string;
+  app_hero_subtitle: string;
+  app_announcement_ticker: string;
+  app_announcement_enabled: boolean;
+  app_default_commission_rate: number;
+  app_surge_pricing_enabled: boolean;
+  app_surge_multiplier_max: number;
+  app_cancellation_free_hours: number;
+  app_cancellation_penalty_rate: number;
+  app_auto_approve_agencies: boolean;
+  app_maintenance_mode: boolean;
+  app_maintenance_message: string;
 }
 
 // ============================================================================

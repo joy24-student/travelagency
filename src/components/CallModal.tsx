@@ -12,12 +12,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { Video, ResizeMode } from "../utils/safeExpoAv";
+import { Video, ResizeMode, Audio } from "../utils/safeExpoAv";
+import { CallPermissionModal } from "./call/CallPermissionModal";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { FriendProfile } from "../services/repositories/friends";
 import { callsRepository } from "../services/repositories/calls";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export interface ActiveCallState {
   callId?: string;
@@ -46,7 +46,28 @@ export function CallModal({ callState, onClose }: CallModalProps) {
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(callType === "video");
   const [cameraFacing, setCameraFacing] = useState<CameraType>("front");
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
+
+  // Verify Audio and Video permissions
+  useEffect(() => {
+    let isMounted = true;
+    async function checkPermissions() {
+      try {
+        const mic = await Audio.checkMicrophonePermissionAsync();
+        const cam = callType === "video" ? permission?.granted ?? false : true;
+        if ((!mic.granted || !cam) && isMounted) {
+          setShowPermissionModal(true);
+        }
+      } catch (e) {
+        console.warn("[CallModal] Permission check error:", e);
+      }
+    }
+    checkPermissions();
+    return () => {
+      isMounted = false;
+    };
+  }, [callType, permission?.granted]);
 
   // Animation for ringing pulse
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -129,7 +150,12 @@ export function CallModal({ callState, onClose }: CallModalProps) {
   };
 
   return (
-    <Modal visible={!!callState} animationType="slide" transparent={false}>
+    <Modal
+      visible={!!callState}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={handleEndCall}
+    >
       <View style={styles.container}>
         {/* =================================================================== */}
         {/* VIDEO CALL MODE */}
@@ -382,6 +408,16 @@ export function CallModal({ callState, onClose }: CallModalProps) {
           </LinearGradient>
         )}
       </View>
+
+      <CallPermissionModal
+        visible={showPermissionModal}
+        callType={callType}
+        onGranted={() => setShowPermissionModal(false)}
+        onDenied={() => {
+          setShowPermissionModal(false);
+          onClose();
+        }}
+      />
     </Modal>
   );
 }
@@ -444,7 +480,7 @@ const styles = StyleSheet.create({
     top: 110,
     right: 16,
     width: 100,
-    height: 140,
+    minHeight: 140,
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 2,

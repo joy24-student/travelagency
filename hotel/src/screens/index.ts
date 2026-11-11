@@ -15,6 +15,7 @@ export { RoomManagementScreen } from "./RoomManagementScreen";
 export { SettingsScreen } from "./SettingsScreen";
 export { StaffManagementScreen } from "./StaffManagementScreen";
 export { TwoFactorAuthenticationScreen } from "./TwoFactorAuthenticationScreen";
+export { HotelScannerScreen } from "./ScannerScreen";
 
 // New Auth & Onboarding Screens
 export { SplashScreen } from "./SplashScreen";

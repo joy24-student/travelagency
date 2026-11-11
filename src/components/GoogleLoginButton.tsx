@@ -81,7 +81,7 @@ const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
       <TouchableOpacity 
         onPress={handlePress} 
         disabled={loading}
-        style={[styles.container, styles.fallbackButton, style]}
+        style={[styles.container, styles.fallbackButton, style, loading && { opacity: 0.6 }]}
       >
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -99,7 +99,7 @@ const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
     <TouchableOpacity 
       onPress={handlePress} 
       disabled={loading}
-      style={[styles.container, style]}
+      style={[styles.container, style, loading && { opacity: 0.6 }]}
     >
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     color: '#fff',
-    marginLeft: 10,
+    marginStart: 10,
     fontWeight: 'bold',
   },
   fallbackButton: {

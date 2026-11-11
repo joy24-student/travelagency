@@ -6,15 +6,19 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { styled } from 'nativewind';
+// nativewind v4 supports JSX className directly
 
-const StyledView = styled(View);
-const StyledText = styled(Text);
-const StyledTouchableOpacity = styled(TouchableOpacity);
+const StyledView = View;
+const StyledText = Text;
+const StyledTouchableOpacity = TouchableOpacity;
 
 const conversations = [
   {
@@ -64,11 +68,14 @@ const conversations = [
   },
 ];
 
-export function MessagesScreen() {
+export function MessagesScreen({ navigation }: any) {
   const [activeFilter, setActiveFilter] = useState('All');
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0b1326]">
+    <SafeAreaView className="flex-1 bg-[#0b1326]" edges={["top", "bottom"]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View className="flex-1">
       <StatusBar barStyle="light-content" />
 
       {/* Header */}
@@ -89,7 +96,7 @@ export function MessagesScreen() {
             <MaterialIcons name="search" size={20} color="#908fa0" />
           </View>
           <TextInput
-            className="w-full bg-[#131b2e] border border-[#464554] rounded-xl py-3 pl-12 pr-4 text-[#dae2fd]"
+            className="w-full bg-[#131b2e] border border-[#464554] rounded-xl py-3 ps-12 pe-4 text-[#dae2fd]"
             placeholder="Search messages..."
             placeholderTextColor="#908fa0"
           />
@@ -101,7 +108,7 @@ export function MessagesScreen() {
             <TouchableOpacity
               key={filter}
               onPress={() => setActiveFilter(filter)}
-              className={`mr-2 px-6 py-2 rounded-full border ${
+              className={`me-2 px-6 py-2 rounded-full border ${
                 activeFilter === filter
                   ? 'bg-[#c0c1ff] border-[#c0c1ff]'
                   : 'bg-[#222a3d] border-[#464554]/30'
@@ -125,6 +132,7 @@ export function MessagesScreen() {
               key={item.id}
               className="bg-[#1e293b]/40 border border-white/10 rounded-2xl p-4 flex-row items-center relative overflow-hidden"
               style={{ elevation: 2 }}
+              onPress={() => navigation?.navigate?.('chat', { guestName: item.name, avatar: item.avatar })}
             >
               {item.unread > 0 && (
                 <View className="absolute left-0 top-0 bottom-0 w-1 bg-[#c0c1ff]" />
@@ -144,10 +152,10 @@ export function MessagesScreen() {
                 )}
               </View>
 
-              <View className="flex-1 ml-4">
+              <View className="flex-1 ms-4">
                 <View className="flex-row justify-between items-center mb-1">
                   <View className="flex-row items-center">
-                    <Text className="text-base font-semibold text-[#dae2fd] mr-2">
+                    <Text className="text-base font-semibold text-[#dae2fd] me-2">
                       {item.name}
                     </Text>
                     {item.isVIP && (
@@ -181,6 +189,9 @@ export function MessagesScreen() {
       >
         <MaterialCommunityIcons name="square-edit-outline" size={28} color="#1000a9" />
       </TouchableOpacity>
+      </View>
+      </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import {
   Animated,
+  Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -11,39 +13,76 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useTheme } from "../theme";
+import { FONTS } from "../theme/typography";
+import { useLanguage } from "../context/LanguageContext";
+import { AudioMiniBar } from "../components/audio/AudioMiniBar";
+import { useAuthStore } from "../store/authStore";
+import { useNotificationStore } from "../store/notificationStore";
 
 // ─── Tab Config Matching Reference Screenshots & Clean Expo Router Paths ─────
-const TABS = [
-  { label: "Home", icon: "home" as const, outlineIcon: "home-outline" as const, route: "/(tabs)" },
+export const TABS = [
+  { label: "Home", name: "index", icon: "home" as const, outlineIcon: "home-outline" as const, route: "/(tabs)" },
   {
     label: "Messages",
+    name: "messages",
     icon: "mail" as const,
     outlineIcon: "mail-outline" as const,
     route: "/(tabs)/messages",
   },
   {
     label: "Community",
+    name: "community",
     icon: "people" as const,
     outlineIcon: "people-outline" as const,
     route: "/(tabs)/community",
   },
   {
     label: "My Trips",
+    name: "trips",
     icon: "briefcase" as const,
     outlineIcon: "briefcase-outline" as const,
     route: "/(tabs)/trips",
   },
   {
-    label: "Sign In",
+    label: "Account",
+    name: "account",
     icon: "person-circle" as const,
     outlineIcon: "person-circle-outline" as const,
     route: "/(tabs)/account",
   },
 ] as const;
 
+export function getLocalizedTabLabel(t: (k: string, d?: string) => string, label: string): string {
+  switch (label) {
+    case "Home":
+    case "index":
+      return t("nav.home", "Home");
+    case "Messages":
+    case "messages":
+      return t("nav.messages", "Messages");
+    case "Community":
+    case "community":
+      return t("nav.community", "Community");
+    case "My Trips":
+    case "trips":
+      return t("nav.trips", "My Trips");
+    case "Account":
+      return t("nav.account", "Account");
+    case "Sign In":
+      return t("nav.signIn", "Sign In");
+    case "account":
+      return t("nav.account", "Account");
+    case "Back to top":
+      return t("nav.backToTop", "Back to top");
+    default:
+      return t(label, label);
+  }
+}
+
 // ─── Floating AI Assistant Pill with Gold Mic Button ────────────────────────
-export function AiPill({ color }: { color?: string }) {
+export function AiPill({ color, extraBottomOffset = 0 }: { color?: string; extraBottomOffset?: number }) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -66,8 +105,8 @@ export function AiPill({ color }: { color?: string }) {
   }, []);
 
   const aiPillBottom = useMemo(
-    () => insets.bottom + 66,
-    [insets.bottom]
+    () => insets.bottom + 66 + extraBottomOffset,
+    [insets.bottom, extraBottomOffset]
   );
 
   return (
@@ -153,7 +192,177 @@ export function AiPill({ color }: { color?: string }) {
   );
 }
 
-// ─── Bottom Navigation Bar Matching Reference Screenshots ───────────────────
+// ─── Official Custom Bottom Tab Bar for React Navigation / Expo Router ────────
+export function CustomBottomTabBar(props: BottomTabBarProps) {
+  const [isAudioMiniBarVisible, setIsAudioMiniBarVisible] = useState(false);
+  const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+
+  const { state, descriptors, navigation, insets } = props;
+  const currentRoute = state.routes[state.index];
+  const currentOptions = descriptors[currentRoute.key]?.options;
+
+  // 1. Hide on deep screen if tabBarStyle has display: "none"
+  const tabBarStyle = currentOptions?.tabBarStyle as any;
+  if (tabBarStyle?.display === "none") {
+    return null;
+  }
+
+  // 2. Keyboard visibility awareness: automatically hide when keyboard is shown
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  if (keyboardVisible && currentOptions?.tabBarHideOnKeyboard !== false) {
+    return null;
+  }
+
+  // Visible routes only (ignore routes with href: null)
+  const visibleRoutes = state.routes.filter((route) => {
+    const options = descriptors[route.key]?.options as any;
+    return options?.href !== null;
+  });
+
+  const activeColor = theme.gold;
+  const inactiveColor = theme.navInactive;
+
+  return (
+    <>
+      <AiPill extraBottomOffset={isAudioMiniBarVisible ? 58 : 0} />
+      <View
+        style={[
+          styles.navContainer,
+          { backgroundColor: theme.navBg, borderTopColor: theme.navBorder },
+        ]}
+      >
+        <View
+          style={[
+            styles.bottomNav,
+            {
+              backgroundColor: theme.navBg,
+              paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+            },
+          ]}
+        >
+          <View style={styles.tabWrapper}>
+            {visibleRoutes.map((route) => {
+              const routeIndex = state.routes.indexOf(route);
+              const isFocused = state.index === routeIndex;
+              const options = descriptors[route.key]?.options;
+
+              // Find tab configuration or match by name
+              const tabConfig =
+                TABS.find((t) => t.name === route.name) || {
+                  label: options?.title ?? route.name,
+                  name: route.name,
+                  icon: "ellipse" as const,
+                  outlineIcon: "ellipse-outline" as const,
+                  route: `/(tabs)/${route.name}` as any,
+                };
+
+              const accountLabel = isAuthenticated ? "Account" : "Sign In";
+              const rawLabel = options?.title ?? (route.name === "account" ? accountLabel : tabConfig.label);
+              const displayLabel = getLocalizedTabLabel(t, rawLabel);
+              const badge = route.name === "messages"
+                ? (options?.tabBarBadge ?? (unreadCount > 0 ? unreadCount : undefined))
+                : options?.tabBarBadge;
+
+              const onPress = () => {
+                const event = navigation.emit({
+                  type: "tabPress",
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+
+                if (!isFocused && !event.defaultPrevented) {
+                  navigation.navigate(route.name);
+                }
+              };
+
+              const onLongPress = () => {
+                navigation.emit({
+                  type: "tabLongPress",
+                  target: route.key,
+                });
+              };
+
+              const isHomeTab = tabConfig.name === "index" || tabConfig.label === "Home";
+
+              return (
+                <Pressable
+                  key={route.key}
+                  style={styles.bottomItem}
+                  onPress={onPress}
+                  onLongPress={onLongPress}
+                  accessibilityRole="button"
+                  accessibilityState={isFocused ? { selected: true } : {}}
+                  accessibilityLabel={options?.tabBarAccessibilityLabel ?? displayLabel}
+                  hitSlop={8}
+                >
+                  <View style={styles.tabContentCenter}>
+                    <View style={styles.iconContainer}>
+                      <Ionicons
+                        name={isFocused ? tabConfig.icon : tabConfig.outlineIcon}
+                        size={22}
+                        color={isFocused ? activeColor : inactiveColor}
+                      />
+                      {badge != null && (
+                        <View style={styles.badgeContainer}>
+                          <Text style={styles.badgeText}>
+                            {typeof badge === "number" && badge > 99 ? "99+" : String(badge)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <Text
+                      style={[
+                        styles.bottomLabel,
+                        {
+                          color: isFocused ? activeColor : inactiveColor,
+                          fontWeight: isFocused ? "700" : "500",
+                          fontFamily: FONTS.bengali.medium,
+                          fontSize: 12,
+                        },
+                      ]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
+                      {displayLabel}
+                    </Text>
+
+                    {/* Prominent Gold Underline Bar for Active Tab */}
+                    {isFocused ? (
+                      <View style={[styles.activeUnderlineBar, { backgroundColor: activeColor }]} />
+                    ) : (
+                      <View style={styles.activeUnderlinePlaceholder} />
+                    )}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </>
+  );
+}
+
+// ─── Standalone Bottom Navigation Bar Matching Reference Screenshots ────────
 export function BottomNav({
   active,
   color,
@@ -167,7 +376,7 @@ export function BottomNav({
 }) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const activeColor = theme.gold;
+  const activeColor = color || theme.gold;
 
   return (
     <View
@@ -393,6 +602,25 @@ const styles = StyleSheet.create({
   iconContainer: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  badgeContainer: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    backgroundColor: "#EF4444",
+    borderRadius: 10,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
   },
   backToTopCircle: {
     width: 26,

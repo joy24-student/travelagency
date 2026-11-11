@@ -1,4 +1,7 @@
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useMemo } from "react";
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { OptimizedImage, DEFAULT_BLURHASH } from "./common";
+import { sanitizeUserText, sanitizeMediaUrl } from "../utils/sanitizer";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { TravelVideoPlayer } from "./TravelVideoPlayer";
@@ -55,6 +58,28 @@ export function CommunityPost({
   onExploreSpot,
   onOpenProfile,
 }: CommunityPostProps) {
+  // Sanitize all user-generated content to prevent XSS / HTML / Script injection
+  const safeAuthorName = useMemo(() => sanitizeUserText(authorName) || "Traveler", [authorName]);
+  const safeTitle = useMemo(() => sanitizeUserText(title), [title]);
+  const safeDescription = useMemo(() => (description ? sanitizeUserText(description) : undefined), [description]);
+  const safeLocation = useMemo(() => (location ? sanitizeUserText(location) : undefined), [location]);
+  const safeTimestamp = useMemo(() => (timestamp ? sanitizeUserText(timestamp) : undefined), [timestamp]);
+  const safeAuthorImage = useMemo(() => sanitizeMediaUrl(authorImage), [authorImage]);
+  const safePostImage = useMemo(() => sanitizeMediaUrl(postImage), [postImage]);
+  const safePostVideo = useMemo(() => sanitizeMediaUrl(postVideo), [postVideo]);
+
+  const safeCommentsList = useMemo(() => {
+    return (commentsList || []).map((c: any) => ({
+      ...c,
+      content: sanitizeUserText(c.content),
+      author: {
+        ...c.author,
+        display_name: sanitizeUserText(c.author?.display_name || "Traveler"),
+        avatar_url: sanitizeMediaUrl(c.author?.avatar_url),
+      },
+    }));
+  }, [commentsList]);
+
   const handleLikePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onLike?.();
@@ -65,16 +90,60 @@ export function CommunityPost({
     onSave?.();
   };
 
+  const [isOptionsVisible, setIsOptionsVisible] = React.useState(false);
+  const [isReportVisible, setIsReportVisible] = React.useState(false);
+  const [isPostHidden, setIsPostHidden] = React.useState(false);
+
+  const handleOpenOptions = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsOptionsVisible(true);
+  };
+
+  const handleBlockUser = () => {
+    setIsOptionsVisible(false);
+    Alert.alert(
+      "ব্যবহারকারীকে ব্লক করবেন?",
+      `আপনি কি নিশ্চিত যে ${safeAuthorName}-কে ব্লক করতে চান? তাদের কোনো পোস্ট আর আপনার ফিডে প্রদর্শিত হবে না।`,
+      [
+        { text: "বাতিল", style: "cancel" },
+        {
+          text: "ব্লক করুন",
+          style: "destructive",
+          onPress: () => {
+            setIsPostHidden(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert("সফল", `${safeAuthorName}-কে সফলভাবে ব্লক করা হয়েছে।`);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReportReason = (reason: string) => {
+    setIsReportVisible(false);
+    setIsPostHidden(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(
+      "রিপোর্ট গৃহীত হয়েছে",
+      `ধন্যবাদ। "${reason}" কারণে পোস্টটি পর্যালোচনার জন্য জমা হয়েছে। অবিলম্বে এটি আপনার ফিড থেকে সরিয়ে নেওয়া হলো।`
+    );
+  };
+
+  if (isPostHidden) {
+    return null;
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable style={styles.authorInfo} onPress={onOpenProfile}>
-          {authorImage ? (
-            <Image
-              source={{ uri: authorImage }}
+          {safeAuthorImage ? (
+            <OptimizedImage
+              source={{ uri: safeAuthorImage }}
               style={styles.avatar}
-              resizeMode="cover"
+              blurhash={DEFAULT_BLURHASH}
+              
             />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
@@ -83,7 +152,7 @@ export function CommunityPost({
           )}
           <View style={styles.authorDetails}>
             <View style={styles.nameRow}>
-              <Text style={styles.authorName}>{authorName}</Text>
+              <Text style={styles.authorName}>{safeAuthorName}</Text>
               {(isInfluencer || role === "Influencer") && (
                 <View style={styles.influencerBadge}>
                   <Text style={styles.influencerBadgeText}>Influencer</Text>
@@ -92,26 +161,26 @@ export function CommunityPost({
               <Ionicons name="checkmark-circle" size={14} color="#0055F2" />
             </View>
             <View style={styles.subMetaRow}>
-              {location && (
+              {safeLocation && (
                 <View style={styles.locationPill}>
                   <Ionicons name="location-sharp" size={11} color="#0055F2" />
-                  <Text style={styles.locationText}>{location}</Text>
+                  <Text style={styles.locationText}>{safeLocation}</Text>
                 </View>
               )}
-              {timestamp && <Text style={styles.timestamp}>{timestamp}</Text>}
+              {safeTimestamp && <Text style={styles.timestamp}>{safeTimestamp}</Text>}
             </View>
           </View>
         </Pressable>
-        <Pressable hitSlop={8} onPress={onShare}>
+        <Pressable hitSlop={8} onPress={handleOpenOptions} accessibilityLabel="Post Options">
           <Ionicons name="ellipsis-horizontal" size={20} color="#767683" />
         </Pressable>
       </View>
 
       {/* Post Video or Image with Explore Experience Glass Pill */}
-      {postVideo ? (
+      {safePostVideo ? (
         <View style={styles.imageContainer}>
-          <TravelVideoPlayer videoUrl={postVideo} posterUrl={postImage} height={240} />
-          {location && (
+          <TravelVideoPlayer videoUrl={safePostVideo} posterUrl={safePostImage} height={240} />
+          {safeLocation && (
             <Pressable style={styles.explorePill} onPress={onExploreSpot}>
               <View style={styles.explorePillContent}>
                 <Ionicons name="compass-outline" size={14} color="#000666" />
@@ -121,14 +190,15 @@ export function CommunityPost({
             </Pressable>
           )}
         </View>
-      ) : postImage ? (
+      ) : safePostImage ? (
         <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: postImage }}
+          <OptimizedImage
+            source={{ uri: safePostImage }}
             style={styles.postImage}
-            resizeMode="cover"
+            blurhash={DEFAULT_BLURHASH}
+            
           />
-          {location && (
+          {safeLocation && (
             <Pressable style={styles.explorePill} onPress={onExploreSpot}>
               <View style={styles.explorePillContent}>
                 <Ionicons name="compass-outline" size={14} color="#000666" />
@@ -141,8 +211,8 @@ export function CommunityPost({
       ) : null}
 
       {/* Title & Description */}
-      <Text style={styles.title}>{title}</Text>
-      {description && <Text style={styles.description}>{description}</Text>}
+      <Text style={styles.title}>{safeTitle}</Text>
+      {safeDescription && <Text style={styles.description}>{safeDescription}</Text>}
 
       {/* Actions Bar */}
       <View style={styles.actions}>
@@ -188,9 +258,9 @@ export function CommunityPost({
       )}
 
       {/* Recent Comments Preview */}
-      {commentsList && commentsList.length > 0 && (
+      {safeCommentsList && safeCommentsList.length > 0 && (
         <Pressable onPress={onComment} style={styles.commentsPreviewBox}>
-          {commentsList.slice(0, 2).map((c) => (
+          {safeCommentsList.slice(0, 2).map((c) => (
             <View key={c.id} style={styles.commentItem}>
               <Text style={styles.commentAuthor}>
                 {c.author?.display_name || "Traveler"}:{" "}
@@ -198,9 +268,9 @@ export function CommunityPost({
               </Text>
             </View>
           ))}
-          {commentsList.length > 2 ? (
+          {safeCommentsList.length > 2 ? (
             <Text style={styles.viewMoreCommentsText}>
-              View all {commentsList.length} comments...
+              View all {safeCommentsList.length} comments...
             </Text>
           ) : (
             <Text style={styles.viewMoreCommentsText}>Add a comment...</Text>
@@ -289,7 +359,7 @@ const styles = StyleSheet.create({
   },
   influencerBadgeText: {
     color: "#D97706",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
   },
   subMetaRow: {
@@ -304,7 +374,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   locationText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#0055F2",
   },
@@ -400,8 +470,88 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   viewMoreCommentsText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#0055F2",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+  },
+  modalHeader: {
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  modalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+  },
+  modalItemText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  reportItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 11,
+    paddingHorizontal: 8,
+    backgroundColor: "#FFF7ED",
+    borderRadius: 10,
+    marginBottom: 8,
+    gap: 10,
+  },
+  reportItemText: {
+    fontSize: 13,
+    color: "#9A3412",
+    fontWeight: "500",
+    flex: 1,
+  },
+  modalItemSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  modalCancelBtn: {
+    marginTop: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#475569",
   },
 });

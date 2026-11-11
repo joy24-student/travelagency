@@ -24,7 +24,10 @@ import { router } from "expo-router";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../utils/supabase";
 import { PromoExclusiveModal } from "../components/PromoExclusiveModal";
+import { DynamicHeroBanner } from "../components/home/DynamicHeroBanner";
+import { DestinationVitalsRow } from "../components/common/DestinationVitalsRow";
 import { useTheme } from "../theme";
+import { useAppConfig } from "../hooks/useAppConfig";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -38,6 +41,9 @@ const elasticPullDistance = (distance: number) =>
 export interface DynamicAd {
   id: string;
   title: string;
+  subtitle?: string;
+  badge_text?: string;
+  button_text?: string;
   banner_url: string;
   target_url: string;
   placement?: string;
@@ -101,11 +107,13 @@ const LOCATION_TAGS = [
 export function HomeScreen() {
   const { user } = useAuth();
   const { theme, isDark, toggleTheme } = useTheme();
+  const { heroTitle, heroSubtitle, announcementTicker, announcementEnabled } = useAppConfig();
 
   const [searchQuery, setSearchQuery] = useState("Bali");
   const [activeFeedTab, setActiveFeedTab] = useState<"discover" | "nearby">("discover");
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshCount, setRefreshCount] = useState(0);
   const [isArmed, setIsArmed] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -217,6 +225,7 @@ export function HomeScreen() {
     }).start();
 
     await fetchHomeScreenData();
+    setRefreshCount((prev) => prev + 1);
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -315,222 +324,22 @@ export function HomeScreen() {
         }
       >
         {/* ========================================================================= */}
-        {/* 1. HERO TOP BAR: Brand Header + Airplane Horizon Backdrop               */}
+        {/* 1. DYNAMIC HERO BANNER: Full Admin Control, Search Engine, Auto-Suggest   */}
         {/* ========================================================================= */}
-        <View style={styles.heroHeaderContainer}>
-          <LinearGradient
-            colors={
-              isDark
-                ? ["#030508", "#080E18", "#121927"]
-                : ["#F0F6FF", "#FFFFFF", "#FDF9F2"]
-            }
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={styles.heroHeaderGradient}
-          >
-            {/* Ambient Airplane and Horizon Vector Graphic */}
-            <View style={styles.airplaneHorizonOverlay} pointerEvents="none">
-              <View
-                style={[
-                  styles.earthHorizonCurve,
-                  {
-                    borderColor: isDark
-                      ? "rgba(229, 169, 60, 0.25)"
-                      : "rgba(212, 160, 61, 0.2)",
-                  },
-                ]}
-              />
-              {/* Contrail trail */}
-              <View
-                style={[
-                  styles.airplaneContrail,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(253, 230, 138, 0.4)"
-                      : "rgba(212, 160, 61, 0.35)",
-                  },
-                ]}
-              />
-              <Ionicons
-                name="airplane"
-                size={22}
-                color={isDark ? "#FDE68A" : "#D4A03D"}
-                style={styles.airplaneIcon}
-              />
-            </View>
+        <DynamicHeroBanner
+          refreshTrigger={refreshCount}
+          onSearchSubmit={(q) => {
+            setSearchQuery(q);
+            router.push({
+              pathname: "/screens/search" as any,
+              params: { q },
+            });
+          }}
+        />
 
-            {/* Top Bar Row: Trip.com Title + Theme Toggle + Gold Avatar */}
-            <View style={styles.headerTopRow}>
-              <View>
-                <Text
-                  style={[
-                    styles.brandTitle,
-                    { color: isDark ? "#FFFFFF" : "#111827" },
-                  ]}
-                >
-                  Trip.com
-                </Text>
-                <Text
-                  style={[
-                    styles.brandSubtitle,
-                    { color: isDark ? "#94A3B8" : "#64748B" },
-                  ]}
-                >
-                  Your global travel partner ✈
-                </Text>
-              </View>
-
-              <View style={styles.headerRightControls}>
-                {/* Theme Mode Switcher (Light / Dark Mode Toggle) */}
-                <Pressable
-                  style={[
-                    styles.themeToggleBtn,
-                    {
-                      backgroundColor: isDark ? "#161D2B" : "#FFFFFF",
-                      borderColor: isDark ? "#28344A" : "#E2E8F0",
-                    },
-                  ]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    toggleTheme();
-                  }}
-                >
-                  <Ionicons
-                    name={isDark ? "sunny" : "moon"}
-                    size={16}
-                    color={theme.gold}
-                  />
-                </Pressable>
-
-                {/* Golden Circular Avatar with letter "T" */}
-                <Pressable
-                  style={styles.goldAvatarCircle}
-                  onPress={() => router.push("/(tabs)/account" as any)}
-                >
-                  <LinearGradient
-                    colors={theme.goldGradient}
-                    style={styles.goldAvatarGradient}
-                  >
-                    <Text style={styles.goldAvatarText}>T</Text>
-                  </LinearGradient>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* ========================================================================= */}
-            {/* 2. FLOATING CATEGORY GRID CARD (Champagne Cream in Dark / White in Light) */}
-            {/* ========================================================================= */}
-            <View
-              style={[
-                styles.categoryGridCard,
-                {
-                  backgroundColor: isDark ? "#FFF9F0" : "#FFFFFF",
-                  borderColor: isDark ? "rgba(253, 230, 138, 0.4)" : "#F1F5F9",
-                  shadowColor: isDark ? "#000000" : "#D4A03D",
-                  shadowOpacity: isDark ? 0.35 : 0.08,
-                },
-              ]}
-            >
-              {/* Row 1 Primary Categories */}
-              <View style={styles.categoryRow}>
-                {[
-                  { label: "Hotels", icon: "bed", route: "/screens/search-stays" },
-                  { label: "Flights", icon: "airplane", route: "/screens/flights" },
-                  { label: "Flight + Hotel", icon: "business", route: "/screens/packages" },
-                  { label: "Trains", icon: "train", route: "/screens/trains" },
-                ].map((item) => (
-                  <Pressable
-                    key={item.label}
-                    style={styles.categoryCol}
-                    onPress={() => router.push(item.route as any)}
-                  >
-                    <View style={styles.goldIconCircle}>
-                      <Ionicons name={item.icon as any} size={22} color="#18181B" />
-                    </View>
-                    <Text style={styles.categoryLabelText} numberOfLines={1}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {/* Row 2 Secondary Categories */}
-              <View style={[styles.categoryRow, { marginTop: 14 }]}>
-                {[
-                  { label: "Vacation\nRentals", icon: "home", route: "/screens/hotels-homes" },
-                  { label: "Attractions\n& Tours", icon: "people", route: "/screens/recommended-tours" },
-                  { label: "Car Rentals", icon: "car", route: "/screens/car-rentals" },
-                  { label: "Package\nTours", icon: "earth", route: "/screens/packages" },
-                  { label: "+7 more", icon: "grid", isMore: true, route: "/screens/explore" },
-                ].map((item, i) => (
-                  <Pressable
-                    key={i}
-                    style={styles.categoryColSecondary}
-                    onPress={() => router.push(item.route as any)}
-                  >
-                    <View
-                      style={[
-                        styles.goldIconCircleSecondary,
-                        item.isMore && styles.moreIconCircleBg,
-                      ]}
-                    >
-                      {item.isMore ? (
-                        <Ionicons name="grid" size={15} color="#FFFFFF" />
-                      ) : (
-                        <Ionicons name={item.icon as any} size={18} color="#18181B" />
-                      )}
-                    </View>
-                    <Text style={styles.categoryLabelTextSecondary} numberOfLines={2}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          </LinearGradient>
-        </View>
-
-        {/* ========================================================================= */}
-        {/* 3. SEARCH BAR PILL: Full-width Champagne/White Pill with Gold Button     */}
-        {/* ========================================================================= */}
         <View style={styles.searchSectionWrap}>
-          <Pressable
-            style={[
-              styles.searchBarPill,
-              {
-                backgroundColor: isDark ? "#FFF8EE" : "#FFFFFF",
-                borderColor: isDark ? "rgba(229, 169, 60, 0.35)" : "#E2E8F0",
-                shadowColor: isDark ? "#000000" : "#D4A03D",
-              },
-            ]}
-            onPress={() =>
-              router.push({
-                pathname: "/screens/search" as any,
-                params: { q: searchQuery },
-              })
-            }
-          >
-            {/* Chat Bubble Icon with Dots */}
-            <View style={styles.chatIconBox}>
-              <Ionicons name="chatbubble-ellipses" size={18} color="#854D0E" />
-            </View>
-
-            {/* Destination Placeholder / Input */}
-            <Text style={styles.searchInputText}>{searchQuery}</Text>
-
-            {/* Circular Gold Search Button */}
-            <View style={styles.goldSearchBtn}>
-              <LinearGradient
-                colors={theme.goldGradient}
-                style={styles.goldSearchGradient}
-              >
-                <Ionicons name="search" size={18} color="#FFFFFF" />
-              </LinearGradient>
-            </View>
-          </Pressable>
-
           {/* ========================================================================= */}
-          {/* 4. LOCATION TAGS ROW: Clean Pill Buttons (with City Photos in Light Mode) */}
+          {/* 2. LOCATION TAGS ROW: Clean Pill Buttons (with City Photos in Light Mode) */}
           {/* ========================================================================= */}
           <ScrollView
             horizontal
@@ -571,9 +380,9 @@ export function HomeScreen() {
           <View style={styles.quickActionsGrid}>
             {[
               { label: "Deals", icon: "pricetag-outline", route: "deals" },
-              { label: "Events", icon: "calendar-outline", route: "/screens/events" },
+              { label: "Travel Buddy", icon: "people-outline", route: "/screens/travel-match" },
               { label: "Trip.Planner", icon: "flash-outline", route: "/screens/trip-planner" },
-              { label: "Trending", icon: "trending-up-outline", route: "/(tabs)/community" },
+              { label: "Launch & Bus", icon: "boat-outline", route: "/screens/bus-launch" },
             ].map((action) => (
               <Pressable
                 key={action.label}
@@ -613,6 +422,157 @@ export function HomeScreen() {
                 </Text>
               </Pressable>
             ))}
+          </View>
+
+          {/* Spotlight Cards: Travel Intelligence & 1-Click Itinerary Marketplace */}
+          <View style={{ flexDirection: "row", gap: 10, marginHorizontal: 16, marginTop: 14 }}>
+            <Pressable
+              style={{
+                flex: 1,
+                padding: 12,
+                borderRadius: 16,
+                backgroundColor: isDark ? "#1E293B" : "#EFF6FF",
+                borderWidth: 1,
+                borderColor: "#BFDBFE",
+              }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/screens/travel-intelligence" as any);
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Ionicons name="shield-checkmark" size={18} color="#287DFA" />
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#10B981" }} />
+              </View>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#FFFFFF" : "#1E3A8A", marginTop: 8 }}>
+                Travel Intelligence
+              </Text>
+              <Text style={{ fontSize: 11, color: isDark ? "#94A3B8" : "#3B82F6", marginTop: 2 }}>
+                Live disruption alerts & alternatives
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={{
+                flex: 1,
+                padding: 12,
+                borderRadius: 16,
+                backgroundColor: isDark ? "#1E293B" : "#FEF3C7",
+                borderWidth: 1,
+                borderColor: "#FDE68A",
+              }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/screens/explore-trips" as any);
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Ionicons name="sparkles" size={18} color="#D97706" />
+                <Text style={{ fontSize: 10, fontWeight: "800", color: "#B45309" }}>1-CLICK</Text>
+              </View>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#FFFFFF" : "#92400E", marginTop: 8 }}>
+                Explore Itineraries
+              </Text>
+              <Text style={{ fontSize: 11, color: isDark ? "#94A3B8" : "#B45309", marginTop: 2 }}>
+                Clone & customize complete trips
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* ========================================================================= */}
+          {/* AI INSIGHTS TODAY (Image 4 Curated AI Insights Pattern)                  */}
+          {/* ========================================================================= */}
+          <View style={{ marginHorizontal: 16, marginTop: 18 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="sparkles" size={15} color="#D97706" />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: isDark ? "#FFFFFF" : "#0F172A" }}>
+                  AI Insights Today
+                </Text>
+              </View>
+              <Text style={{ fontSize: 11, color: isDark ? "#94A3B8" : "#64748B" }}>
+                Updated 10m ago
+              </Text>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+              <Pressable
+                style={{
+                  width: 140,
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: isDark ? "#1E293B" : "#FEF3C7",
+                  borderWidth: 1,
+                  borderColor: isDark ? "rgba(245, 158, 11, 0.3)" : "#FDE68A",
+                }}
+                onPress={() => router.push("/screens/explore-trips" as any)}
+              >
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#F59E0B20", alignItems: "center", justifyContent: "center", marginBottom: 6 }}>
+                  <Ionicons name="flame" size={18} color="#D97706" />
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: isDark ? "#FFFFFF" : "#92400E" }}>
+                  Trending Spot
+                </Text>
+                <Text style={{ fontSize: 10, color: isDark ? "#94A3B8" : "#B45309", marginTop: 2 }}>
+                  Sajek Valley (+48% visits)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={{
+                  width: 140,
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: isDark ? "#1E293B" : "#ECFDF5",
+                  borderWidth: 1,
+                  borderColor: isDark ? "rgba(16, 185, 129, 0.3)" : "#A7F3D0",
+                }}
+                onPress={() => router.push("/screens/explore" as any)}
+              >
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#10B98120", alignItems: "center", justifyContent: "center", marginBottom: 6 }}>
+                  <Ionicons name="sunny" size={18} color="#059669" />
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: isDark ? "#FFFFFF" : "#065F46" }}>
+                  Weather Friendly
+                </Text>
+                <Text style={{ fontSize: 10, color: isDark ? "#94A3B8" : "#047857", marginTop: 2 }}>
+                  Cox's Bazar (Mild 24°C)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={{
+                  width: 140,
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: isDark ? "#1E293B" : "#EFF6FF",
+                  borderWidth: 1,
+                  borderColor: isDark ? "rgba(59, 130, 246, 0.3)" : "#BFDBFE",
+                }}
+                onPress={() => router.push("/screens/explore-trips" as any)}
+              >
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#287DFA20", alignItems: "center", justifyContent: "center", marginBottom: 6 }}>
+                  <Ionicons name="diamond" size={18} color="#1D4ED8" />
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: isDark ? "#FFFFFF" : "#1E40AF" }}>
+                  Hidden Gem
+                </Text>
+                <Text style={{ fontSize: 10, color: isDark ? "#94A3B8" : "#2563EB", marginTop: 2 }}>
+                  Tanguar Haor Silence
+                </Text>
+              </Pressable>
+            </ScrollView>
+
+            {/* Live Destination Vitals for Selected Region (Image 1 UX Pattern) */}
+            <View style={{ marginTop: 12 }}>
+              <DestinationVitalsRow
+                compact
+                temperature={{ value: "Cold 16°C", condition: "Chilly morning mist" }}
+                airQuality={{ aqi: 30, statusText: "Great" }}
+                safety={{ statusText: "100% Safe" }}
+                connectivity={{ statusText: "4G Active" }}
+              />
+            </View>
           </View>
 
           {/* ========================================================================= */}
@@ -655,7 +615,75 @@ export function HomeScreen() {
         {/* 7. FEATURED CARDS CAROUSEL: "Explore Asia" & "Trip.Tuesday" Verified Cards */}
         {/* ========================================================================= */}
         <View style={styles.cardsCarouselWrap}>
-          {/* Card 1: Explore Asia */}
+          {ads.length > 0 ? (
+            ads.map((ad, index) => (
+              <Pressable
+                key={ad.id || `ad-${index}`}
+                style={[
+                  styles.featuredCard,
+                  {
+                    borderColor: theme.cardBorder,
+                    shadowColor: isDark ? "#000" : "#94A3B8",
+                  },
+                ]}
+                onPress={() => router.push((ad.target_url || "/screens/explore") as any)}
+              >
+                <ImageBackground
+                  source={{
+                    uri: ad.banner_url || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800",
+                  }}
+                  style={styles.featuredCardBg}
+                  imageStyle={{ borderRadius: 20 }}
+                >
+                  <LinearGradient
+                    colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.85)"]}
+                    style={styles.featuredCardGradient}
+                  >
+                    <View style={styles.cardTopBadgeRow}>
+                      <View style={styles.featuredBadge}>
+                        <Text style={styles.featuredBadgeText}>
+                          {ad.badge_text || "FEATURED"}
+                        </Text>
+                      </View>
+                      <View style={styles.pageCounterPill}>
+                        <Text style={styles.pageCounterText}>
+                          {index + 1}/{ads.length}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.cardBottomContent}>
+                      <Text style={styles.exploreAsiaTitle} numberOfLines={1}>
+                        {ad.title}
+                      </Text>
+                      <Text style={styles.exploreAsiaSub} numberOfLines={2}>
+                        {ad.subtitle || "Special deals & handpicked journeys"}
+                      </Text>
+
+                      <Pressable
+                        style={[
+                          styles.viewDealsBtn,
+                          { backgroundColor: theme.ctaButtonBg },
+                        ]}
+                        onPress={() => router.push((ad.target_url || "/screens/explore") as any)}
+                      >
+                        <Text
+                          style={[
+                            styles.viewDealsBtnText,
+                            { color: theme.ctaButtonText },
+                          ]}
+                        >
+                          {ad.button_text || "View Deals →"}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </LinearGradient>
+                </ImageBackground>
+              </Pressable>
+            ))
+          ) : (
+            <>
+              {/* Card 1: Explore Asia */}
           <Pressable
             style={[
               styles.featuredCard,
@@ -784,6 +812,8 @@ export function HomeScreen() {
               </LinearGradient>
             </ImageBackground>
           </Pressable>
+            </>
+          )} 
         </View>
 
         {/* ========================================================================= */}

@@ -28,7 +28,7 @@ import {
 } from "@expo/vector-icons";
 import { supabase } from "@/utils/supabase";
 
-const { width } = Dimensions.get("window");
+
 
 interface AgenAgency {
   id: string;
@@ -552,7 +552,7 @@ export default function AgenAgencyManagementScreen() {
             onAction={handleAction}
           />
         )}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => item?.id ? String(item.id) : `agency-${index}`}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -728,7 +728,7 @@ export default function AgenAgencyManagementScreen() {
                 </View>
               </View>
             )}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => item?.id ? String(item.id) : `log-${index}`}
             contentContainerStyle={styles.listContent}
           />
         </View>
@@ -771,7 +771,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   searchIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   searchInput: {
     flex: 1,
@@ -820,7 +820,7 @@ const styles = StyleSheet.create({
   agencyAvatar: {
     width: 44,
     height: 44,
-    marginRight: 12,
+    marginEnd: 12,
   },
   avatarGradient: {
     flex: 1,
@@ -874,7 +874,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   verificationBadge: {
@@ -886,7 +886,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   verificationText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   metricsRow: {
@@ -903,7 +903,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     marginBottom: 4,
   },
@@ -1063,7 +1063,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 12,
+    marginEnd: 12,
     marginTop: 6,
   },
   logContent: {
@@ -1081,7 +1081,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   logTime: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
   },
 });

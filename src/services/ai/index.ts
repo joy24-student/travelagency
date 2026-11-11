@@ -1,5 +1,10 @@
-export { tripPlannerService } from "./tripPlanner";
-export { budgetPlannerService } from "./budgetPlanner";
+export { tripPlannerService, tripPlannerEngine, TripPlannerEngine } from "./tripPlanner";
+export {
+  budgetPlannerService,
+  calculateBudgetDistribution,
+  convertCurrency,
+  USD_TO_BDT_RATE,
+} from "./budgetPlanner";
 export { conciergeService } from "./concierge";
 export { routePlannerService } from "./routePlanner";
 export { travelAssistantService } from "./travelAssistant";
@@ -11,13 +16,45 @@ export {
   reviewAnalyzerService,
   groupMatcherService,
 } from "./aiExtensions";
+
+export {
+  GeminiProvider,
+  OpenAIProvider,
+  ClaudeProvider,
+  LLMProviderRegistry,
+  llmProviderRegistry,
+  aiProviderClient,
+} from "./providers";
+
+export {
+  defensiveParseTripPlan,
+  extractJsonString,
+  repairTruncatedJSON,
+  TripPlanZodSchema,
+} from "./defensiveParser";
+
+export { getCuratedFallbackItinerary } from "./fallbacks";
+
 export type {
   AIProvider,
-  AIResponse,
+  AIProviderId,
+  ILLMProvider,
+  LLMCompletionOptions,
+  LLMResponse,
   ChatMessage,
-  TripPlanRequest,
-  TripPlan,
+  AIResponse,
+  TravelStyle,
+  BudgetLevel,
+  Currency,
+  GeoCoordinates,
+  TripActivity,
+  TripMeal,
   TripDay,
+  BudgetCategoryBreakdown,
+  BudgetBreakdown,
+  TripPlan,
+  TripPlannerEngineRequest,
+  TripPlanRequest,
   BudgetPlanRequest,
   BudgetPlan,
   BudgetCategory,
@@ -28,7 +65,9 @@ export type {
   RouteSegment,
   AssistantMessage,
   AssistantSession,
+  TravelAssistantRequest,
 } from "./types";
+
 export type {
   DestinationFinderRequest,
   DestinationSuggestion,
@@ -43,3 +82,25 @@ export type {
   GroupMatchRequest,
   GroupMatch,
 } from "./aiExtensions";
+
+export {
+  weatherAdaptivePlanner,
+  calculateSolarPosition,
+  classifyActivity,
+  getDestinationGeo,
+  getWeatherForecastForTrip,
+  DESTINATION_COORDINATES,
+  DESTINATION_INDOOR_ALTERNATIVES,
+} from "./weatherAdaptivePlanner";
+
+export type {
+  HourlyForecast,
+  DayWeatherForecast,
+  SolarPosition,
+  ActivityClassification,
+  ScheduleModification,
+  WeatherAlertInfo,
+  WeatherOptimizationResult,
+  WeatherOptimizationOptions,
+} from "./weatherAdaptivePlanner";
+

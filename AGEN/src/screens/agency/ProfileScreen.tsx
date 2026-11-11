@@ -13,17 +13,17 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
-  SafeAreaView,
   Modal,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { COLORS, ProfileStackParamList } from '../../App';
 import { useAuth } from '../../hooks/useAuth';
 
-const { width } = Dimensions.get('window');
+
 
 const UI_COLORS = {
   background: '#0b1326',
@@ -200,6 +200,14 @@ export default function ProfileScreen({ navigation }: Props) {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Operational Settings</Text>
           <View style={[styles.glassList, { backgroundColor: isDarkMode ? UI_COLORS.glassBg : 'rgba(0,0,0,0.03)' }]}>
             <NavListItem
+              title="Earnings & Payouts"
+              subtitle="Balances, statements & tax invoices"
+              icon="payments"
+              color={UI_COLORS.secondary}
+              onPress={() => (navigation as any).navigate('Earnings')}
+            />
+            <View style={styles.separator} />
+            <NavListItem
               title="Bank Accounts"
               subtitle="Payout settings and withdrawal history"
               icon="account-balance"
@@ -339,7 +347,7 @@ const styles = StyleSheet.create({
   },
   content: { flex: 1 },
   heroSection: { height: 340, width: '100%', overflow: 'hidden' },
-  coverImage: { ...StyleSheet.absoluteFillObject, opacity: 0.5 },
+  coverImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: 0.5 },
   heroOverlay: { ...StyleSheet.absoluteFillObject },
   heroIdentity: {
     position: 'absolute',
@@ -408,7 +416,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    minWidth: (width - 44) / 2,
+    minWidth: (360 - 44) / 2,
     backgroundColor: UI_COLORS.glassBg,
     borderRadius: 16,
     padding: 16,
@@ -448,7 +456,7 @@ const styles = StyleSheet.create({
   },
   navTitle: { fontSize: 16, fontWeight: '700', color: 'white' },
   navSubtitle: { fontSize: 12, color: UI_COLORS.outline, marginTop: 2 },
-  separator: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginLeft: 76 },
+  separator: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginStart: 76 },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,7 +489,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    maxHeight: Dimensions.get('window').height * 0.85,
+    maxHeight: "85%",
   },
   modalHeader: {
     flexDirection: 'row',
@@ -510,7 +518,7 @@ const styles = StyleSheet.create({
   modalActionText: {
     fontSize: 16,
     color: 'white',
-    marginLeft: 12,
+    marginStart: 12,
     flex: 1,
   },
   modalIconBox: {

@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { COLORS } from "../../App";
+import { useScreenCollaboration } from "../../hooks/useScreenCollaboration";
+import { APP_EVENTS } from "../../services/events/appEventBus";
 
 interface Message {
   id: string;
@@ -145,6 +147,7 @@ export default function MessagesScreen({ navigation }: any) {
     name: string;
     online: boolean;
     size?: number;
+    avatarUrl?: string;
   }) => (
     <View style={[styles.avatarContainer, { width: size, height: size }]}>
       <View
@@ -390,7 +393,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceLight,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   headerAvatarText: {
     color: COLORS.text,
@@ -413,7 +416,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     gap: 12,
-    marginLeft: "auto",
+    marginStart: "auto",
   },
 
   iconButton: {
@@ -442,7 +445,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   searchIcon: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   searchInput: {
     flex: 1,
@@ -596,7 +599,7 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: COLORS.primary,
-    marginLeft: 8,
+    marginStart: 8,
   },
   noMessagesText: {
     textAlign: "center",

@@ -35,13 +35,17 @@ CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON public.user_settings(use
 
 ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS user_settings_all ON public.user_settings;
-CREATE POLICY user_settings_all ON public.user_settings
-  FOR ALL TO public
-  USING (true)
-  WITH CHECK (true);
+-- Revoke all access from anon
+REVOKE ALL ON public.user_settings FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_settings TO authenticated, service_role;
 
-GRANT ALL ON public.user_settings TO anon, authenticated, service_role;
+DROP POLICY IF EXISTS user_settings_all ON public.user_settings;
+DROP POLICY IF EXISTS "User settings isolated" ON public.user_settings;
+
+CREATE POLICY "User settings isolated" ON public.user_settings
+  FOR ALL TO authenticated
+  USING ((SELECT auth.uid()) = user_id OR public.is_admin())
+  WITH CHECK ((SELECT auth.uid()) = user_id OR public.is_admin());
 
 -- Create user_addresses table
 CREATE TABLE IF NOT EXISTS public.user_addresses (
@@ -63,12 +67,16 @@ CREATE INDEX IF NOT EXISTS idx_user_addresses_user_id ON public.user_addresses(u
 
 ALTER TABLE public.user_addresses ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS user_addresses_all ON public.user_addresses;
-CREATE POLICY user_addresses_all ON public.user_addresses
-  FOR ALL TO public
-  USING (true)
-  WITH CHECK (true);
+-- Revoke all access from anon
+REVOKE ALL ON public.user_addresses FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_addresses TO authenticated, service_role;
 
-GRANT ALL ON public.user_addresses TO anon, authenticated, service_role;
+DROP POLICY IF EXISTS user_addresses_all ON public.user_addresses;
+DROP POLICY IF EXISTS "User addresses isolated" ON public.user_addresses;
+
+CREATE POLICY "User addresses isolated" ON public.user_addresses
+  FOR ALL TO authenticated
+  USING ((SELECT auth.uid()) = user_id OR public.is_admin())
+  WITH CHECK ((SELECT auth.uid()) = user_id OR public.is_admin());
 
 NOTIFY pgrst, 'reload schema';

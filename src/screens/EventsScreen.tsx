@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
+import { Platform,
   ActivityIndicator,
   Image,
   Modal,
@@ -16,6 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../utils/supabase";
+import { RTLIcon } from "../components/ui";
 
 // Event Data Interface
 interface EventItem {
@@ -122,7 +123,7 @@ export function EventsScreen() {
           }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+          <RTLIcon name="arrow-back" size={24} color="#0F172A" />
         </TouchableOpacity>
 
         <View style={styles.searchBar}>
@@ -190,7 +191,7 @@ export function EventsScreen() {
                     name={tag.icon as any}
                     size={16}
                     color={isSelected ? "#FFFFFF" : "#1E293B"}
-                    style={{ marginRight: 6 }}
+                    style={{ marginEnd: 6 }}
                   />
                 ) : null}
                 <Text
@@ -328,7 +329,7 @@ export function EventsScreen() {
           >
             <View style={styles.gridCardHeader}>
               <Text style={styles.gridCardTitle}>My Subscriptions</Text>
-              <Ionicons name="chevron-forward" size={16} color="#64748B" />
+              <RTLIcon name="chevron-forward" size={16} color="#64748B" />
             </View>
 
             <View style={styles.subscriptionRow}>
@@ -353,7 +354,7 @@ export function EventsScreen() {
           >
             <View style={styles.gridCardHeader}>
               <Text style={styles.gridCardTitle}>Events Calendar</Text>
-              <Ionicons name="chevron-forward" size={16} color="#64748B" />
+              <RTLIcon name="chevron-forward" size={16} color="#64748B" />
             </View>
 
             <View style={styles.calendarPostersRow}>
@@ -385,7 +386,7 @@ export function EventsScreen() {
           <TouchableOpacity onPress={() => setSelectedTag("all")}>
             <View style={styles.showMoreRow}>
               <Text style={styles.showMoreText}>Show more</Text>
-              <Ionicons name="chevron-forward" size={16} color="#2563EB" />
+              <RTLIcon name="chevron-forward" size={16} color="#2563EB" />
             </View>
           </TouchableOpacity>
         </View>
@@ -641,7 +642,7 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: "#F59E0B",
-    marginLeft: 3,
+    marginStart: 3,
     marginTop: 8,
   },
   locationSelector: {
@@ -707,7 +708,7 @@ const styles = StyleSheet.create({
   },
   eventCard: {
     width: 185,
-    height: 275,
+    minHeight: 275,
     borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#0F172A",
@@ -727,7 +728,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#E11D48",
   },
@@ -854,6 +855,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 8,
     elevation: 1,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 2px 8px rgba(15, 23, 42, 0.03)" } : {}),
   },
   gridCardHeader: {
     flexDirection: "row",
@@ -923,6 +925,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.25)" } : {}),
   },
   floatingAiGradient: {
     width: "100%",

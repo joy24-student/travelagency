@@ -12,12 +12,12 @@ import {
   Animated,
   TouchableOpacity,
   Dimensions,
-  SafeAreaView,
   Platform,
   StatusBar,
   Modal,
   TextInput,
-} from "react-native";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   MaterialCommunityIcons,
   Ionicons,
@@ -28,7 +28,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS } from "../../App";
 import { Card, SectionHeader, Badge, ActivityItem } from "../ui/UIComponents";
 
-const { width } = Dimensions.get("window");
+
 
 const THEME = {
   dark: "#0B0E14",
@@ -53,7 +53,7 @@ interface Tour {
   location: string;
 }
 
-export default function OperationsScreen() {
+export default function OperationsScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form, setForm] = useState({
@@ -151,6 +151,13 @@ export default function OperationsScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Operations</Text>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#6366F1', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginRight: 8, gap: 6 }}
+            onPress={() => navigation?.navigate?.('Scanner')}
+          >
+            <MaterialCommunityIcons name="qrcode-scan" size={16} color="#FFFFFF" />
+            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Scanner</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.addScheduleBtn}
             onPress={() => setIsModalVisible(true)}
@@ -523,7 +530,7 @@ const styles = StyleSheet.create({
   },
 
   horizontalScroll: {
-    paddingRight: 20,
+    paddingEnd: 20,
     gap: 16,
   },
   tourCard: {
@@ -571,7 +578,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginLeft: "auto",
+    marginStart: "auto",
   },
   timerText: {
     fontSize: 12,
@@ -704,7 +711,7 @@ const styles = StyleSheet.create({
   activityTime: {
     fontSize: 10,
     color: THEME.textSecondary,
-    marginLeft: 10,
+    marginStart: 10,
   },
   modalOverlay: {
     flex: 1,

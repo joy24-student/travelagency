@@ -6,7 +6,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useResponsive } from "../hooks/useResponsive";
 
 type AuthScreenShellProps = {
   title: string;
@@ -21,14 +22,46 @@ export function AuthScreenShell({
   children,
   footer,
 }: AuthScreenShellProps) {
+  const insets = useSafeAreaInsets();
+  const { isTablet, isDesktop } = useResponsive();
+
   return (
     <SafeAreaView className="flex-1 bg-trip-bg">
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 16 : 0}
         className="flex-1"
       >
-        <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20 }}>
-          <View className="flex-1 justify-center">
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            padding: 20,
+            alignItems: isTablet || isDesktop ? "center" : "stretch",
+            justifyContent: "center",
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View
+            style={
+              isTablet || isDesktop
+                ? {
+                    width: "100%",
+                    maxWidth: 480,
+                    alignSelf: "center",
+                    backgroundColor: "#ffffff",
+                    borderRadius: 24,
+                    padding: 32,
+                    shadowColor: "#0f172a",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 16,
+                    elevation: 4,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 16px rgba(15, 23, 42, 0.08)" } : {}),
+                  }
+                : { flex: 1, justifyContent: "center" }
+            }
+          >
             <Text className="text-3xl font-extrabold text-trip-dark">
               {title}
             </Text>

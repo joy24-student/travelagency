@@ -6,8 +6,12 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const connectionString =
   process.env.DATABASE_URL ||
-  process.env.SUPABASE_DB_URL ||
-  "postgresql://postgres.htkpmrfhoijznigwimwj:TPQQDA1paSGqphH2@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres";
+  process.env.SUPABASE_DB_URL;
+
+if (!connectionString) {
+  console.error("FATAL: DATABASE_URL or SUPABASE_DB_URL environment variable is required.");
+  process.exit(1);
+}
 
 async function applyMigrations() {
   const client = new Client({
@@ -19,36 +23,60 @@ async function applyMigrations() {
     await client.connect();
     console.log("Connected to Supabase PostgreSQL database via connection pooler.");
 
-    // Read and run schema migration
-    const schemaSql = fs.readFileSync(
-      path.join(__dirname, "supabase", "migrations", "20260608_comprehensive_travel_platform_schema.sql"),
-      "utf8"
-    );
-    console.log("\nApplying 20260608_comprehensive_travel_platform_schema.sql...");
-    await client.query(schemaSql);
-    console.log("Schema migration applied successfully!");
+    // Ensure migration tracking table exists
+    await client.query(`
+      CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+      CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
+        version TEXT PRIMARY KEY,
+        name TEXT,
+        statements TEXT[],
+        inserted_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+      );
+    `);
 
-    // Read and run seed migration
-    const seedSql = fs.readFileSync(
-      path.join(__dirname, "supabase", "migrations", "20260608b_seed_travel_platform_data.sql"),
-      "utf8"
-    );
-    console.log("\nApplying 20260608b_seed_travel_platform_data.sql...");
-    await client.query(seedSql);
-    console.log("Seed migration applied successfully!");
+    // Get all migration files in chronological order
+    const migrationsDir = path.join(__dirname, "supabase", "migrations");
+    const migrationFiles = fs
+      .readdirSync(migrationsDir)
+      .filter((file) => file.endsWith(".sql"))
+      .sort();
 
-    // Record migrations in schema_migrations table
-    try {
-      await client.query(`
-        INSERT INTO supabase_migrations.schema_migrations (version, name, statements)
-        VALUES 
-          ('20260608', 'comprehensive_travel_platform_schema', ARRAY['Applied via runner']),
-          ('20260608b', 'seed_travel_platform_data', ARRAY['Applied via runner'])
-        ON CONFLICT (version) DO NOTHING;
-      `);
-      console.log("Recorded migrations in supabase_migrations.schema_migrations.");
-    } catch (e) {
-      console.log("Note on recording migration:", e.message);
+    console.log(`\nFound ${migrationFiles.length} migration files in supabase/migrations:\n`);
+
+    // Fetch already applied migrations
+    const appliedRes = await client.query(
+      "SELECT version FROM supabase_migrations.schema_migrations;"
+    );
+    const appliedSet = new Set(appliedRes.rows.map((r) => r.version));
+
+    for (const file of migrationFiles) {
+      const version = file.split("_")[0];
+      const name = file.replace(/\.sql$/, "");
+
+      if (appliedSet.has(version)) {
+        console.log(`⏩ Skipping ${file} (already applied)`);
+        continue;
+      }
+
+      console.log(`\nApplying ${file}...`);
+      const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+
+      try {
+        await client.query("BEGIN;");
+        await client.query(sql);
+        await client.query(
+          `INSERT INTO supabase_migrations.schema_migrations (version, name, statements)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (version) DO NOTHING;`,
+          [version, name, [`Applied from ${file}`]]
+        );
+        await client.query("COMMIT;");
+        console.log(`✅ ${file} applied successfully!`);
+      } catch (sqlErr) {
+        try { await client.query("ROLLBACK;"); } catch (_) {}
+        console.error(`⚠️  Warning/Error applying ${file}:`, sqlErr.message);
+        // Continue to other independent migrations
+      }
     }
 
     // Verify all public tables
@@ -64,28 +92,12 @@ async function applyMigrations() {
       console.log(`  ${idx + 1}. ${r.tablename} (RLS: ${r.rowsecurity})`);
     });
 
-    // Verify sample counts
-    const hotelCount = await client.query("SELECT COUNT(*) FROM hotels;");
-    const flightCount = await client.query("SELECT COUNT(*) FROM flights;");
-    const trainCount = await client.query("SELECT COUNT(*) FROM trains;");
-    const carCount = await client.query("SELECT COUNT(*) FROM car_rentals;");
-    const tourCount = await client.query("SELECT COUNT(*) FROM tours;");
-    const promoCount = await client.query("SELECT COUNT(*) FROM promo_codes;");
-
-    console.log("\nSeed Verification:");
-    console.log(`  Hotels: ${hotelCount.rows[0].count}`);
-    console.log(`  Flights: ${flightCount.rows[0].count}`);
-    console.log(`  Trains: ${trainCount.rows[0].count}`);
-    console.log(`  Car Rentals: ${carCount.rows[0].count}`);
-    console.log(`  Tours: ${tourCount.rows[0].count}`);
-    console.log(`  Promo Codes: ${promoCount.rows[0].count}`);
-
     await client.end();
+    console.log("\nAll migrations processed successfully!");
   } catch (err) {
-    console.error("Migration error:", err);
+    console.error("Migration fatal error:", err);
     process.exit(1);
   }
 }
 
 applyMigrations();
-

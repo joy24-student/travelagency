@@ -3,7 +3,7 @@ import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 
 // Use the scheme from app.json for the redirect URI
-const REDIRECT_TO = makeRedirectUri({ scheme: "converted-travel-ui", path: "auth/callback" });
+const REDIRECT_TO = makeRedirectUri({ scheme: "shopnojatra", path: "auth/callback" });
 
 // Define types for better type safety
 type OAuthProvider = "google" | "facebook";

@@ -748,4 +748,22 @@ export const screens: UIScreen[] = [
     ],
     activeTab: "Account",
   },
+  {
+    slug: "bus-launch",
+    source: "transport/bus-launch",
+    title: "Launch & Intercity Bus",
+    subtitle: "Book river launch cabins and luxury sleeper buses with seat maps.",
+    kind: "search",
+    theme: "trip",
+    activeTab: "Home",
+  },
+  {
+    slug: "travel-match",
+    source: "community/travel-match",
+    title: "Travel Buddy",
+    subtitle: "Find verified co-travelers and buddies sharing your destination and style.",
+    kind: "community",
+    theme: "trip",
+    activeTab: "Community",
+  },
 ];

@@ -39,10 +39,14 @@ export async function signUpWithPassword(
 }
 
 export async function sendPasswordResetEmail(email: string) {
+  const redirectUrl =
+    process.env.EXPO_PUBLIC_RESET_PASSWORD_URL ||
+    (typeof window !== "undefined" && window.location?.origin
+      ? `${window.location.origin}/reset-password`
+      : "shopnojatra://reset-password");
+
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo:
-      process.env.EXPO_PUBLIC_RESET_PASSWORD_URL ||
-      "https://your-app.example.com/reset-password",
+    redirectTo: redirectUrl,
   });
 
   if (error) {

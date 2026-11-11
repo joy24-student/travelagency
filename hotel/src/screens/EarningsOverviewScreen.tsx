@@ -4,9 +4,9 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -43,7 +43,7 @@ export function EarningsOverviewScreen() {
               <Text className="text-3xl font-bold text-white">$24,850</Text>
               <View className="flex-row items-center mt-1">
                 <MaterialIcons name="trending-up" size={14} color="#22c55e" />
-                <Text className="text-xs text-[#22c55e] font-bold ml-1">24.5% </Text>
+                <Text className="text-xs text-[#22c55e] font-bold ms-1">24.5% </Text>
                 <Text className="text-[#94a3b8] text-[10px]">vs last month</Text>
               </View>
             </View>

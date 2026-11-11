@@ -20,3 +20,5 @@ export { CommissionManagementScreen } from "./CommissionManagementScreen";
 export { ReviewModerationScreen } from "./ReviewModerationScreen";
 export { NotificationCenterScreen } from "./NotificationCenterScreen";
 export { HotelManagementScreen } from "./HotelManagementScreen";
+export { DemandHeatmapScreen } from "./DemandHeatmapScreen";
+export { AgencyKycReviewScreen } from "./AgencyKycReviewScreen";

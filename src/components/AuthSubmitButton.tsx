@@ -1,25 +1,42 @@
-import { Pressable, Text } from "react-native";
+import React from "react";
+import { StyleProp, ViewStyle } from "react-native";
+import { Button } from "./ui/Button";
 
-type AuthSubmitButtonProps = {
+export type AuthSubmitButtonProps = {
   label: string;
   loading?: boolean;
+  disabled?: boolean;
   onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
 };
 
+/**
+ * Unified AuthSubmitButton
+ * Standardized across auth screens to use canonical Button implementation.
+ */
 export function AuthSubmitButton({
   label,
-  loading,
+  loading = false,
+  disabled = false,
   onPress,
+  style,
+  testID,
 }: AuthSubmitButtonProps) {
   return (
-    <Pressable
-      className={`items-center rounded-xl px-4 py-4 ${loading ? "bg-blue-300" : "bg-blue-600"}`}
-      disabled={loading}
+    <Button
+      label={label}
+      loading={loading}
+      disabled={disabled}
       onPress={onPress}
-    >
-      <Text className="text-base font-extrabold text-white">
-        {loading ? "Please wait..." : label}
-      </Text>
-    </Pressable>
+      variant="primary"
+      size="lg"
+      fullWidth
+      style={style}
+      testID={testID}
+      accessibilityLabel={label}
+    />
   );
 }
+
+export default AuthSubmitButton;

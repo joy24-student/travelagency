@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import i18n from '../locales/i18n';
+import i18n, { applyRTLDirection, isRTLLanguage } from '../locales/i18n';
 
 interface LanguageContextType {
   language: string;
+  isRTL: boolean;
   changeLanguage: (lng: string) => void;
 }
 
@@ -21,15 +22,17 @@ interface LanguageProviderProps {
 }
 
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
-  const [language, setLanguage] = useState<string>(i18n.language);
+  const [language, setLanguage] = useState<string>(i18n.language || 'en');
+  const isRTL = isRTLLanguage(language);
 
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
+    applyRTLDirection(lng);
     setLanguage(lng);
   };
 
   return (
-    <LanguageContext.Provider value={{ language, changeLanguage }}>
+    <LanguageContext.Provider value={{ language, isRTL, changeLanguage }}>
       {children}
     </LanguageContext.Provider>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import {
+import { Platform,
   Animated,
   Modal,
   Pressable,
@@ -8,6 +8,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Share,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,17 +20,40 @@ export function InviteEarnScreen() {
 
   // State management
   const [showToast, setShowToast] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string>("রেফারেল কোড কপি হয়েছে!");
   const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
 
   const referralCode = "TRIP2026-X89";
+  const PRE_WRITTEN_MESSAGE =
+    "স্বপ্ন ট্রাভেলের সাথে যেকোনো বাস, ট্রেন বা বিমানে ভ্রমণের টিকিট বুকিংয়ে পান ২০% পর্যন্ত দারুণ ছাড়! এখনই আমার রেফারেল কোড [TRIP2026-X89] ব্যবহার করে সাইন আপ করুন: https://shopnotravel.com/invite?code=TRIP2026-X89";
 
   const handleCopyCode = () => {
+    setToastMessage("রেফারেল কোড [TRIP2026-X89] ক্লিপবোর্ডে কপি হয়েছে!");
     setShowToast(true);
     setTimeout(() => {
       setShowToast(false);
     }, 2500);
+  };
+
+  const handleCopyPrewrittenMessage = () => {
+    setToastMessage("আগে থেকে তৈরি শেয়ার বার্তা কপি হয়েছে!");
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+    }, 2500);
+  };
+
+  const handleSharePrewrittenMessage = async () => {
+    try {
+      await Share.share({
+        message: PRE_WRITTEN_MESSAGE,
+        title: "স্বপ্ন ট্রাভেলে ২০% ছাড় ও রেফারেল বোনাস",
+      });
+    } catch (e) {
+      handleCopyPrewrittenMessage();
+    }
   };
 
   return (
@@ -38,7 +62,7 @@ export function InviteEarnScreen() {
       {showToast && (
         <View style={styles.toastBox}>
           <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-          <Text style={styles.toastText}>Referral Code copied to clipboard!</Text>
+          <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
       )}
 
@@ -164,7 +188,7 @@ export function InviteEarnScreen() {
             {/* WhatsApp */}
             <TouchableOpacity
               style={[styles.socialCircle, { backgroundColor: "#25D366" }]}
-              onPress={handleCopyCode}
+              onPress={handleSharePrewrittenMessage}
             >
               <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
             </TouchableOpacity>
@@ -180,7 +204,7 @@ export function InviteEarnScreen() {
             {/* Facebook */}
             <TouchableOpacity
               style={[styles.socialCircle, { backgroundColor: "#1877F2" }]}
-              onPress={handleCopyCode}
+              onPress={handleSharePrewrittenMessage}
             >
               <Ionicons name="logo-facebook" size={20} color="#FFFFFF" />
             </TouchableOpacity>
@@ -196,44 +220,177 @@ export function InviteEarnScreen() {
             {/* Messenger */}
             <TouchableOpacity
               style={[styles.socialCircle, { backgroundColor: "#0084FF" }]}
-              onPress={handleCopyCode}
+              onPress={handleSharePrewrittenMessage}
             >
               <Ionicons name="chatbubble-ellipses" size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* ─── "Your invitations" Dashboard Card ──────────────────────────── */}
+        {/* ─── PRE-WRITTEN SHARE MESSAGE CARD ──────────────────────────── */}
+        <View style={styles.prewrittenCard}>
+          <View style={styles.prewrittenHeaderRow}>
+            <View style={styles.prewrittenIconBubble}>
+              <Ionicons name="chatbubbles" size={18} color="#0284C7" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.prewrittenTitle}>আগে থেকে তৈরি শেয়ার বার্তা</Text>
+              <Text style={styles.prewrittenSubtitle}>বন্ধুদের পাঠাতে এক ট্যাপে কপি বা সরাসরি শেয়ার করুন</Text>
+            </View>
+          </View>
+
+          <View style={styles.quoteBubble}>
+            <Ionicons name="chatbox-ellipses-outline" size={16} color="#94A3B8" style={{ marginBottom: 4 }} />
+            <Text style={styles.quoteText}>{PRE_WRITTEN_MESSAGE}</Text>
+          </View>
+
+          <View style={styles.messageActionButtonsRow}>
+            <TouchableOpacity
+              style={styles.copyMessageBtn}
+              activeOpacity={0.8}
+              onPress={handleCopyPrewrittenMessage}
+            >
+              <Ionicons name="copy-outline" size={16} color="#0284C7" />
+              <Text style={styles.copyMessageBtnText}>বার্তা কপি করুন</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.shareDirectBtn}
+              activeOpacity={0.88}
+              onPress={handleSharePrewrittenMessage}
+            >
+              <Ionicons name="share-social" size={16} color="#FFFFFF" />
+              <Text style={styles.shareDirectBtnText}>সরাসরি শেয়ার</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ─── PROGRESS SUMMARY BANNER ("৩ জন আমন্ত্রিত · ১ জন যোগ দিয়েছে · ৳১০০ পেয়েছেন") ── */}
         <View style={styles.invitationsCard}>
-          <Text style={styles.invitationsTitle}>Your invitations</Text>
+          <View style={styles.invitationsHeaderRow}>
+            <Text style={styles.invitationsTitle}>ইনভাইট-এন্ড-আর্ন অগ্রগতি</Text>
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveBadgeText}>লাইভ ট্র্যাকিং</Text>
+            </View>
+          </View>
+
+          {/* Highlight Badge: ৩ জন আমন্ত্রিত · ১ জন যোগ দিয়েছে · ৳১০০ পেয়েছেন */}
+          <View style={styles.summaryHighlightPill}>
+            <Ionicons name="sparkles" size={16} color="#10B981" />
+            <Text style={styles.summaryHighlightText}>
+              ৩ জন আমন্ত্রিত · ১ জন যোগ দিয়েছে · ৳১০০ পেয়েছেন
+            </Text>
+          </View>
 
           <View style={styles.statsRow}>
             {/* Stat 1 */}
             <View style={styles.statCol}>
-              <Text style={styles.statVal}>0</Text>
-              <Text style={styles.statLabel}>In progress</Text>
+              <Text style={styles.statVal}>৩</Text>
+              <Text style={styles.statLabel}>আমন্ত্রিত</Text>
             </View>
 
             {/* Stat 2 */}
             <View style={styles.statCol}>
-              <Text style={styles.statVal}>0</Text>
-              <Text style={styles.statLabel}>Completed</Text>
+              <Text style={styles.statVal}>১</Text>
+              <Text style={styles.statLabel}>যোগ দিয়েছে</Text>
             </View>
 
             {/* Stat 3 */}
             <View style={styles.statCol}>
               <View style={styles.earnedValRow}>
                 <View style={styles.miniCoin}>
-                  <Text style={styles.miniCoinText}>T</Text>
+                  <Text style={styles.miniCoinText}>৳</Text>
                 </View>
-                <Text style={styles.statVal}>0 ($0)</Text>
+                <Text style={styles.statVal}>৳১০০</Text>
               </View>
-              <Text style={styles.statLabel}>Total earned</Text>
+              <Text style={styles.statLabel}>অর্জিত পুরস্কার</Text>
             </View>
           </View>
 
           {/* Divider */}
           <View style={styles.cardDivider} />
+
+          {/* Detailed Friend Tracker List */}
+          <Text style={styles.trackerListHeading}>আমন্ত্রিত বন্ধুদের তালিকা ও পুরস্কার প্রাপ্তির সময়সূচী:</Text>
+
+          {/* Friend 1: Completed & Earned */}
+          <View style={styles.friendTrackerCard}>
+            <View style={styles.friendTopRow}>
+              <View style={[styles.statusIconWrap, { backgroundColor: "#DCFCE7" }]}>
+                <Ionicons name="checkmark-done-circle" size={20} color="#10B981" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.friendNameText}>রাকিব হাসান</Text>
+                <Text style={styles.friendPhoneText}>+880 1712-***456</Text>
+              </View>
+              <View style={styles.rewardSuccessBadge}>
+                <Text style={styles.rewardSuccessBadgeText}>৳১০০ পেয়েছেন ✓</Text>
+              </View>
+            </View>
+            <View style={styles.stepTrackRow}>
+              <Text style={styles.stepTrackPillDone}>ইনস্টল ✓</Text>
+              <Ionicons name="arrow-forward" size={11} color="#10B981" />
+              <Text style={styles.stepTrackPillDone}>যোগ দিয়েছে ✓</Text>
+              <Ionicons name="arrow-forward" size={11} color="#10B981" />
+              <Text style={styles.stepTrackPillDone}>১ম ট্রিপ সম্পন্ন ✓</Text>
+            </View>
+            <Text style={styles.rewardDetailStatusSuccess}>
+              ✓ বন্ধু ১ম ট্রিপ সম্পন্ন করেছেন। ৳১০০ ক্যাশ পুরস্কার আপনার ওয়ালেটে ক্রেডিট হয়েছে।
+            </Text>
+          </View>
+
+          {/* Friend 2: Installed, Waiting for First Booking */}
+          <View style={styles.friendTrackerCard}>
+            <View style={styles.friendTopRow}>
+              <View style={[styles.statusIconWrap, { backgroundColor: "#FEF3C7" }]}>
+                <Ionicons name="time" size={20} color="#D97706" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.friendNameText}>সুমাইয়া আক্তার</Text>
+                <Text style={styles.friendPhoneText}>+880 1823-***789</Text>
+              </View>
+              <View style={styles.rewardPendingBadge}>
+                <Text style={styles.rewardPendingBadgeText}>৳১০০ অপেক্ষমান</Text>
+              </View>
+            </View>
+            <View style={styles.stepTrackRow}>
+              <Text style={styles.stepTrackPillDone}>ইনস্টল ✓</Text>
+              <Ionicons name="arrow-forward" size={11} color="#10B981" />
+              <Text style={styles.stepTrackPillDone}>যোগ দিয়েছে ✓</Text>
+              <Ionicons name="arrow-forward" size={11} color="#94A3B8" />
+              <Text style={styles.stepTrackPillPending}>১ম বুকিং বাকি ⏳</Text>
+            </View>
+            <Text style={styles.rewardDetailStatusPending}>
+              ⏳ পুরস্কার কবে মিলবে: বন্ধু অ্যাপ ইনস্টল করেছেন। তিনি তার ১ম ভ্রমণ বুকিং সম্পন্ন করলেই সাথে সাথে ৳১০০ আপনার ওয়ালেটে জমা হবে।
+            </Text>
+          </View>
+
+          {/* Friend 3: Invited, Not installed yet */}
+          <View style={styles.friendTrackerCard}>
+            <View style={styles.friendTopRow}>
+              <View style={[styles.statusIconWrap, { backgroundColor: "#F1F5F9" }]}>
+                <Ionicons name="paper-plane" size={18} color="#64748B" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.friendNameText}>তানভীর আহমেদ</Text>
+                <Text style={styles.friendPhoneText}>+880 1911-***321</Text>
+              </View>
+              <View style={styles.rewardInvitedBadge}>
+                <Text style={styles.rewardInvitedBadgeText}>আমন্ত্রণ পাঠানো</Text>
+              </View>
+            </View>
+            <View style={styles.stepTrackRow}>
+              <Text style={styles.stepTrackPillDone}>লিংক পাঠানো ✓</Text>
+              <Ionicons name="arrow-forward" size={11} color="#94A3B8" />
+              <Text style={styles.stepTrackPillPending}>ইনস্টল অপেক্ষমান</Text>
+              <Ionicons name="arrow-forward" size={11} color="#94A3B8" />
+              <Text style={styles.stepTrackPillPending}>বুকিং অপেক্ষমান</Text>
+            </View>
+            <Text style={styles.rewardDetailStatusInvited}>
+              ℹ️ পুরস্কার কবে মিলবে: বন্ধু আপনার রেফারেল লিংক দিয়ে অ্যাপ ইনস্টল করে প্রথম বুকিং করলেই ৳১০০ রিওয়ার্ড আনলক হবে।
+            </Text>
+          </View>
 
           {/* Bottom View Details Link */}
           <TouchableOpacity
@@ -241,7 +398,7 @@ export function InviteEarnScreen() {
             activeOpacity={0.7}
             onPress={() => setShowDetailsModal(true)}
           >
-            <Text style={styles.viewDetailsText}>View details</Text>
+            <Text style={styles.viewDetailsText}>সম্পূর্ণ বিবরণী ও শর্তাবলী দেখুন</Text>
             <Ionicons name="chevron-forward" size={16} color="#2563EB" />
           </TouchableOpacity>
         </View>
@@ -297,13 +454,62 @@ export function InviteEarnScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.emptyDetailsState}>
-              <Ionicons name="people-outline" size={48} color="#94A3B8" />
-              <Text style={styles.emptyTitle}>No invitations yet</Text>
-              <Text style={styles.emptySub}>
-                Share your referral link with friends to start earning up to $100!
-              </Text>
-            </View>
+            <ScrollView style={{ maxHeight: 380, marginVertical: 10 }} showsVerticalScrollIndicator={false}>
+              <View style={styles.summaryHighlightPill}>
+                <Ionicons name="sparkles" size={16} color="#10B981" />
+                <Text style={styles.summaryHighlightText}>
+                  ৩ জন আমন্ত্রিত · ১ জন যোগ দিয়েছে · ৳১০০ পেয়েছেন
+                </Text>
+              </View>
+
+              <View style={styles.friendTrackerCard}>
+                <View style={styles.friendTopRow}>
+                  <View style={[styles.statusIconWrap, { backgroundColor: "#DCFCE7" }]}>
+                    <Ionicons name="checkmark-done-circle" size={18} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.friendNameText}>রাকিব হাসান (০১৭১২...)</Text>
+                    <Text style={styles.friendPhoneText}>অবস্থা: ১ম ট্রিপ সম্পন্ন</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#15803D' }}>+৳১০০ অর্জিত</Text>
+                </View>
+                <Text style={styles.rewardDetailStatusSuccess}>
+                  ✓ বন্ধু প্রথম ট্রিপ সফলভাবে সম্পন্ন করায় ৳১০০ আপনার ওয়ালেটে যুক্ত হয়েছে।
+                </Text>
+              </View>
+
+              <View style={styles.friendTrackerCard}>
+                <View style={styles.friendTopRow}>
+                  <View style={[styles.statusIconWrap, { backgroundColor: "#FEF3C7" }]}>
+                    <Ionicons name="time" size={18} color="#D97706" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.friendNameText}>সুমাইয়া আক্তার (০১৮২৩...)</Text>
+                    <Text style={styles.friendPhoneText}>অবস্থা: ইনস্টল ও সাইন-আপ সম্পন্ন</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#B45309' }}>৳১০০ অপেক্ষমান</Text>
+                </View>
+                <Text style={styles.rewardDetailStatusPending}>
+                  ⏳ বন্ধু ১ম বুকিং সম্পন্ন করলেই সাথে সাথে ৳১০০ ওয়ালেটে পাবেন।
+                </Text>
+              </View>
+
+              <View style={styles.friendTrackerCard}>
+                <View style={styles.friendTopRow}>
+                  <View style={[styles.statusIconWrap, { backgroundColor: "#F1F5F9" }]}>
+                    <Ionicons name="paper-plane" size={18} color="#64748B" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.friendNameText}>তানভীর আহমেদ (০১৯১১...)</Text>
+                    <Text style={styles.friendPhoneText}>অবস্থা: আমন্ত্রণ পাঠানো হয়েছে</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B' }}>আমন্ত্রিত</Text>
+                </View>
+                <Text style={styles.rewardDetailStatusInvited}>
+                  ℹ️ বন্ধু অ্যাপ ইনস্টল ও ১ম টিকিট বুকিং করলেই ৳১০০ মিলবে।
+                </Text>
+              </View>
+            </ScrollView>
 
             <TouchableOpacity
               style={styles.doneBtn}
@@ -335,19 +541,35 @@ export function InviteEarnScreen() {
             </View>
 
             <View style={styles.codeBox}>
-              <Text style={styles.codeBoxLabel}>Your Referral Code:</Text>
+              <Text style={styles.codeBoxLabel}>আপনার রেফারেল কোড:</Text>
               <Text style={styles.codeBoxVal}>{referralCode}</Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.doneBtn}
-              onPress={() => {
-                setShowShareModal(false);
-                handleCopyCode();
-              }}
-            >
-              <Text style={styles.doneBtnText}>Copy Link & Code</Text>
-            </TouchableOpacity>
+            <View style={[styles.quoteBubble, { marginVertical: 10 }]}>
+              <Text style={styles.quoteText}>{PRE_WRITTEN_MESSAGE}</Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+              <TouchableOpacity
+                style={[styles.doneBtn, { flex: 1, backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: '#BAE6FD' }]}
+                onPress={() => {
+                  setShowShareModal(false);
+                  handleCopyPrewrittenMessage();
+                }}
+              >
+                <Text style={[styles.doneBtnText, { color: '#0284C7' }]}>বার্তা কপি</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.doneBtn, { flex: 1 }]}
+                onPress={() => {
+                  setShowShareModal(false);
+                  handleSharePrewrittenMessage();
+                }}
+              >
+                <Text style={styles.doneBtnText}>সরাসরি শেয়ার</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -382,6 +604,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 5,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.2)" } : {}),
   },
   toastText: {
     color: "#FFFFFF",
@@ -449,14 +672,14 @@ const styles = StyleSheet.create({
   },
   tcBadgeText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
 
   /* 3D Illustration Graphic */
   illustrationContainer: {
     width: 240,
-    height: 180,
+    minHeight: 180,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
@@ -537,6 +760,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 2,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.1)" } : {}),
   },
   avatarLeft: {
     left: 10,
@@ -578,6 +802,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(15, 23, 42, 0.25)" } : {}),
   },
   primaryPillText: {
     color: "#FFFFFF",
@@ -663,7 +888,7 @@ const styles = StyleSheet.create({
   },
   miniCoinText: {
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
   },
   statVal: {
@@ -770,5 +995,242 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  // Additional Styles for Invite & Earn Progress & Prewritten Message
+  prewrittenCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  prewrittenHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  prewrittenIconBubble: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  prewrittenTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  prewrittenSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  quoteBubble: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  quoteText: {
+    fontSize: 12,
+    color: '#334155',
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  messageActionButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  copyMessageBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 10,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  copyMessageBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  shareDirectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0284C7',
+    borderRadius: 10,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  shareDirectBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  invitationsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  liveBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  summaryHighlightPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 14,
+    gap: 8,
+  },
+  summaryHighlightText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#166534',
+    flex: 1,
+  },
+  trackerListHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 10,
+  },
+  friendTrackerCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  friendTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  statusIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendNameText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  friendPhoneText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  rewardSuccessBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  rewardSuccessBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  rewardPendingBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  rewardPendingBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  rewardInvitedBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  rewardInvitedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  stepTrackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  stepTrackPillDone: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#166534',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  stepTrackPillPending: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  rewardDetailStatusSuccess: {
+    fontSize: 11,
+    color: '#15803D',
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  rewardDetailStatusPending: {
+    fontSize: 11,
+    color: '#B45309',
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  rewardDetailStatusInvited: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 16,
   },
 });

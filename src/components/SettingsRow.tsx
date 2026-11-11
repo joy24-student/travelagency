@@ -18,15 +18,22 @@ export function SettingsRow({
   rightComponent,
   hasBorder = true,
 }: SettingsRowProps) {
+  const a11yLabel = `${label}${value ? `, ${value}` : ''}`;
   return (
-    <Pressable onPress={onPress} style={styles.container}>
+    <Pressable
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={a11yLabel}
+      onPress={onPress}
+      style={styles.container}
+    >
       <View style={styles.row}>
-        <Text style={styles.label}>{label}</Text>
+        <Text allowFontScaling={true} maxFontSizeMultiplier={1.4} style={styles.label}>{label}</Text>
         <View style={styles.rightContent}>
           {rightComponent}
-          {value && <Text style={styles.value}>{value}</Text>}
+          {value && <Text allowFontScaling={true} maxFontSizeMultiplier={1.4} style={styles.value}>{value}</Text>}
           {showChevron && (
-            <Ionicons color="#94a3b8" name="chevron-forward" size={18} />
+            <Ionicons accessible={false} importantForAccessibility="no" color="#64748b" name="chevron-forward" size={18} />
           )}
         </View>
       </View>
@@ -56,7 +63,7 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 16,
     color: "#94a3b8",
-    marginRight: 8,
+    marginEnd: 8,
   },
   rightContent: {
     flexDirection: "row",

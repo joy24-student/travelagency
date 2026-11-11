@@ -18,6 +18,7 @@ import type { UIScreen } from "../data/screens";
 import { TopBar } from "./TopBar";
 import { BottomNav, AiPill } from "./Navigation";
 import { useScreenData } from "../hooks/useScreenData";
+import { useLanguage } from "../context/LanguageContext";
 
 const themeMap = {
   trip: {
@@ -46,16 +47,20 @@ const bottomTabs = [
 
 export function ConvertedScreen({ screen }: { screen: UIScreen }) {
   const theme = themeMap[screen.theme];
+  const { t, formatPrice } = useLanguage();
   const { data, loading, error } = useScreenData(screen);
 
   // Map dynamic data to cards if available
-  const dynamicCards = data && Array.isArray(data) && data.length > 0 ? data.map((item: any) => ({
-    title: item.name || item.title || item.hotel_name || (item.flight_number ? `Flight ${item.flight_number}` : "Featured Option"),
-    subtitle: item.description || item.destination_city || (item.departure_airport && item.arrival_airport ? `${item.departure_airport.code || 'DEP'} ➔ ${item.arrival_airport.code || 'ARR'}` : item.bio || ""),
-    meta: item.city || item.category || (item.rating ? `⭐ ${item.rating}` : "") || (item.cabin_class ? `Class: ${item.cabin_class}` : ""),
-    price: item.price ? `$${item.price}` : (item.final_price ? `$${item.final_price}` : (item.base_price ? `$${item.base_price}` : "")),
-    route: "/screens/booking-system",
-  })) : null;
+  const dynamicCards = data && Array.isArray(data) && data.length > 0 ? data.map((item: any) => {
+    const rawPrice = item.price || item.final_price || item.base_price;
+    return {
+      title: item.name || item.title || item.hotel_name || (item.flight_number ? `Flight ${item.flight_number}` : "Featured Option"),
+      subtitle: item.description || item.destination_city || (item.departure_airport && item.arrival_airport ? `${item.departure_airport.code || 'DEP'} âž” ${item.arrival_airport.code || 'ARR'}` : item.bio || ""),
+      meta: item.city || item.category || (item.rating ? `â­ ${item.rating}` : "") || (item.cabin_class ? `Class: ${item.cabin_class}` : ""),
+      price: rawPrice ? formatPrice(rawPrice) : "",
+      route: "/screens/booking-system",
+    };
+  }) : null;
 
   const displayCards = dynamicCards || null;
 
@@ -121,7 +126,7 @@ function TopBar_Old({ screen }: { screen: UIScreen }) {
       <Pressable
         accessibilityRole="button"
         onPress={() =>
-          router.canGoBack() ? router.back() : router.replace("/")
+          router.canGoBack() ? router.back() : router.replace("/(tabs)")
         }
         style={styles.iconButton}
       >
@@ -149,6 +154,7 @@ function TopBar_Old({ screen }: { screen: UIScreen }) {
 
 function Hero({ screen }: { screen: UIScreen }) {
   const theme = themeMap[screen.theme];
+  const { t } = useLanguage();
   const colors: [string, string] =
     screen.theme === "luxe" ? ["#1a237e", "#000666"] : ["#e8f3ff", "#f5f7fa"];
   const isAssistant = screen.kind === "assistant";
@@ -191,16 +197,20 @@ function Hero({ screen }: { screen: UIScreen }) {
             styles.heroTitle,
             { color: screen.hero ? "#fff" : theme.text },
           ]}
+          numberOfLines={2}
+          ellipsizeMode="tail"
         >
-          {screen.title}
+          {t(screen.title, screen.title)}
         </Text>
         <Text
           style={[
             styles.heroSubtitle,
             { color: screen.hero ? "rgba(255,255,255,0.86)" : "#666" },
           ]}
+          numberOfLines={3}
+          ellipsizeMode="tail"
         >
-          {screen.subtitle}
+          {t(screen.subtitle, screen.subtitle)}
         </Text>
       </LinearGradient>
     </LinearGradient>
@@ -209,10 +219,15 @@ function Hero({ screen }: { screen: UIScreen }) {
 
 function TabCard({ tabs, color }: { tabs: string[]; color: string }) {
   const [selectedTab, setSelectedTab] = useState(0);
+  const { t } = useLanguage();
 
   return (
     <View style={styles.card}>
-      <View style={styles.tabRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabScrollRow}
+      >
         {tabs.map((tab, index) => {
           const isSelected = selectedTab === index;
           return (
@@ -225,22 +240,24 @@ function TabCard({ tabs, color }: { tabs: string[]; color: string }) {
               ]}
             >
               <Text
+                numberOfLines={1}
                 style={[
                   styles.tabText,
                   { color: isSelected ? color : "#667085", fontWeight: isSelected ? "700" : "500" },
                 ]}
               >
-                {tab}
+                {t(tab, tab)}
               </Text>
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 function SearchCard({ fields, color, screenSlug }: { fields: string[]; color: string; screenSlug?: string }) {
+  const { t } = useLanguage();
   return (
     <View style={styles.card}>
       {fields.map((field, index) => (
@@ -250,7 +267,7 @@ function SearchCard({ fields, color, screenSlug }: { fields: string[]; color: st
           onPress={() => router.push({ pathname: "/screens/search" as any, params: { q: field } })}
         >
           <Ionicons color={color} name={iconFor(field)} size={20} />
-          <Text style={styles.fieldText}>{field}</Text>
+          <Text style={styles.fieldText} numberOfLines={1}>{t(field, field)}</Text>
           <Ionicons color="#c8c8c8" name="chevron-forward" size={16} />
         </Pressable>
       ))}
@@ -264,13 +281,14 @@ function SearchCard({ fields, color, screenSlug }: { fields: string[]; color: st
         }}
         style={[styles.searchButton, { backgroundColor: color }]}
       >
-        <Text style={styles.searchButtonText}>Search Available</Text>
+        <Text style={styles.searchButtonText} numberOfLines={1}>{t("Search Available", "Search Available")}</Text>
       </Pressable>
     </View>
   );
 }
 
 function ChipRail({ chips, color }: { chips: string[]; color: string }) {
+  const { t } = useLanguage();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
       <View style={styles.chipRow}>
@@ -282,7 +300,7 @@ function ChipRail({ chips, color }: { chips: string[]; color: string }) {
               { backgroundColor: `${color}12`, borderColor: `${color}22` },
             ]}
           >
-            <Text style={[styles.chipText, { color }]}>{chip}</Text>
+            <Text style={[styles.chipText, { color }]} numberOfLines={1}>{t(chip, chip)}</Text>
           </View>
         ))}
       </View>
@@ -334,7 +352,7 @@ function BenefitCard({
           }}
         >
           <Text style={[styles.claimButton, { backgroundColor: claimed ? "#10b981" : color }]}>
-            {claimed ? "Claimed ✓" : "Claim All"}
+            {claimed ? "Claimed âœ“" : "Claim All"}
           </Text>
         </Pressable>
       </View>
@@ -414,6 +432,7 @@ function ContentCards({
   cards: NonNullable<UIScreen["cards"]>;
   color: string;
 }) {
+  const { t } = useLanguage();
   return (
     <View style={styles.contentStack}>
       {cards.map((card, index) => (
@@ -432,16 +451,16 @@ function ContentCards({
             <Ionicons color={color} name={(card.icon as any) || iconFor(card.title)} size={24} />
           </View>
           <View style={styles.contentText}>
-            <Text style={styles.contentTitle}>{card.title}</Text>
+            <Text style={styles.contentTitle} numberOfLines={1} ellipsizeMode="tail">{t(card.title, card.title)}</Text>
             {card.subtitle ? (
-              <Text style={styles.contentSubtitle}>{card.subtitle}</Text>
+              <Text style={styles.contentSubtitle} numberOfLines={2} ellipsizeMode="tail">{t(card.subtitle, card.subtitle)}</Text>
             ) : null}
             {card.meta ? (
-              <Text style={[styles.contentMeta, { color }]}>{card.meta}</Text>
+              <Text style={[styles.contentMeta, { color }]} numberOfLines={1}>{t(card.meta, card.meta)}</Text>
             ) : null}
           </View>
           {card.price ? (
-            <Text style={[styles.priceText, { color }]}>{card.price}</Text>
+            <Text style={[styles.priceText, { color }]} numberOfLines={1}>{card.price}</Text>
           ) : (
             <Ionicons color="#c8c8c8" name="chevron-forward" size={18} />
           )}
@@ -573,7 +592,7 @@ const styles = StyleSheet.create({
   },
   sourceText: {
     color: "#98a2b3",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
   },
@@ -650,6 +669,10 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 12,
+  },
+  tabScrollRow: {
+    flexDirection: "row",
+    paddingHorizontal: 6,
   },
   tabRow: {
     borderBottomColor: "#f2f4f7",
@@ -728,7 +751,7 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     color: "#475467",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     textAlign: "center",
   },
@@ -753,7 +776,7 @@ const styles = StyleSheet.create({
   claimButton: {
     borderRadius: 999,
     color: "#fff",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     overflow: "hidden",
     paddingHorizontal: 13,
@@ -917,7 +940,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   bottomLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
 });

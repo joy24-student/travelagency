@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Keyb
 import { supabase } from '../lib/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/GlassView';
 
 export function ForgotPasswordScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -33,7 +33,7 @@ export function ForgotPasswordScreen({ navigation }: any) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 pt-20">
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 pt-20" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             className="w-12 h-12 bg-white/5 items-center justify-center rounded-2xl border border-white/10 mb-10"
@@ -46,17 +46,23 @@ export function ForgotPasswordScreen({ navigation }: any) {
 
           <View className="space-y-8">
             <View>
-              <Text className="text-[#c7c4d7] text-xs font-bold uppercase tracking-widest mb-3 ml-1">Email Address</Text>
-              <BlurView intensity={10} tint="dark" className="rounded-2xl border border-white/10 overflow-hidden">
+              <Text className="text-[#c7c4d7] text-xs font-bold uppercase tracking-widest mb-3 ms-1">Email Address</Text>
+              <GlassView intensity={10} tint="dark" className="rounded-2xl border border-white/10 overflow-hidden">
                 <TextInput
                   placeholder="Enter your email"
                   placeholderTextColor="#464554"
                   onChangeText={(text) => setEmail(text)}
                   value={email}
-                  autoCapitalize={'none'}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  accessibilityLabel="Email Address"
+                  returnKeyType="done"
+                  onSubmitEditing={resetPassword}
                   className="px-5 py-4 text-white text-base"
                 />
-              </BlurView>
+              </GlassView>
             </View>
 
             <TouchableOpacity

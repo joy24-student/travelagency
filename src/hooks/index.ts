@@ -14,7 +14,7 @@ export {
   useUserBookings,
   useBooking,
   useCreateBooking,
-  useBookingMutations,
+  useBookingActions,
 } from "./useBooking";
 
 // Search hooks
@@ -51,3 +51,19 @@ export {
   useTicketInteractions,
   useFAQ,
 } from "./useLoyaltySupport";
+
+export { useDebounce } from "./useDebounce";
+
+// Screen collaboration & Event Bus hooks
+export {
+  useScreenCollaboration,
+  useScreenEventEmitter,
+  useScreenHandoff,
+} from "./useScreenCollaboration";
+
+// Responsive & Layout hooks (Addresses screen dimension, tablet/web layouts)
+export * from "./useResponsive";
+export { useA11yFocusRing } from "./useA11yFocusRing";
+export { useDoubleSubmitProtection } from "./useDoubleSubmitProtection";
+export { usePagination } from "./usePagination";
+

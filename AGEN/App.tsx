@@ -4,7 +4,8 @@
  * Production-ready with full Supabase integration
  */
 
-import React from "react";
+import React, { useEffect } from "react";
+import { initAgencyRealtimeBridge } from "./src/services/events/supabaseRealtimeBridge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -15,6 +16,7 @@ import { ActivityIndicator, View } from "react-native";
 import { I18nextProvider } from 'react-i18next';
 import i18n from './src/locales/i18n';
 import { LanguageProvider } from './src/context/LanguageContext';
+import { AgencyRBACProvider } from './src/context/AgencyRBACContext';
 
 // Screen Imports
 import DashboardScreen from "./src/screens/agency/DashboardScreen";
@@ -29,10 +31,15 @@ import ProfileScreen from "./src/screens/agency/ProfileScreen";
 import AgencyInfoScreen from "./src/screens/agency/AgencyInfoScreen";
 import TeamManagementScreen from "./src/screens/agency/TeamManagementScreen";
 import BankAccountsScreen from "./src/screens/agency/BankAccountsScreen";
+import EarningsScreen from "./src/screens/agency/EarningsScreen";
 import VerificationScreen from "./src/screens/agency/VerificationScreen";
 import CustomerProfileScreen from "./src/screens/agency/CustomerProfileScreen"; // Import the new screen
 import SupportCenterScreen from "./src/screens/agency/SupportCenterScreen";
 import SettingsScreen from "./src/screens/agency/SettingsScreen";
+import AgencyScannerScreen from "./src/screens/agency/ScannerScreen";
+import B2BSearchBookingScreen from "./src/screens/agency/B2BSearchBookingScreen";
+import WalletTopUpScreen from "./src/screens/agency/WalletTopUpScreen";
+import QuotationBuilderScreen from "./src/screens/agency/QuotationBuilderScreen";
 
 // Authentication
 import { useAuth } from "./src/hooks/useAuth";
@@ -53,10 +60,14 @@ export type RootTabParamList = {
 
 export type DashboardStackParamList = {
   DashboardList: undefined;
+  B2BSearchBooking: undefined;
+  WalletTopUp: undefined;
+  QuotationBuilder: undefined;
 };
 
 export type OperationsStackParamList = {
   OperationsList: undefined;
+  Scanner: undefined;
 };
 
 export type BookingsStackParamList = {
@@ -80,6 +91,7 @@ export type ProfileStackParamList = {
   AgencyInfo: undefined;
   TeamManagement: undefined;
   BankAccounts: undefined;
+  Earnings: undefined;
   Verification: undefined;
   SupportCenter: undefined;
   Settings: undefined;
@@ -112,6 +124,21 @@ function DashboardStackNavigator() {
         component={DashboardScreen}
         options={{ headerShown: false }}
       />
+      <DashboardStack.Screen
+        name="B2BSearchBooking"
+        component={B2BSearchBookingScreen}
+        options={{ presentation: "modal" }}
+      />
+      <DashboardStack.Screen
+        name="WalletTopUp"
+        component={WalletTopUpScreen}
+        options={{ presentation: "modal" }}
+      />
+      <DashboardStack.Screen
+        name="QuotationBuilder"
+        component={QuotationBuilderScreen}
+        options={{ presentation: "modal" }}
+      />
     </DashboardStack.Navigator>
   );
 }
@@ -128,6 +155,11 @@ function OperationsStackNavigator() {
         name="OperationsList"
         component={OperationsScreen}
         options={{ headerShown: false }}
+      />
+      <OperationsStack.Screen
+        name="Scanner"
+        component={AgencyScannerScreen}
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
     </OperationsStack.Navigator>
   );
@@ -235,6 +267,13 @@ function ProfileStackNavigator() {
         component={TeamManagementScreen}
         options={{
           presentation: "modal",
+        }}
+      />
+      <ProfileStack.Screen
+        name="Earnings"
+        component={EarningsScreen}
+        options={{
+          presentation: "card",
         }}
       />
       <ProfileStack.Screen
@@ -347,6 +386,12 @@ function DashboardTabNavigator() {
 export default function App() {
   const { user, loading } = useAuth();
 
+  // Initialize Realtime bridge across apps (Consumer, AGEN, Hotel)
+  useEffect(() => {
+    const cleanup = initAgencyRealtimeBridge(user?.agency?.id);
+    return () => cleanup?.();
+  }, [user?.agency?.id]);
+
   if (loading) {
     return (
       <View
@@ -366,22 +411,24 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <I18nextProvider i18n={i18n}>
         <LanguageProvider>
-          <NavigationContainer>
-            <StatusBar style="light" backgroundColor={COLORS.background} />
-            {user ? (
-              <DashboardTabNavigator />
-            ) : (
-              <AuthStack.Navigator screenOptions={{ headerShown: false }}>
-                <AuthStack.Screen name="Login" component={LoginScreen} />
-                <AuthStack.Screen name="SignUp" component={SignUpScreen} />
-                <AuthStack.Screen
-                  name="ForgotPassword"
-                  component={ForgotPasswordScreen}
-                />
-                <AuthStack.Screen name="OtpVerification" component={OtpScreen} />
-              </AuthStack.Navigator>
-            )}
-          </NavigationContainer>
+          <AgencyRBACProvider>
+            <NavigationContainer>
+              <StatusBar style="light" backgroundColor={COLORS.background} />
+              {user ? (
+                <DashboardTabNavigator />
+              ) : (
+                <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+                  <AuthStack.Screen name="Login" component={LoginScreen} />
+                  <AuthStack.Screen name="SignUp" component={SignUpScreen} />
+                  <AuthStack.Screen
+                    name="ForgotPassword"
+                    component={ForgotPasswordScreen}
+                  />
+                  <AuthStack.Screen name="OtpVerification" component={OtpScreen} />
+                </AuthStack.Navigator>
+              )}
+            </NavigationContainer>
+          </AgencyRBACProvider>
         </LanguageProvider>
       </I18nextProvider>
     </GestureHandlerRootView>

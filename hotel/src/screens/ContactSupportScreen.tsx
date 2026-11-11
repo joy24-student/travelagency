@@ -5,9 +5,9 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 export function ContactSupportScreen() {
@@ -84,7 +84,7 @@ export function ContactSupportScreen() {
 
         {/* Support Channels */}
         <View className="mb-8">
-          <Text className="text-white font-bold text-lg ml-1 mb-4">Support Channels</Text>
+          <Text className="text-white font-bold text-lg ms-1 mb-4">Support Channels</Text>
           <View className="space-y-3">
              <View className="flex-row space-x-3">
                <ChannelButton icon="forum" title="Live Chat" subtitle="Instant messaging" color="#c0c1ff" bgColor="bg-primary/10" />
@@ -99,7 +99,7 @@ export function ContactSupportScreen() {
 
         {/* Recent Activity */}
         <View className="mb-24">
-          <Text className="text-white font-bold text-lg ml-1 mb-4">Recent Activity</Text>
+          <Text className="text-white font-bold text-lg ms-1 mb-4">Recent Activity</Text>
           <View className="bg-slate-800/40 border border-white/5 rounded-2xl overflow-hidden">
              {[
                { id: '#9021', title: 'API integration issues', status: 'In Progress', time: '12 mins ago', color: '#c0c1ff' },

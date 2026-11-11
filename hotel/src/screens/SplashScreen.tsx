@@ -3,7 +3,7 @@ import { View, Text, Image, Animated, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 
-const { width, height } = Dimensions.get('window');
+
 
 export function SplashScreen({ navigation }: any) {
   const fadeAnim = new Animated.Value(0);
@@ -35,7 +35,7 @@ export function SplashScreen({ navigation }: any) {
       <StatusBar style="light" />
       <LinearGradient
         colors={['transparent', 'rgba(99, 102, 241, 0.05)', 'transparent']}
-        style={{ position: 'absolute', width, height }}
+        style={{ position: 'absolute', width: 360, height: 640 }}
       />
 
       {/* Background Decorative Glows */}

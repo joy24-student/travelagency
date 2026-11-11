@@ -22,8 +22,22 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { refundService, adminService } from "@/services/adminService";
 import { RefundRequest, AdminUser } from "@/types/admin";
+import {
+  executeAdminCommand,
+  ApproveRefundCommand,
+  ProcessRefundCommand,
+  RejectRefundCommand,
+  HoldRefundCommand,
+} from "./commands";
+import { useRBAC } from "./rbac";
+import { AdminPagination } from "./AdminPagination";
+import { DestructiveConfirmModal } from "./DestructiveConfirmModal";
+import { withErrorBoundary } from "../../components/common/ErrorBoundaryView";
+import { ErrorStateCard } from "../../components/common/ErrorStateCard";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { EmptyState } from "../../components/ui/EmptyState";
 
-const { width } = Dimensions.get("window");
+
 
 /**
  * Refund Status Badge
@@ -386,9 +400,12 @@ const RefundActionModal: React.FC<{
 /**
  * Refund Management Screen
  */
-export const RefundManagementScreen: React.FC<{ admin: AdminUser | null }> = ({
-  admin,
+const RefundManagementScreenComponent: React.FC<{ admin?: AdminUser | null }> = ({
+  admin: propAdmin,
 }) => {
+  const { admin: rbacAdmin } = useRBAC();
+  const admin = propAdmin || rbacAdmin;
+  const [error, setError] = useState<string | null>(null);
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedRefund, setSelectedRefund] = useState<RefundRequest | null>(
@@ -398,17 +415,33 @@ export const RefundManagementScreen: React.FC<{ admin: AdminUser | null }> = ({
   const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
+  // Pagination & Destructive Execution States
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const [executeModalVisible, setExecuteModalVisible] = useState(false);
+  const [executingLoading, setExecutingLoading] = useState(false);
+  const [pendingActionData, setPendingActionData] = useState<{ action: string; data?: any } | null>(null);
+
+  const totalPages = Math.ceil(refunds.length / PAGE_SIZE) || 1;
+  const paginatedRefunds = refunds.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus]);
+
   useEffect(() => {
     loadRefunds();
   }, [filterStatus]);
 
   const loadRefunds = async () => {
     setLoading(true);
+    setError(null);
     try {
       const allRefunds = await refundService.getAllRefunds(filterStatus, 100);
-      setRefunds(allRefunds);
-    } catch (error) {
-      console.error("Error loading refunds:", error);
+      setRefunds(allRefunds || []);
+    } catch (err: any) {
+      console.error("Error loading refunds:", err);
+      setError(err?.message || "Failed to load refund requests.");
     } finally {
       setLoading(false);
     }
@@ -426,46 +459,70 @@ export const RefundManagementScreen: React.FC<{ admin: AdminUser | null }> = ({
   };
 
   const handleAction = async (action: string, data?: any) => {
-    if (!selectedRefund || !admin) return;
+    if (!selectedRefund || !admin) {
+      Alert.alert("Error", "No active administrator context found.");
+      return;
+    }
 
+    if (action === "process" || action === "approve") {
+      setPendingActionData({ action, data });
+      setModalVisible(false);
+      setExecuteModalVisible(true);
+      return;
+    }
+
+    await executeRefundCommandAction(action, data);
+  };
+
+  const handleConfirmExecuteRefund = async () => {
+    if (!pendingActionData) return;
+    setExecutingLoading(true);
+    await executeRefundCommandAction(pendingActionData.action, pendingActionData.data);
+    setExecutingLoading(false);
+    setExecuteModalVisible(false);
+    setPendingActionData(null);
+  };
+
+  const executeRefundCommandAction = async (action: string, data?: any) => {
+    if (!selectedRefund || !admin) return;
     try {
-      let success = false;
+      let cmdResult;
       switch (action) {
         case "approve":
-          success = await refundService.approveRefund(
-            selectedRefund.id,
-            admin.id,
+          cmdResult = await executeAdminCommand(
+            new ApproveRefundCommand(selectedRefund.id, data?.notes || ""),
+            admin
           );
           break;
         case "process":
-          success = await refundService.processRefund(
-            selectedRefund.id,
-            admin.id,
-            data?.notes || "",
+          cmdResult = await executeAdminCommand(
+            new ProcessRefundCommand(selectedRefund.id, data?.notes || ""),
+            admin
           );
           break;
         case "reject":
-          success = await refundService.rejectRefund(
-            selectedRefund.id,
-            data?.notes || "",
-            admin.id,
+          cmdResult = await executeAdminCommand(
+            new RejectRefundCommand(selectedRefund.id, data?.notes || ""),
+            admin
           );
           break;
         case "hold":
-          success = await refundService.holdRefund(
-            selectedRefund.id,
-            admin.id,
-            data?.reason || "",
+          cmdResult = await executeAdminCommand(
+            new HoldRefundCommand(selectedRefund.id, data?.notes || data?.reason || ""),
+            admin
           );
           break;
       }
 
-      if (success) {
-        Alert.alert("Success", `Refund ${action} successful`);
+      if (cmdResult?.success) {
+        Alert.alert(
+          "Audit Trail Recorded",
+          `Refund ${action.toUpperCase()} action verified and immutable entry logged to admin_activity_logs.`
+        );
         setModalVisible(false);
         await loadRefunds();
       } else {
-        Alert.alert("Error", `Failed to ${action} refund`);
+        Alert.alert("Governance Block", cmdResult?.error || `Failed to ${action} refund`);
       }
     } catch (error) {
       Alert.alert("Error", "An error occurred while processing the action");
@@ -525,29 +582,45 @@ export const RefundManagementScreen: React.FC<{ admin: AdminUser | null }> = ({
       </ScrollView>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#f59e0b" />
+        <View style={{ padding: 16 }}>
+          <LoadingState variant="skeleton" skeletonType="card" count={3} />
         </View>
+      ) : error ? (
+        <ErrorStateCard
+          title="Unable to Load Refund Records"
+          message={error}
+          onRetry={loadRefunds}
+        />
       ) : (
         <FlatList
-          data={refunds}
+          data={paginatedRefunds}
           renderItem={({ item }) => (
             <RefundCard refund={item} onPress={handleRefundPress} />
           )}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => item?.id ? String(item.id) : `refund-${index}`}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons
-                name="cash-refund"
-                size={64}
-                color="#d1d5db"
+            <EmptyState
+              type="generic"
+              title="No Refunds Found"
+              description="No refund requests match the current status filter."
+              actionLabel="Refresh Refunds"
+              onAction={loadRefunds}
+            />
+          }
+          ListFooterComponent={
+            refunds.length > PAGE_SIZE ? (
+              <AdminPagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={refunds.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
               />
-              <Text style={styles.emptyText}>No refunds found</Text>
-            </View>
+            ) : null
           }
         />
       )}
@@ -560,6 +633,28 @@ export const RefundManagementScreen: React.FC<{ admin: AdminUser | null }> = ({
           setSelectedRefund(null);
         }}
         onAction={handleAction}
+      />
+
+      {/* High-Visibility Destructive Action Confirmation */}
+      <DestructiveConfirmModal
+        visible={executeModalVisible}
+        title="Confirm Fund Disbursement"
+        description={`Are you sure you want to execute and disburse refund of ${selectedRefund?.refund_amount || 0} BDT? This transaction will immediately disburse funds from company reserves back to the customer gateway account.`}
+        targetName={`Booking Ref: ${selectedRefund?.booking_id || "N/A"}`}
+        targetId={selectedRefund?.id}
+        confirmLabel="Execute Refund"
+        onConfirm={handleConfirmExecuteRefund}
+        onCancel={() => {
+          setExecuteModalVisible(false);
+          setPendingActionData(null);
+        }}
+        isLoading={executingLoading}
+        severity="danger"
+        requireTypedConfirmation={true}
+        confirmationWord="REFUND"
+        requireReason={true}
+        reasonPlaceholder="Enter refund disbursement reason for financial ledger..."
+        auditLogRef={`AUD-RFD-${selectedRefund?.id?.slice(-6).toUpperCase() || "LOG"}`}
       />
     </View>
   );
@@ -632,7 +727,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardIcon: {
-    marginRight: 12,
+    marginEnd: 12,
   },
   iconGradient: {
     width: 48,
@@ -726,7 +821,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     marginBottom: 2,
   },
@@ -820,7 +915,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   actionOptionContent: {
     flex: 1,
@@ -872,4 +967,12 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RefundManagementScreen;
+const WrappedRefundManagementScreen: React.FC<{ admin?: AdminUser | null }> = withErrorBoundary(
+  RefundManagementScreenComponent,
+  {
+    screenName: "RefundManagementScreen",
+  }
+);
+
+export { WrappedRefundManagementScreen as RefundManagementScreen };
+export default WrappedRefundManagementScreen;

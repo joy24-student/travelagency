@@ -14,13 +14,13 @@ import {
   Image,
   Dimensions,
   Platform,
-  SafeAreaView,
-} from "react-native";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient"; // Ensure LinearGradient is imported
 import { COLORS } from "../../App";
 
-const { width } = Dimensions.get("window");
+
 
 // Mock Data for Customer Profile
 interface CustomerProfile {
@@ -292,6 +292,8 @@ export default function CustomerProfileScreen({ navigation, route }: any) {
     </SafeAreaView>
   );
 }
+
+const { width } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   container: {

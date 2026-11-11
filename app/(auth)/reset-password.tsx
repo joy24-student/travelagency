@@ -1,8 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Alert, Text } from "react-native";
+import { Text, TextInput } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import {
   resetPasswordSchema,
@@ -14,6 +15,7 @@ import { AuthTextField } from "../../src/components/AuthTextField";
 import { authService } from "../../src/services/auth";
 
 export default function ResetPasswordScreen() {
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{
     code?: string;
     email?: string;
@@ -21,6 +23,13 @@ export default function ResetPasswordScreen() {
   }>();
   const [loading, setLoading] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const emailRef = useRef<TextInput>(null);
+  const tokenRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
+
   const { control, handleSubmit } = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
@@ -42,32 +51,27 @@ export default function ResetPasswordScreen() {
           setSessionReady(true);
         }
       } catch (error) {
-        Alert.alert(
-          "Recovery link failed",
-          error instanceof Error ? error.message : "Use the code instead.",
+        setErrorMessage(
+          error instanceof Error ? error.message : t("recoveryLinkInvalid", "রিকভারি লিংক মেয়াদোত্তীর্ণ বা অকার্যকর।")
         );
       }
     };
 
     prepareRecoverySession();
-  }, [params.code, params.token_hash]);
+  }, [params.code, params.token_hash, t]);
 
   const onSubmit = handleSubmit(async ({ email, token, password }) => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       if (!sessionReady && email && token) {
         await authService.verifyOtp(email, token, "recovery");
       }
       await authService.updatePassword(password);
-      Alert.alert(
-        "Password updated",
-        "You can now sign in with your new password.",
-      );
       router.replace("/(auth)/login");
     } catch (error) {
-      Alert.alert(
-        "Reset failed",
-        error instanceof Error ? error.message : "Please try again.",
+      setErrorMessage(
+        error instanceof Error ? error.message : t("passwordUpdateFailed", "পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।")
       );
     } finally {
       setLoading(false);
@@ -76,43 +80,71 @@ export default function ResetPasswordScreen() {
 
   return (
     <AuthScreenShell
-      subtitle="Open the recovery link, or enter the recovery code, then set a new password."
-      title="Reset Password"
+      subtitle={t("resetPasswordSubtitle", "Open the recovery link, or enter the recovery code, then set a new password.")}
+      title={t("resetPassword", "Reset Password")}
     >
       {!sessionReady ? (
         <>
           <AuthTextField
             control={control}
+            inputRef={emailRef}
             keyboardType="email-address"
-            label="Email"
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            onSubmitEditing={() => tokenRef.current?.focus()}
+            label={t("email", "Email")}
             name="email"
           />
           <AuthTextField
             control={control}
+            inputRef={tokenRef}
             keyboardType="number-pad"
-            label="Recovery code"
+            autoComplete="one-time-code"
+            textContentType="oneTimeCode"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            label={t("recoveryCode", "Recovery code")}
+            placeholder={t("enterVerificationCode", "Enter verification code")}
             name="token"
           />
           <Text className="mb-4 text-xs leading-5 text-gray-500">
-            If you opened the recovery link directly, you can leave these fields
-            empty.
+            {t("emptyRecoveryNote", "If you opened the recovery link directly, you can leave these fields empty.")}
           </Text>
         </>
       ) : null}
       <AuthTextField
         control={control}
-        label="New password"
+        inputRef={passwordRef}
+        label={t("newPassword", "New password")}
         name="password"
         secureTextEntry
+        isNewPassword
+        showStrengthMeter
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="next"
+        onSubmitEditing={() => confirmPasswordRef.current?.focus()}
       />
       <AuthTextField
         control={control}
-        label="Confirm new password"
+        inputRef={confirmPasswordRef}
+        label={t("confirmNewPassword", "Confirm new password")}
         name="confirmPassword"
         secureTextEntry
+        isNewPassword
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="done"
+        onSubmitEditing={onSubmit}
       />
+      {errorMessage && (
+        <Text style={{ color: "#dc2626", fontSize: 13, fontWeight: "500", marginBottom: 12 }}>
+          {errorMessage}
+        </Text>
+      )}
       <AuthSubmitButton
-        label="Update password"
+        label={t("updatePassword", "Update password")}
         loading={loading}
         onPress={onSubmit}
       />

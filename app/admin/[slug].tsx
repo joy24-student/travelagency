@@ -1,10 +1,58 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
+import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { AdminPortalShell, AdminTab } from "@/screens/admin/AdminPortalShell";
+import type { AdminTab } from "@/screens/admin/AdminPortalShell";
+
+// Dynamic Import: Ensure the heavy AdminPortalShell is an asynchronous chunk
+const LazyAdminPortalShell = lazy(() =>
+  import("../../src/screens/admin/AdminPortalShell").then((m) => ({ default: m.AdminPortalShell }))
+);
+
+const VALID_TABS: AdminTab[] = [
+  "dashboard",
+  "booking-ops",
+  "users",
+  "agencies",
+  "agency-ops",
+  "hotels",
+  "destinations",
+  "refunds",
+  "marketing",
+  "ads",
+  "reports",
+  "monitoring",
+  "settings",
+  "payment-ops",
+  "support",
+  "audit-trail",
+  "commissions",
+  "reviews",
+  "notifications",
+];
+
+const AdminLoadingFallback = () => (
+  <View style={styles.fallback}>
+    <ActivityIndicator size="large" color="#0284c7" />
+  </View>
+);
 
 export default function AdminSlugPage() {
   const { slug } = useLocalSearchParams<{ slug?: string }>();
-  const initialTab: AdminTab = (slug as AdminTab) || "dashboard";
+  const initialTab: AdminTab =
+    slug && VALID_TABS.includes(slug as AdminTab) ? (slug as AdminTab) : "dashboard";
 
-  return <AdminPortalShell initialTab={initialTab} />;
+  return (
+    <Suspense fallback={<AdminLoadingFallback />}>
+      <LazyAdminPortalShell initialTab={initialTab} />
+    </Suspense>
+  );
 }
+
+const styles = StyleSheet.create({
+  fallback: {
+    flex: 1,
+    backgroundColor: "#0f172a",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+});

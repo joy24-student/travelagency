@@ -47,7 +47,7 @@ export const authService = {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: "converted-travel-ui://auth/callback",
+        redirectTo: "shopnojatra://auth/callback",
         skipBrowserRedirect: true,
       },
     });
@@ -79,6 +79,19 @@ export const authService = {
       if (error) throw error;
       return data;
     }
+  },
+
+  // Send a one-click passwordless Magic Link
+  async sendMagicLink(email: string) {
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: "converted-travel-ui://auth/callback",
+      },
+    });
+    if (error) throw error;
+    return data;
   },
 
   // Verify OTP codes for email or phone sign in
@@ -152,16 +165,31 @@ export const authService = {
     return data;
   },
 
-  // Verify password reset OTP and update password
+  // Verify password reset OTP and update password (supports both numeric OTP and 8-digit token hash)
   async verifyPasswordResetOtp(email: string, token: string, newPassword: string) {
-    // First verify the OTP
-    const { data, error } = await supabase.auth.verifyOtp({
+    let verified = false;
+    // 1. Try standard numeric OTP
+    const { error: otpError } = await supabase.auth.verifyOtp({
       email,
       token,
       type: 'recovery',
     });
 
-    if (error) throw error;
+    if (!otpError) {
+      verified = true;
+    } else {
+      // 2. Fallback: Try as token_hash if 8-digit or alphanumeric token received (see FIX_8_DIGIT_OTP.md)
+      const { error: hashError } = await supabase.auth.verifyOtp({
+        email,
+        token_hash: token,
+        type: 'recovery',
+      });
+      if (!hashError) {
+        verified = true;
+      } else {
+        throw otpError;
+      }
+    }
 
     // Now update the password
     const { data: updateData, error: updateError } = await supabase.auth.updateUser({
@@ -223,41 +251,64 @@ export const authService = {
     return session;
   },
 
-  // Check if user exists by email
+  // Check if user exists by email without triggering rate-limits or brute-force locks
   async checkUserExists(email: string): Promise<boolean> {
-    try {
-      // Check if we can send a password reset - this will tell us if user exists
-      // Supabase returns success even if user doesn't exist (security), 
-      // so we use a different approach
-      
-      // Alternative: Check the auth.users table via RPC or public endpoint
-      // For now, we'll use the signup confirmation check
-      const { data, error } = await supabase.rpc('check_user_exists', { 
-        user_email: email 
-      });
-      
-      if (error) {
-        // RPC function doesn't exist, fall back to password check
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password: '__check__' + Math.random().toString(36),
-        });
-
-        if (signInError) {
-          // Check error message
-          const msg = signInError.message.toLowerCase();
-          if (msg.includes('invalid') || msg.includes('password') || msg.includes('credentials')) {
-            return true; // User exists, wrong password
-          }
-          return false; // User doesn't exist or unconfirmed
-        }
-        return true;
-      }
-      
-      return data === true;
-    } catch {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       return false;
     }
+
+    // 1. Try Backend API endpoint if configured
+    try {
+      const backendUrl =
+        process.env.EXPO_PUBLIC_API_URL ||
+        process.env.EXPO_PUBLIC_BACKEND_URL;
+      if (backendUrl) {
+        const response = await fetch(`${backendUrl}/api/v1/auth/check-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: cleanEmail }),
+        });
+        if (response.ok) {
+          const result = await response.json();
+          if (result?.data?.exists !== undefined) {
+            return Boolean(result.data.exists);
+          }
+        }
+      }
+    } catch {
+      // Backend request fallback to Supabase
+    }
+
+    // 2. Try Supabase RPC check_user_exists
+    try {
+      const { data, error } = await supabase.rpc("check_user_exists", {
+        user_email: cleanEmail,
+      });
+
+      if (!error && typeof data === "boolean") {
+        return data;
+      }
+    } catch {
+      // RPC failed, check profiles table
+    }
+
+    // 3. Fallback: Query public user_profiles table safely
+    try {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .ilike("email", cleanEmail)
+        .maybeSingle();
+
+      if (!error && data) {
+        return true;
+      }
+    } catch {
+      // Silent catch
+    }
+
+    return false;
   },
 
   // Listen to auth state changes

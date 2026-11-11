@@ -1,34 +1,53 @@
-import React from 'react';
-import { Text, View, StyleSheet } from 'react-native';
-import { formatBDTCurrency } from '../utils/currency';
+import React from "react";
+import { Text, StyleSheet, StyleProp, TextStyle } from "react-native";
+import { formatPrice } from "../utils/currency";
+import { useSettingsStore, CurrencyCode } from "../store/settingsStore";
+import { useLanguage } from "../context/LanguageContext";
 
 interface CurrencyDisplayProps {
-  amount: number;
+  amount: number | string;
+  currency?: CurrencyCode;
   showSymbol?: boolean;
-  style?: object;
+  useBengaliDigits?: boolean;
+  style?: StyleProp<TextStyle>;
+  numberOfLines?: number;
 }
 
-const CurrencyDisplay: React.FC<CurrencyDisplayProps> = ({ 
-  amount, 
-  showSymbol = true, 
-  style 
+const CurrencyDisplay: React.FC<CurrencyDisplayProps> = ({
+  amount,
+  currency,
+  showSymbol = true,
+  useBengaliDigits,
+  style,
+  numberOfLines = 1,
 }) => {
-  const formattedAmount = showSymbol 
-    ? formatBDTCurrency(amount) 
-    : new Intl.NumberFormat('bn-BD', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(amount);
+  const storeCurrency = useSettingsStore((s) => s.currency);
+  const { language } = useLanguage();
+
+  const activeCurrency = currency || storeCurrency || "BDT";
+  const isBengali = useBengaliDigits ?? (language === "bn");
+
+  const formattedAmount = formatPrice(amount, activeCurrency, {
+    showSymbol,
+    locale: language,
+    useBengaliDigits: isBengali,
+  });
 
   return (
-    <Text style={[styles.text, style]}>{formattedAmount}</Text>
+    <Text
+      numberOfLines={numberOfLines}
+      style={[styles.text, style]}
+    >
+      {formattedAmount}
+    </Text>
   );
 };
 
 const styles = StyleSheet.create({
   text: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
+    color: "#0F172A",
   },
 });
 

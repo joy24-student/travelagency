@@ -24,7 +24,10 @@ import { useAuth } from "../hooks/useAuth";
 import { bookingRepository } from "../services/repositories/booking";
 import { searchRepository } from "../services/repositories/search";
 import { supabase } from "../utils/supabase";
-import { AiPill, BottomNav } from "./Navigation";
+
+import { useResponsive } from "../hooks/useResponsive";
+import { formatPrice, getActiveCurrency } from "../utils/currency";
+import { RTLIcon } from "../components/ui";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TRIP_BLUE = "#E5A93C"; // Luxury Gold Design Token
@@ -165,6 +168,7 @@ const PERKS = [
 ];
 
 export function CarRentalsScreen() {
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useResponsive();
   const { user } = useAuth();
 
   // Location States
@@ -418,7 +422,7 @@ export function CarRentalsScreen() {
             tax_amount: pricing.taxes,
             service_fee: pricing.driverSurcharge,
             final_price: pricing.finalTotal,
-            currency: "USD",
+            currency: getActiveCurrency(),
             notes: `Car Rental: ${vehicle.name} (${vehicle.provider}) for ${rentalDays} day(s) from ${pickupLocation.code}`,
             booking_reference: bookingRef,
             cancellation_policy: {
@@ -446,7 +450,7 @@ export function CarRentalsScreen() {
           bookingId: bookingId,
           reference: bookingRef,
           amount: pricing.finalTotal.toString(),
-          currency: "USD",
+          currency: getActiveCurrency(),
           vehicleName: vehicle.name,
           provider: vehicle.provider,
           category: vehicle.category,
@@ -496,10 +500,10 @@ export function CarRentalsScreen() {
                 style={styles.circleBtn}
                 onPress={() => {
                   Haptics.selectionAsync();
-                  router.canGoBack() ? router.back() : router.replace("/");
+                  router.canGoBack() ? router.back() : router.replace("/(tabs)");
                 }}
               >
-                <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+                <RTLIcon name="arrow-back" size={20} color="#FFFFFF" />
               </Pressable>
 
               <View style={styles.brandBadge}>
@@ -574,7 +578,7 @@ export function CarRentalsScreen() {
                 {pickupLocation.name}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            <RTLIcon name="chevron-forward" size={18} color="#9CA3AF" />
           </Pressable>
 
           {/* Different Drop-off Field if active */}
@@ -604,7 +608,7 @@ export function CarRentalsScreen() {
                     {dropoffLocation.name}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                <RTLIcon name="chevron-forward" size={18} color="#9CA3AF" />
               </Pressable>
             </>
           )}
@@ -633,7 +637,7 @@ export function CarRentalsScreen() {
           <View style={styles.driverAgeRow}>
             <View style={styles.driverAgeLeft}>
               <Ionicons name="person-circle-outline" size={22} color="#4B5563" />
-              <View style={{ marginLeft: 8 }}>
+              <View style={{ marginStart: 8 }}>
                 <Text style={styles.driverAgeText}>Driver aged 25 - 70</Text>
                 <Text style={styles.driverAgeSubText}>
                   {driverAgeValid ? "Standard rate · No young driver fee" : "Ages 21-24 (+ $12/day fee applies)"}
@@ -660,7 +664,7 @@ export function CarRentalsScreen() {
               fetchCarRentals();
             }}
           >
-            <Ionicons name="search" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <Ionicons name="search" size={20} color="#FFFFFF" style={{ marginEnd: 8 }} />
             <Text style={styles.searchSubmitBtnText}>Search Available Fleet</Text>
           </Pressable>
         </View>
@@ -668,7 +672,7 @@ export function CarRentalsScreen() {
         {/* Benefits & Trust Badges Strip */}
         <View style={styles.perksStrip}>
           {PERKS.map((perk, i) => (
-            <View key={i} style={styles.perkItem}>
+            <View key={perk.text || `perk-${i}`} style={styles.perkItem}>
               <Ionicons name={perk.icon} size={16} color={TRIP_BLUE} />
               <Text style={styles.perkText}>{perk.text}</Text>
             </View>
@@ -765,7 +769,7 @@ export function CarRentalsScreen() {
                   {/* Highlights */}
                   <View style={styles.featuresRow}>
                     {vehicle.features.map((feat: string, idx: number) => (
-                      <View key={idx} style={styles.featureItem}>
+                      <View key={`feat-${feat}-${idx}`} style={styles.featureItem}>
                         <Ionicons name="checkmark-circle" size={13} color="#10B981" />
                         <Text style={styles.featureText}>{feat}</Text>
                       </View>
@@ -782,11 +786,11 @@ export function CarRentalsScreen() {
                   <View style={styles.cardBottomRow}>
                     <View>
                       <View style={styles.priceLine}>
-                        <Text style={styles.priceDaily}>${vehicle.pricePerDay}</Text>
+                        <Text style={styles.priceDaily}>{formatPrice(vehicle.pricePerDay)}</Text>
                         <Text style={styles.priceUnit}> / day</Text>
                       </View>
                       <Text style={styles.totalPriceText}>
-                        Total: ${pricing.finalTotal} for {rentalDays} days
+                        Total: {formatPrice(pricing.finalTotal)} for {rentalDays} days (taxes incl.)
                       </Text>
                     </View>
 
@@ -805,7 +809,7 @@ export function CarRentalsScreen() {
                         ) : (
                           <>
                             <Text style={styles.bookBtnText}>Book Now</Text>
-                            <Ionicons name="arrow-forward" size={14} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                            <RTLIcon name="arrow-forward" size={14} color="#FFFFFF" style={{ marginStart: 4 }} />
                           </>
                         )}
                       </Pressable>
@@ -820,9 +824,6 @@ export function CarRentalsScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Floating AI Pill & Bottom Nav */}
-      <AiPill color={TRIP_BLUE} />
-      <BottomNav active="Home" color={TRIP_BLUE} />
 
       {/* =========================================================================
           2. Interactive Pick-up & Drop-off Location Modal
@@ -853,7 +854,7 @@ export function CarRentalsScreen() {
 
           {/* Search Bar */}
           <View style={styles.searchBarWrap}>
-            <Ionicons name="search" size={20} color="#9CA3AF" style={{ marginRight: 8 }} />
+            <Ionicons name="search" size={20} color="#9CA3AF" style={{ marginEnd: 8 }} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search airport code (DAC, CXB, DXB...) or city"
@@ -931,7 +932,7 @@ export function CarRentalsScreen() {
                   </View>
 
                   {isSelected && (
-                    <Ionicons name="checkmark-circle" size={22} color={TRIP_BLUE} style={{ marginLeft: 8 }} />
+                    <Ionicons name="checkmark-circle" size={22} color={TRIP_BLUE} style={{ marginStart: 8 }} />
                   )}
                 </Pressable>
               );
@@ -1166,24 +1167,24 @@ export function CarRentalsScreen() {
                           <Text style={styles.fareCardTitle}>Price Breakdown ({rentalDays} Days)</Text>
                           <View style={styles.fareRow}>
                             <Text style={styles.fareLabel}>
-                              Base Rate (${pricing.baseDaily}/day x {rentalDays} days)
+                              Base Rate ({formatPrice(pricing.baseDaily)}/day x {rentalDays} days)
                             </Text>
-                            <Text style={styles.fareVal}>${pricing.baseTotal}</Text>
+                            <Text style={styles.fareVal}>{formatPrice(pricing.baseTotal)}</Text>
                           </View>
                           {pricing.driverSurcharge > 0 && (
                             <View style={styles.fareRow}>
                               <Text style={styles.fareLabel}>Young Driver Surcharge</Text>
-                              <Text style={styles.fareVal}>${pricing.driverSurcharge}</Text>
+                              <Text style={styles.fareVal}>{formatPrice(pricing.driverSurcharge)}</Text>
                             </View>
                           )}
                           <View style={styles.fareRow}>
                             <Text style={styles.fareLabel}>Taxes & Airport Concession (10%)</Text>
-                            <Text style={styles.fareVal}>${pricing.taxes}</Text>
+                            <Text style={styles.fareVal}>{formatPrice(pricing.taxes)}</Text>
                           </View>
                           <View style={styles.fareDivider} />
                           <View style={styles.fareRow}>
-                            <Text style={styles.fareTotalLabel}>Total Amount Due (USD)</Text>
-                            <Text style={styles.fareTotalVal}>${pricing.finalTotal}</Text>
+                            <Text style={styles.fareTotalLabel}>Total Amount Due</Text>
+                            <Text style={styles.fareTotalVal}>{formatPrice(pricing.finalTotal)}</Text>
                           </View>
                         </View>
                       );
@@ -1198,8 +1199,8 @@ export function CarRentalsScreen() {
                       return (
                         <>
                           <View>
-                            <Text style={styles.footerPriceLabel}>Total for {rentalDays} Days</Text>
-                            <Text style={styles.footerPriceValue}>${pricing.finalTotal} USD</Text>
+                            <Text style={styles.footerPriceLabel}>Total for {rentalDays} Days (All taxes incl.)</Text>
+                            <Text style={styles.footerPriceValue}>{formatPrice(pricing.finalTotal)}</Text>
                           </View>
                           <Pressable
                             style={[styles.reserveCTAButton, isSelected && { opacity: 0.7 }]}
@@ -1211,7 +1212,7 @@ export function CarRentalsScreen() {
                             ) : (
                               <>
                                 <Text style={styles.reserveCTAButtonText}>Select & Reserve Vehicle</Text>
-                                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                                <RTLIcon name="arrow-forward" size={18} color="#FFFFFF" style={{ marginStart: 6 }} />
                               </>
                             )}
                           </Pressable>
@@ -1322,6 +1323,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 6,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 6px 12px rgba(15, 23, 42, 0.1)" } : {}),
   },
   dropoffTabs: {
     flexDirection: "row",
@@ -1365,13 +1367,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   inputContent: {
     flex: 1,
   },
   inputFieldLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "700",
     textTransform: "uppercase",
@@ -1395,12 +1397,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   locationCodeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: TRIP_BLUE,
   },
   inputSubText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 2,
   },
@@ -1438,7 +1440,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateTimeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "600",
   },
@@ -1449,7 +1451,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   dateTimeSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: TRIP_BLUE,
     fontWeight: "700",
     marginTop: 1,
@@ -1464,7 +1466,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   durationPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: TRIP_BLUE,
   },
@@ -1487,7 +1489,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   driverAgeSubText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 1,
   },
@@ -1527,7 +1529,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   perkText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#4B5563",
   },
@@ -1598,6 +1600,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 3px 8px rgba(15, 23, 42, 0.06)" } : {}),
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },
@@ -1614,7 +1617,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   carBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: TRIP_BLUE,
   },
@@ -1625,7 +1628,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   providerText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#374151",
   },
@@ -1636,7 +1639,7 @@ const styles = StyleSheet.create({
   },
   carInfoCol: {
     flex: 1,
-    paddingRight: 10,
+    paddingEnd: 10,
   },
   carName: {
     fontSize: 16,
@@ -1656,7 +1659,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   reviewCount: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
   },
   specsRow: {
@@ -1674,7 +1677,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   specText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#4B5563",
   },
@@ -1700,7 +1703,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   featureText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#4B5563",
     fontWeight: "600",
   },
@@ -1725,7 +1728,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   totalPriceText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "600",
     marginTop: 2,
@@ -1810,7 +1813,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   chipsSectionLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: "#6B7280",
     marginBottom: 8,
@@ -1818,7 +1821,7 @@ const styles = StyleSheet.create({
   },
   chipsRow: {
     gap: 8,
-    paddingRight: 16,
+    paddingEnd: 16,
   },
   chipBtn: {
     backgroundColor: "#F3F4F6",
@@ -1860,7 +1863,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
   },
   locIconCircleActive: {
     backgroundColor: TRIP_BLUE,
@@ -1885,7 +1888,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   locCodeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: TRIP_BLUE,
   },
@@ -1965,7 +1968,7 @@ const styles = StyleSheet.create({
     color: TRIP_BLUE,
   },
   presetLabelText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6B7280",
     marginTop: 2,
   },
@@ -2002,7 +2005,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#F3F4F6",
   },
   sheetSummaryLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "600",
   },
@@ -2034,7 +2037,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   drawerSheet: {
-    height: SCREEN_HEIGHT * 0.88,
+    height: "88%",
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -2118,7 +2121,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   specBoxLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
     textAlign: "center",
@@ -2198,7 +2201,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   footerPriceLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },

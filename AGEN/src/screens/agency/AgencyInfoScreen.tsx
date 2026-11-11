@@ -22,7 +22,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { COLORS } from "../../App";
 import { agencyProfileService } from "../../services/agencyService";
 
-const { width } = Dimensions.get("window");
+
 
 // Ultra UI Constants from HTML redesign
 const UI_COLORS = {
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   },
   content: { flex: 1 },
   heroSection: { height: 340, width: "100%", overflow: "hidden" },
-  coverImage: { ...StyleSheet.absoluteFillObject, opacity: 0.5 },
+  coverImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: 0.5 },
   heroOverlay: { ...StyleSheet.absoluteFillObject },
   heroIdentity: {
     position: "absolute",

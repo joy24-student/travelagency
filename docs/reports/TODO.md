@@ -1,0 +1,4 @@
+- [x] Fix HomeScreen native animation error: remove Animated `height` usage
+- [x] Replace with native-driver-safe animation (transform scaleY / translateY + overflow hidden)
+- [x] Verify no other animated height usages remain in HomeScreen
+- [x] Re-run app / confirm error is resolved

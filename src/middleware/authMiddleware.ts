@@ -5,9 +5,10 @@
 
 import { useEffect } from "react";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../hooks/useAuth";
 import React from "react";
-import { supabase } from "../utils/supabase";
+import { safeRefreshSession, supabase } from "../utils/supabase";
 
 export type UserRole = "user" | "business" | "admin" | "professional";
 
@@ -36,34 +37,50 @@ export const useAuthGuard = () => {
  */
 export const useRoleGuard = (requiredRoles: UserRole[]) => {
   const router = useRouter();
-  const { user, getUserRole, loading } = useAuth();
+  const { user, getUserRole, loading, isAuthenticated } = useAuth();
   const [userRole, setUserRole] = React.useState<UserRole | null>(null);
   const [roleLoading, setRoleLoading] = React.useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     const checkRole = async () => {
+      if (loading) return;
+
+      if (!isAuthenticated || !user) {
+        setRoleLoading(false);
+        router.replace("/(auth)/login");
+        return;
+      }
+
       try {
         const role = await getUserRole();
+        if (!isMounted) return;
+
         setUserRole(role);
 
-        if (role && !requiredRoles.includes(role)) {
-          // Redirect to main app if user doesn't have permission
-          router.replace("/(protected)/(tabs)/home");
+        if (!role || !requiredRoles.includes(role)) {
+          // Redirect to main app home tab if user doesn't have permission
+          router.replace("/(tabs)");
         }
       } catch (error) {
         console.error("Role check error:", error);
-        router.replace("/(protected)/(tabs)/home");
+        if (isMounted) {
+          router.replace("/(tabs)");
+        }
       } finally {
-        setRoleLoading(false);
+        if (isMounted) {
+          setRoleLoading(false);
+        }
       }
     };
 
-    if (user) {
-      checkRole();
-    } else {
-      setRoleLoading(false);
-    }
-  }, [user]);
+    checkRole();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, loading, isAuthenticated, getUserRole, router]);
 
   return { hasRequiredRole: userRole ? requiredRoles.includes(userRole) : false, roleLoading };
 };
@@ -165,7 +182,7 @@ export const useDeepLinkGuard = (token?: string, type?: "password-reset" | "emai
         setTokenValid(false);
         // Redirect to home after 2 seconds
         setTimeout(() => {
-          router.replace("/(tabs)/home");
+          router.replace("/(tabs)");
         }, 2000);
       }
     };
@@ -202,14 +219,35 @@ export const useSessionExpiryGuard = (expiryWarningMinutes = 5) => {
 
         setTimeRemaining(Math.ceil(minutesRemaining));
 
-        if (minutesRemaining < expiryWarningMinutes) {
+        if (minutesRemaining < expiryWarningMinutes && minutesRemaining > 0) {
+          // Attempt proactive silent refresh before expiry warning
+          const { data: refreshData, error: refreshError } = await safeRefreshSession();
+          if (!refreshError && refreshData?.session) {
+            setExpiryWarning(false);
+            return;
+          }
           setExpiryWarning(true);
         }
 
         if (minutesRemaining <= 0) {
-          // Session expired, sign out
+          // Attempt silent refresh first!
+          const { data: refreshData, error: refreshError } = await safeRefreshSession();
+          if (!refreshError && refreshData?.session) {
+            // Refreshed silently without disturbing the user!
+            setExpiryWarning(false);
+            return;
+          }
+
+          // Session truly expired and refresh failed
+          try {
+            await AsyncStorage.setItem(
+              "@app:session_expired_message",
+              "আপনার সেশন শেষ হয়ে গেছে, দয়া করে আবার লগইন করুন।"
+            );
+          } catch {}
+
           await supabase.auth.signOut();
-          router.replace("/(auth)/login");
+          router.replace("/(auth)/login?expired=1");
         }
       } catch (error) {
         console.error("Session expiry check error:", error);

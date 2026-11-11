@@ -20,7 +20,6 @@ import { useEffect, useState } from "react";
 
 import { useAuth } from "../../src/hooks/useAuth";
 import { userRepository } from "../../src/services/repositories/user";
-import { BottomNav, AiPill } from "../../src/screens/Navigation";
 
 const PRIMARY = "#287dfa";
 
@@ -114,7 +113,7 @@ export default function TransactionHistoryScreen() {
   const renderPaymentItem = ({ item }: { item: any }) => (
     <Pressable
       style={styles.paymentItem}
-      onPress={() => router.push(`/payment-details/${item.id}`)}
+      onPress={() => router.push(`/payment-details/${item.id}` as any)}
     >
       <View style={[styles.statusIcon, { backgroundColor: `${getStatusColor(item.status)}20` }]}>
         <Ionicons
@@ -238,8 +237,6 @@ export default function TransactionHistoryScreen() {
         </View>
       )}
 
-      <AiPill color={PRIMARY} />
-      <BottomNav active="Account" color={PRIMARY} />
     </SafeAreaView>
   );
 }

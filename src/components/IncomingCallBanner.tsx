@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
+import { Platform,
   Animated,
   Dimensions,
   Image,
@@ -15,7 +15,6 @@ import { callService } from "../services/callService";
 import { CallSignal, callsRepository } from "../services/repositories/calls";
 import { DEMO_USER_ID } from "../services/repositories/friends";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export function IncomingCallBanner() {
   const [incomingCall, setIncomingCall] = useState<CallSignal | null>(null);
@@ -238,6 +237,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 16,
     elevation: 12,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 8px 16px rgba(15, 23, 42, 0.45)" } : {}),
   },
   callerInfoRow: {
     flexDirection: "row",

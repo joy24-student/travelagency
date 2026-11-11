@@ -16,8 +16,15 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/utils/supabase";
+import { useRBAC } from "./rbac";
+import {
+  executeAdminCommand,
+  UpdateCommissionSplitCommand,
+  ApprovePartnerPayoutCommand,
+} from "./commands";
 
 export const CommissionManagementScreen: React.FC = () => {
+  const { admin } = useRBAC();
   const [splits, setSplits] = useState<any>({
     hotel: "15%",
     flight: "5%",
@@ -72,11 +79,35 @@ export const CommissionManagementScreen: React.FC = () => {
     };
   }, []);
 
-  const handleApprovePayout = (payoutId: string) => {
-    setPayouts((prev) =>
-      prev.map((p) => (p.id === payoutId ? { ...p, status: "processed" } : p))
+  const handleSaveSplits = async () => {
+    if (!admin) return;
+    const cmdResult = await executeAdminCommand(
+      new UpdateCommissionSplitCommand(splits),
+      admin
     );
-    Alert.alert("Success", "Payout approved and sent to bank settlement node.");
+    if (cmdResult.success) {
+      Alert.alert("Audit Logged", "Commission splits updated and logged to admin_activity_logs.");
+    } else {
+      Alert.alert("Governance Block", cmdResult.error || "Failed to update commission splits.");
+    }
+  };
+
+  const handleApprovePayout = async (payoutId: string) => {
+    if (!admin) return;
+    const item = payouts.find((p) => p.id === payoutId);
+    const cmdResult = await executeAdminCommand(
+      new ApprovePartnerPayoutCommand(payoutId, item?.amount || "৳0", item?.agency_name || "Agency"),
+      admin
+    );
+
+    if (cmdResult.success) {
+      setPayouts((prev) =>
+        prev.map((p) => (p.id === payoutId ? { ...p, status: "processed" } : p))
+      );
+      Alert.alert("Payout Approved", "Disbursed to settlement banking node and logged to admin_activity_logs.");
+    } else {
+      Alert.alert("Governance Block", cmdResult.error || "Failed to approve partner payout.");
+    }
   };
 
   return (
@@ -173,7 +204,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   splitLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
   },
   splitInput: {
@@ -212,12 +243,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#f59e0b15",
   },
   statusTextDone: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#10b981",
   },
   statusTextPending: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
     color: "#f59e0b",
   },

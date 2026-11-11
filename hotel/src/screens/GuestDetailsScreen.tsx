@@ -5,13 +5,13 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-export function GuestDetailsScreen() {
+export function GuestDetailsScreen({ navigation, route }: any) {
   const InfoRow = ({ label, value, icon, isCopyable, isPaid }: any) => (
     <View className={`flex-row justify-between items-center py-4 ${!isPaid && 'border-b border-gray-800'}`}>
       <Text className="text-gray-400 text-sm">{label}</Text>
@@ -35,11 +35,11 @@ export function GuestDetailsScreen() {
 
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4">
-        <TouchableOpacity className="p-2 bg-gray-800/40 rounded-full">
+        <TouchableOpacity className="p-2 bg-gray-800/40 rounded-full" onPress={() => navigation?.goBack?.()}>
           <MaterialIcons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Text className="text-lg font-bold text-white">Guest Details</Text>
-        <TouchableOpacity className="p-2 bg-gray-800/40 rounded-full">
+        <TouchableOpacity className="p-2 bg-gray-800/40 rounded-full" onPress={() => navigation?.goBack?.()}>
           <MaterialIcons name="share" size={24} color="white" />
         </TouchableOpacity>
       </View>
@@ -64,7 +64,7 @@ export function GuestDetailsScreen() {
                 <Text className="text-2xl font-bold text-white">Robert Fox</Text>
                 <View className="bg-yellow-500/20 px-2 py-0.5 rounded-full flex-row items-center">
                   <MaterialIcons name="star" size={10} color="#fbbf24" />
-                  <Text className="text-yellow-400 text-[10px] font-bold ml-1">VIP</Text>
+                  <Text className="text-yellow-400 text-[10px] font-bold ms-1">VIP</Text>
                 </View>
               </View>
               <View className="mt-2 space-y-1">
@@ -103,13 +103,13 @@ export function GuestDetailsScreen() {
 
         {/* Section Tabs */}
         <View className="mt-8 flex-row border-b border-gray-800">
-          <TouchableOpacity className="border-b-2 border-indigo-400 pb-2 mr-6">
+          <TouchableOpacity className="border-b-2 border-indigo-400 pb-2 me-6">
             <Text className="text-indigo-400 font-bold">Booking Details</Text>
           </TouchableOpacity>
-          <TouchableOpacity className="pb-2 mr-6">
+          <TouchableOpacity className="pb-2 me-6">
             <Text className="text-gray-400 font-medium">Profile</Text>
           </TouchableOpacity>
-          <TouchableOpacity className="pb-2 mr-6">
+          <TouchableOpacity className="pb-2 me-6">
             <Text className="text-gray-400 font-medium">History</Text>
           </TouchableOpacity>
         </View>

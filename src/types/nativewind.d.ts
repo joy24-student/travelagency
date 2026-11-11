@@ -18,6 +18,15 @@ declare module "react-native" {
   interface ScrollViewProps {
     className?: string;
   }
+  interface TextInputProps {
+    className?: string;
+  }
+  interface TouchableOpacityProps {
+    className?: string;
+  }
+  interface ActivityIndicatorProps {
+    className?: string;
+  }
 }
 
 declare module "react-native-safe-area-context" {

@@ -9,12 +9,13 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "noEmit": true,
-    "types": [
-      "react",
-      "react-native"
-    ]
+    "noEmit": true
   },
+  "include": [
+    "src",
+    "App.tsx",
+    "../nativewind-env.d.ts"
+  ],
   "exclude": [
     "node_modules",
     "babel.config.js",

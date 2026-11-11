@@ -8,7 +8,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import {
+import { Platform,
   ActivityIndicator,
   Alert,
   Modal,
@@ -27,6 +27,11 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { userRepository } from "../../src/services/repositories/user";
 import { supabase } from "../../src/utils/supabase";
 import { BottomNav, AiPill } from "../../src/screens/Navigation";
+import { ProfileCompletenessBar } from "../../src/components/profile/ProfileCompletenessBar";
+import { ActiveDevicesModal } from "../../src/components/settings/ActiveDevicesModal";
+import { AccountDeletionModal } from "../../src/components/settings/AccountDeletionModal";
+import { userDataExportService } from "../../src/services/userDataExportService";
+import { RTLIcon } from "../../src/components/ui";
 
 const PRIMARY = "#E5A93C";
 const BG_COLOR = "#F8FAFC";
@@ -71,6 +76,27 @@ export default function ProfileScreen() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showActiveDevicesModal, setShowActiveDevicesModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [isExportingData, setIsExportingData] = useState(false);
+
+  const handleDownloadData = async () => {
+    try {
+      setIsExportingData(true);
+      const payload = await userDataExportService.buildExportPayload(user?.id || "", user);
+      const ok = await userDataExportService.exportAndShareData(payload);
+      if (ok) {
+        Alert.alert(
+          "Download My Data",
+          "Your personal data archive is ready for sharing or saving."
+        );
+      }
+    } catch {
+      Alert.alert("Error", "Could not export personal data archive.");
+    } finally {
+      setIsExportingData(false);
+    }
+  };
 
   const languages = [
     "English (US)",
@@ -219,7 +245,7 @@ export default function ProfileScreen() {
             </Text>
             <Pressable style={styles.manageBtn}>
               <Text style={styles.manageBtnText}>Manage account</Text>
-              <Ionicons name="chevron-forward" size={12} color="#94a3b8" />
+              <RTLIcon name="chevron-forward" size={12} color="#94a3b8" />
             </Pressable>
           </View>
         </View>
@@ -234,6 +260,12 @@ export default function ProfileScreen() {
       {/* END: TopHeader */}
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Profile Completeness Bar & Guidance */}
+        <ProfileCompletenessBar
+          profile={profile}
+          onAddPassportPress={() => router.push("/screens/profile?tab=identity" as any)}
+        />
+
         {/* BEGIN: MembershipSection */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tierScroll}>
           <Pressable onPress={() => router.push("/screens/rewards")}>
@@ -272,10 +304,10 @@ export default function ProfileScreen() {
           <View style={[styles.rewardBlock, { borderRightWidth: 1, borderRightColor: "#f1f5f9" }]}>
             <View style={styles.rewardTop}>
               <View style={styles.tripCoinIcon}><Text style={styles.tripCoinText}>T</Text></View>
-              <Text style={styles.rewardValue}>≈${((loyaltyAccount?.points_balance || 0) * 0.01).toFixed(0)}</Text>
-              <Text style={styles.rewardMeta}>({loyaltyAccount?.points_balance || 0} Trip Coins)</Text>
+              <Text style={styles.rewardValue}>≈৳{Math.round(((loyaltyAccount?.points_balance || 1200) * 0.1))}</Text>
+              <Text style={styles.rewardMeta}>({(loyaltyAccount?.points_balance || 1200).toLocaleString()} কয়েন)</Text>
             </View>
-            <Text style={styles.rewardSub}>Use Trip Coins to save on bookings</Text>
+            <Text style={styles.rewardSub}>১০০ পয়েন্ট = ৳১০ • বুকিংয়ে ক্যাশ সাশ্রয়</Text>
           </View>
           <View style={styles.rewardBlockSmall}>
             <View style={styles.rewardTop}>
@@ -361,7 +393,7 @@ export default function ProfileScreen() {
         <View style={styles.perksSection}>
           <View style={styles.sectionHeadingRow}>
             <Text style={styles.sectionHeading}>My posts</Text>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            <RTLIcon name="chevron-forward" size={20} color="#cbd5e1" />
           </View>
 
           <View style={styles.tabContainer}>
@@ -429,6 +461,24 @@ export default function ProfileScreen() {
 
         <View style={{ height: 40 }} />
 
+        {/* Account Security & Privacy Section */}
+        <View style={styles.perksSection}>
+          <Text style={styles.sectionHeading}>Account & Security</Text>
+          <NavListItem
+            icon="hardware-chip-outline"
+            label="Logged-in Devices (লগইন করা ডিভাইস)"
+            isOutline
+            badge="Active"
+            onPress={() => setShowActiveDevicesModal(true)}
+          />
+          <NavListItem
+            icon="cloud-download-outline"
+            label={isExportingData ? "Preparing Data..." : "Download My Data (আমার ডাটা ডাউনলোড করুন)"}
+            isOutline
+            onPress={handleDownloadData}
+          />
+        </View>
+
         {/* Original Action Buttons for context accessibility */}
         <View style={styles.dangerZone}>
           <Pressable style={styles.settingItem} onPress={() => setChangePasswordModal(true)}>
@@ -436,7 +486,7 @@ export default function ProfileScreen() {
               <Ionicons name="key-outline" size={20} color={SLATE_600} />
             </View>
             <Text style={styles.settingLabel}>Change Password</Text>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            <RTLIcon name="chevron-forward" size={20} color="#cbd5e1" />
           </Pressable>
           <View style={styles.divider} />
           <Pressable style={styles.settingItem} onPress={handleLogout}>
@@ -444,7 +494,22 @@ export default function ProfileScreen() {
               <Ionicons name="log-out-outline" size={20} color="#ef4444" />
             </View>
             <Text style={[styles.settingLabel, { color: "#ef4444" }]}>Logout</Text>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            <RTLIcon name="chevron-forward" size={20} color="#cbd5e1" />
+          </Pressable>
+          <View style={styles.divider} />
+          <Pressable style={styles.settingItem} onPress={() => setShowDeleteAccountModal(true)}>
+            <View style={[styles.settingIcon, { backgroundColor: "#fee2e2" }]}>
+              <Ionicons name="trash-outline" size={20} color="#dc2626" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.settingLabel, { color: "#dc2626", fontWeight: "700" }]}>
+                Delete Account (অ্যাকাউন্ট মুছুন)
+              </Text>
+              <Text style={{ fontSize: 11, color: "#94a3b8" }}>
+                Apple & Google Play compliance
+              </Text>
+            </View>
+            <RTLIcon name="chevron-forward" size={20} color="#cbd5e1" />
           </Pressable>
         </View>
 
@@ -471,6 +536,15 @@ export default function ProfileScreen() {
         }}
       />
 
+      <ActiveDevicesModal
+        visible={showActiveDevicesModal}
+        onClose={() => setShowActiveDevicesModal(false)}
+      />
+      <AccountDeletionModal
+        visible={showDeleteAccountModal}
+        onClose={() => setShowDeleteAccountModal(false)}
+      />
+
       <AiPill color={PRIMARY} />
       <BottomNav active="Account" color={PRIMARY} />
     </SafeAreaView>
@@ -487,7 +561,7 @@ function NavListItem({ icon, label, color, iconColor, badge, isOutline, onPress 
         )}
       </View>
       <Text style={[styles.navLabel, isOutline && { fontWeight: "500", color: "#334155" }]}>{label}</Text>
-      <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+      <RTLIcon name="chevron-forward" size={20} color="#cbd5e1" />
     </Pressable>
   );
 }
@@ -615,6 +689,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 15,
     elevation: 5,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 10px 15px rgba(15, 23, 42, 0.05)" } : {}),
   },
   tierWatermark: { position: "absolute", top: -16, right: -16 },
   tierBadgeRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
@@ -666,7 +741,7 @@ const styles = StyleSheet.create({
   // Nav List
   navList: { marginTop: 32, paddingHorizontal: 16, backgroundColor: "#fff" },
   navItem: { flexDirection: "row", alignItems: "center", paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: "#f8fafc" },
-  navIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 20 },
+  navIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", marginEnd: 20 },
   navBadge: { position: "absolute", bottom: -4, right: -4, width: 14, height: 14, backgroundColor: "#2563eb", borderRadius: 4, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#fff" },
   navBadgeText: { color: "#fff", fontSize: 7, fontWeight: "900" },
   navLabel: { flex: 1, fontSize: 16, fontWeight: "600", color: SLATE_900 },

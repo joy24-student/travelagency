@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    marginEnd: 16,
   },
   avatarText: {
     fontSize: 24,
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.h3.fontSize,
     fontWeight: "700",
     color: COLORS.text,
-    marginRight: 8,
+    marginEnd: 8,
   },
   statusText: {
     fontSize: TYPOGRAPHY.body.fontSize,

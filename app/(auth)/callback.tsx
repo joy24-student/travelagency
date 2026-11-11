@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../src/hooks/useAuth';
 
 export default function OAuthCallback() {
+  const { t } = useTranslation();
   const { loading, refreshSession } = useAuth();
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export default function OAuthCallback() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.loadingText}>Completing authentication...</Text>
+      <Text style={styles.loadingText}>{t('completingAuth', 'Completing authentication...')}</Text>
     </View>
   );
 }
