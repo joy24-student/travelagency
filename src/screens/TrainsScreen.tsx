@@ -1236,6 +1236,50 @@ export function TrainsScreen() {
         </View>
 
         {/* =========================================================================
+            Exclusive Feature: Live 3D Train Tracking & Radar HUD Launcher
+           ========================================================================= */}
+        <Pressable
+          style={styles.live3DHeroBanner}
+          onPress={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            router.push("/screens/train-live-tracking");
+          }}
+        >
+          <LinearGradient
+            colors={["#006A4E", "#004D38", "#0B131E"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.live3DGradient}
+          >
+            <View style={styles.live3DContentRow}>
+              <View style={styles.live3DLeft}>
+                <View style={styles.live3DPulseRow}>
+                  <View style={styles.live3DPulseIndicator} />
+                  <Text style={styles.live3DBadgeText}>NEW 3D LIVE RADAR</Text>
+                  <Text style={styles.live3DActiveTrainsPill}>৭+ ট্রেন রানিং</Text>
+                </View>
+                <Text style={styles.live3DMainTitle}>
+                  ৩ডি-তে দেখুন আপনার ট্রেন কোথায়!
+                </Text>
+                <Text style={styles.live3DSubTitle}>
+                  রিয়েল-টাইম স্যাটেলাইট ম্যাপে ট্রেনের ৩ডি মুভমেন্ট, বগির লাইভ অ্যানিমেশন ও অনবোর্ড জিপিএস ট্র্যাকিং।
+                </Text>
+              </View>
+
+              <View style={styles.live3DRight}>
+                <View style={styles.live3DIconCircle}>
+                  <MaterialCommunityIcons name="train-car" size={28} color="#FACC15" />
+                </View>
+                <View style={styles.launch3DPill}>
+                  <Text style={styles.launch3DPillText}>৩ডি লাইভ দেখুন</Text>
+                  <Ionicons name="arrow-forward" size={12} color="#065F46" />
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
+        </Pressable>
+
+        {/* =========================================================================
             Main Elevated Search Parameters Card
            ========================================================================= */}
         <View style={styles.searchCardWrapper}>
@@ -1693,30 +1737,46 @@ export function TrainsScreen() {
                   </View>
 
                   {/* =====================================================================
-                      Requirement 2: Expandable Route Schedule Timeline
+                      Requirement 2: Expandable Route Schedule Timeline & 3D Live Track
                      ===================================================================== */}
-                  <Pressable
-                    style={styles.timelineToggleBtn}
-                    onPress={() => toggleTimeline(train.id)}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <View style={styles.trainCardActionRow}>
+                    <Pressable
+                      style={styles.timelineToggleBtn}
+                      onPress={() => toggleTimeline(train.id)}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons
+                          name={isTimelineOpen ? "map" : "map-outline"}
+                          size={15}
+                          color={BD_GREEN}
+                        />
+                        <Text style={styles.timelineToggleText}>
+                          {isTimelineOpen
+                            ? "Hide Stops"
+                            : `Timeline (${train.schedule_timeline.length} Stops)`}
+                        </Text>
+                      </View>
                       <Ionicons
-                        name={isTimelineOpen ? "map" : "map-outline"}
-                        size={15}
+                        name={isTimelineOpen ? "chevron-up" : "chevron-down"}
+                        size={16}
                         color={BD_GREEN}
                       />
-                      <Text style={styles.timelineToggleText}>
-                        {isTimelineOpen
-                          ? "Hide Route Schedule Timeline"
-                          : `View Route Timeline (${train.schedule_timeline.length} Stops)`}
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name={isTimelineOpen ? "chevron-up" : "chevron-down"}
-                      size={16}
-                      color={BD_GREEN}
-                    />
-                  </Pressable>
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.live3DCardActionBtn}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        router.push({
+                          pathname: "/screens/train-live-tracking",
+                          params: { trainNumber: train.train_number || "702" },
+                        });
+                      }}
+                    >
+                      <MaterialCommunityIcons name="cube-scan" size={15} color="#006A4E" />
+                      <Text style={styles.live3DCardActionText}>৩ডি লাইভ ট্র্যাক</Text>
+                    </Pressable>
+                  </View>
 
                   {/* Expanded Route Timeline Display */}
                   {isTimelineOpen && (
@@ -4022,5 +4082,116 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#475569",
+  },
+  live3DHeroBanner: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  live3DGradient: {
+    padding: 16,
+  },
+  live3DContentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  live3DLeft: {
+    flex: 1,
+  },
+  live3DPulseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  live3DPulseIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#34D399",
+  },
+  live3DBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#A7F3D0",
+    letterSpacing: 0.5,
+  },
+  live3DActiveTrainsPill: {
+    backgroundColor: "rgba(250, 204, 21, 0.2)",
+    color: "#FACC15",
+    fontSize: 10,
+    fontWeight: "700",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  live3DMainTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    lineHeight: 22,
+  },
+  live3DSubTitle: {
+    fontSize: 11,
+    color: "#D1FAE5",
+    marginTop: 4,
+    lineHeight: 15,
+  },
+  live3DRight: {
+    alignItems: "center",
+    gap: 8,
+  },
+  live3DIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderWidth: 1.5,
+    borderColor: "rgba(250, 204, 21, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  launch3DPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FACC15",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  launch3DPillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#065F46",
+  },
+  trainCardActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  live3DCardActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#DCFCE7",
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  live3DCardActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#006A4E",
   },
 });

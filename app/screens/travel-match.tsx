@@ -37,6 +37,7 @@ import {
   travelMatchingService,
   SAMPLE_TRAVELERS,
 } from "../../src/services/travelMatchingService";
+import { MatchConnectedModal } from "../../src/components/travelMatch/MatchConnectedModal";
 
 import { useResponsive } from "../../src/hooks/useResponsive";
 
@@ -199,6 +200,7 @@ export default function TravelMatchScreen() {
   // Modals State
   const [showEditPlanModal, setShowEditPlanModal] = useState(false);
   const [selectedMatchForInvite, setSelectedMatchForInvite] = useState<EnrichedMatch | null>(null);
+  const [connectedCandidate, setConnectedCandidate] = useState<any | null>(null);
   const [inviteMessage, setInviteMessage] = useState("");
   const [sendingInvite, setSendingInvite] = useState(false);
   const [sentInvitations, setSentInvitations] = useState<TripInvitation[]>([]);
@@ -550,19 +552,16 @@ export default function TravelMatchScreen() {
       }
 
       triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
-      Alert.alert(
-        "🎉 জয়েন রিকোয়েস্ট সফল!",
-        `${candidate.name}-এর কাছে আপনার ভ্রমণসঙ্গী হওয়ার অনুরোধ পাঠানো হয়েছে। তিনি সাড়া দিলে চ্যাট শুরু করতে পারবেন।`,
-        [
-          {
-            text: "দারুণ!",
-            onPress: () => {
-              setSelectedMatchForInvite(null);
-              setInviteMessage("");
-            },
-          },
-        ]
-      );
+      setConnectedCandidate({
+        id: candidate.id,
+        name: candidate.name,
+        avatar_url: candidate.avatar_url,
+        destination: candidate.destination,
+        travel_style: candidate.travel_styles?.[0] || "Adventure & Trekking",
+        compatibility: selectedMatchForInvite.overall_score || 95,
+      });
+      setSelectedMatchForInvite(null);
+      setInviteMessage("");
     } catch {
       Alert.alert("ত্রুটি", "অনুরোধ পাঠানো সম্ভব হয়নি। দয়া করে পুনরায় চেষ্টা করুন।");
     } finally {
@@ -1959,6 +1958,30 @@ export default function TravelMatchScreen() {
           </View>
         </View>
       </Modal>
+      {/* Connected Match Modal (Image 3 Overlapping Avatar UX Pattern) */}
+      <MatchConnectedModal
+        visible={!!connectedCandidate}
+        onClose={() => setConnectedCandidate(null)}
+        myAvatar={myPlan?.avatar_url || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200"}
+        myName={myPlan?.name || "You"}
+        companionAvatar={connectedCandidate?.avatar_url || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200"}
+        companionName={connectedCandidate?.name || "Travel Companion"}
+        matchScore={connectedCandidate?.compatibility || 94}
+        destination={connectedCandidate?.destination || planDest || "Sajek Valley"}
+        commonVibe={connectedCandidate?.travel_style || "Adventure & Photography"}
+        onStartChat={() => {
+          setConnectedCandidate(null);
+          router.push({
+            pathname: "/screens/[slug]" as any,
+            params: {
+              slug: "agency-chat",
+              agencyId: connectedCandidate?.id,
+              agencyName: connectedCandidate?.name,
+              guideAvatar: connectedCandidate?.avatar_url,
+            },
+          });
+        }}
+      />
     </SafeAreaView>
   );
 }

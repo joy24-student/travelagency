@@ -113,7 +113,7 @@ export default function TransactionHistoryScreen() {
   const renderPaymentItem = ({ item }: { item: any }) => (
     <Pressable
       style={styles.paymentItem}
-      onPress={() => router.push(`/payment-details/${item.id}`)}
+      onPress={() => router.push(`/payment-details/${item.id}` as any)}
     >
       <View style={[styles.statusIcon, { backgroundColor: `${getStatusColor(item.status)}20` }]}>
         <Ionicons

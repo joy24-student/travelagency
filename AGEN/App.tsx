@@ -37,6 +37,9 @@ import CustomerProfileScreen from "./src/screens/agency/CustomerProfileScreen"; 
 import SupportCenterScreen from "./src/screens/agency/SupportCenterScreen";
 import SettingsScreen from "./src/screens/agency/SettingsScreen";
 import AgencyScannerScreen from "./src/screens/agency/ScannerScreen";
+import B2BSearchBookingScreen from "./src/screens/agency/B2BSearchBookingScreen";
+import WalletTopUpScreen from "./src/screens/agency/WalletTopUpScreen";
+import QuotationBuilderScreen from "./src/screens/agency/QuotationBuilderScreen";
 
 // Authentication
 import { useAuth } from "./src/hooks/useAuth";
@@ -57,6 +60,9 @@ export type RootTabParamList = {
 
 export type DashboardStackParamList = {
   DashboardList: undefined;
+  B2BSearchBooking: undefined;
+  WalletTopUp: undefined;
+  QuotationBuilder: undefined;
 };
 
 export type OperationsStackParamList = {
@@ -117,6 +123,21 @@ function DashboardStackNavigator() {
         name="DashboardList"
         component={DashboardScreen}
         options={{ headerShown: false }}
+      />
+      <DashboardStack.Screen
+        name="B2BSearchBooking"
+        component={B2BSearchBookingScreen}
+        options={{ presentation: "modal" }}
+      />
+      <DashboardStack.Screen
+        name="WalletTopUp"
+        component={WalletTopUpScreen}
+        options={{ presentation: "modal" }}
+      />
+      <DashboardStack.Screen
+        name="QuotationBuilder"
+        component={QuotationBuilderScreen}
+        options={{ presentation: "modal" }}
       />
     </DashboardStack.Navigator>
   );

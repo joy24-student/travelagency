@@ -26,6 +26,7 @@ export * from "./Input";
 export * from "./OTPInput";
 export * from "./PasswordStrengthMeter";
 export * from "./PrecisionSlider";
+export * from "./PriceHistogramSlider";
 export * from "./SettingRow";
 
 // Badges & Indicators

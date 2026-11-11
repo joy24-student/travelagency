@@ -28,3 +28,5 @@ export { ResultsSummaryHeader, type ResultsSummaryHeaderProps } from "./ResultsS
 export { ComparisonModal, type ComparisonModalProps, type CompareItem, type ComparisonItem } from "./ComparisonModal";
 export { UniversalFilterModal, type UniversalFilterModalProps, type SortOption } from "./UniversalFilterModal";
 export { BookingStepper, type BookingStepperProps, BOOKING_STEPS } from "./BookingStepper";
+export { DestinationVitalsRow, type DestinationVitalsRowProps, type VitalStatus } from "./DestinationVitalsRow";
+export { SonarRadarView, type SonarRadarViewProps, type RadarNode } from "./SonarRadarView";

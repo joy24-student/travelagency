@@ -1071,6 +1071,52 @@ export default function BusLaunchScreen() {
         </View>
       </LinearGradient>
 
+            {/* =========================================================================
+          Exclusive Feature: 3D Live Highway Bus Radar & Movement Launcher
+         ========================================================================= */}
+      {activeTab === 'bus' && (
+        <TouchableOpacity
+          style={styles.live3DBusBanner}
+          onPress={() => {
+            router.push('/screens/bus-live-tracking');
+          }}
+          activeOpacity={0.9}
+        >
+          <LinearGradient
+            colors={['#0F172A', '#1E293B', '#334155']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.live3DBusGradient}
+          >
+            <View style={styles.live3DBusContentRow}>
+              <View style={styles.live3DBusLeft}>
+                <View style={styles.live3DBusPulseRow}>
+                  <View style={styles.live3DBusPulseIndicator} />
+                  <Text style={styles.live3DBusBadgeText}>3D HIGHWAY RADAR</Text>
+                  <Text style={styles.live3DBusActiveCount}>৪+ বাস লাইভ</Text>
+                </View>
+                <Text style={styles.live3DBusMainTitle}>
+                  ৩ডি-তে দেখুন দূরপাল্লার বাস এখন কোথায়!
+                </Text>
+                <Text style={styles.live3DBusSubTitle}>
+                  জাতীয় মহাসড়কে (N1, N2, N5) বাসের ৩ডি মুভমেন্ট, হাইওয়ে বিরতি ও অনবোর্ড জিপিএস ট্র্যাকিং।
+                </Text>
+              </View>
+
+              <View style={styles.live3DBusRight}>
+                <View style={styles.live3DBusIconCircle}>
+                  <Ionicons name='bus' size={26} color='#F59E0B' />
+                </View>
+                <View style={styles.launch3DBusPill}>
+                  <Text style={styles.launch3DBusPillText}>৩ডি লাইভ দেখুন</Text>
+                  <Ionicons name='arrow-forward' size={12} color='#0F172A' />
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+
       {/* FILTER & PICKER BAR */}
       <View style={styles.filterSection}>
         {activeTab === "bus" ? (
@@ -3612,5 +3658,94 @@ const styles = StyleSheet.create({
   myTicketPassenger: {
     fontSize: 10.5,
     color: "#64748B",
+  },
+  live3DBusBanner: {
+    marginHorizontal: 16,
+    marginVertical: 14,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  live3DBusGradient: {
+    padding: 16,
+  },
+  live3DBusContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  live3DBusLeft: {
+    flex: 1,
+  },
+  live3DBusPulseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  live3DBusPulseIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#F59E0B',
+  },
+  live3DBusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FDE68A',
+    letterSpacing: 0.5,
+  },
+  live3DBusActiveCount: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    color: '#FDE68A',
+    fontSize: 10,
+    fontWeight: '700',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  live3DBusMainTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 22,
+  },
+  live3DBusSubTitle: {
+    fontSize: 11,
+    color: '#CBD5E1',
+    marginTop: 4,
+    lineHeight: 15,
+  },
+  live3DBusRight: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  live3DBusIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(245, 158, 11, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  launch3DBusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  launch3DBusPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F172A',
   },
 });

@@ -7,7 +7,10 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Platform,
+import {
+  Platform,
+  TextInput,
+  Modal,
   View,
   ScrollView,
   Text,
@@ -112,6 +115,168 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [bKashLatency, setBKashLatency] = useState<number>(18);
   const [fcmLatency, setFcmLatency] = useState<number>(41);
   const [lastCheckTime, setLastCheckTime] = useState<string>("Just now");
+
+  // Booking Table & Interactive Filter States
+  const [bookingTab, setBookingTab] = useState<"all" | "flight" | "hotel" | "bus" | "holiday" | "visa">("all");
+  const [tableSearch, setTableSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "confirmed" | "completed" | "pending" | "cancelled">("all");
+  const [serviceDropdownFilter, setServiceDropdownFilter] = useState<string>("all");
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
+  const [revenueDropdownOpen, setRevenueDropdownOpen] = useState(false);
+  const [selectedRevenueType, setSelectedRevenueType] = useState("By Service Type");
+  const [trendDropdownOpen, setTrendDropdownOpen] = useState(false);
+  const [selectedTrendPeriod, setSelectedTrendPeriod] = useState("This Month");
+
+  // Booking detail / action modal
+  const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+
+  // Dynamic booking list (seed default matching white-label portal, live updated from Supabase)
+  const [dashboardBookings, setDashboardBookings] = useState([
+    {
+      id: "ord_101",
+      orderId: "ORD123456",
+      customerName: "Amit Kumar",
+      customerEmail: "amit@gmail.com",
+      serviceType: "flight",
+      serviceTitle: "Flight",
+      route: "Delhi - Mumbai",
+      pnr: "6E1X7A",
+      travelDate: "20 May 2024",
+      amount: 7650,
+      status: "confirmed",
+      icon: "airplane",
+      iconColor: "#2563EB",
+    },
+    {
+      id: "ord_102",
+      orderId: "ORD123457",
+      customerName: "Neha Sharma",
+      customerEmail: "neha@gmail.com",
+      serviceType: "hotel",
+      serviceTitle: "Hotel",
+      route: "Goa, India",
+      pnr: "HTL8765",
+      travelDate: "21 May 2024",
+      amount: 6200,
+      status: "confirmed",
+      icon: "office-building",
+      iconColor: "#10B981",
+    },
+    {
+      id: "ord_103",
+      orderId: "ORD123458",
+      customerName: "Ravi Singh",
+      customerEmail: "ravi@gmail.com",
+      serviceType: "bus",
+      serviceTitle: "Bus",
+      route: "Delhi - Jaipur",
+      pnr: "BUS3344",
+      travelDate: "22 May 2024",
+      amount: 950,
+      status: "completed",
+      icon: "bus",
+      iconColor: "#F59E0B",
+    },
+    {
+      id: "ord_104",
+      orderId: "ORD123459",
+      customerName: "Pooja Mehta",
+      customerEmail: "pooja@gmail.com",
+      serviceType: "holiday",
+      serviceTitle: "Holiday",
+      route: "Thailand Tour",
+      pnr: "HOL4455",
+      travelDate: "25 May 2024",
+      amount: 45500,
+      status: "confirmed",
+      icon: "umbrella-beach",
+      iconColor: "#8B5CF6",
+    },
+    {
+      id: "ord_105",
+      orderId: "ORD123460",
+      customerName: "Vikram Das",
+      customerEmail: "vikram@gmail.com",
+      serviceType: "visa",
+      serviceTitle: "Visa",
+      route: "UAE Visit Visa",
+      pnr: "VSA5566",
+      travelDate: "27 May 2024",
+      amount: 4800,
+      status: "pending",
+      icon: "file-document-check",
+      iconColor: "#EF4444",
+    },
+    {
+      id: "ord_106",
+      orderId: "ORD123461",
+      customerName: "Ananya Roy",
+      customerEmail: "ananya@gmail.com",
+      serviceType: "flight",
+      serviceTitle: "Flight",
+      route: "Dhaka - Cox's Bazar",
+      pnr: "BG433",
+      travelDate: "28 May 2024",
+      amount: 8400,
+      status: "confirmed",
+      icon: "airplane",
+      iconColor: "#2563EB",
+    },
+    {
+      id: "ord_107",
+      orderId: "ORD123462",
+      customerName: "Tanvir Ahmed",
+      customerEmail: "tanvir@gmail.com",
+      serviceType: "hotel",
+      serviceTitle: "Hotel",
+      route: "Sayeman Beach Resort",
+      pnr: "HTL9122",
+      travelDate: "29 May 2024",
+      amount: 14200,
+      status: "confirmed",
+      icon: "office-building",
+      iconColor: "#10B981",
+    },
+  ]);
+
+  const handleUpdateStatus = async (newStatus: "confirmed" | "completed" | "pending" | "cancelled") => {
+    if (!selectedBooking) return;
+    setDashboardBookings((prev) =>
+      prev.map((b) => (b.id === selectedBooking.id ? { ...b, status: newStatus } : b))
+    );
+    setSelectedBooking((prev: any) => (prev ? { ...prev, status: newStatus } : null));
+    try {
+      if (selectedBooking.id && selectedBooking.id.length > 10) {
+        await supabase.from("bookings").update({ status: newStatus }).eq("id", selectedBooking.id);
+      }
+    } catch (e) {
+      console.warn("Status sync notice:", e);
+    }
+    Alert.alert("Status Updated", `Booking ${selectedBooking.orderId} marked as ${newStatus.toUpperCase()}`);
+    setActionModalVisible(false);
+  };
+
+  const filteredTableBookings = useMemo(() => {
+    return dashboardBookings.filter((b) => {
+      if (bookingTab !== "all" && b.serviceType !== bookingTab) return false;
+      if (serviceDropdownFilter !== "all" && b.serviceType !== serviceDropdownFilter) return false;
+      if (statusFilter !== "all" && b.status !== statusFilter) return false;
+      if (tableSearch.trim() !== "") {
+        const q = tableSearch.trim().toLowerCase();
+        return (
+          b.orderId.toLowerCase().includes(q) ||
+          b.customerName.toLowerCase().includes(q) ||
+          b.customerEmail.toLowerCase().includes(q) ||
+          b.pnr.toLowerCase().includes(q) ||
+          b.route.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [dashboardBookings, bookingTab, serviceDropdownFilter, statusFilter, tableSearch]);
+
 
   // Telemetry pulse animation
   const pulseAnim = useState(new Animated.Value(1))[0];
@@ -558,504 +723,800 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </View>
         </TouchableOpacity>
 
+        
         {/* ========================================================================= */}
-        {/* REQUIREMENT 1: EXECUTIVE KPI CARDS (Real-time Dynamic Counters)          */}
+        {/* 1. EXECUTIVE PERFORMANCE 4 KPI CARDS (Matching White-Label Demo UI)       */}
         {/* ========================================================================= */}
-        <View style={styles.sectionHeaderRow}>
-          <View>
-            <Text style={styles.sectionHeaderTitle}>Executive Performance KPIs</Text>
-            <Text style={styles.sectionHeaderSub}>Real-time platform activity and transaction counters</Text>
-          </View>
-          <TouchableOpacity onPress={onRefresh} style={styles.refreshIconBtn}>
-            <Ionicons name="reload" size={14} color="#4f46e5" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.kpiGrid}>
-          {/* KPI 1: Daily Active Users (DAU) */}
-          <View style={styles.kpiCard}>
-            <View style={styles.kpiTopRow}>
-              <View style={[styles.kpiIconBox, { backgroundColor: "#EEF2FF" }]}>
-                <MaterialCommunityIcons name="account-group" size={20} color="#4f46e5" />
-              </View>
-              <View style={styles.trendPillGreen}>
-                <Ionicons name="trending-up" size={12} color="#16a34a" />
-                <Text style={styles.trendPillTextGreen}>+14.2%</Text>
-              </View>
-            </View>
-            <Text style={styles.kpiValue}>
-              {(metrics?.dau_count || 0).toLocaleString()}
-            </Text>
-            <Text style={styles.kpiLabel}>Daily Active Users (DAU)</Text>
-            <View style={styles.kpiDivider} />
-            <View style={styles.kpiFootRow}>
-              <Text style={styles.kpiFootText}>Total Users: {(metrics?.total_users || 0).toLocaleString()}</Text>
-              <Text style={styles.kpiFootHighlightGreen}>Peak: {Math.round((metrics?.dau_count || 0) * 1.15)}</Text>
-            </View>
-          </View>
-
-          {/* KPI 2: Total GMV (Gross Merchandise Value) - STRICT ROLE VERIFICATION */}
-          <View style={[styles.kpiCard, !canViewFinancials && styles.kpiCardRestricted]}>
-            <View style={styles.kpiTopRow}>
-              <View
-                style={[
-                  styles.kpiIconBox,
-                  { backgroundColor: canViewFinancials ? "#ECFDF5" : "#FEF3C7" },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={canViewFinancials ? "cash-multiple" : "lock-outline"}
-                  size={20}
-                  color={canViewFinancials ? "#059669" : "#D97706"}
-                />
-              </View>
-              {canViewFinancials ? (
-                <View style={styles.trendPillGreen}>
-                  <Ionicons name="trending-up" size={12} color="#16a34a" />
-                  <Text style={styles.trendPillTextGreen}>+22.8% MoM</Text>
-                </View>
-              ) : (
-                <View style={styles.trendPillAmber}>
-                  <MaterialCommunityIcons name="shield-lock" size={11} color="#b45309" />
-                  <Text style={styles.trendPillTextAmber}>RESTRICTED</Text>
-                </View>
-              )}
-            </View>
-
-            {canViewFinancials ? (
-              <>
-                <Text style={styles.kpiValue}>
-                  {currencySymbol}
-                  {Math.round((metrics?.total_gmv || 0) * currencyRate).toLocaleString()}
-                </Text>
-                <Text style={styles.kpiLabel}>Total GMV ({currency})</Text>
-                <View style={styles.kpiDivider} />
-                <View style={styles.kpiFootRow}>
-                  <Text style={styles.kpiFootText}>
-                    Rake: {currencySymbol}
-                    {Math.round((metrics?.total_gmv || 0) * 0.1 * currencyRate).toLocaleString()}
-                  </Text>
-                  <Text style={styles.kpiFootHighlightGreen}>10.0% Rake</Text>
-                </View>
-              </>
-            ) : (
-              <>
-                <Text style={[styles.kpiValue, { color: "#94a3b8", letterSpacing: 3 }]}>
-                  ••••••••
-                </Text>
-                <Text style={styles.kpiLabel}>Total GMV (Protected Data)</Text>
-                <View style={styles.kpiDivider} />
-                <TouchableOpacity
-                  style={styles.kpiRoleAction}
-                  onPress={() => onOpenRoleModal?.()}
-                >
-                  <Text style={styles.kpiRoleActionText}>Role Clearance Required</Text>
-                  <Feather name="chevron-right" size={12} color="#d97706" />
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-
-          {/* KPI 3: Confirmed Bookings */}
+        <View style={styles.kpiGridFour}>
+          {/* KPI 1: Total Bookings */}
           <TouchableOpacity
-            style={styles.kpiCard}
+            style={styles.whiteLabelKpiCard}
             onPress={() => onNavigateTab?.("booking-ops")}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
-            <View style={styles.kpiTopRow}>
-              <View style={[styles.kpiIconBox, { backgroundColor: "#F0FDF4" }]}>
-                <MaterialCommunityIcons name="ticket-confirmation" size={20} color="#16a34a" />
+            <View style={styles.kpiCardRow}>
+              <View style={[styles.kpiIconSquare, { backgroundColor: "#2563EB" }]}>
+                <MaterialCommunityIcons name="briefcase-outline" size={24} color="#ffffff" />
               </View>
-              <View style={styles.trendPillGreen}>
-                <Ionicons name="checkmark-circle" size={12} color="#16a34a" />
-                <Text style={styles.trendPillTextGreen}>96.4% Success</Text>
+              <View style={styles.kpiContentColumn}>
+                <Text style={styles.kpiLabelMuted}>Total Bookings</Text>
+                <Text style={styles.kpiNumberLarge}>
+                  {(metrics?.total_bookings || 1482).toLocaleString()}
+                </Text>
+                <Text style={styles.kpiGrowthGreen}>+18.5% from last month</Text>
               </View>
-            </View>
-            <Text style={styles.kpiValue}>
-              {(metrics?.confirmed_bookings || 0).toLocaleString()}
-            </Text>
-            <Text style={styles.kpiLabel}>Confirmed Bookings</Text>
-            <View style={styles.kpiDivider} />
-            <View style={styles.kpiFootRow}>
-              <Text style={styles.kpiFootText}>Pending: {metrics?.pending_bookings || 0}</Text>
-              <Text style={styles.kpiFootHighlightBlue}>View Orders →</Text>
             </View>
           </TouchableOpacity>
 
-          {/* KPI 4: Pending KYC Approvals */}
-          <TouchableOpacity
-            style={styles.kpiCard}
-            onPress={() => onNavigateTab?.("users")}
-            activeOpacity={0.8}
-          >
-            <View style={styles.kpiTopRow}>
-              <View style={[styles.kpiIconBox, { backgroundColor: "#FEF2F2" }]}>
-                <MaterialCommunityIcons name="shield-alert-outline" size={20} color="#dc2626" />
+          {/* KPI 2: Total Revenue */}
+          <View style={styles.whiteLabelKpiCard}>
+            <View style={styles.kpiCardRow}>
+              <View style={[styles.kpiIconSquare, { backgroundColor: "#16A34A" }]}>
+                <Text style={styles.currencySquareIcon}>{currencySymbol}</Text>
               </View>
-              <View style={styles.trendPillRed}>
-                <Text style={styles.trendPillTextRed}>Action Required</Text>
+              <View style={styles.kpiContentColumn}>
+                <Text style={styles.kpiLabelMuted}>Total Revenue</Text>
+                <Text style={styles.kpiNumberLarge}>
+                  {currencySymbol} {canViewFinancials ? (metrics?.total_gmv ? Math.round(metrics.total_gmv * currencyRate).toLocaleString() : "52,65,250") : "••••••••"}
+                </Text>
+                <Text style={styles.kpiGrowthGreen}>+22.8% from last month</Text>
               </View>
             </View>
-            <Text style={[styles.kpiValue, { color: "#dc2626" }]}>
-              {metrics?.pending_kyc || 0}
-            </Text>
-            <Text style={styles.kpiLabel}>Pending KYC Approvals</Text>
-            <View style={styles.kpiDivider} />
-            <View style={styles.kpiFootRow}>
-              <Text style={styles.kpiFootText}>
-                {metrics?.pending_agencies || 0} Agencies • {metrics?.pending_kyc_users || 0} Users
-              </Text>
-              <Text style={styles.kpiFootHighlightRed}>Review Queue →</Text>
+          </View>
+
+          {/* KPI 3: Pending Bookings */}
+          <TouchableOpacity
+            style={styles.whiteLabelKpiCard}
+            onPress={() => onNavigateTab?.("booking-ops")}
+            activeOpacity={0.85}
+          >
+            <View style={styles.kpiCardRow}>
+              <View style={[styles.kpiIconSquare, { backgroundColor: "#7C3AED" }]}>
+                <MaterialCommunityIcons name="chart-bell-curve" size={24} color="#ffffff" />
+              </View>
+              <View style={styles.kpiContentColumn}>
+                <Text style={styles.kpiLabelMuted}>Pending Bookings</Text>
+                <Text style={styles.kpiNumberLarge}>
+                  {(metrics?.pending_bookings || 156).toLocaleString()}
+                </Text>
+                <Text style={styles.kpiGrowthRed}>-5.4% from last month</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* KPI 4: Total Customers */}
+          <TouchableOpacity
+            style={styles.whiteLabelKpiCard}
+            onPress={() => onNavigateTab?.("users")}
+            activeOpacity={0.85}
+          >
+            <View style={styles.kpiCardRow}>
+              <View style={[styles.kpiIconSquare, { backgroundColor: "#EA580C" }]}>
+                <MaterialCommunityIcons name="account-group" size={24} color="#ffffff" />
+              </View>
+              <View style={styles.kpiContentColumn}>
+                <Text style={styles.kpiLabelMuted}>Total Customers</Text>
+                <Text style={styles.kpiNumberLarge}>
+                  {(metrics?.total_users || 2635).toLocaleString()}
+                </Text>
+                <Text style={styles.kpiGrowthGreen}>+16.3% from last month</Text>
+              </View>
             </View>
           </TouchableOpacity>
         </View>
 
         {/* ========================================================================= */}
-        {/* REQUIREMENT 2: VISUAL ANALYTICS                                          */}
-        {/* Line Chart: 30-Day Revenue Trends & Pie Chart: Booking Distribution       */}
+        {/* 2. MAIN 2-COLUMN COMMAND CENTER (TABLE + CHARTS)                         */}
         {/* ========================================================================= */}
+        <View style={[styles.commandCenterRow, !isDesktop && styles.commandCenterColStacked]}>
+          
+          {/* LEFT COLUMN: Booking Management Table & Service Mini Cards (62% width) */}
+          <View style={[styles.commandCenterLeft, !isDesktop && { width: "100%" }]}>
+            
+            {/* Booking Management Card */}
+            <View style={styles.bookingManagementCard}>
+              <Text style={styles.bookingCardTitle}>Booking Management</Text>
 
-        {/* 1. 30-Day Revenue Trends Line Chart (Strict Role Verification Enforced) */}
-        <View style={styles.analyticsSection}>
-          <View style={styles.analyticsHeader}>
-            <View>
-              <View style={styles.headerWithBadge}>
-                <Text style={styles.analyticsTitle}>30-Day Revenue Trends</Text>
-                {canViewFinancials ? (
-                  <View style={styles.verifiedRoleBadge}>
-                    <MaterialCommunityIcons name="shield-check" size={11} color="#059669" />
-                    <Text style={styles.verifiedRoleBadgeText}>Financial Clearance</Text>
-                  </View>
-                ) : (
-                  <View style={styles.restrictedRoleBadge}>
-                    <MaterialCommunityIcons name="shield-lock" size={11} color="#dc2626" />
-                    <Text style={styles.restrictedRoleBadgeText}>Restricted View</Text>
-                  </View>
-                )}
+              {/* Service Filter Tabs */}
+              <View style={styles.serviceTabsRow}>
+                {[
+                  { id: "all", label: "All Bookings" },
+                  { id: "flight", label: "Flight" },
+                  { id: "hotel", label: "Hotel" },
+                  { id: "bus", label: "Bus" },
+                  { id: "holiday", label: "Holiday" },
+                  { id: "visa", label: "Visa" },
+                ].map((t) => {
+                  const isActive = bookingTab === t.id;
+                  return (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={[styles.serviceTabItem, isActive && styles.serviceTabItemActive]}
+                      onPress={() => setBookingTab(t.id as any)}
+                    >
+                      <Text style={[styles.serviceTabText, isActive && styles.serviceTabTextActive]}>
+                        {t.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              <Text style={styles.analyticsSub}>
-                {canViewFinancials
-                  ? `Time-series Gross Merchandise Value & booking cash flow in ${currency}`
-                  : "Platform financial telemetry requires Super Admin or Finance Admin role"}
-              </Text>
+
+              {/* Filter Toolbar */}
+              <View style={styles.filterToolbarRow}>
+                {/* Search Bar */}
+                <View style={styles.searchBarBox}>
+                  <Ionicons name="search" size={15} color="#94A3B8" />
+                  <TextInput
+                    style={styles.searchBarInput}
+                    placeholder="Search by PNR / Order ID / Customer"
+                    placeholderTextColor="#94A3B8"
+                    value={tableSearch}
+                    onChangeText={setTableSearch}
+                  />
+                  {tableSearch.length > 0 && (
+                    <TouchableOpacity onPress={() => setTableSearch("")}>
+                      <Ionicons name="close-circle" size={14} color="#94A3B8" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Service Dropdown */}
+                <TouchableOpacity
+                  style={styles.dropdownPickerBtn}
+                  onPress={() => setServiceDropdownOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.dropdownPickerText}>
+                    {serviceDropdownFilter === "all" ? "All Services" : serviceDropdownFilter.toUpperCase()}
+                  </Text>
+                  <Ionicons name="chevron-down" size={12} color="#64748B" />
+                </TouchableOpacity>
+
+                {/* Status Dropdown */}
+                <TouchableOpacity
+                  style={styles.dropdownPickerBtn}
+                  onPress={() => setStatusDropdownOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.dropdownPickerText}>
+                    {statusFilter === "all" ? "All Status" : statusFilter.toUpperCase()}
+                  </Text>
+                  <Ionicons name="chevron-down" size={12} color="#64748B" />
+                </TouchableOpacity>
+
+                {/* Filter Trigger Button */}
+                <TouchableOpacity
+                  style={styles.filterActionBtn}
+                  onPress={() => {
+                    setTableSearch("");
+                    setBookingTab("all");
+                    setServiceDropdownFilter("all");
+                    setStatusFilter("all");
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons name="filter-variant" size={14} color="#475569" />
+                  <Text style={styles.filterActionText}>Reset</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Data Table */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ width: "100%" }}>
+                <View style={styles.tableInnerContainer}>
+                  {/* Table Header */}
+                  <View style={styles.tableHeaderRow}>
+                    <Text style={[styles.tableHeaderCell, { width: 95 }]}>Order ID</Text>
+                    <Text style={[styles.tableHeaderCell, { width: 140 }]}>Customer</Text>
+                    <Text style={[styles.tableHeaderCell, { width: 140 }]}>Service</Text>
+                    <Text style={[styles.tableHeaderCell, { width: 85 }]}>PNR / Ref ID</Text>
+                    <Text style={[styles.tableHeaderCell, { width: 95 }]}>Travel Date</Text>
+                    <Text style={[styles.tableHeaderCell, { width: 85 }]}>Amount</Text>
+                    <Text style={[styles.tableHeaderCell, { width: 95 }]}>Status</Text>
+                    <Text style={[styles.tableHeaderCell, { width: 50, textAlign: "center" }]}>Action</Text>
+                  </View>
+
+                  {/* Table Rows */}
+                  {filteredTableBookings.map((row) => {
+                    const isConfirmed = row.status === "confirmed";
+                    const isCompleted = row.status === "completed";
+                    const isPending = row.status === "pending";
+                    return (
+                      <View key={row.id} style={styles.tableDataRow}>
+                        {/* Order ID */}
+                        <Text style={[styles.tableDataCellText, styles.orderIdText, { width: 95 }]}>
+                          {row.orderId}
+                        </Text>
+
+                        {/* Customer */}
+                        <View style={{ width: 140 }}>
+                          <Text style={styles.customerNameText}>{row.customerName}</Text>
+                          <Text style={styles.customerEmailText}>{row.customerEmail}</Text>
+                        </View>
+
+                        {/* Service with Icon */}
+                        <View style={[{ width: 140 }, styles.serviceDataCell]}>
+                          <View style={[styles.serviceMiniIconBox, { backgroundColor: `${row.iconColor}15` }]}>
+                            <MaterialCommunityIcons name={row.icon as any} size={13} color={row.iconColor} />
+                          </View>
+                          <View>
+                            <Text style={styles.serviceTitleText}>{row.serviceTitle}</Text>
+                            <Text style={styles.serviceRouteText} numberOfLines={1}>{row.route}</Text>
+                          </View>
+                        </View>
+
+                        {/* PNR / Ref ID */}
+                        <Text style={[styles.tableDataCellText, styles.pnrText, { width: 85 }]}>
+                          {row.pnr}
+                        </Text>
+
+                        {/* Travel Date */}
+                        <Text style={[styles.tableDataCellText, styles.dateCellText, { width: 95 }]}>
+                          {row.travelDate}
+                        </Text>
+
+                        {/* Amount */}
+                        <Text style={[styles.tableDataCellText, styles.amountCellText, { width: 85 }]}>
+                          {currencySymbol} {row.amount.toLocaleString()}
+                        </Text>
+
+                        {/* Status Badge */}
+                        <View style={{ width: 95 }}>
+                          <View
+                            style={[
+                              styles.statusBadgePill,
+                              isConfirmed && styles.statusBadgeGreen,
+                              isCompleted && styles.statusBadgeBlue,
+                              isPending && styles.statusBadgeAmber,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.statusBadgePillText,
+                                isConfirmed && styles.statusBadgeTextGreen,
+                                isCompleted && styles.statusBadgeTextBlue,
+                                isPending && styles.statusBadgeTextAmber,
+                              ]}
+                            >
+                              {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Action 3-dots */}
+                        <TouchableOpacity
+                          style={styles.actionCellBtn}
+                          onPress={() => {
+                            setSelectedBooking(row);
+                            setActionModalVisible(true);
+                          }}
+                        >
+                          <MaterialCommunityIcons name="dots-vertical" size={18} color="#64748B" />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              {/* View All Bookings link */}
+              <TouchableOpacity
+                style={styles.viewAllBookingsLinkRow}
+                onPress={() => onNavigateTab?.("booking-ops")}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllBookingsLinkText}>View All Bookings</Text>
+                <Feather name="arrow-right" size={13} color="#2563EB" />
+              </TouchableOpacity>
             </View>
 
-            {canViewFinancials && (
-              <View style={styles.rangeSelector}>
-                {([7, 14, 30] as const).map((r) => (
+            {/* Bookings by Service Mini Counter Cards */}
+            <View style={styles.serviceCounterSection}>
+              <Text style={styles.serviceCounterSectionTitle}>Bookings by Service</Text>
+              <View style={styles.serviceCounterCardsRow}>
+                {[
+                  { label: "Flight", tab: "flight", count: 651, icon: "airplane", color: "#2563EB" },
+                  { label: "Hotel", tab: "hotel", count: 423, icon: "office-building", color: "#10B981" },
+                  { label: "Bus", tab: "bus", count: 198, icon: "bus", color: "#F59E0B" },
+                  { label: "Holiday", tab: "holiday", count: 132, icon: "umbrella-beach", color: "#8B5CF6" },
+                  { label: "Visa", tab: "visa", count: 78, icon: "file-document-check", color: "#EF4444" },
+                ].map((s) => (
                   <TouchableOpacity
-                    key={r}
-                    style={[styles.rangePill, chartRange === r && styles.rangePillActive]}
-                    onPress={() => {
-                      setChartRange(r);
-                      setSelectedDayIndex(null);
-                    }}
+                    key={s.label}
+                    style={[
+                      styles.serviceMiniCard,
+                      bookingTab === s.tab && { borderColor: s.color, borderWidth: 1.5 },
+                    ]}
+                    onPress={() => setBookingTab(s.tab as any)}
+                    activeOpacity={0.8}
                   >
-                    <Text style={[styles.rangePillText, chartRange === r && styles.rangePillTextActive]}>
-                      {r}D
-                    </Text>
+                    <MaterialCommunityIcons name={s.icon as any} size={22} color={s.color} />
+                    <Text style={styles.serviceMiniCardLabel}>{s.label}</Text>
+                    <Text style={[styles.serviceMiniCardCount, { color: s.color }]}>{s.count}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            )}
+            </View>
           </View>
 
-          {canViewFinancials ? (
-            <View style={styles.chartCard}>
-              {/* Interactive Inspector HUD */}
-              <View style={styles.chartHud}>
-                <View>
-                  <Text style={styles.hudDateLabel}>{activePoint?.data.dateStr || "Today"}</Text>
-                  <Text style={styles.hudRevValue}>
-                    {currencySymbol}
-                    {Math.round(activePoint?.convertedVal || 0).toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.hudRightBox}>
-                  <View style={styles.hudStatPill}>
-                    <MaterialCommunityIcons name="ticket" size={12} color="#4f46e5" />
-                    <Text style={styles.hudStatText}>
-                      {activePoint?.data.bookings || 0} Bookings
-                    </Text>
-                  </View>
-                  <Text style={styles.hudHelperText}>Tap points along curve to inspect</Text>
-                </View>
+          {/* RIGHT COLUMN: Revenue Reports Donut, Trend Line, Top Destinations (38% width) */}
+          <View style={[styles.commandCenterRight, !isDesktop && { width: "100%" }]}>
+            
+            {/* 1. Revenue Reports Card (Donut Chart & Percentages) */}
+            <View style={styles.analyticsWhiteCard}>
+              <View style={styles.cardHeaderWithDropdown}>
+                <Text style={styles.analyticsCardTitle}>Revenue Reports</Text>
+                <TouchableOpacity
+                  style={styles.cardHeaderDropdownBtn}
+                  onPress={() => setRevenueDropdownOpen(true)}
+                >
+                  <Text style={styles.cardHeaderDropdownText}>{selectedRevenueType}</Text>
+                  <Ionicons name="chevron-down" size={11} color="#64748B" />
+                </TouchableOpacity>
               </View>
 
-              {/* SVG 30-Day Line Chart */}
-              <Svg width={chartWidth} height={chartHeight}>
+              <View style={styles.revenueSummaryBanner}>
+                <Text style={styles.revBannerLabel}>Total Revenue</Text>
+                <Text style={styles.revBannerAmount}>
+                  {currencySymbol} 52,65,250
+                </Text>
+                <Text style={styles.revBannerGrowth}>+22.8% from last month</Text>
+              </View>
+
+              {/* Donut Chart & Legend Row */}
+              <View style={styles.donutAndLegendRow}>
+                {/* Donut SVG */}
+                <View style={styles.donutBoxRelative}>
+                  <Svg width={130} height={130} viewBox="0 0 130 130">
+                    <G rotation="-90" origin="65, 65">
+                      {[
+                        { pct: 42.7, color: "#2563EB" },
+                        { pct: 29.7, color: "#10B981" },
+                        { pct: 14.9, color: "#8B5CF6" },
+                        { pct: 6.2, color: "#F59E0B" },
+                        { pct: 2.8, color: "#EF4444" },
+                        { pct: 3.7, color: "#64748B" },
+                      ].reduce((acc: any[], slice) => {
+                        const r = 45;
+                        const circ = 2 * Math.PI * r;
+                        const prevOffset = acc.length > 0 ? acc[acc.length - 1].cumulativePct : 0;
+                        const strokeDasharray = `${(slice.pct / 100) * circ} ${circ}`;
+                        const strokeDashoffset = -((prevOffset / 100) * circ);
+                        acc.push({
+                          ...slice,
+                          strokeDasharray,
+                          strokeDashoffset,
+                          cumulativePct: prevOffset + slice.pct,
+                        });
+                        return acc;
+                      }, []).map((slice: any, i: number) => (
+                        <Circle
+                          key={i}
+                          cx={65}
+                          cy={65}
+                          r={45}
+                          stroke={slice.color}
+                          strokeWidth={16}
+                          strokeDasharray={slice.strokeDasharray}
+                          strokeDashoffset={slice.strokeDashoffset}
+                          fill="transparent"
+                        />
+                      ))}
+                    </G>
+                  </Svg>
+                  <View style={styles.donutInnerOverlayCenter}>
+                    <Text style={styles.donutInnerTextTotal}>Total</Text>
+                    <Text style={styles.donutInnerTextSum}>{currencySymbol} 52.65 L</Text>
+                  </View>
+                </View>
+
+                {/* Donut Legend */}
+                <View style={styles.donutLegendList}>
+                  {[
+                    { label: "Flight", amount: "22.45 L", pct: "42.7%", color: "#2563EB" },
+                    { label: "Hotel", amount: "15.65 L", pct: "29.7%", color: "#10B981" },
+                    { label: "Holiday", amount: "7.85 L", pct: "14.9%", color: "#8B5CF6" },
+                    { label: "Bus", amount: "3.25 L", pct: "6.2%", color: "#F59E0B" },
+                    { label: "Visa", amount: "1.45 L", pct: "2.8%", color: "#EF4444" },
+                    { label: "Others", amount: "0.45 L", pct: "0.7%", color: "#64748B" },
+                  ].map((item) => (
+                    <View key={item.label} style={styles.donutLegendRowItem}>
+                      <View style={[styles.donutLegendDot, { backgroundColor: item.color }]} />
+                      <Text style={styles.donutLegendLabel}>{item.label}</Text>
+                      <Text style={styles.donutLegendAmount}>{currencySymbol} {item.amount}</Text>
+                      <Text style={styles.donutLegendPct}>({item.pct})</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {/* 2. Revenue Trend Card (Smooth Spline Area Chart) */}
+            <View style={styles.analyticsWhiteCard}>
+              <View style={styles.cardHeaderWithDropdown}>
+                <Text style={styles.analyticsCardTitle}>Revenue Trend</Text>
+                <TouchableOpacity
+                  style={styles.cardHeaderDropdownBtn}
+                  onPress={() => setTrendDropdownOpen(true)}
+                >
+                  <Text style={styles.cardHeaderDropdownText}>{selectedTrendPeriod}</Text>
+                  <Ionicons name="chevron-down" size={11} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Area Spline SVG */}
+              <Svg width={Math.max(260, isDesktop ? 320 : width - 70)} height={130}>
                 <Defs>
-                  <SvgLinearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0%" stopColor="#4f46e5" stopOpacity="0.32" />
-                    <Stop offset="100%" stopColor="#4f46e5" stopOpacity="0.00" />
+                  <SvgLinearGradient id="trendGradArea" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0%" stopColor="#2563EB" stopOpacity="0.25" />
+                    <Stop offset="100%" stopColor="#2563EB" stopOpacity="0.0" />
                   </SvgLinearGradient>
                 </Defs>
 
-                {/* Horizontal Grid lines */}
-                {[0, 0.33, 0.66, 1].map((ratio, idx) => {
-                  const y = padTop + ratio * usableHeight;
-                  const labelVal = Math.round(maxRevenue - ratio * revRange);
-                  return (
-                    <React.Fragment key={`grid-${idx}`}>
-                      <Line
-                        x1={padLeft}
-                        y1={y}
-                        x2={chartWidth - padRight}
-                        y2={y}
-                        stroke="#e2e8f0"
-                        strokeWidth="1"
-                        strokeDasharray="4,4"
-                      />
-                      <SvgText
-                        x={padLeft - 6}
-                        y={y + 3}
-                        fill="#94a3b8"
-                        fontSize="9"
-                        textAnchor="end"
-                      >
-                        {currencySymbol}
-                        {labelVal >= 1000 ? `${Math.round(labelVal / 1000)}k` : labelVal}
-                      </SvgText>
-                    </React.Fragment>
-                  );
-                })}
+                {/* Horizontal reference grid lines */}
+                {[0, 25, 50, 75, 100].map((y, idx) => (
+                  <Line
+                    key={idx}
+                    x1={36}
+                    y1={y + 10}
+                    x2={isDesktop ? 320 : width - 80}
+                    y2={y + 10}
+                    stroke="#F1F5F9"
+                    strokeWidth={1}
+                  />
+                ))}
 
-                {/* Shaded Area under Curve */}
-                {areaD !== "" && (
-                  <Path d={areaD} fill="url(#revenueGrad)" />
-                )}
+                {/* Y-axis labels */}
+                <SvgText x={30} y={14} fill="#94A3B8" fontSize="8" textAnchor="end">{currencySymbol} 80L</SvgText>
+                <SvgText x={30} y={39} fill="#94A3B8" fontSize="8" textAnchor="end">{currencySymbol} 60L</SvgText>
+                <SvgText x={30} y={64} fill="#94A3B8" fontSize="8" textAnchor="end">{currencySymbol} 40L</SvgText>
+                <SvgText x={30} y={89} fill="#94A3B8" fontSize="8" textAnchor="end">{currencySymbol} 20L</SvgText>
+                <SvgText x={30} y={114} fill="#94A3B8" fontSize="8" textAnchor="end">{currencySymbol} 0</SvgText>
 
-                {/* Main Revenue Curve Line */}
+                {/* Spline Area Fill */}
                 <Path
-                  d={pathD}
-                  fill="none"
-                  stroke="#4f46e5"
-                  strokeWidth="2.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  d="M 45 92 Q 80 84, 110 70 T 160 62 T 210 52 T 255 24 T 290 40 T 320 54 L 320 110 L 45 110 Z"
+                  fill="url(#trendGradArea)"
                 />
 
-                {/* Active Indicator Vertical Marker */}
-                {activePoint && (
-                  <Line
-                    x1={activePoint.x}
-                    y1={padTop}
-                    x2={activePoint.x}
-                    y2={padTop + usableHeight}
-                    stroke="#4f46e5"
-                    strokeWidth="1.2"
-                    strokeDasharray="3,3"
+                {/* Spline Line */}
+                <Path
+                  d="M 45 92 Q 80 84, 110 70 T 160 62 T 210 52 T 255 24 T 290 40 T 320 54"
+                  fill="none"
+                  stroke="#2563EB"
+                  strokeWidth="2.2"
+                />
+
+                {/* Key Points */}
+                {[
+                  { cx: 45, cy: 92 },
+                  { cx: 110, cy: 70 },
+                  { cx: 160, cy: 62 },
+                  { cx: 210, cy: 52 },
+                  { cx: 255, cy: 24 },
+                  { cx: 290, cy: 40 },
+                  { cx: 320, cy: 54 },
+                ].map((pt, idx) => (
+                  <Circle
+                    key={idx}
+                    cx={pt.cx}
+                    cy={pt.cy}
+                    r={3}
+                    fill="#ffffff"
+                    stroke="#2563EB"
+                    strokeWidth={2}
                   />
-                )}
+                ))}
 
-                {/* Data Points */}
-                {chartPoints.map((p, idx) => {
-                  const isSelected = activePoint && p.data.day === activePoint.data.day;
-                  const shouldRenderCircle =
-                    chartRange === 7 || idx % (chartRange === 14 ? 2 : 4) === 0 || isSelected;
-
-                  if (!shouldRenderCircle) return null;
-
-                  return (
-                    <Circle
-                      key={`pt-${idx}`}
-                      cx={p.x}
-                      cy={p.y}
-                      r={isSelected ? 6 : 3.5}
-                      fill={isSelected ? "#ffffff" : "#4f46e5"}
-                      stroke="#4f46e5"
-                      strokeWidth={isSelected ? 3 : 1.5}
-                      onPress={() => setSelectedDayIndex(idx)}
-                    />
-                  );
-                })}
-
-                {/* Date Axis Markers */}
-                {chartPoints.map((p, idx) => {
-                  const isFirst = idx === 0;
-                  const isMid = idx === Math.floor(chartPoints.length / 2);
-                  const isLast = idx === chartPoints.length - 1;
-
-                  if (!isFirst && !isMid && !isLast) return null;
-
-                  return (
-                    <SvgText
-                      key={`lbl-${idx}`}
-                      x={p.x}
-                      y={chartHeight - 6}
-                      fill="#64748b"
-                      fontSize="9"
-                      fontWeight="600"
-                      textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
-                    >
-                      {p.data.dateStr}
-                    </SvgText>
-                  );
-                })}
+                {/* X-axis date labels */}
+                <SvgText x={45} y={124} fill="#94A3B8" fontSize="8" textAnchor="middle">01 May</SvgText>
+                <SvgText x={110} y={124} fill="#94A3B8" fontSize="8" textAnchor="middle">08 May</SvgText>
+                <SvgText x={180} y={124} fill="#94A3B8" fontSize="8" textAnchor="middle">15 May</SvgText>
+                <SvgText x={255} y={124} fill="#94A3B8" fontSize="8" textAnchor="middle">22 May</SvgText>
+                <SvgText x={315} y={124} fill="#94A3B8" fontSize="8" textAnchor="middle">31 May</SvgText>
               </Svg>
+            </View>
 
-              {/* Chart Summary Badges */}
-              <View style={styles.chartSummaryRow}>
-                <View style={styles.chartSummaryItem}>
-                  <Text style={styles.chartSummaryLabel}>{chartRange}D Total GMV</Text>
-                  <Text style={styles.chartSummaryValue}>
-                    {currencySymbol}
-                    {Math.round(revValues.reduce((a, b) => a + b, 0)).toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.chartSummaryDivider} />
-                <View style={styles.chartSummaryItem}>
-                  <Text style={styles.chartSummaryLabel}>Daily Average</Text>
-                  <Text style={styles.chartSummaryValue}>
-                    {currencySymbol}
-                    {Math.round(
-                      revValues.reduce((a, b) => a + b, 0) / Math.max(1, displayedRevenueData.length)
-                    ).toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.chartSummaryDivider} />
-                <View style={styles.chartSummaryItem}>
-                  <Text style={styles.chartSummaryLabel}>Peak Day</Text>
-                  <Text style={styles.chartSummaryValue}>
-                    {currencySymbol}
-                    {Math.round(maxRevenue).toLocaleString()}
-                  </Text>
-                </View>
+            {/* 3. Top Selling Destinations (Holidays) Card */}
+            <View style={styles.analyticsWhiteCard}>
+              <Text style={styles.analyticsCardTitle}>Top Selling Destinations (Holidays)</Text>
+              <View style={styles.destinationsListContainer}>
+                {[
+                  { name: "Thailand", amount: "12,45,000", pct: 100, color: "#2563EB" },
+                  { name: "Dubai", amount: "9,85,000", pct: 79, color: "#10B981" },
+                  { name: "Singapore", amount: "6,25,000", pct: 50, color: "#8B5CF6" },
+                  { name: "Bali", amount: "4,75,000", pct: 38, color: "#F59E0B" },
+                  { name: "Malaysia", amount: "3,15,000", pct: 25, color: "#EF4444" },
+                ].map((d) => (
+                  <View key={d.name} style={styles.destinationRowItem}>
+                    <View style={styles.destNameCol}>
+                      <View style={[styles.destDot, { backgroundColor: d.color }]} />
+                      <Text style={styles.destNameText}>{d.name}</Text>
+                    </View>
+                    <View style={styles.destBarCol}>
+                      <View style={[styles.destBarFill, { width: `${d.pct}%`, backgroundColor: d.color }]} />
+                    </View>
+                    <Text style={styles.destAmountText}>{currencySymbol} {d.amount}</Text>
+                  </View>
+                ))}
               </View>
             </View>
-          ) : (
-            /* Restricted Security Banner when user role lacks financial clearance */
-            <View style={styles.restrictedGuardCard}>
-              <View style={styles.restrictedGuardIconBox}>
-                <MaterialCommunityIcons name="shield-lock-outline" size={44} color="#dc2626" />
+
+          </View>
+        </View>
+
+        {/* Action / Detail Modal for Table row [⋮] */}
+        <Modal
+          visible={actionModalVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setActionModalVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setActionModalVisible(false)}
+          >
+            <View style={styles.bookingActionModalCard}>
+              <View style={styles.bookingActionHeader}>
+                <View>
+                  <Text style={styles.actionModalOrderTitle}>
+                    {selectedBooking?.orderId} • {selectedBooking?.serviceTitle}
+                  </Text>
+                  <Text style={styles.actionModalSub}>PNR: {selectedBooking?.pnr}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setActionModalVisible(false)}>
+                  <Ionicons name="close" size={20} color="#64748B" />
+                </TouchableOpacity>
               </View>
-              <Text style={styles.restrictedGuardTitle}>Confidential Financial Telemetry</Text>
-              <Text style={styles.restrictedGuardDesc}>
-                Platform Gross Merchandise Value (GMV), daily cash inflow, and 30-day time-series revenue trends are restricted under enterprise governance policy.
-              </Text>
-              <View style={styles.restrictedRoleAlert}>
-                <MaterialCommunityIcons name="account-alert-outline" size={16} color="#b45309" />
-                <Text style={styles.restrictedRoleAlertText}>
-                  Your active persona ({role.replace("_", " ").toUpperCase()}) does not hold financial inspection clearance.
+
+              <View style={styles.bookingActionDetailsBox}>
+                <Text style={styles.actionDetailRow}>
+                  <Text style={styles.actionDetailBold}>Customer: </Text>
+                  {selectedBooking?.customerName} ({selectedBooking?.customerEmail})
+                </Text>
+                <Text style={styles.actionDetailRow}>
+                  <Text style={styles.actionDetailBold}>Route / Service: </Text>
+                  {selectedBooking?.route}
+                </Text>
+                <Text style={styles.actionDetailRow}>
+                  <Text style={styles.actionDetailBold}>Travel Date: </Text>
+                  {selectedBooking?.travelDate}
+                </Text>
+                <Text style={styles.actionDetailRow}>
+                  <Text style={styles.actionDetailBold}>Total Amount: </Text>
+                  {currencySymbol} {selectedBooking?.amount?.toLocaleString()}
+                </Text>
+                <Text style={styles.actionDetailRow}>
+                  <Text style={styles.actionDetailBold}>Status: </Text>
+                  {selectedBooking?.status?.toUpperCase()}
                 </Text>
               </View>
+
+              <Text style={styles.actionSectionHeader}>Change Status</Text>
+              <View style={styles.statusChangeButtonsRow}>
+                <TouchableOpacity
+                  style={[styles.statusBtn, { backgroundColor: "#10B981" }]}
+                  onPress={() => handleUpdateStatus("confirmed")}
+                >
+                  <Text style={styles.statusBtnText}>Confirm</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.statusBtn, { backgroundColor: "#2563EB" }]}
+                  onPress={() => handleUpdateStatus("completed")}
+                >
+                  <Text style={styles.statusBtnText}>Complete</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.statusBtn, { backgroundColor: "#F59E0B" }]}
+                  onPress={() => handleUpdateStatus("pending")}
+                >
+                  <Text style={styles.statusBtnText}>Pending</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.statusBtn, { backgroundColor: "#EF4444" }]}
+                  onPress={() => handleUpdateStatus("cancelled")}
+                >
+                  <Text style={styles.statusBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
-                style={styles.switchPersonaBtn}
-                onPress={() => onOpenRoleModal?.()}
-                activeOpacity={0.8}
+                style={styles.downloadTicketBtn}
+                onPress={() => {
+                  Alert.alert("E-Ticket Generated", `E-voucher for ${selectedBooking?.pnr} is ready for printing & dispatch.`);
+                  setActionModalVisible(false);
+                }}
               >
-                <MaterialCommunityIcons name="account-switch" size={16} color="#ffffff" />
-                <Text style={styles.switchPersonaBtnText}>Simulate Authorized Role (Finance / Super Admin)</Text>
+                <MaterialCommunityIcons name="file-pdf-box" size={18} color="#ffffff" />
+                <Text style={styles.downloadTicketBtnText}>Download Official E-Voucher</Text>
               </TouchableOpacity>
             </View>
-          )}
-        </View>
+          </TouchableOpacity>
+        </Modal>
 
-        {/* 2. Pie / Donut Chart: Booking Distribution (Hotels vs Flights vs Transit vs Tours) */}
-        <View style={styles.analyticsSection}>
-          <View style={styles.sectionHeaderRow}>
-            <View>
-              <Text style={styles.sectionHeaderTitle}>Vertical Booking Distribution</Text>
-              <Text style={styles.sectionHeaderSub}>Hotels vs Flights vs Transit vs Tours allocation</Text>
-            </View>
-            <TouchableOpacity onPress={() => onNavigateTab?.("booking-ops")}>
-              <Text style={styles.viewDetailLink}>View All Bookings →</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.donutCard}>
-            <View style={styles.donutContainer}>
-              {/* SVG Donut Chart */}
-              <Svg width={donutSize} height={donutSize} viewBox={`0 0 ${donutSize} ${donutSize}`}>
-                <G rotation="-90" origin={`${donutCenter}, ${donutCenter}`}>
-                  {verticalData.map((item) => {
-                    const strokeDasharray = `${(item.percentage / 100) * circumference} ${circumference}`;
-                    const strokeDashoffset = -((cumulativePercentage / 100) * circumference);
-                    cumulativePercentage += item.percentage;
-                    const isSelected = selectedVerticalId === item.id;
-
-                    return (
-                      <Circle
-                        key={item.id}
-                        cx={donutCenter}
-                        cy={donutCenter}
-                        r={donutRadius}
-                        stroke={item.color}
-                        strokeWidth={isSelected ? donutStrokeWidth + 4 : donutStrokeWidth}
-                        strokeDasharray={strokeDasharray}
-                        strokeDashoffset={strokeDashoffset}
-                        fill="transparent"
-                        strokeLinecap="round"
-                        onPress={() => {
-                          setSelectedVerticalId(selectedVerticalId === item.id ? null : item.id);
-                        }}
-                      />
-                    );
-                  })}
-                </G>
-              </Svg>
-
-              {/* Center Total Count Overlay */}
-              <View style={styles.donutCenterContent}>
-                <Text style={styles.donutCenterValue}>
-                  {(metrics?.confirmed_bookings || 0).toLocaleString()}
-                </Text>
-                <Text style={styles.donutCenterLabel}>Confirmed</Text>
-                <Text style={styles.donutCenterSub}>Orders</Text>
-              </View>
-            </View>
-
-            {/* Vertical Distribution Legend and Breakdown Cards */}
-            <View style={styles.verticalBreakdownGrid}>
-              {verticalData.map((v) => {
-                const isSelected = selectedVerticalId === v.id;
-                return (
-                  <TouchableOpacity
-                    key={v.id}
+        {/* Dropdowns for Table Filters */}
+        <Modal
+          visible={serviceDropdownOpen}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setServiceDropdownOpen(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setServiceDropdownOpen(false)}
+          >
+            <View style={styles.smallDropdownModal}>
+              <Text style={styles.dropdownModalTitle}>Filter by Service</Text>
+              {[
+                { id: "all", label: "All Services" },
+                { id: "flight", label: "Flight" },
+                { id: "hotel", label: "Hotel" },
+                { id: "bus", label: "Bus" },
+                { id: "holiday", label: "Holiday" },
+                { id: "visa", label: "Visa" },
+              ].map((s) => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[
+                    styles.dropdownOptionRow,
+                    serviceDropdownFilter === s.id && styles.dropdownOptionRowActive,
+                  ]}
+                  onPress={() => {
+                    setServiceDropdownFilter(s.id);
+                    setServiceDropdownOpen(false);
+                  }}
+                >
+                  <Text
                     style={[
-                      styles.verticalCard,
-                      isSelected && { borderColor: v.color, backgroundColor: `${v.color}08` },
+                      styles.dropdownOptionText,
+                      serviceDropdownFilter === s.id && styles.dropdownOptionTextActive,
                     ]}
-                    onPress={() => setSelectedVerticalId(selectedVerticalId === v.id ? null : v.id)}
-                    activeOpacity={0.7}
                   >
-                    <View style={styles.verticalCardHeader}>
-                      <View style={[styles.verticalColorDot, { backgroundColor: v.color }]} />
-                      <Text style={styles.verticalCardLabel} numberOfLines={1}>
-                        {v.label}
-                      </Text>
-                      <Text style={[styles.verticalPercentText, { color: v.color }]}>
-                        {v.percentage}%
-                      </Text>
-                    </View>
-                    <View style={styles.verticalMetricRow}>
-                      <Text style={styles.verticalCountText}>{v.count} Bookings</Text>
-                      {canViewFinancials ? (
-                        <Text style={styles.verticalRevText}>
-                          {currencySymbol}
-                          {Math.round((v.revenue * currencyRate) / 1000)}k GMV
-                        </Text>
-                      ) : (
-                        <Text style={styles.verticalRevTextMasked}>[Restricted]</Text>
-                      )}
-                    </View>
-                    {/* Visual Progress bar */}
-                    <View style={styles.progressBarTrack}>
-                      <View
-                        style={[
-                          styles.progressBarFill,
-                          { width: `${v.percentage}%`, backgroundColor: v.color },
-                        ]}
-                      />
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+                    {s.label}
+                  </Text>
+                  {serviceDropdownFilter === s.id && (
+                    <Ionicons name="checkmark" size={15} color="#2563EB" />
+                  )}
+                </TouchableOpacity>
+              ))}
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </Modal>
 
-        {/* ========================================================================= */}
+        <Modal
+          visible={statusDropdownOpen}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setStatusDropdownOpen(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setStatusDropdownOpen(false)}
+          >
+            <View style={styles.smallDropdownModal}>
+              <Text style={styles.dropdownModalTitle}>Filter by Status</Text>
+              {[
+                { id: "all", label: "All Status" },
+                { id: "confirmed", label: "Confirmed" },
+                { id: "completed", label: "Completed" },
+                { id: "pending", label: "Pending" },
+                { id: "cancelled", label: "Cancelled" },
+              ].map((s) => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[
+                    styles.dropdownOptionRow,
+                    statusFilter === s.id && styles.dropdownOptionRowActive,
+                  ]}
+                  onPress={() => {
+                    setStatusFilter(s.id as any);
+                    setStatusDropdownOpen(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownOptionText,
+                      statusFilter === s.id && styles.dropdownOptionTextActive,
+                    ]}
+                  >
+                    {s.label}
+                  </Text>
+                  {statusFilter === s.id && (
+                    <Ionicons name="checkmark" size={15} color="#2563EB" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        <Modal
+          visible={revenueDropdownOpen}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setRevenueDropdownOpen(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setRevenueDropdownOpen(false)}
+          >
+            <View style={styles.smallDropdownModal}>
+              <Text style={styles.dropdownModalTitle}>Revenue Segmentation</Text>
+              {["By Service Type", "By Destination", "By Gateway (bKash/Nagad)"].map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={[
+                    styles.dropdownOptionRow,
+                    selectedRevenueType === opt && styles.dropdownOptionRowActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedRevenueType(opt);
+                    setRevenueDropdownOpen(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownOptionText,
+                      selectedRevenueType === opt && styles.dropdownOptionTextActive,
+                    ]}
+                  >
+                    {opt}
+                  </Text>
+                  {selectedRevenueType === opt && (
+                    <Ionicons name="checkmark" size={15} color="#2563EB" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        <Modal
+          visible={trendDropdownOpen}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setTrendDropdownOpen(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setTrendDropdownOpen(false)}
+          >
+            <View style={styles.smallDropdownModal}>
+              <Text style={styles.dropdownModalTitle}>Time Period</Text>
+              {["This Month", "Last Month", "This Quarter", "Year to Date"].map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={[
+                    styles.dropdownOptionRow,
+                    selectedTrendPeriod === opt && styles.dropdownOptionRowActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedTrendPeriod(opt);
+                    setTrendDropdownOpen(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownOptionText,
+                      selectedTrendPeriod === opt && styles.dropdownOptionTextActive,
+                    ]}
+                  >
+                    {opt}
+                  </Text>
+                  {selectedTrendPeriod === opt && (
+                    <Ionicons name="checkmark" size={15} color="#2563EB" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+{/* ========================================================================= */}
         {/* REQUIREMENT 3: SYSTEM HEALTH TELEMETRY                                   */}
         {/* Supabase DB, Cloudflare R2, Payment Gateways (bKash/Nagad), FCM Push      */}
         {/* ========================================================================= */}
@@ -2277,6 +2738,641 @@ const styles = StyleSheet.create({
     color: "#2563EB",
     marginTop: 1,
   },
-});
 
-export default AdminDashboard;
+  // White Label SaaS Command Center Layout Styles
+  kpiGridFour: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+    marginBottom: 20,
+  },
+  whiteLabelKpiCard: {
+    flex: 1,
+    minWidth: 220,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  kpiCardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  kpiIconSquare: {
+    width: 46,
+    height: 46,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  currencySquareIcon: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  kpiContentColumn: {
+    flex: 1,
+  },
+  kpiLabelMuted: {
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  kpiNumberLarge: {
+    color: "#0F172A",
+    fontSize: 20,
+    fontWeight: "800",
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  kpiGrowthGreen: {
+    color: "#16A34A",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  kpiGrowthRed: {
+    color: "#DC2626",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+
+  // 2-Column Command Center
+  commandCenterRow: {
+    flexDirection: "row",
+    gap: 18,
+    marginBottom: 20,
+  },
+  commandCenterColStacked: {
+    flexDirection: "column",
+  },
+  commandCenterLeft: {
+    flex: 1.6,
+  },
+  commandCenterRight: {
+    flex: 1.0,
+    gap: 16,
+  },
+
+  // Booking Management Card
+  bookingManagementCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+    marginBottom: 16,
+  },
+  bookingCardTitle: {
+    color: "#0F172A",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  serviceTabsRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    marginBottom: 14,
+    gap: 8,
+  },
+  serviceTabItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  serviceTabItemActive: {
+    borderBottomColor: "#2563EB",
+  },
+  serviceTabText: {
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  serviceTabTextActive: {
+    color: "#2563EB",
+    fontWeight: "700",
+  },
+  filterToolbarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+    flexWrap: "wrap",
+  },
+  searchBarBox: {
+    flex: 1,
+    minWidth: 180,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  searchBarInput: {
+    flex: 1,
+    fontSize: 12,
+    color: "#0F172A",
+    padding: 0,
+  },
+  dropdownPickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  dropdownPickerText: {
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  filterActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  filterActionText: {
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // Table
+  tableInnerContainer: {
+    minWidth: 700,
+  },
+  tableHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  tableHeaderCell: {
+    color: "#64748B",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  tableDataRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  tableDataCellText: {
+    fontSize: 12,
+    color: "#334155",
+  },
+  orderIdText: {
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  customerNameText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#0F172A",
+  },
+  customerEmailText: {
+    fontSize: 10,
+    color: "#94A3B8",
+  },
+  serviceDataCell: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  serviceMiniIconBox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  serviceTitleText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#0F172A",
+  },
+  serviceRouteText: {
+    fontSize: 10,
+    color: "#64748B",
+  },
+  pnrText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  dateCellText: {
+    fontSize: 11,
+    color: "#64748B",
+  },
+  amountCellText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  statusBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
+  statusBadgeGreen: {
+    backgroundColor: "#ECFDF5",
+  },
+  statusBadgeBlue: {
+    backgroundColor: "#EFF6FF",
+  },
+  statusBadgeAmber: {
+    backgroundColor: "#FFFBEB",
+  },
+  statusBadgePillText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  statusBadgeTextGreen: {
+    color: "#059669",
+  },
+  statusBadgeTextBlue: {
+    color: "#2563EB",
+  },
+  statusBadgeTextAmber: {
+    color: "#D97706",
+  },
+  actionCellBtn: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 6,
+  },
+  viewAllBookingsLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: 12,
+    alignSelf: "flex-start",
+  },
+  viewAllBookingsLinkText: {
+    color: "#2563EB",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // Service Counter Section
+  serviceCounterSection: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+  },
+  serviceCounterSectionTitle: {
+    color: "#0F172A",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  serviceCounterCardsRow: {
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  serviceMiniCard: {
+    flex: 1,
+    minWidth: 90,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    gap: 4,
+  },
+  serviceMiniCardLabel: {
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  serviceMiniCardCount: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+
+  // Right Column Analytics Cards
+  analyticsWhiteCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+  },
+  cardHeaderWithDropdown: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  analyticsCardTitle: {
+    color: "#0F172A",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  cardHeaderDropdownBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+  },
+  cardHeaderDropdownText: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  revenueSummaryBanner: {
+    marginBottom: 12,
+  },
+  revBannerLabel: {
+    color: "#64748B",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  revBannerAmount: {
+    color: "#0F172A",
+    fontSize: 22,
+    fontWeight: "800",
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  revBannerGrowth: {
+    color: "#16A34A",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  donutAndLegendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  donutBoxRelative: {
+    position: "relative",
+    width: 130,
+    height: 130,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  donutInnerOverlayCenter: {
+    position: "absolute",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  donutInnerTextTotal: {
+    color: "#64748B",
+    fontSize: 10,
+    fontWeight: "500",
+  },
+  donutInnerTextSum: {
+    color: "#0F172A",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  donutLegendList: {
+    flex: 1,
+    gap: 4,
+  },
+  donutLegendRowItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  donutLegendDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  donutLegendLabel: {
+    color: "#334155",
+    fontSize: 11,
+    fontWeight: "500",
+    flex: 1,
+  },
+  donutLegendAmount: {
+    color: "#0F172A",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  donutLegendPct: {
+    color: "#94A3B8",
+    fontSize: 10,
+  },
+
+  // Destinations Progress
+  destinationsListContainer: {
+    marginTop: 10,
+    gap: 10,
+  },
+  destinationRowItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  destNameCol: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    width: 75,
+  },
+  destDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  destNameText: {
+    color: "#334155",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  destBarCol: {
+    flex: 1,
+    height: 5,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  destBarFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  destAmountText: {
+    color: "#0F172A",
+    fontSize: 11,
+    fontWeight: "600",
+    width: 75,
+    textAlign: "right",
+  },
+
+  // Booking Action Modal
+  bookingActionModalCard: {
+    width: 360,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 18,
+    alignSelf: "center",
+    marginTop: "auto",
+    marginBottom: "auto",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  bookingActionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: 10,
+    marginBottom: 12,
+  },
+  actionModalOrderTitle: {
+    color: "#0F172A",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  actionModalSub: {
+    color: "#64748B",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  bookingActionDetailsBox: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    padding: 10,
+    gap: 6,
+    marginBottom: 14,
+  },
+  actionDetailRow: {
+    color: "#475569",
+    fontSize: 12,
+  },
+  actionDetailBold: {
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  actionSectionHeader: {
+    color: "#0F172A",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  statusChangeButtonsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+  statusBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  statusBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  downloadTicketBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#2563EB",
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  downloadTicketBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  smallDropdownModal: {
+    width: 260,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dropdownModalTitle: {
+    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  dropdownOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  dropdownOptionRowActive: {
+    backgroundColor: '#EFF6FF',
+  },
+  dropdownOptionText: {
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  dropdownOptionTextActive: {
+    color: '#2563EB',
+    fontWeight: '700',
+  },
+
+
+});

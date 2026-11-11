@@ -14,6 +14,9 @@ from app.api.v1.endpoints.flights import router as flights_router
 from app.api.v1.endpoints.forecast import router as forecast_router
 from app.api.v1.endpoints.hotels import router as hotels_router
 from app.api.v1.endpoints.kyc import router as kyc_router
+from app.api.v1.endpoints.itineraries import router as itineraries_router
+from app.api.v1.endpoints.travel_intelligence import router as travel_intelligence_router
+from app.api.v1.endpoints.marketplace import router as marketplace_router
 from app.api.v1.endpoints.ml import router as ml_router
 from app.api.v1.endpoints.payments import router as payments_router
 from app.api.v1.endpoints.price_alerts import router as price_alerts_router
@@ -37,4 +40,7 @@ api_v1_router.include_router(price_alerts_router)
 api_v1_router.include_router(admin_payouts_router)
 api_v1_router.include_router(agency_earnings_router)
 api_v1_router.include_router(kyc_router)
+api_v1_router.include_router(marketplace_router)
 api_v1_router.include_router(tickets_router)
+api_v1_router.include_router(itineraries_router)
+api_v1_router.include_router(travel_intelligence_router)

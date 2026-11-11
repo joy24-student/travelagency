@@ -10,6 +10,8 @@ const LazyAdminPortalShell = lazy(() =>
 
 const VALID_TABS: AdminTab[] = [
   "dashboard",
+  "hero-banners",
+  "marketplace",
   "booking-ops",
   "users",
   "agencies",

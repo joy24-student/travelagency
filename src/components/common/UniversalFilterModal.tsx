@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { PrecisionSlider } from "../ui/PrecisionSlider";
+import { PriceHistogramSlider } from "../ui/PriceHistogramSlider";
 import { toBengaliDigits } from "../../utils/formatters";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -45,6 +46,18 @@ export interface UniversalFilterModalProps {
     onChange: (val: number) => void;
   };
 
+  priceHistogram?: {
+    min: number;
+    max: number;
+    selectedMin: number;
+    selectedMax: number;
+    dataPoints?: number[];
+    step?: number;
+    currency?: string;
+    onChange: (min: number, max: number) => void;
+    title?: string;
+  };
+
   // Actions
   onClearAll: () => void;
   onApply: () => void;
@@ -63,6 +76,7 @@ export const UniversalFilterModal: React.FC<UniversalFilterModalProps> = ({
   selectedSort,
   onSelectSort,
   priceSlider,
+  priceHistogram,
   onClearAll,
   onApply,
   children,
@@ -184,8 +198,25 @@ export const UniversalFilterModal: React.FC<UniversalFilterModalProps> = ({
               </View>
             )}
 
-            {/* 2. Precision Slider for Price / Budget */}
-            {priceSlider && (
+            {/* 2. Histogram Price Distribution Slider (Airbnb Style) */}
+            {priceHistogram && (
+              <View style={styles.section}>
+                <PriceHistogramSlider
+                  min={priceHistogram.min}
+                  max={priceHistogram.max}
+                  selectedMin={priceHistogram.selectedMin}
+                  selectedMax={priceHistogram.selectedMax}
+                  dataPoints={priceHistogram.dataPoints}
+                  step={priceHistogram.step}
+                  currency={priceHistogram.currency}
+                  onChange={priceHistogram.onChange}
+                  title={priceHistogram.title || (isBn ? "বাজেট ডিস্ট্রিবিউশন" : "Price Distribution")}
+                />
+              </View>
+            )}
+
+            {/* 2b. Precision Slider for Price / Budget */}
+            {priceSlider && !priceHistogram && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Ionicons name="cash-outline" size={16} color="#059669" />

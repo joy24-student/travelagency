@@ -575,6 +575,29 @@ export default function TripsTab() {
           </View>
         ) : (
           <>
+        {/* AI Travel Disruption Surveillance Banner */}
+        <TouchableOpacity
+          style={styles.travelIntelligenceBanner}
+          activeOpacity={0.88}
+          onPress={() => router.push(ROUTES.SCREENS.TRAVEL_INTELLIGENCE)}
+        >
+          <View style={styles.intelBannerLeft}>
+            <View style={styles.intelIconCircle}>
+              <Ionicons name="shield-checkmark" size={20} color="#287DFA" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.intelBannerTitle}>Travel Intelligence Active</Text>
+                <View style={styles.livePulseDot} />
+              </View>
+              <Text style={styles.intelBannerSub}>
+                24/7 AI delay monitoring & automatic alternative recommendations
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#287DFA" />
+        </TouchableOpacity>
+
         {/* Horizontal Navigation Pills (Screenshot 2) */}
         <ScrollView
           horizontal
@@ -590,6 +613,26 @@ export default function TripsTab() {
           >
             <Ionicons name="calendar-outline" size={14} color="#111827" />
             <Text style={styles.filterPillText}>All Bookings</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.filterPill}
+            onPress={() => router.push(ROUTES.SCREENS.EXPLORE_TRIPS)}
+          >
+            <Ionicons name="compass-outline" size={14} color="#287DFA" />
+            <Text style={[styles.filterPillText, { color: "#287DFA", fontWeight: "700" }]}>
+              Explore Marketplace
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.filterPill}
+            onPress={() => router.push(ROUTES.SCREENS.TRAVEL_INTELLIGENCE)}
+          >
+            <Ionicons name="shield-outline" size={14} color="#059669" />
+            <Text style={[styles.filterPillText, { color: "#059669", fontWeight: "700" }]}>
+              Disruption Guardian
+            </Text>
           </Pressable>
 
           <Pressable
@@ -1574,5 +1617,46 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
     marginTop: 16,
+  },
+  travelIntelligenceBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  intelBannerLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  intelIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#DBEAFE",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  intelBannerTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1E40AF",
+  },
+  livePulseDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#10B981",
+  },
+  intelBannerSub: {
+    fontSize: 11,
+    color: "#3B82F6",
+    marginTop: 2,
   },
 });

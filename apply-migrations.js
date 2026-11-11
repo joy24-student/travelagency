@@ -62,6 +62,7 @@ async function applyMigrations() {
       const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
 
       try {
+        await client.query("BEGIN;");
         await client.query(sql);
         await client.query(
           `INSERT INTO supabase_migrations.schema_migrations (version, name, statements)
@@ -69,10 +70,12 @@ async function applyMigrations() {
            ON CONFLICT (version) DO NOTHING;`,
           [version, name, [`Applied from ${file}`]]
         );
+        await client.query("COMMIT;");
         console.log(`✅ ${file} applied successfully!`);
       } catch (sqlErr) {
+        try { await client.query("ROLLBACK;"); } catch (_) {}
         console.error(`⚠️  Warning/Error applying ${file}:`, sqlErr.message);
-        // Continue or rethrow depending on error severity
+        // Continue to other independent migrations
       }
     }
 

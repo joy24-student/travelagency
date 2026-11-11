@@ -31,6 +31,7 @@ import { screens, type UIScreen } from "../data/screens";
 import { savedItemsService } from "../services/savedItemsService";
 import { SearchAutocompleteDropdown } from "../components/search/SearchAutocompleteDropdown";
 import { formatPrice } from "../utils/currency";
+import { trendingSearchService } from "../services/trendingSearchService";
 
 const PRIMARY = "#0055F2";
 
@@ -128,13 +129,25 @@ export function SearchScreen({ screen }: { screen?: UIScreen } = {}) {
   useEffect(() => {
     const loadSearchData = async () => {
       try {
-        const { data: dests } = await supabase
-          .from("destinations")
-          .select("name")
-          .limit(8);
+        const [destsRes, trending] = await Promise.all([
+          supabase.from("destinations").select("name").limit(6),
+          trendingSearchService.getActiveTrending(),
+        ]);
 
-        if (dests && dests.length > 0) {
-          setSuggestions(dests.map((d: any) => d.name));
+        const combinedSuggestions: string[] = [];
+        if (trending && trending.length > 0) {
+          combinedSuggestions.push(...trending.map((t) => t.query_text));
+        }
+        if (destsRes.data && destsRes.data.length > 0) {
+          destsRes.data.forEach((d: any) => {
+            if (!combinedSuggestions.includes(d.name)) {
+              combinedSuggestions.push(d.name);
+            }
+          });
+        }
+
+        if (combinedSuggestions.length > 0) {
+          setSuggestions(combinedSuggestions);
         }
       } catch (err) {
         console.warn("Error loading search suggestions:", err);

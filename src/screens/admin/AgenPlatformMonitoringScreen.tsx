@@ -417,6 +417,57 @@ export default function AgenPlatformMonitoringScreen() {
         </View>
       </View>
 
+      {/* Travel Intelligence & Provider Health Stream */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Travel Disruption Intelligence & Providers</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#10b981" }} />
+            <Text style={{ fontSize: 12, color: "#059669", fontWeight: "700" }}>Live Surveillance</Text>
+          </View>
+        </View>
+
+        <View style={{ gap: 10, marginTop: 12 }}>
+          {[
+            { name: "Biman Bangladesh Airlines (Amadeus/Aviationstack)", status: "Active (98% Conf)", latency: "142ms", health: "healthy" },
+            { name: "Bangladesh Railway (Authorized Station Bulletins)", status: "Active (92% Conf)", latency: "210ms", health: "healthy" },
+            { name: "Inter-District Bus Ticketing (Green Line/Shohag)", status: "Active (95% Conf)", latency: "95ms", health: "healthy" },
+            { name: "BMD Meteorological Weather Warnings", status: "Active (Marine Signals)", latency: "180ms", health: "healthy" },
+          ].map((prov, idx) => (
+            <View
+              key={idx}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: "#FFFFFF",
+                borderWidth: 1,
+                borderColor: "#E2E8F0",
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#1E293B" }}>{prov.name}</Text>
+                <Text style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                  Telemetry Latency: {prov.latency}
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: "#ECFDF5",
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 8,
+                }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#059669" }}>{prov.status}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+
       {/* Footer */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>

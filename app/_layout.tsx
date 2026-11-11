@@ -188,6 +188,14 @@ const RootLayoutContent = () => {
           }}
         />
 
+        {/* Dynamic B2B Travel Agency Web Portal (Isolated into Async Chunks) */}
+        <Stack.Screen
+          name="agency"
+          options={{
+            headerShown: false,
+          }}
+        />
+
         <Stack.Screen
           name="index"
           options={{

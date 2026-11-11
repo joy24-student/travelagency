@@ -169,6 +169,13 @@ export default function OnboardingScreen() {
 
         {/* Branding Content */}
         <View style={[styles.content, { backgroundColor: themeCardBg }]}>
+          {/* Micro Pill Tag (Image 6 UX Pattern) */}
+          <View style={[styles.pillTag, { backgroundColor: isDark ? "rgba(40, 125, 250, 0.2)" : "#E0F2FE" }]}>
+            <Text style={[styles.pillTagText, { color: isDark ? "#60A5FA" : "#0284C7" }]}>
+              EXPLORE • CAPTURE • TRACK
+            </Text>
+          </View>
+
           <View style={styles.branding}>
             <Text style={styles.brandName}>{BRAND.name.en}</Text>
             <Text style={[styles.brandTagline, { color: themeText }]}>{data.title}</Text>
@@ -273,6 +280,17 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
     alignItems: "center",
+  },
+  pillTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: 8,
+  },
+  pillTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
   },
   branding: { marginBottom: 8, alignItems: "center" },
   brandName: { color: "#3662D8", fontSize: 32, fontWeight: "800", letterSpacing: -0.5 },

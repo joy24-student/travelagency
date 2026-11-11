@@ -27,6 +27,16 @@ from app.models.price_alert import PriceAlert, PriceSnapshot
 from app.models.ledger import LedgerAccount, LedgerEntry, PayoutBatch, Payout
 from app.models.kyc import KYCSubmission, KYCDocument, KYCCheck, KYCAuditLog
 from app.models.ticket import Ticket, TicketScan
+from app.models.marketplace import (
+    ProviderProfileModel,
+    ProviderDocumentModel,
+    ProviderServiceModel,
+    MarketplaceBookingModel,
+    TripSessionModel,
+    TripLocationModel,
+    TripEmergencyEventModel,
+    MarketplaceReviewModel,
+)
 
 __all__ = [
     "UUIDMixin",

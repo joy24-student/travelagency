@@ -7,6 +7,7 @@
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { networkStatusService } from "../network/networkStatusService";
 import { toast } from "../../components/ui/Toast";
 
@@ -42,6 +43,11 @@ class OfflineQueueService {
   }
 
   private async loadQueue(): Promise<void> {
+    if (typeof window === "undefined") {
+      this.queue = [];
+      this.isLoaded = true;
+      return;
+    }
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (data) {
@@ -57,6 +63,7 @@ class OfflineQueueService {
   }
 
   private async persistQueue(): Promise<void> {
+    if (typeof window === "undefined") return;
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(this.queue));
     } catch (err) {

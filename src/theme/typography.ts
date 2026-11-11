@@ -6,6 +6,38 @@ import i18n from "../locales/i18n";
  */
 
 export const FONTS = {
+  // Shopno Jatra primary typography tokens (defaulting to Hind Siliguri / Bengali platform-safe fonts)
+  light: Platform.select({
+    ios: "HindSiliguri-Light",
+    android: "HindSiliguri_300Light",
+    web: "'Hind Siliguri', 'Noto Sans Bengali', sans-serif",
+    default: "HindSiliguri_300Light",
+  }),
+  regular: Platform.select({
+    ios: "HindSiliguri-Regular",
+    android: "HindSiliguri_400Regular",
+    web: "'Hind Siliguri', 'Noto Sans Bengali', sans-serif",
+    default: "HindSiliguri_400Regular",
+  }),
+  medium: Platform.select({
+    ios: "HindSiliguri-Medium",
+    android: "HindSiliguri_500Medium",
+    web: "'Hind Siliguri', 'Noto Sans Bengali', sans-serif",
+    default: "HindSiliguri_500Medium",
+  }),
+  semiBold: Platform.select({
+    ios: "HindSiliguri-SemiBold",
+    android: "HindSiliguri_600SemiBold",
+    web: "'Hind Siliguri', 'Noto Sans Bengali', sans-serif",
+    default: "HindSiliguri_600SemiBold",
+  }),
+  bold: Platform.select({
+    ios: "HindSiliguri-Bold",
+    android: "HindSiliguri_700Bold",
+    web: "'Hind Siliguri', 'Noto Sans Bengali', sans-serif",
+    default: "HindSiliguri_700Bold",
+  }),
+
   bengali: {
     light: Platform.select({
       ios: "HindSiliguri-Light",

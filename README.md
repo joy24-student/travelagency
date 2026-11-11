@@ -32,7 +32,7 @@ A next-generation enterprise-grade travel ecosystem built with Expo (React Nativ
 
 ## 🚀 Getting Started
 
-### 1. Consumer Mobile App (React Native / Expo)
+### 1. Consumer Mobile App & Web (React Native / Expo)
 
 ```bash
 # Install dependencies
@@ -45,11 +45,33 @@ npm run start
 npm run android
 npm run ios
 
-# Run Jest tests
-npm run test
+# Run Dynamic Web Platform (including B2B Agency Web Portal & Admin Portal)
+npm run web
+# Access Travel Agency Web Portal: http://localhost:8081/agency
+# Access Admin Portal: http://localhost:8081/admin
 ```
 
-### 2. Backend Service (FastAPI)
+### 2. Standalone Travel Agency Mobile App (AGEN/)
+
+```bash
+cd AGEN
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run start
+
+# Run on Android / iOS / Web
+npm run android
+npm run ios
+npm run web
+
+# TypeScript validation
+npm run type-check
+```
+
+### 3. Backend Service (FastAPI)
 
 ```bash
 cd backend

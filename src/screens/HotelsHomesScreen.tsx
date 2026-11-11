@@ -35,6 +35,7 @@ import { DirectChatModal } from "../components/DirectChatModal";
 import { ListSkeleton, CardSkeleton, ErrorStateCard, ResultsSummaryHeader, ComparisonModal, ComparisonItem } from "../components/common";
 import { EmptyState } from "../components/ui/EmptyState";
 import { PrecisionSlider } from "../components/ui/PrecisionSlider";
+import { PriceHistogramSlider } from "../components/ui/PriceHistogramSlider";
 import { formatPrice as utilsFormatPrice } from "../utils/currency";
 import { useTravelStore } from "../store/travelStore";
 import { travelRepository, HotelSearchResult, HotelSearchFilters } from "../repositories";
@@ -1465,21 +1466,23 @@ export function HotelsHomesScreen() {
             </ScrollView>
           </View>
 
-          {/* 4. Interactive Precision Slider & Stepper Controls */}
+          {/* 4. Airbnb-style Price Range Histogram Distribution Slider */}
           <View style={styles.filterGroupRow} className="mb-3">
-            <PrecisionSlider
-              label="বাজেট সীমা (সর্বোচ্চ প্রতি রাত)"
-              value={maxPriceSlider}
+            <PriceHistogramSlider
               min={HOSPITALITY_CONFIG.MIN_BUDGET}
               max={HOSPITALITY_CONFIG.MAX_BUDGET}
+              selectedMin={minPriceSlider}
+              selectedMax={maxPriceSlider}
               step={HOSPITALITY_CONFIG.BUDGET_STEP}
-              unit="/রাত"
-              presets={BUDGET_MILESTONES as any}
-              onChange={(val) => {
-                setMaxPriceSlider(val);
+              currency="USD"
+              title="বাজেট ডিস্ট্রিবিউশন (Price Distribution)"
+              onChange={(newMin, newMax) => {
+                setMinPriceSlider(newMin);
+                setMaxPriceSlider(newMax);
                 setPricePreset("custom");
                 syncStoreFilters({
-                  maxPrice: val < HOSPITALITY_CONFIG.MAX_BUDGET ? val : undefined,
+                  minPrice: newMin > HOSPITALITY_CONFIG.MIN_BUDGET ? newMin : undefined,
+                  maxPrice: newMax < HOSPITALITY_CONFIG.MAX_BUDGET ? newMax : undefined,
                 });
               }}
             />

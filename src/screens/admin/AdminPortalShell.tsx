@@ -23,6 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { AdminUser, AdminRole } from "@/types/admin";
 import { adminService } from "@/services/adminService";
+import { useResponsive } from "@/hooks/useResponsive";
 import {
   RBACProvider,
   useRBAC,
@@ -54,9 +55,13 @@ const NotificationCenterScreen = React.lazy(() => import("./NotificationCenterSc
 const HotelManagementScreen = React.lazy(() => import("./HotelManagementScreen").then((m) => ({ default: m.HotelManagementScreen })));
 const DemandHeatmapScreen = React.lazy(() => import("./DemandHeatmapScreen").then((m) => ({ default: m.DemandHeatmapScreen })));
 const AgencyKycReviewScreen = React.lazy(() => import("./AgencyKycReviewScreen").then((m) => ({ default: m.AgencyKycReviewScreen })));
+const MarketplaceManagementScreen = React.lazy(() => import("./MarketplaceManagementScreen").then((m) => ({ default: m.MarketplaceManagementScreen })));
+const HeroBannerManagementScreen = React.lazy(() => import("./HeroBannerManagementScreen").then((m) => ({ default: m.HeroBannerManagementScreen })));
 
 export type AdminTab =
   | "dashboard"
+  | "hero-banners"
+  | "marketplace"
   | "booking-ops"
   | "users"
   | "hotels"
@@ -143,6 +148,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     description: "Travel partner directory & licenses",
     badge: "B2B",
     color: "#7c3aed",
+  },
+  {
+    id: "marketplace",
+    label: "Local Guides & Boatmen",
+    shortLabel: "Marketplace",
+    icon: "compass",
+    category: "Operations",
+    description: "Provider verifications, active trips & emergency dispatch",
+    badge: "MKT",
+    color: "#0055F2",
   },
   {
     id: "agency-kyc",
@@ -243,6 +258,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     description: "Promo discount codes & campaign pipelines",
     badge: "Coupons",
     color: "#db2777",
+  },
+  {
+    id: "hero-banners",
+    label: "Hero Banner & Search",
+    shortLabel: "Hero & Search",
+    icon: "image-edit",
+    category: "Growth",
+    description: "Manage dynamic home banner, headlines, images & trending suggestions",
+    badge: "Dynamic",
+    color: "#0284c7",
   },
   {
     id: "ads",
@@ -389,12 +414,24 @@ const ROLES_LIST: {
 const AdminPortalShellInner: React.FC<AdminPortalShellProps> = ({
   initialTab = "dashboard",
 }) => {
+  const { width, isDesktop } = useResponsive();
   const { admin, role, switchRole, isTabAllowed, allowedTabs } = useRBAC();
   const [activeTab, setActiveTab] = useState<AdminTab>(initialTab as AdminTab);
   const [menuVisible, setMenuVisible] = useState(false);
   const [roleModalVisible, setRoleModalVisible] = useState(false);
   const [launcherSearch, setLauncherSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+
+  // Portal White Label Shell state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [bookingMenuOpen, setBookingMenuOpen] = useState(true);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileDrawerVisible, setMobileDrawerVisible] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("English");
+  const [languageMenuVisible, setLanguageMenuVisible] = useState(false);
+  const [dateRange, setDateRange] = useState("01 May 2024 - 31 May 2024");
+  const [dateRangeMenuVisible, setDateRangeMenuVisible] = useState(false);
+  const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
 
   // Fallback to dashboard gracefully if activeTab is forbidden under active role
   useEffect(() => {
@@ -471,12 +508,16 @@ const AdminPortalShellInner: React.FC<AdminPortalShellProps> = ({
         return <AgenAgencyManagementScreen />;
       case "agency-kyc":
         return <AgencyKycReviewScreen />;
+      case "marketplace":
+        return <MarketplaceManagementScreen />;
       case "destinations":
         return <DestinationManagementScreen admin={admin} />;
       case "refunds":
         return <RefundManagementScreen admin={admin} />;
       case "marketing":
         return <MarketingScreen admin={admin} />;
+      case "hero-banners":
+        return <HeroBannerManagementScreen />;
       case "ads":
         return <AdvertisementScreen admin={admin} />;
       case "reports":
@@ -510,101 +551,515 @@ const AdminPortalShellInner: React.FC<AdminPortalShellProps> = ({
     }
   };
 
+  const renderSidebarContent = (isDrawer = false) => {
+    const isSlim = sidebarCollapsed && !isDrawer;
+    return (
+      <View style={[styles.sidebarContainer, isSlim && styles.sidebarContainerSlim]}>
+        {/* Brand Header */}
+        <View style={styles.sidebarBrand}>
+          <View style={styles.brandLogoRow}>
+            <View style={styles.brandLogoBox}>
+              <MaterialCommunityIcons name="shield-airplane" size={20} color="#ffffff" />
+            </View>
+            {!isSlim && (
+              <View style={styles.brandTitleBox}>
+                <Text style={styles.brandName}>Rayds</Text>
+                <Text style={styles.brandSubtitle}>Travel Portal</Text>
+              </View>
+            )}
+          </View>
+          {isDrawer && (
+            <TouchableOpacity onPress={() => setMobileDrawerVisible(false)} style={styles.closeDrawerBtn}>
+              <Ionicons name="close" size={20} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Menu items */}
+        <ScrollView showsVerticalScrollIndicator={false} style={styles.sidebarMenuScroll}>
+          {/* Dashboard */}
+          <TouchableOpacity
+            style={[styles.sidebarItem, activeTab === "dashboard" && styles.sidebarItemActive]}
+            onPress={() => {
+              setActiveTab("dashboard");
+              if (isDrawer) setMobileDrawerVisible(false);
+            }}
+          >
+            <MaterialCommunityIcons
+              name="view-dashboard"
+              size={18}
+              color={activeTab === "dashboard" ? "#ffffff" : "#94A3B8"}
+            />
+            {!isSlim && (
+              <Text style={[styles.sidebarItemText, activeTab === "dashboard" && styles.sidebarItemTextActive]}>
+                Dashboard
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* User Management */}
+          <TouchableOpacity
+            style={[styles.sidebarItem, styles.sidebarItemDropdown]}
+            onPress={() => setUserMenuOpen(!userMenuOpen)}
+          >
+            <View style={styles.sidebarItemLeft}>
+              <MaterialCommunityIcons name="account-group-outline" size={18} color="#94A3B8" />
+              {!isSlim && <Text style={styles.sidebarItemText}>User Management</Text>}
+            </View>
+            {!isSlim && (
+              <Ionicons
+                name={userMenuOpen ? "chevron-down" : "chevron-forward"}
+                size={14}
+                color="#94A3B8"
+              />
+            )}
+          </TouchableOpacity>
+
+          {userMenuOpen && !isSlim && (
+            <View style={styles.sidebarSubMenu}>
+              <TouchableOpacity
+                style={[styles.sidebarSubItem, activeTab === "users" && styles.sidebarSubItemActive]}
+                onPress={() => {
+                  setActiveTab("users");
+                  if (isDrawer) setMobileDrawerVisible(false);
+                }}
+              >
+                <View style={[styles.sidebarSubDot, activeTab === "users" && styles.sidebarSubDotActive]} />
+                <Text style={[styles.sidebarSubText, activeTab === "users" && styles.sidebarSubTextActive]}>
+                  Users & KYC Queue
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sidebarSubItem, activeTab === "agency-kyc" && styles.sidebarSubItemActive]}
+                onPress={() => {
+                  setActiveTab("agency-kyc");
+                  if (isDrawer) setMobileDrawerVisible(false);
+                }}
+              >
+                <View style={[styles.sidebarSubDot, activeTab === "agency-kyc" && styles.sidebarSubDotActive]} />
+                <Text style={[styles.sidebarSubText, activeTab === "agency-kyc" && styles.sidebarSubTextActive]}>
+                  Agency KYC Review
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Booking Management */}
+          <TouchableOpacity
+            style={[
+              styles.sidebarItem,
+              styles.sidebarItemDropdown,
+              (activeTab === "booking-ops" || activeTab === "hotels") && styles.sidebarItemActiveParent,
+            ]}
+            onPress={() => setBookingMenuOpen(!bookingMenuOpen)}
+          >
+            <View style={styles.sidebarItemLeft}>
+              <MaterialCommunityIcons
+                name="ticket-confirmation-outline"
+                size={18}
+                color={bookingMenuOpen ? "#38bdf8" : "#94A3B8"}
+              />
+              {!isSlim && (
+                <Text
+                  style={[
+                    styles.sidebarItemText,
+                    bookingMenuOpen && { color: "#ffffff", fontWeight: "600" },
+                  ]}
+                >
+                  Booking Management
+                </Text>
+              )}
+            </View>
+            {!isSlim && (
+              <Ionicons
+                name={bookingMenuOpen ? "chevron-down" : "chevron-forward"}
+                size={14}
+                color="#94A3B8"
+              />
+            )}
+          </TouchableOpacity>
+
+          {bookingMenuOpen && !isSlim && (
+            <View style={styles.sidebarSubMenu}>
+              {[
+                { label: "Flight Bookings", tab: "booking-ops" as AdminTab },
+                { label: "Hotel Bookings", tab: "hotels" as AdminTab },
+                { label: "Bus Bookings", tab: "booking-ops" as AdminTab },
+                { label: "Holiday Bookings", tab: "destinations" as AdminTab },
+                { label: "Visa Bookings", tab: "booking-ops" as AdminTab },
+                { label: "All Bookings", tab: "booking-ops" as AdminTab },
+              ].map((sub, idx) => {
+                const isSubActive = activeTab === sub.tab;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[styles.sidebarSubItem, isSubActive && styles.sidebarSubItemActive]}
+                    onPress={() => {
+                      setActiveTab(sub.tab);
+                      if (isDrawer) setMobileDrawerVisible(false);
+                    }}
+                  >
+                    <View
+                      style={[styles.sidebarSubDot, isSubActive && styles.sidebarSubDotActive]}
+                    />
+                    <Text
+                      style={[styles.sidebarSubText, isSubActive && styles.sidebarSubTextActive]}
+                    >
+                      {sub.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Other Nav Items matching the reference screenshot */}
+          {[
+            { label: "Enquiries", tab: "support" as AdminTab, icon: "message-question-outline" },
+            { label: "Customers", tab: "users" as AdminTab, icon: "account-box-multiple-outline" },
+            { label: "Suppliers", tab: "agencies" as AdminTab, icon: "domain" },
+            { label: "Markup Management", tab: "commissions" as AdminTab, icon: "percent-outline" },
+            { label: "Promo Codes", tab: "marketing" as AdminTab, icon: "ticket-percent-outline" },
+            { label: "CMS Management", tab: "destinations" as AdminTab, icon: "file-document-edit-outline" },
+            { label: "Reports", tab: "reports" as AdminTab, icon: "chart-bar" },
+            { label: "Wallet Management", tab: "payment-ops" as AdminTab, icon: "wallet-outline" },
+            { label: "Payment Gateway", tab: "settings" as AdminTab, icon: "credit-card-outline" },
+            { label: "Settings", tab: "settings" as AdminTab, icon: "cog-outline" },
+          ].map((item, idx) => {
+            const isActive = activeTab === item.tab;
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={[styles.sidebarItem, isActive && styles.sidebarItemActive]}
+                onPress={() => {
+                  setActiveTab(item.tab);
+                  if (isDrawer) setMobileDrawerVisible(false);
+                }}
+              >
+                <View style={styles.sidebarItemLeft}>
+                  <MaterialCommunityIcons
+                    name={item.icon as any}
+                    size={18}
+                    color={isActive ? "#ffffff" : "#94A3B8"}
+                  />
+                  {!isSlim && (
+                    <Text style={[styles.sidebarItemText, isActive && styles.sidebarItemTextActive]}>
+                      {item.label}
+                    </Text>
+                  )}
+                </View>
+                {!isSlim && <Ionicons name="chevron-forward" size={13} color="#475569" />}
+              </TouchableOpacity>
+            );
+          })}
+
+          {/* Logout */}
+          <TouchableOpacity
+            style={[styles.sidebarItem, { marginTop: 14, marginBottom: 28 }]}
+            onPress={() => {
+              Alert.alert(
+                "White Label Portal",
+                "Are you sure you want to exit the administrative session?",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Exit", style: "destructive", onPress: () => setActiveTab("dashboard") },
+                ]
+              );
+            }}
+          >
+            <MaterialCommunityIcons name="logout" size={18} color="#ef4444" />
+            {!isSlim && <Text style={[styles.sidebarItemText, { color: "#ef4444" }]}>Logout</Text>}
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderTopHeader = () => (
+    <View style={styles.topHeader}>
+      <View style={styles.headerRow}>
+        {/* Left: Hamburger + Title */}
+        <View style={styles.headerLeftContainer}>
+          <TouchableOpacity
+            style={styles.hamburgerBtn}
+            onPress={() => {
+              if (isDesktop) {
+                setSidebarCollapsed(!sidebarCollapsed);
+              } else {
+                setMobileDrawerVisible(true);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="menu" size={20} color="#334155" />
+          </TouchableOpacity>
+
+          <Text style={styles.welcomeText} numberOfLines={1}>
+            Welcome to Rayds White Label Travel Portal
+          </Text>
+        </View>
+
+        {/* Right Controls matching the screenshot */}
+        <View style={styles.headerRightControls}>
+          {/* Language Selector */}
+          <TouchableOpacity
+            style={styles.headerPillBtn}
+            onPress={() => setLanguageMenuVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="globe-outline" size={14} color="#64748B" />
+            <Text style={styles.headerPillText}>{selectedLanguage}</Text>
+            <Ionicons name="chevron-down" size={11} color="#64748B" />
+          </TouchableOpacity>
+
+          {/* Notifications Bell with 12 */}
+          <TouchableOpacity
+            style={styles.notificationBtn}
+            onPress={() => setNotificationsModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="notifications-outline" size={18} color="#334155" />
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>12</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Admin Profile */}
+          <TouchableOpacity
+            style={styles.adminProfileChip}
+            onPress={() => setRoleModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.adminAvatarBox}>
+              <MaterialCommunityIcons name="account" size={18} color="#2563EB" />
+            </View>
+            <View style={styles.adminProfileInfo}>
+              <Text style={styles.adminName}>Admin</Text>
+              <Text style={styles.adminRoleSubtitle}>{currentRoleMeta.label}</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Date Range Filter */}
+          <TouchableOpacity
+            style={styles.dateRangePickerBtn}
+            onPress={() => setDateRangeMenuVisible(true)}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="calendar-range" size={14} color="#64748B" />
+            <Text style={styles.dateRangeText}>{dateRange}</Text>
+            <Ionicons name="chevron-down" size={12} color="#64748B" />
+          </TouchableOpacity>
+
+          {/* 3-Column Module Launcher Trigger Button */}
+          <TouchableOpacity
+            style={styles.launcherTriggerBtn}
+            onPress={() => setMenuVisible(true)}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="view-grid" size={16} color="#ffffff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <FocusAwareStatusBar style="dark" backgroundColor="#ffffff" />
 
-      {/* Top Header Bar */}
-      <View style={styles.topHeader}>
-        <View style={styles.headerRow}>
-          <View style={styles.titleContainer}>
-            <View style={styles.brandIconBox}>
-              <MaterialCommunityIcons name="shield-crown" size={18} color="#ffffff" />
+      {isDesktop ? (
+        /* Desktop Two-Column Layout */
+        <View style={styles.desktopLayoutRow}>
+          {renderSidebarContent(false)}
+          <View style={styles.desktopContentColumn}>
+            {renderTopHeader()}
+            <View style={styles.content}>
+              <React.Suspense
+                fallback={
+                  <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 300 }}>
+                    <ActivityIndicator size="large" color="#0284c7" />
+                  </View>
+                }
+              >
+                {renderActiveScreen()}
+              </React.Suspense>
             </View>
-            <View>
-              <Text style={styles.portalTitle}>Enterprise Command</Text>
-              <Text style={styles.portalSubtitle}>Shopno Jatra Ultra Core • 20 Modules</Text>
-            </View>
-          </View>
-
-          <View style={styles.headerRightActions}>
-            {/* RBAC Role Switcher Chip */}
-            <TouchableOpacity
-              style={[styles.roleChip, { borderColor: `${currentRoleMeta.color}50` }]}
-              onPress={() => setRoleModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <MaterialCommunityIcons
-                name={currentRoleMeta.icon as any}
-                size={14}
-                color={currentRoleMeta.color}
-              />
-              <Text style={[styles.roleChipText, { color: currentRoleMeta.color }]}>
-                {currentRoleMeta.label}
-              </Text>
-              <Ionicons name="chevron-down" size={12} color={currentRoleMeta.color} />
-            </TouchableOpacity>
-
-            {/* Dynamic 3-Column Launcher Trigger Button */}
-            <TouchableOpacity
-              style={styles.launcherTriggerBtn}
-              onPress={() => setMenuVisible(true)}
-              activeOpacity={0.8}
-            >
-              <MaterialCommunityIcons name="view-grid" size={18} color="#ffffff" />
-              <View style={styles.launcherBadgeCount}>
-                <Text style={styles.launcherBadgeCountText}>20</Text>
-              </View>
-            </TouchableOpacity>
           </View>
         </View>
+      ) : (
+        /* Mobile / Tablet View */
+        <View style={{ flex: 1 }}>
+          {renderTopHeader()}
+          <View style={styles.content}>
+            <React.Suspense
+              fallback={
+                <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 300 }}>
+                  <ActivityIndicator size="large" color="#0284c7" />
+                </View>
+              }
+            >
+              {renderActiveScreen()}
+            </React.Suspense>
+          </View>
 
-        {/* Scrollable Horizontal Tab Bar (Filtered by active RBAC role) */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabScrollView}
-          contentContainerStyle={styles.tabContainer}
-        >
-          {accessibleNavItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
+          {/* Mobile Drawer */}
+          <Modal
+            visible={mobileDrawerVisible}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setMobileDrawerVisible(false)}
+          >
+            <View style={styles.modalOverlayDark}>
+              <View style={styles.mobileDrawerPanel}>
+                {renderSidebarContent(true)}
+              </View>
               <TouchableOpacity
-                key={item.id}
-                style={[styles.tabItem, isActive && styles.activeTabItem]}
-                onPress={() => setActiveTab(item.id)}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name={item.icon as any}
-                  size={14}
-                  color={isActive ? "#ffffff" : "#64748b"}
-                />
-                <Text
-                  style={[styles.tabText, isActive && styles.activeTabText]}
-                >
-                  {item.shortLabel}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Active Screen View */}
-      <View style={styles.content}>
-        <React.Suspense
-          fallback={
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 300 }}>
-              <ActivityIndicator size="large" color="#0284c7" />
+                style={{ flex: 1 }}
+                onPress={() => setMobileDrawerVisible(false)}
+                activeOpacity={1}
+              />
             </View>
-          }
-        >
-          {renderActiveScreen()}
-        </React.Suspense>
-      </View>
+          </Modal>
+        </View>
+      )}
 
-      {/* RBAC Role Switcher Modal */}
+      {/* Language Selector Modal */}
+      <Modal
+        visible={languageMenuVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setLanguageMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setLanguageMenuVisible(false)}
+        >
+          <View style={styles.smallDropdownModal}>
+            <Text style={styles.dropdownModalTitle}>Select Language</Text>
+            {["English", "বাংলা", "العربية"].map((lang) => (
+              <TouchableOpacity
+                key={lang}
+                style={[
+                  styles.dropdownOptionRow,
+                  selectedLanguage === lang && styles.dropdownOptionRowActive,
+                ]}
+                onPress={() => {
+                  setSelectedLanguage(lang);
+                  setLanguageMenuVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dropdownOptionText,
+                    selectedLanguage === lang && styles.dropdownOptionTextActive,
+                  ]}
+                >
+                  {lang}
+                </Text>
+                {selectedLanguage === lang && (
+                  <Ionicons name="checkmark" size={16} color="#2563eb" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Date Range Modal */}
+      <Modal
+        visible={dateRangeMenuVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setDateRangeMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setDateRangeMenuVisible(false)}
+        >
+          <View style={styles.smallDropdownModal}>
+            <Text style={styles.dropdownModalTitle}>Time Horizon Range</Text>
+            {[
+              "01 May 2024 - 31 May 2024",
+              "Last 30 Days",
+              "Last 14 Days",
+              "Last 7 Days",
+              "Today (Live Telemetry)",
+            ].map((range) => (
+              <TouchableOpacity
+                key={range}
+                style={[
+                  styles.dropdownOptionRow,
+                  dateRange === range && styles.dropdownOptionRowActive,
+                ]}
+                onPress={() => {
+                  setDateRange(range);
+                  setDateRangeMenuVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dropdownOptionText,
+                    dateRange === range && styles.dropdownOptionTextActive,
+                  ]}
+                >
+                  {range}
+                </Text>
+                {dateRange === range && (
+                  <Ionicons name="checkmark" size={16} color="#2563eb" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Notifications Drawer Modal */}
+      <Modal
+        visible={notificationsModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setNotificationsModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setNotificationsModalVisible(false)}
+        >
+          <View style={styles.notificationsModalContent}>
+            <View style={styles.notifHeaderRow}>
+              <Text style={styles.dropdownModalTitle}>Active Notifications</Text>
+              <View style={styles.notifBadgeInner}>
+                <Text style={styles.notifBadgeInnerText}>12 New</Text>
+              </View>
+            </View>
+            <ScrollView style={{ maxHeight: 320 }}>
+              {[
+                { title: "New Flight Booking ORD123456", time: "2 mins ago", sub: "Amit Kumar booked 6E1X7A (DEL-BOM)" },
+                { title: "Pending Visa Verification", time: "15 mins ago", sub: "Vikram Das submitted UAE Tourist Visa docs" },
+                { title: "Hotel Room Confirmed", time: "32 mins ago", sub: "Neha Sharma confirmed Goa Stay reservation" },
+                { title: "Bus Booking Completed", time: "1 hr ago", sub: "Ravi Singh completed Delhi-Jaipur transit" },
+              ].map((n, i) => (
+                <View key={i} style={styles.notifItemRow}>
+                  <View style={styles.notifDot} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.notifItemTitle}>{n.title}</Text>
+                    <Text style={styles.notifItemSub}>{n.sub}</Text>
+                    <Text style={styles.notifItemTime}>{n.time}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.markAllReadBtn}
+              onPress={() => setNotificationsModalVisible(false)}
+            >
+              <Text style={styles.markAllReadText}>Close Notifications</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
       <Modal
         visible={roleModalVisible}
         animationType="slide"
@@ -1336,6 +1791,366 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#4f46e5",
+  },
+  // Desktop & Mobile SaaS Layout Styles
+  desktopLayoutRow: {
+    flexDirection: "row",
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
+  desktopContentColumn: {
+    flex: 1,
+    height: "100%",
+  },
+  sidebarContainer: {
+    width: 240,
+    backgroundColor: "#0B132B",
+    borderRightWidth: 1,
+    borderRightColor: "#1E293B",
+    height: "100%",
+  },
+  sidebarContainerSlim: {
+    width: 72,
+  },
+  sidebarBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1E293B",
+  },
+  brandLogoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  brandLogoBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: "#2563EB",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  brandTitleBox: {},
+  brandName: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  brandSubtitle: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  sidebarMenuScroll: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+  },
+  sidebarItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  sidebarItemActive: {
+    backgroundColor: "#2563EB",
+  },
+  sidebarItemActiveParent: {
+    backgroundColor: "#1E293B",
+  },
+  sidebarItemDropdown: {},
+  sidebarItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  sidebarItemText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  sidebarItemTextActive: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  sidebarSubMenu: {
+    paddingLeft: 18,
+    paddingVertical: 4,
+  },
+  sidebarSubItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginVertical: 1,
+  },
+  sidebarSubItemActive: {
+    backgroundColor: "#1E293B",
+  },
+  sidebarSubDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#64748B",
+  },
+  sidebarSubDotActive: {
+    backgroundColor: "#38BDF8",
+    width: 6,
+    height: 6,
+  },
+  sidebarSubText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  sidebarSubTextActive: {
+    color: "#ffffff",
+    fontWeight: "600",
+  },
+  closeDrawerBtn: {
+    padding: 4,
+  },
+  modalOverlayDark: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    flexDirection: "row",
+  },
+  mobileDrawerPanel: {
+    width: 280,
+    height: "100%",
+    backgroundColor: "#0B132B",
+  },
+  headerLeftContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  hamburgerBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: "#F1F5F9",
+  },
+  welcomeText: {
+    color: "#0F172A",
+    fontSize: 14,
+    fontWeight: "700",
+    maxWidth: 360,
+  },
+  headerRightControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerPillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+  },
+  headerPillText: {
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  notificationBtn: {
+    position: "relative",
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+  },
+  notifBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    backgroundColor: "#EF4444",
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  adminProfileChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  adminAvatarBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#DBEAFE",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  adminProfileInfo: {},
+  adminName: {
+    color: "#0F172A",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  adminRoleSubtitle: {
+    color: "#64748B",
+    fontSize: 10,
+    fontWeight: "500",
+  },
+  dateRangePickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+  },
+  dateRangeText: {
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  smallDropdownModal: {
+    width: 260,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    alignSelf: "center",
+    marginTop: "auto",
+    marginBottom: "auto",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dropdownModalTitle: {
+    color: "#0F172A",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  dropdownOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  dropdownOptionRowActive: {
+    backgroundColor: "#EFF6FF",
+  },
+  dropdownOptionText: {
+    color: "#475569",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  dropdownOptionTextActive: {
+    color: "#2563EB",
+    fontWeight: "700",
+  },
+  notificationsModalContent: {
+    width: 340,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 16,
+    alignSelf: "center",
+    marginTop: "auto",
+    marginBottom: "auto",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  notifHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: 8,
+  },
+  notifBadgeInner: {
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  notifBadgeInnerText: {
+    color: "#DC2626",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  notifItemRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F8FAFC",
+  },
+  notifDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#2563EB",
+    marginTop: 5,
+  },
+  notifItemTitle: {
+    color: "#0F172A",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  notifItemSub: {
+    color: "#64748B",
+    fontSize: 11,
+    marginTop: 1,
+  },
+  notifItemTime: {
+    color: "#94A3B8",
+    fontSize: 10,
+    marginTop: 2,
+  },
+  markAllReadBtn: {
+    marginTop: 12,
+    paddingVertical: 8,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  markAllReadText: {
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
 

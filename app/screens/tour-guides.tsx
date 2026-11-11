@@ -24,6 +24,7 @@ import { z } from "zod";
 import { TourGuide, GuideBookingRequest } from "../../src/types/tourGuide";
 import { tourGuideService } from "../../src/services/tourGuideService";
 import { RTLIcon } from "../../src/components/ui";
+import { SonarRadarView, RadarNode } from "../../src/components/common/SonarRadarView";
 
 
 const PRIMARY_BLUE = "#0055F2";
@@ -427,6 +428,7 @@ export default function TourGuidesScreen() {
 
   // Calendar View State
   const [showCalendarView, setShowCalendarView] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "radar">("list");
   const [calendarMonthOffset, setCalendarMonthOffset] = useState(0);
 
   // Guide Application / Registration Modal
@@ -587,6 +589,24 @@ export default function TourGuidesScreen() {
 
     return result;
   }, [guides, searchQuery, selectedRegion, selectedTourType, selectedLanguage, sortBy]);
+
+  // Computed Radar Nodes for Sonar Radar View (Image 1 UX Pattern)
+  const radarNodes: RadarNode[] = useMemo(() => {
+    return filteredAndSortedGuides.slice(0, 10).map((guide, idx) => {
+      const angle = (idx * (360 / Math.min(filteredAndSortedGuides.length || 1, 10))) % 360;
+      const radiusFraction = 0.38 + (idx % 3) * 0.24;
+      return {
+        id: guide.id,
+        name: guide.full_name,
+        avatar: guide.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120",
+        rating: guide.rating,
+        distanceKm: Number(((idx + 1) * 1.8).toFixed(1)),
+        specialty: guide.primary_area || "Certified Local Guide",
+        angle,
+        radiusFraction,
+      };
+    });
+  }, [filteredAndSortedGuides]);
 
   // Communication Handlers: Pre-booking Chat (AgencyChatScreen)
   const handleOpenChat = (guide: CertifiedGuideProfile | { id: string; full_name: string; avatar_url?: string; phone?: string; primary_area?: string }) => {
@@ -1146,12 +1166,78 @@ export default function TourGuidesScreen() {
             </ScrollView>
           </View>
 
-          {/* Guide Directory List */}
-          <ScrollView
-            style={styles.contentScroll}
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
-          >
+          {/* View Mode Toggle: List vs Sonar Radar (Image 1 UX Pattern) */}
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginHorizontal: 16, marginTop: 8, marginBottom: 6 }}>
+            <Text style={{ fontSize: 13, fontWeight: "700", color: DARK_NAVY }}>
+              {viewMode === "list" ? `উপলব্ধ গাইডগণ (${filteredAndSortedGuides.length})` : "আশেপাশের গাইড সোনার স্ক্যান (Sonar Radar)"}
+            </Text>
+            <View style={{ flexDirection: "row", backgroundColor: "#E2E8F0", borderRadius: 10, padding: 2 }}>
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                  borderRadius: 8,
+                  backgroundColor: viewMode === "list" ? "#FFFFFF" : "transparent",
+                }}
+                onPress={() => setViewMode("list")}
+              >
+                <Ionicons name="list" size={13} color={viewMode === "list" ? PRIMARY_BLUE : "#64748B"} />
+                <Text style={{ fontSize: 11, fontWeight: "700", marginLeft: 4, color: viewMode === "list" ? PRIMARY_BLUE : "#64748B" }}>
+                  তালিকা
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                  borderRadius: 8,
+                  backgroundColor: viewMode === "radar" ? "#FFFFFF" : "transparent",
+                }}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setViewMode("radar");
+                }}
+              >
+                <Ionicons name="radio" size={13} color={viewMode === "radar" ? PRIMARY_BLUE : "#64748B"} />
+                <Text style={{ fontSize: 11, fontWeight: "700", marginLeft: 4, color: viewMode === "radar" ? PRIMARY_BLUE : "#64748B" }}>
+                  রাডার
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {viewMode === "radar" ? (
+            <ScrollView
+              style={styles.contentScroll}
+              contentContainerStyle={{ alignItems: "center", paddingBottom: 60 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <SonarRadarView
+                nodes={radarNodes}
+                selectedNodeId={selectedGuide?.id}
+                onSelectNode={(node) => {
+                  const g = filteredAndSortedGuides.find((x) => x.id === node.id);
+                  if (g) setSelectedGuide(g);
+                }}
+                onConnectPress={(node) => {
+                  const g = filteredAndSortedGuides.find((x) => x.id === node.id);
+                  if (g) setSelectedGuide(g);
+                }}
+                centerLabel="আপনি (You)"
+                scanningText="আশেপাশের সার্টিফায়েড স্থানীয় গাইডদের সন্ধান চলছে..."
+              />
+            </ScrollView>
+          ) : (
+            /* Guide Directory List */
+            <ScrollView
+              style={styles.contentScroll}
+              contentContainerStyle={styles.contentContainer}
+              showsVerticalScrollIndicator={false}
+            >
             {loading ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color={PRIMARY_BLUE} />
@@ -1379,6 +1465,7 @@ export default function TourGuidesScreen() {
             )}
             <View style={{ height: 40 }} />
           </ScrollView>
+          )}
         </>
       ) : (
         /* MY BOOKINGS TAB VIEW */

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from "react";
-import { Platform,
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Platform,
   Animated,
   Dimensions,
   Modal,
@@ -12,7 +13,7 @@ import { Platform,
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-
+import { supabase } from "@/utils/supabase";
 
 const TRIP_BLUE = "#0055F2";
 const PINK_BG = "#FFF7F8";
@@ -25,7 +26,7 @@ interface PromoModalProps {
   onClaimAll?: () => void;
 }
 
-const PROMO_ITEMS = [
+const DEFAULT_PROMO_ITEMS = [
   {
     id: "p1",
     title: "Hotel Promo Code",
@@ -55,9 +56,46 @@ const PROMO_ITEMS = [
 export function PromoExclusiveModal({ visible, onClose, onClaimAll }: PromoModalProps) {
   const translateY = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const [promoItems, setPromoItems] = useState(DEFAULT_PROMO_ITEMS);
 
   useEffect(() => {
     if (visible) {
+      // Fetch dynamic active promo codes created by admin
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from("promo_codes")
+            .select("*")
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+            .limit(4);
+
+          if (data && data.length > 0) {
+            const mapped = data.map((p: any) => {
+              let iconName: any = "ticket-outline";
+              const cat = (p.applicable_category || "").toLowerCase();
+              if (cat.includes("hotel")) iconName = "bed-outline";
+              else if (cat.includes("flight")) iconName = "airplane-outline";
+              else if (cat.includes("train")) iconName = "train-outline";
+              else if (cat.includes("car")) iconName = "car-outline";
+
+              const discVal = Number(p.discount_amount ?? p.discount_value ?? 10);
+              const discText = p.discount_type === "percentage" ? `${discVal}% off` : `$${discVal} off`;
+
+              return {
+                id: p.id,
+                title: p.title || `${p.code} Special Promo`,
+                discount: discText,
+                icon: iconName,
+              };
+            });
+            setPromoItems(mapped);
+          }
+        } catch {
+          // Safe fallback
+        }
+      })();
+
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       Animated.parallel([
         Animated.timing(backdropOpacity, {
@@ -183,12 +221,12 @@ export function PromoExclusiveModal({ visible, onClose, onClaimAll }: PromoModal
 
           {/* Main Title */}
           <Text style={styles.mainHeadline}>
-            New user exclusives: Save up to $75
+            Exclusive Deals: Handpicked Discounts For You
           </Text>
 
           {/* Voucher Ticket Items List */}
           <View style={styles.voucherList}>
-            {PROMO_ITEMS.map((item) => (
+            {promoItems.map((item) => (
               <View key={item.id} style={styles.ticketCard}>
                 {/* Left Ticket Notch */}
                 <View style={styles.notchLeft} />
@@ -197,7 +235,7 @@ export function PromoExclusiveModal({ visible, onClose, onClaimAll }: PromoModal
 
                 {/* Left Icon Section */}
                 <View style={styles.ticketLeftIconBox}>
-                  <Ionicons name={item.icon} size={28} color={PINK_ICON_COLOR} />
+                  <Ionicons name={item.icon as any} size={28} color={PINK_ICON_COLOR} />
                 </View>
 
                 {/* Vertical Dashed Line */}
@@ -221,7 +259,7 @@ export function PromoExclusiveModal({ visible, onClose, onClaimAll }: PromoModal
               ]}
               onPress={handleClaim}
             >
-              <Text style={styles.claimBtnText}>Claim All</Text>
+              <Text style={styles.claimBtnText}>Claim All Vouchers</Text>
             </Pressable>
           </View>
 

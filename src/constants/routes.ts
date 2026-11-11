@@ -32,6 +32,8 @@ export const ROUTES = {
     SEARCH_STAYS: "/screens/search-stays" as const,
     FLIGHTS: "/screens/flights" as const,
     TRAINS: "/screens/trains" as const,
+    TRAIN_LIVE_TRACKING: "/screens/train-live-tracking" as const,
+    BUS_LIVE_TRACKING: "/screens/bus-live-tracking" as const,
     PACKAGES: "/screens/packages" as const,
     RECOMMENDED_TOURS: "/screens/recommended-tours" as const,
     TOUR_GUIDES: "/screens/tour-guides" as const,
@@ -59,6 +61,12 @@ export const ROUTES = {
     GROUP_TRIP: "/screens/group-trip" as const,
     LIVE: "/screens/live" as const,
     AGENCY_CHAT: "/screens/agency-chat" as const,
+    EXPLORE_TRIPS: "/screens/explore-trips" as const,
+    ITINERARY_DETAILS: "/screens/itinerary-details" as const,
+    ITINERARY_BUILDER: "/screens/itinerary-builder" as const,
+    ITINERARY_CLONE: "/screens/itinerary-clone" as const,
+    TRIP_CHECKOUT: "/screens/trip-checkout" as const,
+    TRAVEL_INTELLIGENCE: "/screens/travel-intelligence" as const,
   },
 
   // Authentication Routes

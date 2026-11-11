@@ -36,6 +36,7 @@ import { TravelVideoPlayer } from "../components/TravelVideoPlayer";
 import { useTheme } from "../context/ThemeContext";
 import { FONTS } from "../theme/typography";
 import { ProfileCompletenessBar } from "../components/profile/ProfileCompletenessBar";
+import { TravelerStatsRow } from "../components/profile/TravelerStatsRow";
 
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -765,6 +766,18 @@ export function UserProfileScreen() {
                 <Text style={[styles.statLabel, { color: colors.textMuted }]}>Followers</Text>
               </View>
             </View>
+
+            {/* Traveler Odometer & Persona (Image 4 UX Pattern) */}
+            <TravelerStatsRow
+              districtsCount={28}
+              mountainsCount={9}
+              tripsCount={userPosts.length > 0 ? userPosts.length + 12 : 21}
+              travelPersona={profile?.bio ? (profile.bio.length > 25 ? "Scenic Backpacker" : profile.bio) : "Nomad Explorer"}
+              onPressPersona={() => setShowEditProfileModal(true)}
+              onPressStats={(type) => {
+                if (type === "trips") setActiveTab("posts");
+              }}
+            />
 
             {/* Action Buttons Row */}
             <View style={styles.actionsRow}>

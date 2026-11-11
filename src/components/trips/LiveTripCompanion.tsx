@@ -34,6 +34,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { BoardingPassModal, BoardingPassData } from "./BoardingPassModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -266,8 +267,55 @@ export const LiveTripCompanion: React.FC<LiveTripCompanionProps> = ({
         </View>
       </View>
 
-      {/* Main Boarding Pass Trigger Button */}
+      {/* Main Boarding Pass & 3D Live Movement Trigger Buttons */}
       <View style={styles.ctaContainer}>
+        {activeTrip.transportType === "train" && (
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              router.push({
+                pathname: "/screens/train-live-tracking",
+                params: {
+                  trainNumber:
+                    activeTrip.serviceNumber.replace(/[^0-9]/g, "") || "702",
+                },
+              });
+            }}
+            style={[styles.viewPassButton, { backgroundColor: "#006A4E", marginBottom: 10 }]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <MaterialCommunityIcons name="train-car" size={20} color="#FACC15" />
+              <Text style={styles.viewPassButtonText}>
+                ৩ডি লাইভ অবস্থান ও ট্রেন মুভমেন্ট দেখুন
+              </Text>
+            </View>
+            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
+
+        {activeTrip.transportType === "bus" && (
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              router.push({
+                pathname: "/screens/bus-live-tracking",
+                params: {
+                  busId: "bus-gl-1",
+                },
+              });
+            }}
+            style={[styles.viewPassButton, { backgroundColor: "#F59E0B", marginBottom: 10 }]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Ionicons name="bus" size={20} color="#0F172A" />
+              <Text style={[styles.viewPassButtonText, { color: "#0F172A", fontWeight: "bold" }]}>
+                ৩ডি লাইভ অবস্থান ও বাস মুভমেন্ট দেখুন
+              </Text>
+            </View>
+            <Ionicons name="arrow-forward" size={18} color="#0F172A" />
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

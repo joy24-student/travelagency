@@ -496,6 +496,18 @@ export const backendApi = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  // Generic REST methods
+  get: <T = any>(endpoint: string, options?: { params?: Record<string, any>; headers?: Record<string, string> }) => {
+    let url = endpoint;
+    if (options?.params) {
+      const q = new URLSearchParams(options.params).toString();
+      if (q) url += (url.includes("?") ? "&" : "?") + q;
+    }
+    return apiRequest<T>(url, { method: "GET", headers: options?.headers });
+  },
+  post: <T = any>(endpoint: string, body?: any, options?: { headers?: Record<string, string> }) =>
+    apiRequest<T>(endpoint, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined, headers: options?.headers }),
 };
 
 export const apiClient = backendApi;
